@@ -27,35 +27,39 @@
 /*--------------------------------------------------------------------------*/
 
 #ifndef __MILPSolver
- #define __MILPSolver  
-   /* self-identification: #endif at the end of the file */
+#define __MILPSolver
+/* self-identification: #endif at the end of the file */
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include "SMSTypedefs.h"
-#include "ColVariable.h"
-#include "LinearConstraint.h"
-#include "DQuadObjectiveFunction.h"
-#include "Solver.h"
+// #include "SMSTypedefs.h"
+// #include "ColVariable.h"
+//#include "Observer.h"
+#include "FRowConstraint.h"
+#include "FRealObjective.h"
+//#include "DQuadObjectiveFunction.h"
+//#include "Block.h"
+// #include "Solver.h"
 #include <ilcplex/cplex.h>
-#include <ilcplex/cplexcheck.h> 
+#include <ilcplex/cplexcheck.h>
+
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 /// namespace for the Structured Modeling System++ (SMS++)
-namespace SMSpp_di_unipi_it
-{
+namespace SMSpp_di_unipi_it {
 
- class Block;  ///< forward definition of class Block
+class Block;  ///< forward definition of class Block
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- CLASS MILPSolver -------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
+
 /// derived class for solving MILP Problems via CPLEX
 /** The MILPSolver class derives from Solver [see Solver.h] and extends the 
  * interface of the base class to be able to efficiently handle and solve
@@ -166,9 +170,7 @@ namespace SMSpp_di_unipi_it
 
 class MILPSolver : public Solver {
 
-
-
-public:
+ public:
 
 /*--------------------------------------------------------------------------*/
 /*---------------------- PUBLIC TYPES OF THE CLASS -------------------------*/
@@ -178,27 +180,28 @@ public:
 
  typedef std::pair<int, ColVariable *> int_var;
 
- typedef std::pair<LinearConstraint *, int> const_int;
+ typedef std::pair<FRowConstraint *, int> const_int;
 
- typedef std::pair<int, LinearConstraint *> int_const;
+ typedef std::pair<int, FRowConstraint *> int_const;
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
+
 /** @name Constructor and Destructor
  *  @{ */
 
- MILPSolver( void ) : Solver() { 
-    env = 0; 
-    milp=0;
+ MILPSolver() : Solver() {
+  env = nullptr;
+  milp = nullptr;
  }
 
- virtual ~MILPSolver() {
-    if (env) {
-        CPXfreeprob (env, &milp);
-        CPXcloseCPLEX (&env);
-    }         
-}
+ ~MILPSolver() override {
+  if( env ) {
+   CPXfreeprob( env, &milp );
+   CPXcloseCPLEX( &env );
+  }
+ }
 
 /*@}------------------------------------------------------------------------*/
 /*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
@@ -210,16 +213,16 @@ public:
 
 /** @name Public Methods derived of the Base Class
  *  @{ */
- void set_Block( Block *block );
+ void set_Block( Block *block ) override;
  ///< method for setting the Block and building the corresponding CPLEX problem
 
- int solve( void ); 
+ int solve();
  ///< method for solving the problem with CPLEX
 
- void get_var_solution( void ); 
+ void get_var_solution( Configuration *solc) override;
  ///< method for writing the solution in Block
 
- bool new_var_solution( void ) {return (false);}
+ bool new_var_solution() override { return ( false ); }
 
 /*@}------------------------------------------------------------------------*/
 /*----------------------- METHODS FOR READING DATA  ------------------------*/
@@ -228,31 +231,55 @@ public:
 /** @name Public Methods for reading the data of the Block
  *  @{ */
 
- void scan_s_const (LinearConstraint & lconst, char * sense, double * rhs,  int & first, int & i);
+ void scan_static_constraints( FRowConstraint &lconst,
+                               char *sense,
+                               double *rhs,
+                               int &first, int &i );
  /***< method used to scan all the data of the each individual static constraint and
-    stores them in the appropriate vectors in order to pass them to CPLEX 
+    stores them in the appropriate vectors in order to pass them to CPLEX
  */
 
- void scan_d_const (LinearConstraint & lconst, char * sense, double * rhs, int & i);
+ void scan_dynamic_constraints( FRowConstraint &lconst,
+                                char *sense,
+                                double *rhs,
+                                int &i );
  /***< method used to scan all the data of the each individual dynamic constraint and
-    stores them in the appropriate vectors in order to pass them to CPLEX 
+    stores them in the appropriate vectors in order to pass them to CPLEX
  */
 
-  void scan_s_var (ColVariable & lvar,int *matbeg, int *matcnt, int *matind, double *matval, 
-                   /*double *objective, double *q_objective,*/ double *lb,  double *ub, char *xctype, int & first, int & i);
- /***< method used to scan all the data of the each individual static variable and 
-    stores them in the appropriate vectors in order to pass them to CPLEX 
+ // TODO Fix this
+ void scan_static_variables( ColVariable &lvar,
+                             int *matbeg,
+                             int *matcnt,
+                             int *matind,
+                             double *matval,
+                             // double *objective,
+                             // double *q_objective,
+                             double *lb,
+                             double *ub,
+                             char *xctype,
+                             int &first,
+                             int &i );
+ /***< method used to scan all the data of the each individual static variable and
+    stores them in the appropriate vectors in order to pass them to CPLEX
  */
 
-  void scan_l_of (LinearObjectiveFunction * l_obj_fun, double *objective, double *q_objective);
-
-  void scan_q_of (DQuadObjectiveFunction * q_obj_fun, double *objective, double *q_objective);
-
-  void scan_d_var (ColVariable & lvar, int *matbeg, int *matcnt, int *matind, double *matval, 
-                   double *objective, double *q_objective, double *lb,  double *ub, char *xctype, int & i );
- /***< method used to scan all the data of the each individual dynamic variable and 
-    stores them in the appropriate vectors in order to pass them to CPLEX 
+ void scan_dynamic_variables( ColVariable &lvar,
+                              int *matbeg,
+                              int *matcnt,
+                              int *matind,
+                              double *matval,
+                              double *objective,
+                              double *q_objective,
+                              double *lb,
+                              double *ub,
+                              char *xctype,
+                              int &i );
+ /***< method used to scan all the data of the each individual dynamic variable and
+    stores them in the appropriate vectors in order to pass them to CPLEX
  */
+
+ void scan_objective( const FRealObjective *obj, double *objective, double *q_objective );
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
@@ -262,32 +289,32 @@ public:
  *  @{ */
 
 
-void add_modifications( sp_Mod &mod ); 
-///< method for adding and handling a Modification of the Problem
-
-void var_modification( VariableModification* mod ); 
-///< method for adding and handling a Variable Modification
-
-void of_modification( ObjFunModification* mod ); 
-///< method for adding and handling an Objective Function Modification
-
-void const_modification( ConstraintModification* mod ); 
-///< method for adding and handling a Constraint Modification
-
-void dynamic_modification( BlockModificationAD* mod ); 
-///< method for handling a dynamic Modification
-
-void add_dynamic_constraint(LinearConstraint * r_const);
-///< method for adding a single new dynamic constraint to CPLEX
-
-void add_dynamic_variable(ColVariable * r_var);
-///< method for adding a single new dynamic variable to CPLEX
-
-void remove_dynamic_constraint(LinearConstraint * r_const);
-///< method for deleting a single dynamic constraint to CPLEX
-
-void remove_dynamic_variable(ColVariable * r_var);
-///< method for removing a single dynamic variable to CPLEX
+ // void add_modifications( sp_Mod &mod );
+ // ///< method for adding and handling a Modification of the Problem
+ //
+ // void var_modification( VariableMod *mod );
+ // ///< method for adding and handling a Variable Modification
+ //
+ // void of_modification( ObjectiveMod *mod );
+ // ///< method for adding and handling an Objective Function Modification
+ //
+ // void const_modification( ConstraintMod *mod );
+ // ///< method for adding and handling a Constraint Modification
+ //
+ // void dynamic_modification( BlockModAD *mod );
+ // ///< method for handling a dynamic Modification
+ //
+ // void add_dynamic_constraint( FRowConstraint *r_const );
+ // ///< method for adding a single new dynamic constraint to CPLEX
+ //
+ // void add_dynamic_variable( ColVariable *r_var );
+ // ///< method for adding a single new dynamic variable to CPLEX
+ //
+ // void remove_dynamic_constraint( FRowConstraint *r_const );
+ // ///< method for deleting a single dynamic constraint to CPLEX
+ //
+ // void remove_dynamic_variable( ColVariable *r_var );
+ // ///< method for removing a single dynamic variable to CPLEX
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------------- SUPPLEMENTARY METHODS  ------------------------*/
@@ -296,47 +323,46 @@ void remove_dynamic_variable(ColVariable * r_var);
 /** @name Supplementary Methods that are used in order to assist the above methods
  *  @{ */
 
-void count_const (LinearConstraint & lconst, int & count);
+ void count_constraints( FRowConstraint &lconst, int &count );
 ///< method used to count the total number of rows
 
-void count_var (ColVariable & lvar, int & count, int & count2);
-///< method used to count the total number of columns and non-zero elements
+ void count_variables( ColVariable &lvar, int &count, int &count2 );
+ ///< method used to count the total number of columns and non-zero elements
 
-void set_var_value( ColVariable & lvar, double *tmpx, int & i );
+ void set_var_value( ColVariable &lvar, double *tmpx, int &i );
 ///< method used to pass the solution to the variables
 
-int ind_var (ColVariable * p_var);
+ int ind_var( ColVariable *p_var );
 ///< method for returning the CPLEX coeff-matrix index of the examined Variable
 
-int ind_const (LinearConstraint * p_const);
+ int ind_const( FRowConstraint *p_const );
 ///< method for returning the CPLEX coeff-matrix index of the examined Constraint
 
-ColVariable * var_ind (int i);
+ ColVariable *var_ind( int i );
 ///< method for returning the Variable of the examined CPLEX coeff-matrix index
 
-LinearConstraint * const_ind (int i);
+ FRowConstraint *const_ind( int i );
 ///< method for returning the Constraint of the examined CPLEX coeff-matrix index
 
-OFValue get_lb( void );
+ OFValue get_lb() override;
 
-OFValue get_ub( void );
+ OFValue get_ub() override;
 
-void set_par( const int par , const int value );
+ void set_par( int par, int value );
 
-void set_par( const int par , const double value );
+ void set_par( int par, double value );
 
-void set_par( const int par , const long value );
+ // void set_par( int par, long value );
 
 
+ int sol_status;
+ int nodes;
+ int obj_type;
+ std::vector<int> indexed;
 
-int sol_status;
-int nodes;
-int obj_type;
-std::vector<int> indexed;
+ int cuts; //parameter for adding cuts
 
-int cuts; //parameter for adding cuts 
-
-int Callback (CPXCENVptr env, void *cbdata, int wherefrom, int *useraction_p);
+ int Callback( CPXCENVptr env, void *cbdata, int wherefrom, int *useraction_p );
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
@@ -345,9 +371,6 @@ int Callback (CPXCENVptr env, void *cbdata, int wherefrom, int *useraction_p);
  *  @{ */
 
 protected: 
-
-
-
 
 /*** The following vectors are used in order to keep track between the static vari-
   ables and constraints of the Block and the CPLEX coeff matrix. Where we have:
@@ -365,7 +388,6 @@ protected:
   Via the usage of these vectors of pair we can at any time locate the position
   of each individual static constraint and variable with (probably) the minimum
   calculation cost, via the usage of the corresponding methods.
-   
 
 */
 
@@ -394,8 +416,6 @@ protected:
   in lists and can at any time appear and dissapear from the problem and as a
   result we can not treat them in the same fashion as the static variables and
   constraint.
-   
-
 */
 
  std::vector<var_int> v_d_var_int;
@@ -411,22 +431,36 @@ block and then will proceed with the variables in each different sublock.
 Knowing the exact order gives us the advantage of being able to read all the
 parts of the solution in the fastest possible way. */
 
- std::vector< int > v_ind; 
+ std::vector<int> v_ind;
+ std::vector<ColVariable *> v_pt;
 
- std::vector< ColVariable * > v_pt;
+ // TODO Check if already available typedef
+ std::vector<std::vector<FRowConstraint *> > p_active_constraints;
+
+ // TODO The following fields are for supporting set_var() I have to figure out what to use in new version of SMS++
+ double f_max_time;    ///< maximum time for each call to solve()
+ int f_max_iter;       ///< maximum iterations in each call to solve()
+ int f_log_verb;       ///< "verbosity" of the log
+ double f_rel_acc;     ///< relative objective function accuracy
+ double f_abs_acc;    ///< absolute objective function accuracy
+ double f_up_cutoff;  ///< upper cutoff
+ double f_lw_cutoff;  ///< lower cutoff
+ int f_max_sol;        ///< max number of solutions for each call to solve()
+ double f_r_acc_sol;  ///< max relative error of a solution
+ double f_a_acc_sol;  ///< max absolute error of a solution
+ double f_f_acc_sol;   ///< max relative constraint violation of a solution
 
 /*** Following integer variables are used in order to store information needed to
     to populate the CPLEX Matrix
 */
 
-int numrows;
-int numcols;
-int nzelements;
+ int numrows;
+ int numcols;
+ int nzelements;
 
 /// Following two elements are used to initialize the CPLEX environement
-
  CPXENVptr env;
- CPXLPptr  milp;
+ CPXLPptr milp;
 
 /*@}*/
 
