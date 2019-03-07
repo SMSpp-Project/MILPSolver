@@ -13,6 +13,11 @@ include_directories("../sms_plus_plus_project/SMILPBlock")
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIRS})
+
+include_directories("/Applications/CPLEX_Studio128/cplex/include")
+
 include_directories()
 
 add_library(MILPSolver OBJECT src/MILPSolver.cpp)
