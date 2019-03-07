@@ -51,17 +51,25 @@ clean::
 # *H   is the list of all include files
 # *INC is the -I<include directories>
 
+# MILPSolver
+MILPSSDR = ../
+include $(MILPSSDR)makefile-c
+
+# define input macros for libMCFCl complete makefile, then include it
+libMCFClDIR = ../../MCFClass/
+include $(libMCFClDIR)lib/makefile-inc
+
 # MCFBlock
-MCFBkSDR = ../
-include $(MCFBkSDR)makefile-c
+MCFBkSDR = ../../MCFBlock/
+include $(MCFBkSDR)makefile
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
 # object files
-MOBJ =  $(MCFBkOBJ)
+MOBJ =  $(MILPSOBJ) $(libMCFClOBJ) $(MCFBkOBJ)
 
 # libreries
-MLIB =  $(MCFBkLIB)
+MLIB =  $(MILPSLIB) $(libMCFClLIB) $(MCFBkLIB)
 
 $(NAME): $(MOBJ) $(DIR)$(NAME).o
 	$(CC) -o test $(DIR)$(NAME).o $(MOBJ) $(MLIB) $(SW)
@@ -69,10 +77,10 @@ $(NAME): $(MOBJ) $(DIR)$(NAME).o
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
 # include directives
-MINC =  $(MCFBkINC)
+MINC =  $(MILPSINC) $(MCFBkINC) $(libMCFClINC)
 
 # includes
-MH =    $(MCFBkH)
+MH =    $(MILPSH)
 
 # compile command
 

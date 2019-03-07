@@ -523,7 +523,7 @@ void MILPSolver::scan_dynamic_variables( ColVariable &lvar,
  auto lin_fun = dynamic_cast<const LinearFunction *> (p_obj->get_function());
  if(lin_fun != nullptr) {
   LinearFunction::Index var_index = lin_fun->is_active(&lvar);
-  if (var_index != std::numeric_limits<typeof(var_index)>::infinity()) {
+  if (var_index != std::numeric_limits<LinearFunction::Index>::infinity()) {
    objective[i] = lin_fun->get_coefficient(var_index);
   } else {
    objective[i] = 0;
@@ -532,7 +532,7 @@ void MILPSolver::scan_dynamic_variables( ColVariable &lvar,
   auto dquad_fun = dynamic_cast<const DQuadFunction *> (p_obj->get_function());
   if( dquad_fun != nullptr ) {
    DQuadFunction::Index var_index = dquad_fun->is_active( &lvar );
-   if( var_index != std::numeric_limits<typeof( var_index )>::infinity()) {
+   if( var_index != std::numeric_limits<DQuadFunction::Index>::infinity()) {
     objective[i] = dquad_fun->get_linear_coefficient( var_index );
     q_objective[i] = dquad_fun->get_quadratic_coefficient( var_index );
    } else {

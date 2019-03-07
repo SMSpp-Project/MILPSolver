@@ -181,7 +181,7 @@ static inline void load( char * fn )
 
  // open[ 0 .. opened - 1 ] = names of open arcs
  // open[ opened ... m ] = names of closed arcs
- open.resize( opened = mcf->MCFm() );  // all arcs are open
+ open.resize( opened = oMCFB->get_NArcs() );  // all arcs are open
  for( int i = 0 ; i < opened ; i++ )
   open[ i ] = i;
 
@@ -200,73 +200,79 @@ static inline bool SolveMCF( void )
   // the "abstract" one must already be in the Modification queue of the
   // FakeSolver
 
-  if( sMCFB != mMCFB ) {
+  if( dMCFB ) {
    FakeSolver * fs = dynamic_cast<FakeSolver *>(
-				  (mMCFB->get_registered_solvers()).front() );
+				  (dMCFB->get_registered_solvers()).back() );
    assert( fs );
    Lst_sp_Mod & modlist = fs->get_Modification_list();
 
-   if( mMCFB == oMCFB ) {  // modify the original, solve the R3
-    for( auto mod : modlist ) {
-     //!! std::cout << *mod << std::endl;
-     oMCFB->map_forward_Modification( dMCFB , mod );
-     }
-    }
-   else {                  // modify the R3, solve the original
-    for( auto mod : modlist ) {
-     //!! std::cout << *mod << std::endl;
-     oMCFB->map_back_Modification( dMCFB , mod );
-     }
+   for( auto mod : modlist ) {
+    //!! std::cout << *mod << std::endl;
+    oMCFB->map_forward_Modification( dMCFB , mod );
     }
 
    modlist.clear();  // clear the processed Modification
    }
 
-  // solve the MCFBlock- - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  Solver * slvr = (sMCFB->get_registered_solvers()).front();
-  int rtrn = slvr->compute( false );
+  // solve the MCFBlock(s) - - - - - - - - - - - - - - - - - - - - - - - - - -
+  Solver * slvr1 = (oMCFB->get_registered_solvers()).front();
+  Solver * slvr2 = dMCFB ? (dMCFB->get_registered_solvers()).front()
+                         : (oMCFB->get_registered_solvers()).back();
 
-  if( ( stat == MCFBlock::kOK ) &&
-      ( rtrn >= Solver::kOK ) && ( rtrn < Solver::kError ) ) {
-   auto fo1 = mcf->MCFGetFO();
-   auto fo2 = slvr->get_ub();
-   if( abs( fo1 - fo2 )
-       <= 1e-9 *  max( double( 1 ) , abs( max( fo1 , fo2 ) ) ) ) {
-    cout << "OK(f)" << endl;
-    return( true );
+  int rtrn1 = slvr1->compute( false );
+  int rtrn2 = slvr2->compute( false );
+
+  if( rtrn1 == rtrn2 ) {
+   if( ( rtrn1 >= Solver::kOK ) && ( rtrn1 < Solver::kError ) ) {
+    auto fo1 = slvr1->get_ub();
+    auto fo2 = slvr2->get_ub();
+    if( abs( fo1 - fo2 )
+	<= 1e-9 *  max( double( 1 ) , abs( max( fo1 , fo2 ) ) ) ) {
+     cout << "OK(f)" << endl;
+     return( true );
+     }
     }
-   }
 
-  if( ( stat == MCFBlock::kUnfeasible ) &&
-      ( rtrn == Solver::kInfeasible ) ) {
+   if( rtrn1 == Solver::kInfeasible ) {
     cout << "OK(e)" << endl;
     return( false );
     }
 
-  if( ( stat == MCFBlock::kUnbounded ) &&
-      ( rtrn == Solver::kUnbounded ) ) {
+   if( rtrn1 == Solver::kUnbounded ) {
     cout << "OK(u)" << endl;
     return( false );
     }
+   }
 
-  cout << "MCFClass = ";
-  switch( mcf->MCFGetStatus() ) {
-   case( MCFBlock::kOK ):         cout << mcf->MCFGetFO();
+  if( ( mode & 3 ) == 1 )  // MILP attached to original
+   cout << "MILPSolver = ";
+  else
+   cout << "MCFSolver = ";
+
+  if( ( rtrn1 >= Solver::kOK ) && ( rtrn1 < Solver::kError ) ) {
+   cout << slvr1->get_ub() << endl;
+   return( false );
+   }
+  
+  switch( rtrn1 ) {
+   case( Solver::kInfeasible ):   cout << "        +INF";
                                   break;
-   case( MCFBlock::kUnfeasible ): cout << "        +INF";
-                                  break;
-   case( MCFBlock::kUnbounded ):  cout << "        -INF";
+   case( Solver::kUnbounded ):    cout << "        -INF";
                                   break;
    default:                       cout << "      Error!";
    }
 
-  cout << " ~ MCFBlock = ";
-  if( ( rtrn >= Solver::kOK ) && ( rtrn < Solver::kError ) ) {
-   cout << slvr->get_ub() << endl;
+  if( ( mode & 3 ) == 1 )  // MILP attached to original
+   cout << "MCFSolver = ";
+  else
+   cout << "MILPSolver = ";
+
+  if( ( rtrn2 >= Solver::kOK ) && ( rtrn2 < Solver::kError ) ) {
+   cout << slvr2->get_ub() << endl;
    return( false );
    }
   
-  switch( rtrn ) {
+  switch( rtrn2 ) {
    case( Solver::kInfeasible ):   cout << "        +INF";
                                   break;
    case( Solver::kUnbounded ):    cout << "        -INF";
@@ -300,10 +306,8 @@ int main( int argc , char **argv )
  double p_change = 0.4;
  MCFBlock::Index n_change = 10;
  MCFBlock::Index n_repeat = 40;
- int optns = 1;
 
  switch( argc ) {
-  case( 9 ): Str2Sthg( argv[ 8 ] , optns );
   case( 8 ): Str2Sthg( argv[ 7 ] , p_change );
   case( 7 ): Str2Sthg( argv[ 6 ] , n_change );
   case( 6 ): Str2Sthg( argv[ 5 ] , n_repeat );
@@ -323,20 +327,6 @@ int main( int argc , char **argv )
            "       wchg: what to change, coded bit-wise "
 		<< endl <<
            "             0 = cost, 1 = cap, 2 = dfct, 3 = o.arc, 4 = c.arc"
-		<< endl <<
-	   "       optns: bit 0 = re-optimize, other bits MCF-specific" 
-		<< endl <<
-	   "              Relax   : > 0 uses Auction"
-		<< endl <<
-	   "              Cplex   : network pricing parameter"
-		<< endl <<
-	   "              ZIB     : 1st bit == 1 ==> primal +"
-		<< endl <<
-	   "                        0 = Dantzig, 2 = First Eligible, 4 = MPP"
-	        << endl <<
-	   "              Simplex : 1st bit == 1 ==> primal +"
-		<< endl <<
-	   "                        0 = Dantzig, 2 = First Eligible, 4 = MPP"
 	        << endl;
 	   return( 1 );
   }
@@ -393,7 +383,7 @@ int main( int argc , char **argv )
   oMCFB->register_Solver( Solver::new_Solver( "FakeSolver" ) );
   }
  else {                      // just use one MCFBlock
-  dMCFB = oMCFB;
+  dMCFB = nullptr;
   oMCFB->register_Solver( Solver::new_Solver( "MILPSolver" ) );
   oMCFB->register_Solver( Solver::new_Solver( solver_name( MCFC ) ) );
   }
@@ -401,8 +391,8 @@ int main( int argc , char **argv )
  // compute min/max cost & max deficit- - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- MCFBlock::cIndex n = oMCFB->get_NNodes();
- MCFBlock::cIndex m = oMCFB->get_NArcs();
+ MCFBlock::c_Index n = oMCFB->get_NNodes();
+ MCFBlock::c_Index m = oMCFB->get_NArcs();
 
  cout << ", n = " << n << ", m = " << m << endl;
  if( n_change > m )
@@ -414,14 +404,14 @@ int main( int argc , char **argv )
  MCFBlock::FNumber u_max = 0;                           // max capacity
 
  for( MCFBlock::Index i = 0 ; i < m ; i++ ) {
-  MCFBlock::cCNumber ci = oMCFB->get_C( i );
+  MCFBlock::c_CNumber ci = oMCFB->get_C( i );
   if( ci < c_min )
    c_min = ci;
 
   if( ci > c_max )
    c_max = ci;
 
-  MCFBlock::cFNumber ui = oMCFB->get_U( i );
+  MCFBlock::c_FNumber ui = oMCFB->get_U( i );
   if( ui > u_max )
    u_max = ui;
   }
@@ -429,7 +419,7 @@ int main( int argc , char **argv )
  bool nzdfct = false;
 
  for( MCFBlock::Index i = 0 ; i < n ; )
-  if( mcf->MCFDfct( i++ ) > 0 ) {
+  if( oMCFB->get_B( i++ ) > 0 ) {
    nzdfct = true;
    break;
    }
@@ -476,12 +466,10 @@ int main( int argc , char **argv )
 
     MCFBlock::Index arc = MCFBlock::Index( drand48() * ( m - 1 ) );
 
-    mcf->ChgCost( arc , newcst );
-
     if( ( mode & 16 ) && ( drand48() < 0.5 ) ) {
      // change via abstract representation
      cout << "(a)";
-     auto obj = boost::any_cast<FRealObjective *>( mMCFB->get_objective() );
+     auto obj = boost::any_cast<FRealObjective *>( oMCFB->get_objective() );
      assert( obj );
      auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
      assert( lf );
@@ -489,7 +477,7 @@ int main( int argc , char **argv )
      lf->modify_coefficients( nc.begin() , arc , arc + 1 );
      }
     else  // change via call to chg_* method
-     mMCFB->chg_cost( newcst , arc );
+     oMCFB->chg_cost( newcst , arc );
 
     cout << " - ";
     }
@@ -502,47 +490,43 @@ int main( int argc , char **argv )
     if( drand48() <= 0.5 ) {
      MCFBlock::Index strt = drand48() * ( m - tochange );
      MCFBlock::Index stp = strt + tochange;
-     mcf->ChgCosts( newcsts.data() , nullptr , strt , stp );
 
      if( ( mode & 16 ) && ( drand48() < 0.5 ) ) {
       // change via abstract representation
       cout << "s(r,a) - ";
-      auto obj = boost::any_cast<FRealObjective *>( mMCFB->get_objective() );
+      auto obj = boost::any_cast<FRealObjective *>( oMCFB->get_objective() );
       assert( obj );
       auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
       assert( lf );
       lf->modify_coefficients( newcsts.begin() , strt , stp );
       }
      else {  // change via call to chg_* method
-      mMCFB->chg_costs( newcsts.begin() , strt , stp );
+      oMCFB->chg_costs( newcsts.begin() , strt , stp );
       cout << "s(r) - ";
       }
      }
     else {
-     MCFBlock::Vec_Index nms( m + 1 );
+     MCFBlock::Vec_Index nms( m );
      for( MCFBlock::Index i = 0 ; i < m ; i++ )
       nms[ i ] = i;
 
      for( MCFBlock::Index i = 0 ; i < tochange ; i++ )
       swap( nms[ i ] , nms[ i + drand48() * ( m - i ) ] );
 
-     auto end = nms.begin() + tochange;
-     sort( nms.begin() , end );
-     *end = OPTtypes_di_unipi_it::Inf<MCFBlock::Index>();
-     mcf->ChgCosts( newcsts.data() , nms.data() );
+     sort( nms.begin() , nms.begin() + tochange );
      nms.resize( tochange );
 
      if( ( mode & 16 ) && ( drand48() < 0.5 ) ) {
       // change via abstract representation
       cout << "s(s,a) - ";
-      auto obj = boost::any_cast<FRealObjective *>( mMCFB->get_objective() );
+      auto obj = boost::any_cast<FRealObjective *>( oMCFB->get_objective() );
       assert( obj );
       auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
       assert( lf );
       lf->modify_coefficients( newcsts.begin() , nms );
       }
      else {  // change via call to chg_* method
-      mMCFB->chg_costs( newcsts.begin() , std::move( nms ) , true );
+      oMCFB->chg_costs( newcsts.begin() , std::move( nms ) , true );
       cout << "s(s) - ";
       }
      }
@@ -557,19 +541,18 @@ int main( int argc , char **argv )
 
    if( tochange == 1 ) {
     MCFBlock::Index arc = MCFBlock::Index( drand48() * ( m - 1 ) );
-    MCFBlock::CNumber newcap = mcf->MCFUCap( arc ) * rndfctr();
-    mcf->ChgUCap( arc , newcap );
+    MCFBlock::CNumber newcap = oMCFB->get_U( arc ) * rndfctr();
 
     if( ( mode & 16 ) && ( drand48() < 0.5 ) ) {
      // change via abstract representation
      cout << "y(a) - ";
      auto bnd = boost::any_cast<std::vector<LB0Constraint> *>(
-				    (mMCFB->get_static_constraints())[ 1 ] );
+				    (oMCFB->get_static_constraints())[ 1 ] );
      assert( bnd );
      (*bnd)[ arc ].set_rhs( newcap );
      }
     else {  // change via call to chg_* method
-     mMCFB->chg_ucap( newcap , arc );
+     oMCFB->chg_ucap( newcap , arc );
      cout << "y - ";
      }
     }
@@ -579,50 +562,46 @@ int main( int argc , char **argv )
      MCFBlock::Index strt = drand48() * ( m - tochange );
      MCFBlock::Index stp = strt + tochange;
      for( MCFBlock::Index i = 0 ; i < tochange ; ++i )
-      newcaps[ i ] = mcf->MCFUCap( i + strt ) * rndfctr();
-     mcf->ChgUCaps( newcaps.data() , nullptr , strt , stp );
+      newcaps[ i ] = oMCFB->get_U( i + strt ) * rndfctr();
 
      if( ( mode & 16 ) && ( drand48() < 0.5 ) ) {
       // change via abstract representation
       cout << "ies(a,r) - ";
       auto bnd = boost::any_cast<std::vector<LB0Constraint> *>(
-				    (mMCFB->get_static_constraints())[ 1 ] );
+				    (oMCFB->get_static_constraints())[ 1 ] );
       assert( bnd );
       for( MCFBlock::Index i = 0 ; i < tochange ; ++i )
        (*bnd)[ i + strt ].set_rhs( newcaps[ i ] );
       }
      else {  // change via call to chg_* method
-      mMCFB->chg_ucaps( newcaps.begin() , strt , stp );
+      oMCFB->chg_ucaps( newcaps.begin() , strt , stp );
       cout << "ies(r) - ";
       }
      }
     else {
-     MCFBlock::Vec_Index nms( m + 1 );
+     MCFBlock::Vec_Index nms( m );
      for( MCFBlock::Index i = 0 ; i < m ; i++ )
       nms[ i ] = i;
 
      for( MCFBlock::Index i = 0 ; i < tochange ; i++ ) {
       swap( nms[ i ] , nms[ i + drand48() * ( m - i ) ] );
-      newcaps[ i ] = mcf->MCFUCap( nms[ i ]  ) * rndfctr();
+      newcaps[ i ] = oMCFB->get_U( nms[ i ]  ) * rndfctr();
       }
 
-     auto end = nms.begin() + tochange;
-     sort( nms.begin() , end );
-     *end = OPTtypes_di_unipi_it::Inf<MCFBlock::Index>();
-     mcf->ChgUCaps( newcaps.data() , nms.data() );
+     sort( nms.begin() , nms.begin() + tochange );
      nms.resize( tochange );
 
      if( ( mode & 16 ) && ( drand48() < 0.5 ) ) {
       // change via abstract representation
       cout << "ies(a,s) - ";
       auto bnd = boost::any_cast<std::vector<LB0Constraint> *>(
-				    (mMCFB->get_static_constraints())[ 1 ] );
+				    (oMCFB->get_static_constraints())[ 1 ] );
       assert( bnd );
       for( MCFBlock::Index i = 0 ; i < tochange ; ++i )
        (*bnd)[ nms[ i ] ].set_rhs( newcaps[ i ] );
       }
      else {  // change via call to chg_* method
-      mMCFB->chg_ucaps( newcaps.begin() , std::move( nms ) , true );
+      oMCFB->chg_ucaps( newcaps.begin() , std::move( nms ) , true );
       cout << "ies(s) - ";
       }
      }
@@ -639,7 +618,7 @@ int main( int argc , char **argv )
    MCFBlock::FNumber negd;
 
    if( nzdfct ) {  // if there are nonzero deficits
-    mcf->MCFDfcts( newcaps.data() );
+    newcaps = oMCFB->get_B();
 
     do
      posn = MCFBlock::Index( drand48() * n );  // select node with positive
@@ -668,21 +647,18 @@ int main( int argc , char **argv )
     negd += Dlt;
     }
 
-   mcf->ChgDfct( posn , posd );
-   mcf->ChgDfct( negn , negd );
-
    if( ( mode & 16 ) && ( drand48() < 0.5 ) ) {
     // change via abstract representation
     cout << "(a)";
     auto flw = boost::any_cast<std::vector<FRowConstraint> *>(
-				    (mMCFB->get_static_constraints())[ 0 ] );
+				    (oMCFB->get_static_constraints())[ 0 ] );
     assert( flw );
     (*flw)[ posn ].set_both( posd );
     (*flw)[ negn ].set_both( negd );
     }
    else {  // change via call to chg_* method
-    mMCFB->chg_dfct( posd , posn );
-    mMCFB->chg_dfct( negd , negn );
+    oMCFB->chg_dfct( posd , posn );
+    oMCFB->chg_dfct( negd , negn );
     }
 
    cout << " - ";
@@ -707,22 +683,21 @@ int main( int argc , char **argv )
      open[ pos ] = open[ --opened ];
      open[ opened ] = arc;
      nms[ i ] = arc;
-     mcf->CloseArc( arc );
      }
 
     if( ( mode & 16 ) && ( drand48() < 0.5 ) ) {
      // change via abstract representation
      cout << "(a)";
      auto x = boost::any_cast<std::vector<ColVariable> *>(
-				      (mMCFB->get_static_variables())[ 0 ] );
+				      (oMCFB->get_static_variables())[ 0 ] );
      assert( x );
      for( MCFBlock::Index i = 0 ; i < tochange ; ++i ) {
-      (*x)[ nms[ i ] ].set_state( Variable::kFixed );
       (*x)[ nms[ i ] ].set_value( 0 );
+      (*x)[ nms[ i ] ].is_fixed( true );
       }
      }
     else  // change via call to chg_* method
-     mMCFB->close_arcs( std::move( nms ) );
+     oMCFB->close_arcs( std::move( nms ) );
 
     cout << " - ";
     }
@@ -746,20 +721,19 @@ int main( int argc , char **argv )
      open[ opened + pos ] = open[ opened ];
      open[ opened++ ] = arc;
      nms[ i ] = arc;
-     mcf->OpenArc( arc );
      } 
 
     if( ( mode & 16 ) && ( drand48() < 0.5 ) ) {
      // change via abstract representation
      cout << "(a)";
      auto x = boost::any_cast<std::vector<ColVariable> *>(
-				      (mMCFB->get_static_variables())[ 0 ] );
+				      (oMCFB->get_static_variables())[ 0 ] );
      assert( x );
      for( MCFBlock::Index i = 0 ; i < tochange ; ++i )
-      (*x)[ nms[ i ] ].set_state( Variable::kFree );
+      (*x)[ nms[ i ] ].is_fixed( false );
      }
     else  // change via call to chg_* method
-     mMCFB->open_arcs( std::move( nms ) );
+     oMCFB->open_arcs( std::move( nms ) );
 
     cout << " - ";
     }
@@ -775,18 +749,11 @@ int main( int argc , char **argv )
   }  // end( main loop )- - - - - - - - - - - - - - - - - - - - - - - - - - -
      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- //double tu , ts;
- //mcf->TimeMCF( tu , ts );
- //cout << "Time: MCF = " << tu + ts << ", MCF2 = ";
- //mcf2->TimeMCF( tu , ts );
- //cout << tu + ts << endl;
- 
  // destroy objects and vectors - - - - - - - - - - - - - - - - - - - - - - - 
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  delete dMCFB;
  delete oMCFB;
- delete mcf;
 
  // terminate - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

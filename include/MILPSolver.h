@@ -42,8 +42,10 @@
 //#include "DQuadObjectiveFunction.h"
 //#include "Block.h"
 // #include "Solver.h"
-#include <ilcplex/cplex.h>
-#include <ilcplex/cplexcheck.h>
+//!!#include <ilcplex/cplex.h>
+//!!#include <ilcplex/cplexcheck.h>
+#include <cplex.h>
+  //#include <cplexcheck.h>
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/

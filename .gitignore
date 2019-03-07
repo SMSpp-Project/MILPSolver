@@ -1,3 +1,10 @@
-## CLion IDE
-cmake-build-debug/
-.idea/
+**/*~
+**/*.o
+**/.DS_Store
+**/*.dSYM
+.DS_Store
+*.sw[oprst]
+????-*.patch
+/TAGS
+XCode/
+test/test
