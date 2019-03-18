@@ -244,7 +244,7 @@ static inline bool SolveMCF( void )
     }
    }
 
-  if( ( mode & 3 ) == 1 )  // MILP attached to original
+  if( ( mode & 3 ) <= 1 )  // MILP attached to original (or only one)
    cout << "MILPSolver = ";
   else
    cout << "MCFSolver = ";
@@ -262,7 +262,7 @@ static inline bool SolveMCF( void )
    default:                       cout << "      Error!";
    }
 
-  if( ( mode & 3 ) == 1 )  // MILP attached to original
+  if( ( mode & 3 ) <= 1 )  // MILP attached to original (or only one)
    cout << "MCFSolver = ";
   else
    cout << "MILPSolver = ";
@@ -334,7 +334,7 @@ int main( int argc , char **argv )
  if( mode & 16 )  // if the abstract representations are changed
   mode |= 12;     // ensure they exist in the first place
 
- if( ( mode & 3 ) == 1 )  // MILP attached to original
+ if( ( mode & 3 ) <= 1 )  // MILP attached to original (or only one)
   mode |= 4;              // abstract representation need be there
 
  if( ( mode & 3 ) == 2 )  // MILP attached to copy
