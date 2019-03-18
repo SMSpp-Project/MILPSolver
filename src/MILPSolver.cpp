@@ -46,7 +46,7 @@
 
 using namespace SMSpp_di_unipi_it;
 
-extern int t_pc;
+// extern int t_pc;
 
 
 int mycallback(CPXCENVptr env,
@@ -58,6 +58,7 @@ int mycallback(CPXCENVptr env,
  return static_cast<MILPSolver*>(cbhandle)->Callback(env, cbdata, wherefrom, useraction_p);
 }
 
+SMSpp_insert_in_factory_cpp_0( MILPSolver );
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------- METHODS --------------------------------*/
@@ -79,6 +80,9 @@ void MILPSolver::count_variables(ColVariable& lvar, int& numcols, int& nzelement
  ++numcols;
  // Each ColVariable has a vector of active things
  // so we check if said things are constraints
+ if (p_active_constraints.size() < numcols) {
+  p_active_constraints.resize(numcols);
+ }
  for (auto i : lvar.active_stuff()) {
   auto con = dynamic_cast<FRowConstraint*>(i);
   if (con != nullptr) {
@@ -364,7 +368,14 @@ void MILPSolver::scan_static_variables( ColVariable &lvar,
  // all the ColVariables are counted, even if they don't have active FRowConstraints
 
  // Setting the number of non-zero elements for this Variable in the CPLEX coeff matrix
- matcnt[i] = static_cast<int>(p_active_constraints[i].size());
+ int nzelements;
+ try {
+  nzelements = p_active_constraints[i].size();
+ } catch (...) {
+  nzelements = 0;
+ }
+
+ matcnt[i] = nzelements;
 
  // Setting the index of index of the beginning of column in the CPLEX coefficient matrix
  if( i == 0 )
@@ -384,7 +395,7 @@ void MILPSolver::scan_static_variables( ColVariable &lvar,
 /* seting the coefficients and the indexes of the corresponging rows in the 
    CPLEX coeff matrix */
 
- for( int j = 0; j < p_active_constraints[i].size(); ++j ) {
+ for( int j = 0; j < nzelements; ++j ) {
 
   // Retreive the function of each active constraint for the variable
   auto p_const = dynamic_cast<FRowConstraint *> ( p_active_constraints[i][j]);
@@ -585,7 +596,7 @@ void MILPSolver::set_Block( Block *block ) {
  }
 
  f_Block = block;                      // this is the new block now
- f_Block->register_Solver( this );     // register to it
+ //f_Block->register_Solver( this );     // register to it
 
  // Initialisation the CPLEX environement and problem
 
@@ -847,18 +858,25 @@ cout<<endl<<"//";*/
  }//while loop
 
  // Checking the type of the objective function
- auto tmp_obj = boost::any_cast<const Objective*>(f_Block->get_objective());
- switch (tmp_obj->get_sense()) {
-  case (Objective::eMax):
-   obj_type = -1;
-   break;
-  case (Objective::eMin):
-   obj_type = 1;
-   break;
-  default:
-   obj_type = 0;
-   break;
+ try {
+  auto tmp_obj = boost::any_cast<FRealObjective*>(f_Block->get_objective());
+  switch (tmp_obj->get_sense()) {
+   case (Objective::eMax):
+    obj_type = -1;
+    break;
+   case (Objective::eMin):
+    obj_type = 1;
+    break;
+   default:
+    obj_type = 0;
+    break;
+  }
+ } catch (...) {
+  std::cout << "HERE 1" << std::endl;
+  // TODO Do something if objective is not a FRealObjective
  }
+
+
 
  /* Order all the different vectors of pairs in ascending order based
  on the adress of the constraints/variables or the index of CPLEX
@@ -884,7 +902,13 @@ cout<<endl<<"//";*/
   }
 
   // TODO I think that this is already done in scan_dynamic_variables()
-  p_obj = boost::any_cast<const FRealObjective*>(q_Block->get_objective());
+  try {
+   p_obj = boost::any_cast<FRealObjective*>(q_Block->get_objective());
+  } catch (...) {
+   std::cout << "HERE 2" << std::endl;
+   // TODO Do something if objective is not a FRealObjective
+  }
+
   scan_objective(p_obj, objective, q_objective);
   sel++;
  } // While loop
@@ -912,15 +936,15 @@ cout<<endl<<"//";*/
  CPXcopyctype(env, milp, xctype);
 
  // Adding cuts
- cuts = t_pc;
- if (cuts == 1) {
-  // Variables are referred according to original model in callback function
-  CPXsetintparam(env, CPX_PARAM_MIPCBREDLP, CPX_OFF);
-  CPXsetintparam(env, CPX_PARAM_PRELINEAR, CPX_OFF);
-
-  status = CPXsetusercutcallbackfunc(env, mycallback, this);
-  status = CPXsetlazyconstraintcallbackfunc(env, mycallback, this);
- }
+ // cuts = t_pc;
+ // if (cuts == 1) {
+ //  // Variables are referred according to original model in callback function
+ //  CPXsetintparam(env, CPX_PARAM_MIPCBREDLP, CPX_OFF);
+ //  CPXsetintparam(env, CPX_PARAM_PRELINEAR, CPX_OFF);
+ //
+ //  status = CPXsetusercutcallbackfunc(env, mycallback, this);
+ //  status = CPXsetlazyconstraintcallbackfunc(env, mycallback, this);
+ // }
 
  delete[]matbeg;
  delete[]matcnt;
@@ -1306,18 +1330,23 @@ void MILPSolver::get_var_solution(Configuration* solc) {
  double objval;
  CPXgetobjval(env, milp, &objval);
 
- auto p_obj = boost::any_cast<const FRealObjective*>(f_Block->get_objective());
- auto p_lin_fun = dynamic_cast<const LinearFunction*> (p_obj->get_function());
+ try {
+  auto p_obj = boost::any_cast< FRealObjective*>(f_Block->get_objective());
+  auto p_lin_fun = dynamic_cast<const LinearFunction*> (p_obj->get_function());
 
- if (p_lin_fun != nullptr) {
-  // TODO
- } else {
-  auto p_dquad_fun = dynamic_cast<const DQuadFunction*> (p_obj->get_function());
-  if (p_dquad_fun != nullptr) {
+  if (p_lin_fun != nullptr) {
    // TODO
   } else {
-   throw (std::invalid_argument("Unknown type of Objective Function"));
+   auto p_dquad_fun = dynamic_cast<const DQuadFunction*> (p_obj->get_function());
+   if (p_dquad_fun != nullptr) {
+    // TODO
+   } else {
+    throw (std::invalid_argument("Unknown type of Objective Function"));
+   }
   }
+ } catch (boost::bad_any_cast&) {
+  std::cout << "HERE 3" << std::endl;
+  // TODO Do something if objective is not a FRealObjective
  }
 
 // if( f_Block->get_objective_function().type() ==  typeid(LinearObjectiveFunction *) ){

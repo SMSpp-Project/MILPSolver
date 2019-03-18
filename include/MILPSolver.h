@@ -33,15 +33,16 @@
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
-
-// #include "SMSTypedefs.h"
-// #include "ColVariable.h"
-//#include "Observer.h"
+#include "SMSTypedefs.h"
+#include "ColVariable.h"
+#include "Observer.h"
+#include "Block.h"
+#include "Solver.h"
 #include "FRowConstraint.h"
 #include "FRealObjective.h"
 //#include "DQuadObjectiveFunction.h"
-//#include "Block.h"
-// #include "Solver.h"
+
+
 //!!#include <ilcplex/cplex.h>
 //!!#include <ilcplex/cplexcheck.h>
 #include <cplex.h>
@@ -205,6 +206,10 @@ class MILPSolver : public Solver {
   }
  }
 
+ int compute( bool changedvars ) override {
+  return this->solve();
+ }
+
 /*@}------------------------------------------------------------------------*/
 /*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -357,12 +362,12 @@ class MILPSolver : public Solver {
  // void set_par( int par, long value );
 
 
- int sol_status;
- int nodes;
- int obj_type;
+ int sol_status{};
+ int nodes{};
+ int obj_type{};
  std::vector<int> indexed;
 
- int cuts; //parameter for adding cuts
+ int cuts{}; //parameter for adding cuts
 
  int Callback( CPXCENVptr env, void *cbdata, int wherefrom, int *useraction_p );
 
@@ -440,31 +445,34 @@ parts of the solution in the fastest possible way. */
  std::vector<std::vector<FRowConstraint *> > p_active_constraints;
 
  // TODO The following fields are for supporting set_var() I have to figure out what to use in new version of SMS++
- double f_max_time;    ///< maximum time for each call to solve()
- int f_max_iter;       ///< maximum iterations in each call to solve()
- int f_log_verb;       ///< "verbosity" of the log
- double f_rel_acc;     ///< relative objective function accuracy
- double f_abs_acc;    ///< absolute objective function accuracy
- double f_up_cutoff;  ///< upper cutoff
- double f_lw_cutoff;  ///< lower cutoff
- int f_max_sol;        ///< max number of solutions for each call to solve()
- double f_r_acc_sol;  ///< max relative error of a solution
- double f_a_acc_sol;  ///< max absolute error of a solution
- double f_f_acc_sol;   ///< max relative constraint violation of a solution
+ double f_max_time{};    ///< maximum time for each call to solve()
+ int f_max_iter{};       ///< maximum iterations in each call to solve()
+ int f_log_verb{};       ///< "verbosity" of the log
+ double f_rel_acc{};     ///< relative objective function accuracy
+ double f_abs_acc{};    ///< absolute objective function accuracy
+ double f_up_cutoff{};  ///< upper cutoff
+ double f_lw_cutoff{};  ///< lower cutoff
+ int f_max_sol{};        ///< max number of solutions for each call to solve()
+ double f_r_acc_sol{};  ///< max relative error of a solution
+ double f_a_acc_sol{};  ///< max absolute error of a solution
+ double f_f_acc_sol{};   ///< max relative constraint violation of a solution
 
 /*** Following integer variables are used in order to store information needed to
     to populate the CPLEX Matrix
 */
 
- int numrows;
- int numcols;
- int nzelements;
+ int numrows{};
+ int numcols{};
+ int nzelements{};
 
 /// Following two elements are used to initialize the CPLEX environement
  CPXENVptr env;
  CPXLPptr milp;
 
 /*@}*/
+
+ private:
+ SMSpp_insert_in_factory_h;        // insert it in the Block factory
 
 };   // end( class MILPSolver )
 
