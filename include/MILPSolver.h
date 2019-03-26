@@ -38,6 +38,7 @@
 #include "Observer.h"
 #include "Block.h"
 #include "Solver.h"
+#include "OneVarConstraint.h"
 #include "FRowConstraint.h"
 #include "FRealObjective.h"
 //#include "DQuadObjectiveFunction.h"
@@ -255,7 +256,7 @@ class MILPSolver : public Solver {
  */
 
  // TODO Fix this
- void scan_static_variables( ColVariable &lvar,
+ void scan_static_variables( ColVariable &var,
                              int *matbeg,
                              int *matcnt,
                              int *matind,
@@ -295,33 +296,34 @@ class MILPSolver : public Solver {
 /** @name Public Methods for modifying the constructed CPLEX Problem
  *  @{ */
 
+/*
+ void add_modifications(sp_Mod& mod);
+ ///< method for adding and handling a Modification of the Problem
 
- // void add_modifications( sp_Mod &mod );
- // ///< method for adding and handling a Modification of the Problem
- //
- // void var_modification( VariableMod *mod );
- // ///< method for adding and handling a Variable Modification
- //
- // void of_modification( ObjectiveMod *mod );
- // ///< method for adding and handling an Objective Function Modification
- //
- // void const_modification( ConstraintMod *mod );
- // ///< method for adding and handling a Constraint Modification
- //
- // void dynamic_modification( BlockModAD *mod );
- // ///< method for handling a dynamic Modification
- //
- // void add_dynamic_constraint( FRowConstraint *r_const );
- // ///< method for adding a single new dynamic constraint to CPLEX
- //
- // void add_dynamic_variable( ColVariable *r_var );
- // ///< method for adding a single new dynamic variable to CPLEX
- //
- // void remove_dynamic_constraint( FRowConstraint *r_const );
- // ///< method for deleting a single dynamic constraint to CPLEX
- //
- // void remove_dynamic_variable( ColVariable *r_var );
- // ///< method for removing a single dynamic variable to CPLEX
+ void var_modification(VariableMod* mod);
+ ///< method for adding and handling a Variable Modification
+
+ void of_modification(ObjectiveMod* mod);
+ ///< method for adding and handling an Objective Function Modification
+
+ void const_modification(ConstraintMod* mod);
+ ///< method for adding and handling a Constraint Modification
+
+ void dynamic_modification(BlockModAD* mod);
+ ///< method for handling a dynamic Modification
+
+ void add_dynamic_constraint(FRowConstraint* r_const);
+ ///< method for adding a single new dynamic constraint to CPLEX
+
+ void add_dynamic_variable(ColVariable* r_var);
+ ///< method for adding a single new dynamic variable to CPLEX
+
+ void remove_dynamic_constraint(FRowConstraint* r_const);
+ ///< method for deleting a single dynamic constraint to CPLEX
+
+ void remove_dynamic_variable(ColVariable* r_var);
+ ///< method for removing a single dynamic variable to CPLEX
+ */
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------------- SUPPLEMENTARY METHODS  ------------------------*/
@@ -330,25 +332,25 @@ class MILPSolver : public Solver {
 /** @name Supplementary Methods that are used in order to assist the above methods
  *  @{ */
 
- void count_constraints( FRowConstraint &lconst, int &count );
+ void count_constraints(FRowConstraint& constraint, int& numrows);
 ///< method used to count the total number of rows
 
- void count_variables( ColVariable &lvar, int &count, int &count2 );
+ void count_variables(ColVariable& variable, int& numcols, int& nzelements);
  ///< method used to count the total number of columns and non-zero elements
 
- void set_var_value( ColVariable &lvar, double *tmpx, int &i );
+ void set_var_value(ColVariable& lvar, double* tmpx, int& i);
 ///< method used to pass the solution to the variables
 
- int ind_var( ColVariable *p_var );
+ int index_of_variable(ColVariable* p_var);
 ///< method for returning the CPLEX coeff-matrix index of the examined Variable
 
- int ind_const( FRowConstraint *p_const );
+ int index_of_constraint(FRowConstraint* p_const);
 ///< method for returning the CPLEX coeff-matrix index of the examined Constraint
 
- ColVariable *var_ind( int i );
+ ColVariable* variable_with_index(int i);
 ///< method for returning the Variable of the examined CPLEX coeff-matrix index
 
- FRowConstraint *const_ind( int i );
+ FRowConstraint* constraint_with_index(int i);
 ///< method for returning the Constraint of the examined CPLEX coeff-matrix index
 
  OFValue get_lb() override;
@@ -442,7 +444,8 @@ parts of the solution in the fastest possible way. */
  std::vector<ColVariable *> v_pt;
 
  // TODO Check if already available typedef
- std::vector<std::vector<FRowConstraint *> > p_active_constraints;
+ std::vector<std::vector<FRowConstraint *> >   active_row_constraints;
+ std::vector<std::vector<OneVarConstraint *> > active_box_constraints;
 
  // TODO The following fields are for supporting set_var() I have to figure out what to use in new version of SMS++
  double f_max_time{};    ///< maximum time for each call to solve()

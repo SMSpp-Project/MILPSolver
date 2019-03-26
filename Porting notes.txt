@@ -95,7 +95,7 @@ get_v_var() that returns a triple <index, lin_coeff, q_coeff>.
 Other methods
 -------------------------------
 
-ind_var(), ind_const(), var_ind() and const_ind() that read the
+index_of_variable(), index_of_constraint(), variable_with_index() and constraint_with_index() that read the
 v_s_const_int[] and v_int_s_const[],
 v_d_const_int[] and v_int_d_const[], vectors are unchanged except they use
 FRowConstraint
