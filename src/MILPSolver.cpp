@@ -29,7 +29,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include <queue>
-#include <functional>   // std::bind
+#include <functional>
 #include <chrono>
 #include <cstdlib>
 #include <OneVarConstraint.h>
@@ -89,6 +89,8 @@ void MILPSolver::count_variables(ColVariable& variable, int& numcols, int& nzele
 
  ++numcols;
 
+
+ // TODO resize these somewhere else
  if (active_row_constraints.size() < numcols) {
   // The two vectors are resized together so they should have the same size
   active_row_constraints.resize(static_cast<unsigned long>(numcols));
@@ -482,8 +484,6 @@ void MILPSolver::scan_dynamic_variables( ColVariable &var,
                                          int *matcnt,
                                          int *matind,
                                          double *matval,
-                                         double *objective,
-                                         double *q_objective,
                                          double *lb,
                                          double *ub,
                                          char *xctype,
@@ -758,30 +758,6 @@ void MILPSolver::set_Block( Block *block ) {
    un_any_const_dynamic(i, f1, un_any_type<FRowConstraint>());
   }
 
-  // std::cout << "[DEBUG] ========= MILPSolver::set_Block() before counting variables" << std::endl;
-  // auto vars = q_Block->get_static_variables();
-  // if (vars[0].type() == typeid(std::vector<ColVariable>)) {
-  //  std::cout << "[DEBUG] q_Block->get_static_variables()[0] is a std::vector<ColVariable> *" << std::endl;
-  // }
-
-  // const std::vector<boost::any>& vars = q_Block->get_static_variables();
-  // if (vars[0].type() == typeid(std::vector<ColVariable> *)) {
-  //  std::cout << "[DEBUG] q_Block->get_static_variables()[0] is a std::vector<ColVariable> *" << std::endl;
-  // }
-
-  // const std::vector<boost::any>& vars = q_Block->get_static_variables();
-  // boost::any vars_0 = vars[0];
-  // if (vars_0.type() == typeid(std::vector<ColVariable>*)) {
-  //  std::cout << "[DEBUG] q_Block->get_static_variables()[0] is a std::vector<ColVariable> *" << std::endl;
-  // }
-
-  // try {
-  //  auto temp = boost::any_cast<std::vector<ColVariable>*>(q_Block->get_static_variables()[0]);
-  //  std::cout << "[DEBUG] q_Block->get_static_variables()[0] is a std::vector<ColVariable> *" << std::endl;
-  // } catch (boost::bad_any_cast&) {
-  //  std::cout << "[DEBUG] Bad any_cast" << std::endl;
-  // }
-
   // We count all the static Variables/columns
   for (const auto& i : q_Block->get_static_variables()) {
    auto f1 = std::bind(&MILPSolver::count_variables,
@@ -929,8 +905,6 @@ void MILPSolver::set_Block( Block *block ) {
                        std::ref(matcnt),
                        std::ref(matind),
                        std::ref(matval),
-                       std::ref(objective),
-                       std::ref(q_objective),
                        std::ref(lb),
                        std::ref(ub),
                        std::ref(xctype),
@@ -983,10 +957,8 @@ rows/columns respectively. */
 
  // LOOP ON THE QUEUE TO SCAN OBJECTIVES
  Q.push(f_Block);
- // std::chrono::time_point<std::chrono::system_clock> t00, t11;
- // t00 = std::chrono::system_clock::now();
  int sel = 0;
- const FRealObjective* p_obj;
+ const FRealObjective* p_obj = nullptr;
  while (!Q.empty()) {
   Block* q_Block = Q.front();
   Q.pop();
@@ -1006,13 +978,6 @@ rows/columns respectively. */
   scan_objective(p_obj, objective, q_objective);
   sel++;
  } // End of while loop on Block queue
-
-
- // t11 = std::chrono::system_clock::now();
- // std::chrono::duration<double> t11_fin = t11 - t00;
- //   cout << " . . . process lasted: " << t11_fin.count();
-
-
 
 /*
  * Due to the fact that CPLEX receives as arguments arrays and our data
@@ -1262,7 +1227,8 @@ void MILPSolver::set_par( const int par, const double value ) {
 int MILPSolver::solve() {
 
  // Write the problem on file
- CPXwriteprob(env, milp, "mipex1.lp", nullptr); // TODO filename?
+	// TODO Add this feature as configurable
+ // CPXwriteprob(env, milp, "mipex1.lp", nullptr);
 
  // Solve the problem
  CPXmipopt(env, milp);
@@ -1545,7 +1511,7 @@ void MILPSolver::get_var_solution(Configuration* solc) {
 
 }
 
-/*
+
 void MILPSolver::add_modifications(sp_Mod& mod) {
 
  auto var_mod = dynamic_cast< VariableMod* >(mod.get());
@@ -1553,207 +1519,234 @@ void MILPSolver::add_modifications(sp_Mod& mod) {
  auto const_mod = dynamic_cast< ConstraintMod* >(mod.get());
  auto dyn_mod = dynamic_cast< BlockModAD* >(mod.get());
 
-//Checking if Modification refers to Obj_Function, Constraint or Variable
- if (var_mod)
-  var_modification(var_mod);
- else if (obj_mod)
-  of_modification(obj_mod);
- else if (const_mod)
-  const_modification(const_mod);
- else if (dyn_mod)
+ // Checking if Modification refers to Obj_Function, Constraint or Variable
+ if (var_mod) {
+  // var_modification(var_mod);
+ } else if (obj_mod) {
+  // of_modification(obj_mod);
+ } else if (const_mod) {
+  // const_modification(const_mod);
+ } else if (dyn_mod) {
   dynamic_modification(dyn_mod);
- else
+ } else {
   throw (std::invalid_argument("Unknown type of Modification"));
-
+ }
 }
+
 
 
 void MILPSolver::dynamic_modification(BlockModAD* mod) {
 
+ // TODO The casts in this method will probably need a lot of debugging
  switch (mod->f_type) {
+
+
   case (BlockModAD::eAddConst): {
+   // Add one or more dynamic constraints
 
-   // We check if we receive a single constraint or a vector of constraints
+   if (mod->mod_list.type() == typeid(std::vector<FRowConstraint*>)) {
+    auto v_const = boost::any_cast<std::vector<FRowConstraint*> >(mod->mod_list);
+    for (auto& i : v_const) {
+     add_dynamic_constraint(i);
+    }
 
-   if (mod->mod_list.type() == typeid(std::vector<LinearConstraint*>)) {
-
-    std::vector<LinearConstraint*> v_const = boost::any_cast<std::vector<LinearConstraint*> >(mod->mod_list);
-    for (int i = 0; i < v_const.size(); ++i)
-     add_dynamic_constraint(v_const[i]);
-
-   } else if (mod->mod_list.type() == typeid(LinearConstraint*)) {
-
-    LinearConstraint* p_const = boost::any_cast<LinearConstraint*>(mod->mod_list);
+   } else if (mod->mod_list.type() == typeid(FRowConstraint*)) {
+    auto p_const = boost::any_cast<FRowConstraint*>(mod->mod_list);
     add_dynamic_constraint(p_const);
-   } else
+
+   } else {
     throw (std::invalid_argument("Received unexpected type of Constraint to be added"));
-
+   }
    break;
-  }//case
-  case (BlockModAD::eAddVar): {
+  }
 
-   //we check if we receive a single constraint or a vector of constraints
+/*
+  case (BlockModAD::eAddVar): {
+   // Add one or more dynamic variables
 
    if (mod->mod_list.type() == typeid(std::vector<ColVariable*>)) {
 
-    std::vector<ColVariable*> v_vars = boost::any_cast<std::vector<ColVariable*> >(mod->mod_list);
-    for (int i = 0; i < v_vars.size(); ++i)
-     add_dynamic_variable(v_vars[i]);
+    auto v_vars = boost::any_cast<std::vector<ColVariable*> >(mod->mod_list);
+    for (auto& v_var : v_vars) {
+     add_dynamic_variable(v_var);
+    }
 
    } else if (mod->mod_list.type() == typeid(ColVariable*)) {
 
-    ColVariable* p_var = boost::any_cast<ColVariable*>(mod->mod_list);
+    auto p_var = boost::any_cast<ColVariable*>(mod->mod_list);
     add_dynamic_variable(p_var);
-   } else
+
+   } else {
     throw (std::invalid_argument("Received unexpected type of Variable to be added"));
-
+   }
    break;
-  }//case
+  }
+
+
   case (BlockModAD::eDelConst): {
+   // Remove one or more dynamic constraints
 
-   //we check if we receive a single constraint or a vector of constraints
+   if (mod->mod_list.type() == typeid(std::list<FRowConstraint*>)) {
 
-   if (mod->mod_list.type() == typeid(std::list<LinearConstraint*>)) {
+    auto l_const = boost::any_cast<std::list<FRowConstraint*> >(mod->mod_list);
+    for (auto& it : l_const) {
+     remove_dynamic_constraint(it);
+    }
 
-    std::list<LinearConstraint*> l_const = boost::any_cast<std::list<LinearConstraint*> >(mod->mod_list);
-    for (auto it = l_const.begin(); it != l_const.end(); ++it)
-     remove_dynamic_constraint(*it);
+   } else if (mod->mod_list.type() == typeid(FRowConstraint*)) {
 
-   } else if (mod->mod_list.type() == typeid(LinearConstraint*)) {
-
-    LinearConstraint* p_const = boost::any_cast<LinearConstraint*>(mod->mod_list);
+    auto* p_const = boost::any_cast<FRowConstraint*>(mod->mod_list);
     remove_dynamic_constraint(p_const);
-   } else
+
+   } else {
     throw (std::invalid_argument("Received unexpected type of Constraint to be removed"));
-
+   }
    break;
+  }
 
-  }//case
   case (BlockModAD::eDelVar): {
-
-   //we check if we receive a single constraint or a vector of constraints
+   // Remove one or more dynamic variables
 
    if (mod->mod_list.type() == typeid(std::list<ColVariable*>)) {
 
-    std::list<ColVariable*> l_var = boost::any_cast<std::list<ColVariable*> >(mod->mod_list);
-    for (auto it = l_var.begin(); it != l_var.end(); ++it)
-     remove_dynamic_variable(*it);
+    auto l_var = boost::any_cast<std::list<ColVariable*> >(mod->mod_list);
+    for (auto& it : l_var) {
+     remove_dynamic_variable(it);
+    }
 
    } else if (mod->mod_list.type() == typeid(ColVariable*)) {
 
-    ColVariable* p_const = boost::any_cast<ColVariable*>(mod->mod_list);
+    auto* p_const = boost::any_cast<ColVariable*>(mod->mod_list);
     remove_dynamic_variable(p_const);
-   } else
+
+   } else {
     throw (std::invalid_argument("Received unexpected type of Constraint to be removed"));
-
+   }
    break;
-  }//case
- }//switch
+  }
+  */
+
+  default:
+   break;
+ }
 }
 
 
-void MILPSolver::add_dynamic_constraint(LinearConstraint * r_const){
+void MILPSolver::add_dynamic_constraint(FRowConstraint* r_const) {
 
+ // Retrieve the function
+ // TODO Handle exceptions and other classes of Functions
+ auto p_fun = dynamic_cast<const LinearFunction*>(r_const->get_function());
 
-        // In order to add a new dynamic constraint to CPLEX we use the
-        // routine addrows that needs the following information:
+ // In order to add a new dynamic constraint to CPLEX we use the
+ // routine addrows that needs the following information:
 
-        int nz = r_const->get_num_active_var() ;// no of nonzero elements
-        int matbeg[2] = { 0, nz};
-        int matind[nz];
-        double matval[nz];
-        double rhs[1];
-        char sense[1];
-        int i = 0;
-        for (auto it = r_const->get_v_var()->begin() ; it != r_const->get_v_var()->end() ; ++it ){
+ int nz = r_const->get_num_active_var();
 
-          // locating the index in CPLEX searching first in the dynamic and then
-          // in the static part
+ int matbeg[2] = {0, nz};
+ int matind[nz];
+ double matval[nz];
+ double rhs[1];
+ char sense[1];
 
-            auto it1 = find_if (v_int_d_var.begin(),v_int_d_var.end(), [&](MILPSolver::int_var pair) {
-                    return pair.second == it->first;
-                    });
-          if (it1 != v_int_d_var.end())
-                matind[i] = (it1->first);
-          else
-                matind[i] = ind_var(it->first);
+ // Loop through all the active variables for the constraint and
+ // retrieve the corresponding CPLEX indexes
+ int i = 0;
+ for (auto it = r_const->begin(); it != r_const->end(); ++it) {
 
-          matval[i] = it->second;
-          i++;
-        }
+  // Retrieve the variable
+  // TODO Handle exceptions
+  auto p_var = dynamic_cast<ColVariable*>(&*it);
 
-        //adding the rhs and the sense
-        if( r_const->get_lhs() == r_const->get_rhs() ){ //equality
-            sense[0] = ('E');
-            rhs[0] = (r_const->get_rhs());//setting the rhs
-        }
-        else if( r_const->get_lhs() == -Inf<double>() ){ // inequality (smaller/equal)
-            sense[0] = ('L');
-            rhs[0] = (r_const->get_rhs());//setting the rhs, which is equal to lhs
-        }
-        else if( r_const->get_rhs() == Inf<double>() ){  // inequality (greate/equal)
-            sense[0] = ('G');
-            rhs[0] = (r_const->get_lhs());//setting the rhs, which is equal to rhs
-        }
+  // Search among dynamic variables
+  auto it1 = find_if(v_int_d_var.begin(),
+                     v_int_d_var.end(),
+                     [&](MILPSolver::int_var pair) {
+                      return pair.second == p_var;
+                     });
 
-        //adding the new constraint in the corresponding vectors of pairs
-        v_d_const_int.push_back( std::make_pair ( r_const, v_d_const_int.back().second+1 ) );
-        v_int_d_const.push_back( std::make_pair ( v_int_d_const.back().first+1, r_const ) );
+  if (it1 != v_int_d_var.end()) {
+   // Found
+   matind[i] = (it1->first);
+  } else {
+   // Search among static variables
+   matind[i] = index_of_variable(p_var);
+  }
 
-        CPXaddrows (env, milp, 0, 1, nz, rhs, sense, matbeg, matind, matval, NULL, NULL);
+  matval[i] = p_fun->get_coefficient(i);
+  i++;
+ }
 
+ auto const_lhs = r_const->get_lhs();
+ auto const_rhs = r_const->get_rhs();
+ if (const_lhs == const_lhs) {
+  // equality
+  sense[0] = ('E');
+  rhs[0] = const_rhs;
+ } else if (const_lhs == -Inf<double>()) {
+  // inequality (smaller/equal)
+  sense[0] = ('L');
+  rhs[0] = const_rhs;
+ } else if (const_rhs == Inf<double>()) {
+  // inequality (greate/equal)
+  sense[0] = ('G');
+  rhs[0] = const_lhs;
+ }
 
+ // Update the vectors of pairs
+ v_d_const_int.emplace_back(r_const, v_d_const_int.back().second + 1);
+ v_int_d_const.emplace_back(v_int_d_const.back().first + 1, r_const);
+
+ // Update CPLEX problem
+ CPXaddrows(env, milp, 0, 1, nz, rhs, sense, matbeg, matind, matval, nullptr, nullptr);
 }
 
+/*
+void MILPSolver::add_dynamic_variable(ColVariable* r_var) {
 
-void MILPSolver::add_dynamic_variable(ColVariable * r_var){
+ // In order to add a new dynamic variable to CPLEX we use the
+ // routine addrows that needs the following information:
 
-   // In order to add a new dynamic constraint to CPLEX we use the
-   // routine addrows that needs the following information:
+ int nz = r_var->get_num_active_const();
+ int matbeg[2] = {0, nz};
+ int matind[nz];
+ double matval[nz];
 
-//setting the non-zero coeff
-int nz = r_var->get_num_active_const();
+ int i = 0;
+ for (auto it = r_var->active_constraints().begin(); it != r_var->active_constraints().end(); ++it) {
 
-//initializing the matrices
-int matbeg[2] = { 0, nz};
-int matind[nz];
-double matval[nz];
+  // locating the index in CPLEX searching first in the dynamic
+  // and then in the static part
+  LinearConstraint* p_const = dynamic_cast<LinearConstraint*>(*it);
+  auto it1 = find_if(v_int_d_const.begin(), v_int_d_const.end(), [&](MILPSolver::int_const pair) {
+   return pair.second == p_const;
+  });
+  if (it1 != v_int_d_const.end())
+   matind[i] = (it1->first);
+  else
+   matind[i] = ind_const(p_const);
 
-        int i = 0;
-        for (auto it = r_var->active_constraints().begin() ; it != r_var->active_constraints().end() ; ++it ){
+  //find the coefficient of the constraint that refers to the examined variable
+  auto it2 = find_if(p_const->get_v_var()->begin(), p_const->get_v_var()->end(), [&](LinearConstraint::coeff_pair pair) {
+   return pair.first == r_var;
+  });
 
-          // locating the index in CPLEX searching first in the dynamic
-          // and then in the static part
-            LinearConstraint * p_const = dynamic_cast<LinearConstraint *>(*it);
-            auto it1 = find_if (v_int_d_const.begin(),v_int_d_const.end(), [&](MILPSolver::int_const pair) {
-                    return pair.second == p_const;
-                    });
-          if (it1 != v_int_d_const.end())
-                matind[i] = (it1->first);
-          else
-                matind[i] = ind_const(p_const);
-
-          //find the coefficient of the constraint that refers to the examined variable
-         auto it2 = find_if (p_const->get_v_var()->begin(),p_const->get_v_var()->end(), [&](LinearConstraint::coeff_pair pair) {
-                    return pair.first == r_var;
-                    });
-
-          matval[i] = it2->second;
-          i++;
-        }
+  matval[i] = it2->second;
+  i++;
+ }
 
 
 //setting the bounds
-double  lb[1];
-double  ub[1];
+ double lb[1];
+ double ub[1];
 
-lb [0] = r_var->get_lb();
-ub [0] = r_var->get_ub();
+ lb[0] = r_var->get_lb();
+ ub[0] = r_var->get_ub();
 
- v_d_var_int.push_back( std::make_pair ( r_var, v_d_var_int.back().second+1 ) );
- v_int_d_var.push_back( std::make_pair ( v_int_d_var.back().first+1, r_var ) );
+ v_d_var_int.push_back(std::make_pair(r_var, v_d_var_int.back().second + 1));
+ v_int_d_var.push_back(std::make_pair(v_int_d_var.back().first + 1, r_var));
 
-CPXaddcols( env, milp, 1, nz, NULL, matbeg, matind, matval, lb, ub, NULL );
+ CPXaddcols(env, milp, 1, nz, NULL, matbeg, matind, matval, lb, ub, NULL);
 
 }
 
@@ -2165,7 +2158,7 @@ void MILPSolver::const_modification( ConstraintModification* mod )
 
 
 }
- */
+*/
 /*--------------------------------------------------------------------------*/
 /*----------------------- End File MILPSolver.cpp --------------------------*/
 /*--------------------------------------------------------------------------*/ 

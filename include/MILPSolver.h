@@ -8,9 +8,14 @@
  *
  * \version 0.10
  *
- * \date 22 - 12 - 2016
+ * \date 26 - 03 - 2019
  *
  * \author Antonio Frangioni \n
+ *         Operations Research Group \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Niccolò Iardella \n
  *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
@@ -20,7 +25,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy by Antonio Frangioni, Kostas Tavlaridis-Gyparakis
+ * Copyright &copy by Antonio Frangioni, Kostas Tavlaridis-Gyparakis, Niccolò Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -34,20 +39,17 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 #include "SMSTypedefs.h"
-#include "ColVariable.h"
+
 #include "Observer.h"
 #include "Block.h"
 #include "Solver.h"
-#include "OneVarConstraint.h"
-#include "FRowConstraint.h"
+
+#include "ColVariable.h"
 #include "FRealObjective.h"
-//#include "DQuadObjectiveFunction.h"
+#include "FRowConstraint.h"
+#include "OneVarConstraint.h"
 
-
-//!!#include <ilcplex/cplex.h>
-//!!#include <ilcplex/cplexcheck.h>
 #include <cplex.h>
-  //#include <cplexcheck.h>
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -171,7 +173,6 @@ class Block;  ///< forward definition of class Block
  *  of pairs.
  *
  */
-
 class MILPSolver : public Solver {
 
  public:
@@ -180,13 +181,13 @@ class MILPSolver : public Solver {
 /*---------------------- PUBLIC TYPES OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
 
- typedef std::pair<ColVariable *, int> var_int;
+ typedef std::pair<ColVariable*, int> var_int;
 
- typedef std::pair<int, ColVariable *> int_var;
+ typedef std::pair<int, ColVariable*> int_var;
 
- typedef std::pair<FRowConstraint *, int> const_int;
+ typedef std::pair<FRowConstraint*, int> const_int;
 
- typedef std::pair<int, FRowConstraint *> int_const;
+ typedef std::pair<int, FRowConstraint*> int_const;
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
@@ -201,13 +202,13 @@ class MILPSolver : public Solver {
  }
 
  ~MILPSolver() override {
-  if( env ) {
-   CPXfreeprob( env, &milp );
-   CPXcloseCPLEX( &env );
+  if (env) {
+   CPXfreeprob(env, &milp);
+   CPXcloseCPLEX(&env);
   }
  }
 
- int compute( bool changedvars ) override {
+ int compute(bool changedvars) override {
   return this->solve();
  }
 
@@ -221,16 +222,17 @@ class MILPSolver : public Solver {
 
 /** @name Public Methods derived of the Base Class
  *  @{ */
- void set_Block( Block *block ) override;
+
+ void set_Block(Block* block) override;
  ///< method for setting the Block and building the corresponding CPLEX problem
 
  int solve();
  ///< method for solving the problem with CPLEX
 
- void get_var_solution( Configuration *solc) override;
+ void get_var_solution(Configuration* solc) override;
  ///< method for writing the solution in Block
 
- bool new_var_solution() override { return ( false ); }
+ bool new_var_solution() override { return (false); }
 
 /*@}------------------------------------------------------------------------*/
 /*----------------------- METHODS FOR READING DATA  ------------------------*/
@@ -239,55 +241,58 @@ class MILPSolver : public Solver {
 /** @name Public Methods for reading the data of the Block
  *  @{ */
 
- void scan_static_constraints( FRowConstraint &lconst,
-                               char *sense,
-                               double *rhs,
-                               int &first, int &i );
+ void scan_static_constraints(FRowConstraint& lconst,
+                              char* sense,
+                              double* rhs,
+                              int& first, int& i);
+
  /***< method used to scan all the data of the each individual static constraint and
     stores them in the appropriate vectors in order to pass them to CPLEX
  */
 
- void scan_dynamic_constraints( FRowConstraint &lconst,
-                                char *sense,
-                                double *rhs,
-                                int &i );
+ void scan_dynamic_constraints(FRowConstraint& lconst,
+                               char* sense,
+                               double* rhs,
+                               int& i);
  /***< method used to scan all the data of the each individual dynamic constraint and
     stores them in the appropriate vectors in order to pass them to CPLEX
  */
 
- // TODO Fix this
- void scan_static_variables( ColVariable &var,
-                             int *matbeg,
-                             int *matcnt,
-                             int *matind,
-                             double *matval,
-                             // double *objective,
-                             // double *q_objective,
-                             double *lb,
-                             double *ub,
-                             char *xctype,
-                             int &first,
-                             int &i );
+ void scan_static_variables(ColVariable& var,
+                            int* matbeg,
+                            int* matcnt,
+                            int* matind,
+                            double* matval,
+                            double* lb,
+                            double* ub,
+                            char* xctype,
+                            int& first,
+                            int& i);
+
  /***< method used to scan all the data of the each individual static variable and
     stores them in the appropriate vectors in order to pass them to CPLEX
  */
 
- void scan_dynamic_variables( ColVariable &lvar,
-                              int *matbeg,
-                              int *matcnt,
-                              int *matind,
-                              double *matval,
-                              double *objective,
-                              double *q_objective,
-                              double *lb,
-                              double *ub,
-                              char *xctype,
-                              int &i );
+ void scan_dynamic_variables(ColVariable& lvar,
+                             int* matbeg,
+                             int* matcnt,
+                             int* matind,
+                             double* matval,
+                             // double* objective,
+                             // double* q_objective,
+                             double* lb,
+                             double* ub,
+                             char* xctype,
+                             int& i);
+
  /***< method used to scan all the data of the each individual dynamic variable and
     stores them in the appropriate vectors in order to pass them to CPLEX
  */
 
- void scan_objective( const FRealObjective *obj, double *objective, double *q_objective );
+ // TODO Document this
+ void scan_objective(const FRealObjective* obj,
+                     double* objective,
+                     double* q_objective);
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
@@ -296,17 +301,16 @@ class MILPSolver : public Solver {
 /** @name Public Methods for modifying the constructed CPLEX Problem
  *  @{ */
 
-/*
  void add_modifications(sp_Mod& mod);
  ///< method for adding and handling a Modification of the Problem
 
- void var_modification(VariableMod* mod);
+ // void var_modification(VariableMod* mod);
  ///< method for adding and handling a Variable Modification
 
- void of_modification(ObjectiveMod* mod);
+ // void of_modification(ObjectiveMod* mod);
  ///< method for adding and handling an Objective Function Modification
 
- void const_modification(ConstraintMod* mod);
+ // void const_modification(ConstraintMod* mod);
  ///< method for adding and handling a Constraint Modification
 
  void dynamic_modification(BlockModAD* mod);
@@ -315,15 +319,14 @@ class MILPSolver : public Solver {
  void add_dynamic_constraint(FRowConstraint* r_const);
  ///< method for adding a single new dynamic constraint to CPLEX
 
- void add_dynamic_variable(ColVariable* r_var);
+ // void add_dynamic_variable(ColVariable* r_var);
  ///< method for adding a single new dynamic variable to CPLEX
 
- void remove_dynamic_constraint(FRowConstraint* r_const);
+ // void remove_dynamic_constraint(FRowConstraint* r_const);
  ///< method for deleting a single dynamic constraint to CPLEX
 
- void remove_dynamic_variable(ColVariable* r_var);
+ // void remove_dynamic_variable(ColVariable* r_var);
  ///< method for removing a single dynamic variable to CPLEX
- */
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------------- SUPPLEMENTARY METHODS  ------------------------*/
@@ -341,6 +344,7 @@ class MILPSolver : public Solver {
  void set_var_value(ColVariable& lvar, double* tmpx, int& i);
 ///< method used to pass the solution to the variables
 
+ // FIXME For some reason, the following 4 methods only look in the static part
  int index_of_variable(ColVariable* p_var);
 ///< method for returning the CPLEX coeff-matrix index of the examined Variable
 
@@ -357,9 +361,9 @@ class MILPSolver : public Solver {
 
  OFValue get_ub() override;
 
- void set_par( int par, int value );
+ void set_par(int par, int value);
 
- void set_par( int par, double value );
+ void set_par(int par, double value);
 
  // void set_par( int par, long value );
 
@@ -371,7 +375,7 @@ class MILPSolver : public Solver {
 
  int cuts{}; //parameter for adding cuts
 
- int Callback( CPXCENVptr env, void *cbdata, int wherefrom, int *useraction_p );
+ int Callback(CPXCENVptr env, void* cbdata, int wherefrom, int* useraction_p);
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
