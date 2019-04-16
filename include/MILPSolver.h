@@ -319,13 +319,13 @@ class MILPSolver : public Solver {
  void add_dynamic_constraint(FRowConstraint* r_const);
  ///< method for adding a single new dynamic constraint to CPLEX
 
- // void add_dynamic_variable(ColVariable* r_var);
+ void add_dynamic_variable(ColVariable* r_var);
  ///< method for adding a single new dynamic variable to CPLEX
 
- // void remove_dynamic_constraint(FRowConstraint* r_const);
+ void remove_dynamic_constraint(FRowConstraint* r_const);
  ///< method for deleting a single dynamic constraint to CPLEX
 
- // void remove_dynamic_variable(ColVariable* r_var);
+ void remove_dynamic_variable(ColVariable* r_var);
  ///< method for removing a single dynamic variable to CPLEX
 
 /*@}------------------------------------------------------------------------*/
@@ -338,8 +338,11 @@ class MILPSolver : public Solver {
  void count_constraints(FRowConstraint& constraint, int& numrows);
 ///< method used to count the total number of rows
 
- void count_variables(ColVariable& variable, int& numcols, int& nzelements);
- ///< method used to count the total number of columns and non-zero elements
+ void count_variables(ColVariable& variable, int& numcols);
+ ///< method used to count the total number of columns
+
+ void count_nzelements(ColVariable& variable, int& nzelements);
+ ///< method used to count the number of non zero elements
 
  void set_var_value(ColVariable& lvar, double* tmpx, int& i);
 ///< method used to pass the solution to the variables

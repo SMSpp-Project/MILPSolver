@@ -39,6 +39,7 @@
 #include "LinearFunction.h"
 #include "DQuadFunction.h"
 
+#define DEBUG_COUT
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -65,9 +66,11 @@ SMSpp_insert_in_factory_cpp_0( MILPSolver );
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::count_constraints(FRowConstraint& constraint, int& numrows) {
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::count_constraints()" << std::endl;
  std::cout << "[DEBUG] numrows = " << numrows << std::endl;
  std::cout << "[DEBUG] " << constraint;
+#endif
 
  // Counter is incremented only if constraint is described by a linear function
  auto fun = dynamic_cast<const LinearFunction*>(constraint.get_function());
@@ -80,17 +83,27 @@ void MILPSolver::count_constraints(FRowConstraint& constraint, int& numrows) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::count_variables(ColVariable& variable, int& numcols, int& nzelements) {
+void MILPSolver::count_variables(ColVariable& variable, int& numcols) {
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::count_variables()" << std::endl;
- std::cout << "[DEBUG] numcols    = " << numrows << std::endl;
- std::cout << "[DEBUG] nzelements = " << numrows << std::endl;
+ std::cout << "[DEBUG] numcols    = " << numcols << std::endl;
+ std::cout << "[DEBUG] " << variable;
+#endif
+ ++numcols;
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::count_nzelements(ColVariable& variable, int& nzelements) {
+#ifdef DEBUG_COUT
+ std::cout << "[DEBUG] ========= MILPSolver::count_nzelements()" << std::endl;
+ std::cout << "[DEBUG] nzelements = " << nzelements << std::endl;
  std::cout << "[DEBUG] " << variable;
  std::cout << "[DEBUG] The active stuff is:" << std::endl;
+#endif
 
- ++numcols;
+ static int counter = 0;
 
-
- // TODO resize these somewhere else
  if (active_row_constraints.size() < numcols) {
   // The two vectors are resized together so they should have the same size
   active_row_constraints.resize(static_cast<unsigned long>(numcols));
@@ -98,24 +111,31 @@ void MILPSolver::count_variables(ColVariable& variable, int& numcols, int& nzele
  }
 
  // Each ColVariable has a vector of active things
- // so we check if said things are row constraints or box constraints
+ // so we check if such things are row constraints or box constraints
  for (auto i : variable.active_stuff()) {
   auto row = dynamic_cast<FRowConstraint*>(i);
   if (row != nullptr) {
+#ifdef DEBUG_COUT
    std::cout << "[DEBUG] " << *row;
-   active_row_constraints[numcols - 1].push_back(row);
+#endif
+   active_row_constraints[counter].push_back(row);
    ++nzelements;
   }
   auto box = dynamic_cast<OneVarConstraint*>(i);
   if (box != nullptr) {
+#ifdef DEBUG_COUT
    std::cout << "[DEBUG] " << *box;
-   active_box_constraints[numcols - 1].push_back(box);
+#endif
+   active_box_constraints[counter].push_back(box);
   }
+#ifdef DEBUG_COUT
   auto obj = dynamic_cast<Objective*>(i);
   if (obj != nullptr) {
    std::cout << "[DEBUG] " << *obj;
   }
+#endif
  }
+ ++counter;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -245,7 +265,10 @@ void MILPSolver::scan_static_constraints(FRowConstraint& lconst,
  if (lin_fun == nullptr) {
   throw (std::invalid_argument("The Constraint is not linear"));
  }
+
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::scan_static_constraints()" << std::endl;
+#endif
  // Remember: i is the index of the constraint/row from the CPLEX matrix,
  // only FRowConstraints with LinearFunctions are counted.
 
@@ -277,18 +300,16 @@ void MILPSolver::scan_static_constraints(FRowConstraint& lconst,
   rhs[i] = lconst_lhs;
  }
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] i          = " << i << std::endl;
  std::cout << "[DEBUG] lconst     = " << lconst;
  std::cout << "[DEBUG] sense[i]   = " << i << std::endl;
  std::cout << "[DEBUG] lconst_lhs = " << lconst_lhs << std::endl;
  std::cout << "[DEBUG] lconst_rhs = " << lconst_rhs << std::endl;
-
+#endif
 
  // Check if we are in dynamic or static part of the problem
  if (first == 0) {
-  // emplace_back() spares a copy operation
-  // v_s_const_int.push_back( std::make_pair( &lconst, i ));
-  // v_int_s_const.push_back( std::make_pair( i, &lconst ));
   v_s_const_int.emplace_back(&lconst, i);
   v_int_s_const.emplace_back(i, &lconst);
  }
@@ -312,7 +333,9 @@ void MILPSolver::scan_dynamic_constraints(FRowConstraint& lconst,
   throw (std::invalid_argument("The Constraint is not linear"));
  }
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::scan_dynamic_constraints()" << std::endl;
+#endif
  // Remember: i is the index of the constraint/row from the CPLEX matrix,
  // only FRowConstraints with LinearFunctions are counted.
 
@@ -344,11 +367,13 @@ void MILPSolver::scan_dynamic_constraints(FRowConstraint& lconst,
   rhs[i] = lconst_lhs;
  }
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] i          = " << i << std::endl;
  std::cout << "[DEBUG] lconst     = " << lconst;
  std::cout << "[DEBUG] sense[i]   = " << i << std::endl;
  std::cout << "[DEBUG] lconst_lhs = " << lconst_lhs << std::endl;
  std::cout << "[DEBUG] lconst_rhs = " << lconst_rhs << std::endl;
+#endif
 
  // emplace_back() spares a copy operation
  // v_d_const_int.push_back( std::make_pair( &lconst, i ));
@@ -373,7 +398,9 @@ void MILPSolver::scan_static_variables(ColVariable& var,
                                        int& first,
                                        int& i) {
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::scan_static_variables()" << std::endl;
+#endif
 
  if (first == 0) {
   // emplace_back() spares a copy operation
@@ -398,8 +425,8 @@ void MILPSolver::scan_static_variables(ColVariable& var,
  int bounds = static_cast<int>(active_box_constraints[i].size());
  for (int j = 0; j < bounds; ++j) {
   auto box = active_box_constraints[i][j];
-  lb[i] = lb[i] > box->get_lhs()? lb[i] : box->get_lhs();
-  ub[i] = ub[i] < box->get_rhs()? ub[i] : box->get_rhs();
+  lb[i] = lb[i] > box->get_lhs() ? lb[i] : box->get_lhs();
+  ub[i] = ub[i] < box->get_rhs() ? ub[i] : box->get_rhs();
  }
 
  // Setting the type of the variable
@@ -413,11 +440,13 @@ void MILPSolver::scan_static_variables(ColVariable& var,
   xctype[i] = 'C';  // Continuous
  }
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] i         = " << i << std::endl;
  std::cout << "[DEBUG] var       = " << var;
  std::cout << "[DEBUG] lb[i]     = " << lb[i] << std::endl;
  std::cout << "[DEBUG] ub[i]     = " << ub[i] << std::endl;
  std::cout << "[DEBUG] xctype[i] = " << xctype[i] << std::endl;
+#endif
 
  // Remember: i is the index of the variable/column from the CPLEX matrix,
  // all the ColVariables are counted, even if they don't have active FRowConstraints
@@ -435,7 +464,7 @@ void MILPSolver::scan_static_variables(ColVariable& var,
 
  // We need to find where is the index in matval
  // and matind for the corresponding variable
- // FIXME I suspect that indexed[] and matbeg[] do the same thing
+ // FIXME: I suspect that indexed[] and matbeg[] do the same thing
  if (i == 0) {
   indexed[i] = 0;
  } else if (i > 0) {
@@ -469,7 +498,7 @@ void MILPSolver::scan_static_variables(ColVariable& var,
    */
 
   // Locating the index of the constraint in CPLEX
-  // TODO check that this still works after changing index_of_constraint()
+  // TODO: Check that this still works after changing index_of_constraint()
   matind[indexed[i] + j] = index_of_constraint(p_const);
  } // for j
 
@@ -489,11 +518,11 @@ void MILPSolver::scan_dynamic_variables( ColVariable &var,
                                          char *xctype,
                                          int &i ){
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::scan_dynamic_variables()" << std::endl;
+#endif
 
  // emplace_back() spares a copy operation
- // v_d_var_int.push_back( std::make_pair( &lvar, i ));
- // v_int_d_var.push_back( std::make_pair( i, &lvar ));
  v_d_var_int.emplace_back( &var, i );
  v_int_s_var.emplace_back( i, &var );
 
@@ -527,11 +556,13 @@ void MILPSolver::scan_dynamic_variables( ColVariable &var,
   xctype[i] = 'C';  // Continuous
  }
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] i         = " << i << std::endl;
  std::cout << "[DEBUG] var       = " << var;
  std::cout << "[DEBUG] lb[i]     = " << lb[i] << std::endl;
  std::cout << "[DEBUG] ub[i]     = " << ub[i] << std::endl;
  std::cout << "[DEBUG] xctype[i] = " << xctype[i] << std::endl;
+#endif
 
  // Remember: i is the index of the variable/column from the CPLEX matrix,
  // all the ColVariables are counted, even if they don't have active FRowConstraints
@@ -593,9 +624,7 @@ void MILPSolver::scan_dynamic_variables( ColVariable &var,
   }
  } // for j
 
-
- // TODO I do not understand why checking the objective function in a scan_variables()
- // TODO Apparently this doesn't work but the scan_objective() does, so I have to understand why this code was here in the first place
+ // TODO: Apparently this doesn't work but the scan_objective() (see) does, so I have to understand why this code was here in the first place
 
  // Setting the coefficient of the variable for the objective function
  // Checking the type of the objective function
@@ -629,8 +658,10 @@ void MILPSolver::scan_dynamic_variables( ColVariable &var,
 }
 
 void MILPSolver::scan_objective(const FRealObjective *obj, double *objective, double *q_objective ) {
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::scan_objective()" << std::endl;
  std::cout << "[DEBUG] " << *obj;
+#endif
 
  auto lin_fun = dynamic_cast<const LinearFunction *> (obj->get_function());
  int k;
@@ -763,8 +794,7 @@ void MILPSolver::set_Block( Block *block ) {
    auto f1 = std::bind(&MILPSolver::count_variables,
                        this,
                        std::placeholders::_1,
-                       std::ref(numcols),
-                       std::ref(nzelements));
+                       std::ref(numcols));
    un_any_const_static(i, f1, un_any_type<ColVariable>());
   }
 
@@ -773,16 +803,35 @@ void MILPSolver::set_Block( Block *block ) {
    auto f1 = std::bind(&MILPSolver::count_variables,
                        this,
                        std::placeholders::_1,
-                       std::ref(numcols),
+                       std::ref(numcols));
+   un_any_const_dynamic(i, f1, un_any_type<ColVariable>());
+  }
+
+  // We count all the static active contraints/non-zero elements
+  for (const auto& i : q_Block->get_static_variables()) {
+   auto f1 = std::bind(&MILPSolver::count_nzelements,
+                       this,
+                       std::placeholders::_1,
+                       std::ref(nzelements));
+   un_any_const_static(i, f1, un_any_type<ColVariable>());
+  }
+
+  // We count all the dynamic active contraints/non-zero elements
+  for (const auto& i : q_Block->get_dynamic_variables()) {
+   auto f1 = std::bind(&MILPSolver::count_nzelements,
+                       this,
+                       std::placeholders::_1,
                        std::ref(nzelements));
    un_any_const_dynamic(i, f1, un_any_type<ColVariable>());
   }
  } // End of while loop on Block queue
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::set_Block() after counting loop" << std::endl;
  std::cout << "constraints/numrows = " << numrows << std::endl;
  std::cout << "variables/numcols =   " << numcols << std::endl;
  std::cout << "nzelements =          " << nzelements << std::endl;
+#endif
 
  int* matbeg = new int[numcols];
  int* matcnt = new int[numcols];
@@ -857,7 +906,9 @@ void MILPSolver::set_Block( Block *block ) {
   }
  } // End of while loop on Block queue
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::set_Block() after constraints scan" << std::endl;
+#endif
  std::sort(v_s_const_int.begin(), v_s_const_int.end());
  std::sort(v_int_s_const.begin(), v_int_s_const.end());
  std::sort(v_d_const_int.begin(), v_d_const_int.end());
@@ -913,10 +964,14 @@ void MILPSolver::set_Block( Block *block ) {
   }
  } // End of while loop on Block queue
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::set_Block() after variables scan" << std::endl;
- /* Order all the different vectors of pairs in ascending order based
-on the adress of the constraints/variables or the index of CPLEX
-rows/columns respectively. */
+#endif
+ /*
+  * Order all the different vectors of pairs in ascending order based
+  * on the adress of the constraints/variables or the index of CPLEX
+  * rows/columns respectively.
+  */
  std::sort(v_s_var_int.begin(), v_s_var_int.end());
  std::sort(v_int_s_var.begin(), v_int_s_var.end());
  std::sort(v_d_var_int.begin(), v_d_var_int.end());
@@ -938,9 +993,10 @@ rows/columns respectively. */
   }
  } catch (boost::bad_any_cast&) {
   std::cout << "Bad any_cast" << std::endl;
-  // TODO Do something if objective is not a FRealObjective
+  // TODO: Do something if objective is not a FRealObjective
  }
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::set_Block() before objective scan" << std::endl;
 
  std::cout << "[DEBUG] objective   = [";
@@ -954,6 +1010,7 @@ rows/columns respectively. */
   std::cout << " " << q_objective[i];
  }
  std::cout << "]" << std::endl;
+#endif
 
  // LOOP ON THE QUEUE TO SCAN OBJECTIVES
  Q.push(f_Block);
@@ -967,12 +1024,12 @@ rows/columns respectively. */
    Q.push(i);
   }
 
-  // TODO I think that this is already done in scan_dynamic_variables()
+  // TODO: I think that this is already done in scan_dynamic_variables()
   try {
    p_obj = boost::any_cast<FRealObjective*>(q_Block->get_objective());
   } catch (boost::bad_any_cast&) {
    std::cout << "Bad any_cast" << std::endl;
-   // TODO Do something if objective is not a FRealObjective
+   // TODO: Do something if objective is not a FRealObjective
   }
 
   scan_objective(p_obj, objective, q_objective);
@@ -986,6 +1043,7 @@ rows/columns respectively. */
  * we will pass the vectors by pointers.
  */
 
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::set_Block() after objective scan" << std::endl;
 
  std::cout << "[DEBUG] objective   = [";
@@ -1053,6 +1111,7 @@ rows/columns respectively. */
   std::cout << " " << xctype[i];
  }
  std::cout << "]" << std::endl;
+#endif
 
  // Creation of the problem
  CPXcopylp(env, milp, numcols, numrows, obj_type, objective, rhs, sense,
@@ -1065,7 +1124,7 @@ rows/columns respectively. */
  }
  CPXcopyctype(env, milp, xctype);
 
- // TODO
+ // TODO: Implement cuts
  // Adding cuts
  // cuts = t_pc;
  // if (cuts == 1) {
@@ -1150,7 +1209,7 @@ Solver::OFValue MILPSolver::get_ub(){
 }
 
 /*--------------------------------------------------------------------------*/
-// TODO all the three set_par() have to be revised
+// TODO: All the three set_par() have to be revised
 // I'm not sure it is ideal to split them according the type of the value
 void MILPSolver::set_par(const int par, const int value) {
  switch (par) {
@@ -1227,7 +1286,7 @@ void MILPSolver::set_par( const int par, const double value ) {
 int MILPSolver::solve() {
 
  // Write the problem on file
-	// TODO Add this feature as configurable
+	// TODO: Add this feature as configurable
  // CPXwriteprob(env, milp, "mipex1.lp", nullptr);
 
  // Solve the problem
@@ -1237,7 +1296,7 @@ int MILPSolver::solve() {
  nodes = CPXgetnodecnt(env, milp);
 
  // Write the solution on the Block
- // TODO pass configuration object
+ // TODO: Pass configuration object
  get_var_solution(nullptr);
 
  // Get the status
@@ -1409,9 +1468,11 @@ int MILPSolver::Callback(CPXCENVptr env, void* cbdata, int wherefrom, int* usera
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::set_var_value(ColVariable& lvar, double* tmpx, int& i) {
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::set_var_value()" << std::endl;
  std::cout << "[DEBUG] i     = " << i << std::endl;
  std::cout << "[DEBUG] value = " << tmpx[i] << std::endl;
+#endif
  lvar.set_value(tmpx[i]);
  i++;
 }
@@ -1419,8 +1480,10 @@ void MILPSolver::set_var_value(ColVariable& lvar, double* tmpx, int& i) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::get_var_solution(Configuration* solc) {
+#ifdef DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::get_var_solution()" << std::endl;
- // TODO Support Configuration
+#endif
+ // TODO: Support Configuration
 
  auto* tmpx = new double[numcols];
 
@@ -1469,10 +1532,10 @@ void MILPSolver::get_var_solution(Configuration* solc) {
   p_obj->compute();
  } catch (boost::bad_any_cast&) {
   std::cout << "Bad any_cast" << std::endl;
-  // TODO Do something if objective is not a FRealObjective
+  // TODO: Do something if objective is not a FRealObjective
  }
 
- // TODO The following code was used to write the value of the objective function
+ // TODO: The following code was used to write the value of the objective function
  // double objval;
  // CPXgetobjval(env, milp, &objval);
  //
@@ -1481,19 +1544,18 @@ void MILPSolver::get_var_solution(Configuration* solc) {
  //  auto p_lin_fun = dynamic_cast<const LinearFunction*> (p_obj->get_function());
  //
  //  if (p_lin_fun != nullptr) {
- //   // TODO
+ //   //
  //
  //  } else {
  //   auto p_dquad_fun = dynamic_cast<const DQuadFunction*> (p_obj->get_function());
  //   if (p_dquad_fun != nullptr) {
- //    // TODO
+ //    //
  //   } else {
  //    throw (std::invalid_argument("Unknown type of Objective Function"));
  //   }
  //  }
  // } catch (boost::bad_any_cast&) {
  //  std::cout << "Bad any_cast" << std::endl;
- //  // TODO Do something if objective is not a FRealObjective
  // }
 
 // if( f_Block->get_objective_function().type() ==  typeid(LinearObjectiveFunction *) ){
@@ -1537,7 +1599,7 @@ void MILPSolver::add_modifications(sp_Mod& mod) {
 
 void MILPSolver::dynamic_modification(BlockModAD* mod) {
 
- // TODO The casts in this method will probably need a lot of debugging
+ // TODO: The casts in this method will probably need a lot of debugging
  switch (mod->f_type) {
 
 
@@ -1560,7 +1622,7 @@ void MILPSolver::dynamic_modification(BlockModAD* mod) {
    break;
   }
 
-/*
+
   case (BlockModAD::eAddVar): {
    // Add one or more dynamic variables
 
@@ -1624,7 +1686,7 @@ void MILPSolver::dynamic_modification(BlockModAD* mod) {
    }
    break;
   }
-  */
+
 
   default:
    break;
@@ -1633,10 +1695,14 @@ void MILPSolver::dynamic_modification(BlockModAD* mod) {
 
 
 void MILPSolver::add_dynamic_constraint(FRowConstraint* r_const) {
+ // TODO: We have to do the same thing with OneVarConstraints
 
  // Retrieve the function
- // TODO Handle exceptions and other classes of Functions
+ // TODO: Handle exceptions and other classes of Functions
  auto p_fun = dynamic_cast<const LinearFunction*>(r_const->get_function());
+ if (p_fun == nullptr) {
+  throw (std::invalid_argument("The Constraint is not linear"));
+ }
 
  // In order to add a new dynamic constraint to CPLEX we use the
  // routine addrows that needs the following information:
@@ -1655,7 +1721,7 @@ void MILPSolver::add_dynamic_constraint(FRowConstraint* r_const) {
  for (auto it = r_const->begin(); it != r_const->end(); ++it) {
 
   // Retrieve the variable
-  // TODO Handle exceptions
+  // TODO: Handle exceptions
   auto p_var = dynamic_cast<ColVariable*>(&*it);
 
   // Search among dynamic variables
@@ -1696,321 +1762,431 @@ void MILPSolver::add_dynamic_constraint(FRowConstraint* r_const) {
  // Update the vectors of pairs
  v_d_const_int.emplace_back(r_const, v_d_const_int.back().second + 1);
  v_int_d_const.emplace_back(v_int_d_const.back().first + 1, r_const);
+ std::sort(v_d_const_int.begin(), v_d_const_int.end());
+ std::sort(v_int_d_const.begin(), v_int_d_const.end());
+
+ // We also need to add the constraint to active_row_constraints
+ active_row_constraints[i].push_back(r_const);
 
  // Update CPLEX problem
  CPXaddrows(env, milp, 0, 1, nz, rhs, sense, matbeg, matind, matval, nullptr, nullptr);
 }
 
-/*
+
 void MILPSolver::add_dynamic_variable(ColVariable* r_var) {
 
- // In order to add a new dynamic variable to CPLEX we use the
- // routine addrows that needs the following information:
+ std::vector<FRowConstraint *>   var_row_constraints;
+ std::vector<OneVarConstraint *> var_box_constraints;
+ int nz = 0;
 
- int nz = r_var->get_num_active_const();
+ // We count the nz elements,
+ // and build the vectors of active constraints and bounds
+ for (auto i : r_var->active_stuff()) {
+  auto row = dynamic_cast<FRowConstraint*>(i);
+  if (row != nullptr) {
+   var_row_constraints.push_back(row);
+   ++nz;
+  }
+  auto box = dynamic_cast<OneVarConstraint*>(i);
+  if (box != nullptr) {
+   var_box_constraints.push_back(box);
+  }
+ }
+
+ // In order to add a new dynamic variable to CPLEX we use the
+ // routine addrows that needs the following information
+
  int matbeg[2] = {0, nz};
  int matind[nz];
  double matval[nz];
 
  int i = 0;
- for (auto it = r_var->active_constraints().begin(); it != r_var->active_constraints().end(); ++it) {
+ for (auto* p_const : var_row_constraints) {
 
-  // locating the index in CPLEX searching first in the dynamic
-  // and then in the static part
-  LinearConstraint* p_const = dynamic_cast<LinearConstraint*>(*it);
-  auto it1 = find_if(v_int_d_const.begin(), v_int_d_const.end(), [&](MILPSolver::int_const pair) {
-   return pair.second == p_const;
-  });
-  if (it1 != v_int_d_const.end())
+  // Locate the index in CPLEX,
+  // searching first in the dynamic and then in the static part
+  auto p_fun = dynamic_cast<const LinearFunction*>(p_const->get_function());
+  if (p_fun == nullptr) {
+   throw (std::invalid_argument("The Constraint is not linear"));
+  }
+
+  auto it1 = find_if(v_int_d_const.begin(),
+                     v_int_d_const.end(),
+                     [&](MILPSolver::int_const pair) {
+                      return pair.second == p_const;
+                     });
+  if (it1 != v_int_d_const.end()) {
    matind[i] = (it1->first);
-  else
-   matind[i] = ind_const(p_const);
+  } else {
+   matind[i] = index_of_constraint(p_const);
+  }
 
-  //find the coefficient of the constraint that refers to the examined variable
-  auto it2 = find_if(p_const->get_v_var()->begin(), p_const->get_v_var()->end(), [&](LinearConstraint::coeff_pair pair) {
-   return pair.first == r_var;
-  });
-
-  matval[i] = it2->second;
-  i++;
+  matval[i] = p_fun->get_coefficient(i);
+  ++i;
  }
 
 
-//setting the bounds
+ // Setting the lower and upper bounds of the variable
  double lb[1];
  double ub[1];
 
- lb[0] = r_var->get_lb();
- ub[0] = r_var->get_ub();
+ // First check the bounds from the ColVariable class
+ if (r_var->get_lb() == -Inf<double>()) {
+  lb[0] = -CPX_INFBOUND;
+ } else {
+  lb[0] = r_var->get_lb();
+ }
 
- v_d_var_int.push_back(std::make_pair(r_var, v_d_var_int.back().second + 1));
- v_int_d_var.push_back(std::make_pair(v_int_d_var.back().first + 1, r_var));
+ if (r_var->get_ub() == Inf<double>()) {
+  ub[0] = CPX_INFBOUND;
+ } else {
+  ub[0] = r_var->get_ub();
+ }
 
- CPXaddcols(env, milp, 1, nz, NULL, matbeg, matind, matval, lb, ub, NULL);
+ // Then scan the box constraints
+ int bounds = static_cast<int>(var_box_constraints.size());
+ for (int j = 0; j < bounds; ++j) {
+  auto box = var_box_constraints[j];
+  lb[0] = lb[0] > box->get_lhs() ? lb[0] : box->get_lhs();
+  ub[0] = ub[0] < box->get_rhs() ? ub[0] : box->get_rhs();
+ }
 
+ // Update all the vectors
+ active_row_constraints.emplace_back(var_row_constraints);
+ active_box_constraints.emplace_back(var_box_constraints);
+ v_d_var_int.emplace_back(r_var, v_d_var_int.back().second + 1);
+ v_int_d_var.emplace_back(v_int_d_var.back().first + 1, r_var);
+
+ // Update the CPLEX problem
+ CPXaddcols(env, milp, 1, nz, nullptr, matbeg, matind, matval, lb, ub, nullptr);
 }
 
-void MILPSolver::remove_dynamic_constraint(LinearConstraint * r_const)
-{
+void MILPSolver::remove_dynamic_constraint(FRowConstraint* r_const) {
 
-//all we need is to find the index of the constraint in CPLEX matrix
-int i=0;
-auto it = find_if (v_int_d_const.begin(),v_int_d_const.end(), [&](MILPSolver::int_const pair) {
+// Find the index of the constraint in CPLEX matrix
+ int i = 0;
+ auto it1 = find_if(v_int_d_const.begin(),
+                   v_int_d_const.end(),
+                   [&](MILPSolver::int_const pair) {
                     return pair.second == r_const;
+                   });
+ if (it1 != v_int_d_const.end()) {
+  i = it1->first;
+ } else {
+  throw (std::invalid_argument("Constraint is not inside the CPLEX matrix"));
+ }
+
+ // Now i is the index of the constraint in the CPLEX matrix
+ CPXdelrows(env, milp, i, i + 1);
+
+// Remove constraint from the vectors of pairs
+ v_int_d_const.erase(it1);
+ auto it2 = find_if(v_d_const_int.begin(),
+                    v_d_const_int.end(),
+                    [&](MILPSolver::const_int pair) {
+                     return pair.first == r_const;
                     });
-          if (it != v_int_d_const.end())
-                i = it->first;
-          else
-        throw( std::invalid_argument( "Constraint is not inside the CPLEX matrix" ) );
+ if (it2 != v_d_const_int.end()) {
+  v_d_const_int.erase(it2);
+ } else {
+  throw (std::invalid_argument("Constraint is not inside the CPLEX matrix"));
+ }
 
-CPXdelrows (env, milp, i, i+1);
+ // We have to update the indexes greater than i in the vectors of pairs
+ // TODO: This is quite ugly but it has to be done, think of something smarter
+ for (auto it: v_d_const_int) {
+  if (it.second > i) {
+   it.second--;
+  }
+ }
+ for (auto it: v_int_d_const) {
+  if (it.first > i) {
+   it.first--;
+  }
+ }
+ for (auto it: v_s_const_int) {
+  if (it.second > i) {
+   it.second--;
+  }
+ }
+ for (auto it: v_int_s_const) {
+  if (it.first > i) {
+   it.first--;
+  }
+ }
 
-//remove constraint from the corresponding vector of pairs
-v_int_d_const.erase(it);
-auto it2 = find_if (v_d_const_int.begin(),v_d_const_int.end(), [&](MILPSolver::const_int pair) {
-                    return pair.first == r_const;
-                    });
-
- if (it2 != v_d_const_int.end())
-                v_d_const_int.erase(it2);
-          else
-        throw( std::invalid_argument( "Constraint is not inside the CPLEX matrix" ) );
-
+ // We have to remove the constraint from the active_row_contraints[]
+ // TODO: Look if we can avoiding use active_row_contraints[] altogether
+ for (auto& constraints: active_row_constraints) {
+  auto constraint = find(constraints.begin(), constraints.end(), r_const);
+  if (constraint != constraints.end()) {
+   constraints.erase(constraint);
+  }
+ }
 }
 
 
-void MILPSolver::remove_dynamic_variable(ColVariable * r_var)
-{
+void MILPSolver::remove_dynamic_variable(ColVariable* r_var) {
 
-//all we need is to find the index of the constraint in CPLEX matrix
-int i=0;
-auto it = find_if (v_int_d_var.begin(),v_int_d_var.end(), [&](MILPSolver::int_var pair) {
+// Find the index of the variable in CPLEX matrix
+ int i = 0;
+ auto it = find_if(v_int_d_var.begin(),
+                   v_int_d_var.end(),
+                   [&](MILPSolver::int_var pair) {
                     return pair.second == r_var;
+                   });
+ if (it != v_int_d_var.end()) {
+  i = it->first;
+ } else {
+  throw (std::invalid_argument("Constraint is not inside the CPLEX matrix"));
+ }
+
+ CPXdelcols(env, milp, i, i + 1);
+
+// Remove variable from the vectors of pairs
+ v_int_d_var.erase(it);
+ auto it2 = find_if(v_d_var_int.begin(),
+                    v_d_var_int.end(),
+                    [&](MILPSolver::var_int pair) {
+                     return pair.first == r_var;
                     });
-          if (it != v_int_d_var.end())
-                i = it->first;
-          else
-        throw( std::invalid_argument( "Constraint is not inside the CPLEX matrix" ) );
 
-CPXdelcols (env, milp, i, i+1);
+ if (it2 != v_d_var_int.end()) {
+  v_d_var_int.erase(it2);
+ } else {
+  throw (std::invalid_argument("Constraint is not inside the CPLEX matrix"));
+ }
 
-//remove constraint from the corresponding vector of pairs
-v_int_d_var.erase(it);
-auto it2 = find_if (v_d_var_int.begin(),v_d_var_int.end(), [&](MILPSolver::var_int pair) {
-                    return pair.first == r_var;
-                    });
-
- if (it2 != v_d_var_int.end())
-                v_d_var_int.erase(it2);
-          else
-        throw( std::invalid_argument( "Constraint is not inside the CPLEX matrix" ) );
-
+ // Also, remove from the active constraints vectors
+ // TODO: Verify that these vectors are kept in the right order
+ active_row_constraints.erase(active_row_constraints.begin() + i);
+ active_box_constraints.erase(active_box_constraints.begin() + i);
 }
 
+/*
 
-void MILPSolver::var_modification( VariableModification* mod ) //TODO
-{
+void MILPSolver::var_modification(VariableMod* mod) {
+
+ ColVariable* colvar = dynamic_cast<ColVariable*>(mod->f_variable);
+
+ switch (mod->f_type) {
+  case (VariableMod::eFixVar): {
+   //in case the Variable is set to be fixed we set the
+   //  lower and upper bound equal to the Variable value
+
+   int cnt = 1; //total number of bounds to be changed
+   int* indices = new int[cnt]; //array with the CPLEX index of variable
+   indices[0] = ind_var(colvar);
+   char* lu = new char[cnt]; //array with the type of bound for each element
+   lu[0] = 'B';
+   double* bd = new double[cnt]; //array with the value of bounds
+   bd[0] = colvar->get_value();
+   CPXchgbds(env, milp, cnt, indices, lu, bd);
+   delete[]indices;
+   delete[]lu;
+   delete[]bd;
+   break;
+  }//case
+  case (VariableMod::eUnFixVar): {
+   //in case the Variable is set to be unfixed we set the
+   //lower and upper bound equal to their original value
+
+   int cnt = 2; //total number of bounds to be changed
+   int* indices = new int[cnt]; //array with the CPLEX index of variable
+   indices[0] = ind_var(colvar);
+   indices[1] = ind_var(colvar);
+   char* lu = new char[cnt]; //array with the type of bound for each element
+   lu[0] = 'L';
+   lu[1] = 'U';
+   double* bd = new double[cnt]; //array with the value of bounds
+   bd[0] = colvar->get_lb();
+   bd[1] = colvar->get_ub();
+   CPXchgbds(env, milp, cnt, indices, lu, bd);
+
+   delete[]indices;
+   delete[]lu;
+   delete[]bd;
+   break;
+  }//case
+  case (VariableMod::eChgLB): {
+   //changing the LB
+   int cnt = 1; //total number of bounds to be changed
+   int* indices = new int[cnt]; //array with the CPLEX index of variable
+   indices[0] = ind_var(colvar);
+   char* lu = new char[cnt]; //array with the type of bound for each element
+   lu[0] = 'L';
+   double* bd = new double[cnt]; //array with the value of bounds
+   bd[0] = colvar->get_lb();
+   CPXchgbds(env, milp, cnt, indices, lu, bd);
+
+   delete[]indices;
+   delete[]lu;
+   delete[]bd;
+   break;
+  }//case
+  case (VariableMod::eChgUB): {
+   //changing the UB
+
+   int cnt = 1; //total number of bounds to be changed
+   int* indices = new int[cnt]; //array with the CPLEX index of variable
+   indices[0] = ind_var(colvar);
+   char* lu = new char[cnt]; //array with the type of bound for each element
+   lu[0] = 'U';
+   double* bd = new double[cnt]; //array with the value of bounds
+   bd[0] = colvar->get_ub();
+   CPXchgbds(env, milp, cnt, indices, lu, bd);
+
+   delete[]indices;
+   delete[]lu;
+   delete[]bd;
+   break;
+  }//case
+  case (VariableMod::eChgType): {
+   //in case the type of Variable is set to be changed, we
+   //need to upgrade equivalently the lower and upper bound
+   //as well
+
+   int cnt = 1; //total number of variables that change type
+   int* indices = new int[cnt]; //array with the CPLEX index of variable
+   indices[0] = ind_var(colvar);
+   char* ctype = new char[cnt]; //array with the ne2 type of the variable
+   switch (colvar->get_type()) {
+    case (ColVariable::integer):
+     ctype[0] = ('I');
+     break;
+    case (ColVariable::binary):
+     ctype[0] = ('B');
+     break;
+    case (ColVariable::continuous):
+     ctype[0] = ('C');
+   }
+   CPXchgctype(env, milp, cnt, indices, ctype);
+
+   int cnt2 = 2; //total number of bounds to be changed
+   int* indices2 = new int[cnt2]; //array with the CPLEX index of variable
+   indices2[0] = ind_var(colvar);
+   indices2[1] = ind_var(colvar);
+   char* lu = new char[cnt]; //array with the type of bound for each element
+   lu[0] = 'L';
+   lu[1] = 'U';
+   double* bd = new double[cnt2]; //array with the value of bounds
+   bd[0] = colvar->get_lb();
+   bd[1] = colvar->get_ub();
+   CPXchgbds(env, milp, cnt2, indices2, lu, bd);
+
+   delete[]indices;
+   delete[]indices2;
+   delete[]lu;
+   delete[]bd;
+   delete[]ctype;
+
+  }//case
+
+ }//switch
+
+}
+*/
 
 
-        ColVariable* colvar = dynamic_cast< ColVariable* >( mod->f_variable );
+/*
+void MILPSolver::of_modification(ObjectiveMod* mod){
 
-		switch( mod->f_type ) {
-		case( VariableModification::eFixVar ):   {
-			//in case the Variable is set to be fixed we set the
-                        //  lower and upper bound equal to the Variable value
+ switch (mod->f_type) {
 
-			int cnt = 1; //total number of bounds to be changed
-			int * indices = new int [cnt]; //array with the CPLEX index of variable
-			indices[0] = ind_var(colvar);
-			char * lu = new char [cnt] ; //array with the type of bound for each element
-                        lu[0] = 'B' ;
-			double * bd = new double [cnt]; //array with the value of bounds
-			bd[0] = colvar->get_value();
-			CPXchgbds (env, milp, cnt, indices, lu, bd);
-            delete []indices; delete []lu; delete []bd;
-            break;
-        }//case
-		case( VariableModification::eUnFixVar ):   {
-			//in case the Variable is set to be unfixed we set the
-                        //lower and upper bound equal to their original value
+  case (ObjectiveMod::eSetMin): {
+   CPXchgobjsen(env, milp, 1);
+   break;
+  }
 
-			int cnt = 2; //total number of bounds to be changed
-			int * indices = new int [cnt]; //array with the CPLEX index of variable
-			indices[0] = ind_var(colvar);
-			indices[1] = ind_var(colvar);
-			char * lu = new char [cnt]; //array with the type of bound for each element
-                        lu[0] = 'L' ;
-                        lu[1] = 'U' ;
-			double * bd = new double [cnt]; //array with the value of bounds
-			bd[0] = colvar->get_lb();
-			bd[1] = colvar->get_ub();
-			CPXchgbds (env, milp, cnt, indices, lu, bd);
+  case (ObjectiveMod::eSetMax): {
+   //setting the objective function to maximize
+   CPXchgobjsen(env, milp, -1);
+   break;
+  }
 
-            delete []indices; delete []lu; delete []bd;
-                        break;
-        }//case
-		case( ColVariableModification::eChgLB ):   {
-                        //changing the LB
-			int cnt = 1; //total number of bounds to be changed
-			int * indices = new int [cnt]; //array with the CPLEX index of variable
-			indices[0] = ind_var(colvar);
-			char * lu = new char [cnt]; //array with the type of bound for each element
-                        lu[0] = 'L' ;
-			double * bd = new double [cnt]; //array with the value of bounds
-			bd[0] = colvar->get_lb();
-			CPXchgbds (env, milp, cnt, indices, lu, bd);
+  case (LinearOFModification::eAddVar): {
+   //adding linear coefficients
+   LinearOFModification* l_mod = dynamic_cast< LinearOFModification* >( mod );
+   int cnt = l_mod->v_variables->size();
+   int* indices = new int[cnt]; //array with the CPLEX index of variables
+   double* values = new double[cnt]; //array with the new values of variables
 
-            delete []indices; delete []lu; delete []bd;
-                        break;
-        }//case
-		case( ColVariableModification::eChgUB ):   {
-                        //changing the UB
+   int i = 0;
+   for (auto it = l_mod->v_variables->begin(); it < l_mod->v_variables->end(); ++it) {
+    indices[i] = index_of_variable(it->first);
+    values[i] = it->second;
+    i++;
+   }
+   CPXchgobj(env, milp, cnt, indices, values);
+   delete[]indices;
+   delete[]values;
+   break;
+  }//case
+  case (LinearOFModification::eRemoveVar): {
+   //deleting linear coefficients
+   LinearOFModification* l_mod = dynamic_cast< LinearOFModification* >( mod );
+   int cnt = l_mod->v_variables->size();
+   int* indices = new int[cnt]; //array with the CPLEX index of variables
+   double* values = new double[cnt]; //array with the new values of variables
 
-			int cnt = 1; //total number of bounds to be changed
-			int * indices = new int [cnt]; //array with the CPLEX index of variable
-			indices[0] = ind_var(colvar);
-			char * lu = new char [cnt]; //array with the type of bound for each element
-                        lu[0] = 'U' ;
-			double * bd = new double [cnt]; //array with the value of bounds
-			bd[0] = colvar->get_ub();
-			CPXchgbds (env, milp, cnt, indices, lu, bd);
+   int i = 0;
+   for (auto it = l_mod->v_variables->begin(); it < l_mod->v_variables->end(); ++it) {
+    indices[i] = ind_var(it->first);
+    values[i] = 0;
+    i++;
+   }
+   CPXchgobj(env, milp, cnt, indices, values);
+   delete[]indices;
+   delete[]values;
+   break;
+  }//case
+  case (LinearOFModification::eModifyCoeff): {
+   //changin linear coefficients
+   LinearOFModification* l_mod = dynamic_cast< LinearOFModification* >( mod );
+   int cnt = l_mod->v_variables->size();
+   int* indices = new int[cnt]; //array with the CPLEX index of variables
+   double* values = new double[cnt]; //array with the new values of variables
 
-            delete []indices; delete []lu; delete []bd;
-                        break;
-        }//case
-		case( ColVariableModification::eChgType ):   {
-                        //in case the type of Variable is set to be changed, we
-                        //need to upgrade equivalently the lower and upper bound
-                        //as well
+   int i = 0;
+   for (auto it = l_mod->v_variables->begin(); it < l_mod->v_variables->end(); ++it) {
+    indices[i] = ind_var(it->first);
+    values[i] = 0;
+    i++;
+   }
+   CPXchgobj(env, milp, cnt, indices, values);
+   delete[]indices;
+   delete[]values;
+   break;
+  }//case
 
-			int cnt = 1; //total number of variables that change type
-			int * indices = new int [cnt]; //array with the CPLEX index of variable
-			indices[0] = ind_var(colvar);
-   			char * ctype = new char [cnt]; //array with the ne2 type of the variable
-                        switch( colvar->get_type() ) {
-			  case( ColVariable::integer ):      ctype[0] = ('I'); break;
-			  case( ColVariable::binary ):       ctype[0] = ('B'); break;
-			  case( ColVariable::continuous ):   ctype[0] = ('C');
-			  }
-			CPXchgctype (env, milp, cnt, indices, ctype);
-
-			int cnt2 = 2; //total number of bounds to be changed
-			int * indices2 = new int [cnt2]; //array with the CPLEX index of variable
-			indices2[0] = ind_var(colvar);
-			indices2[1] = ind_var(colvar);
-			char * lu = new char [cnt]; //array with the type of bound for each element
-                        lu[0] = 'L' ;
-                        lu[1] = 'U' ;
-			double * bd = new double [cnt2]; //array with the value of bounds
-			bd[0] = colvar->get_lb();
-			bd[1] = colvar->get_ub();
-			CPXchgbds (env, milp, cnt2, indices2, lu, bd);
-
-            delete []indices;  delete []indices2; delete []lu; delete []bd; delete []ctype;
-
-        }//case
-
-			}//switch
-
+  case (DQOFModification::eqAddVar): {
+   //adding quad coefficients
+   DQOFModification* q_mod = dynamic_cast< DQOFModification* >( mod );
+   for (auto it = q_mod->v_variables->begin(); it < q_mod->v_variables->end(); ++it)
+    CPXchgqpcoef(env, milp, ind_var(it->first), ind_var(it->first), it->second);
+   break;
+  }//case
+  case (DQOFModification::eqRemoveVar): {
+   //deleting quad coefficients
+   DQOFModification* q_mod = dynamic_cast< DQOFModification* >( mod );
+   for (auto it = q_mod->v_variables->begin(); it < q_mod->v_variables->end(); ++it)
+    CPXchgqpcoef(env, milp, ind_var(it->first), ind_var(it->first), 0);
+   break;
+  }//case
+  case (DQOFModification::eqModifyCoeff): {
+   //changing quad coefficients
+   DQOFModification* q_mod = dynamic_cast< DQOFModification* >( mod );
+   for (auto it = q_mod->v_variables->begin(); it < q_mod->v_variables->end(); ++it)
+    CPXchgqpcoef(env, milp, ind_var(it->first), ind_var(it->first), it->second);
+   break;
+  }//case
+ } //switch
 
 
 }
+*/
 
-
-void MILPSolver::of_modification( ObjFunModification* mod ) //TODO
-{
-
-
-		switch( mod->f_type ) {
-			case( ObjFunModification::eSetMin ):  {
-			//setting the objective function to minimize
-			CPXchgobjsen (env, milp, 1);
-                        break;
-        }//case
-		case( ObjFunModification::eSetMax ):   {
-			//setting the objective function to maximize
-			CPXchgobjsen (env, milp, -1);
-                        break;
-        }//case
-		case( LinearOFModification::eAddVar ):  {
-                        //adding linear coefficients
-            LinearOFModification* l_mod = dynamic_cast< LinearOFModification* >( mod );
-			int cnt = l_mod->v_variables->size();
-			int * indices = new int [cnt]; //array with the CPLEX index of variables
-			double * values = new double [cnt]; //array with the new values of variables
-
-            int i=0;
-			for (auto it = l_mod->v_variables->begin(); it< l_mod->v_variables->end(); ++it){
-			indices[i]= index_of_variable (it->first) ;
-			values[i]= it->second;
-            i++;
-			}
-			CPXchgobj(env, milp, cnt, indices, values);
-            delete []indices;  delete []values;
-                        break;
-        }//case
-		case( LinearOFModification::eRemoveVar ):   {
-                        //deleting linear coefficients
-            LinearOFModification* l_mod = dynamic_cast< LinearOFModification* >( mod );
-			int cnt = l_mod->v_variables->size();
-            int * indices = new int [cnt]; //array with the CPLEX index of variables
-			double * values = new double [cnt]; //array with the new values of variables
-
-            int i=0;
-			for (auto it = l_mod->v_variables->begin(); it< l_mod->v_variables->end(); ++it){
-			indices[i]= ind_var (it->first) ;
-			values[i]= 0;
-            i++;
-			}
-			CPXchgobj(env, milp, cnt, indices, values);
-            delete []indices;  delete []values;
-                        break;
-        }//case
-		case( LinearOFModification::eModifyCoeff ):   {
-                       //changin linear coefficients
-            LinearOFModification* l_mod = dynamic_cast< LinearOFModification* >( mod );
-			int cnt = l_mod->v_variables->size();
-			int * indices = new int [cnt]; //array with the CPLEX index of variables
-			double * values = new double [cnt]; //array with the new values of variables
-
-            int i=0;
-			for (auto it = l_mod->v_variables->begin(); it< l_mod->v_variables->end(); ++it){
-			indices[i]= ind_var (it->first) ;
-			values[i]= 0;
-            i++;
-			}
-			CPXchgobj(env, milp, cnt, indices, values);
-            delete []indices;  delete []values;
-			break;
-        }//case
-
-		case( DQOFModification::eqAddVar ):   {
-                        //adding quad coefficients
-            DQOFModification* q_mod = dynamic_cast< DQOFModification* >( mod );
-            for (auto it = q_mod->v_variables->begin(); it< q_mod->v_variables->end(); ++it)
-            	CPXchgqpcoef(env, milp,ind_var (it->first),ind_var (it->first), it->second ) ;
-            break;
-        }//case
-		case( DQOFModification::eqRemoveVar ): {
-                        //deleting quad coefficients
-            DQOFModification* q_mod = dynamic_cast< DQOFModification* >( mod );
-			for (auto it = q_mod->v_variables->begin(); it< q_mod->v_variables->end(); ++it)
-            	CPXchgqpcoef(env, milp,ind_var (it->first),ind_var (it->first), 0 ) ;
-            break;
-        }//case
-		case( DQOFModification::eqModifyCoeff ):  {
-                       //changing quad coefficients
-            DQOFModification* q_mod = dynamic_cast< DQOFModification* >( mod );
-			for (auto it = q_mod->v_variables->begin(); it< q_mod->v_variables->end(); ++it)
-            	CPXchgqpcoef(env, milp,ind_var (it->first),ind_var (it->first), it->second ) ;
-            break;
-		}//case
-} //switch
-
-
-}
-
-
+/*
 void MILPSolver::const_modification( ConstraintModification* mod )
 {
 
@@ -2159,6 +2335,7 @@ void MILPSolver::const_modification( ConstraintModification* mod )
 
 }
 */
+
 /*--------------------------------------------------------------------------*/
 /*----------------------- End File MILPSolver.cpp --------------------------*/
 /*--------------------------------------------------------------------------*/ 
