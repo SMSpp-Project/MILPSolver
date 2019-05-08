@@ -301,17 +301,18 @@ class MILPSolver : public Solver {
 /** @name Public Methods for modifying the constructed CPLEX Problem
  *  @{ */
 
- void add_modifications(sp_Mod& mod);
- ///< method for adding and handling a Modification of the Problem
-
- // void var_modification(VariableMod* mod);
+ void var_modification(VariableMod* mod);
  ///< method for adding and handling a Variable Modification
 
- // void of_modification(ObjectiveMod* mod);
+ void of_modification(ObjectiveMod* mod);
  ///< method for adding and handling an Objective Function Modification
 
- // void const_modification(ConstraintMod* mod);
+ void const_modification(RowConstraintMod* mod);
  ///< method for adding and handling a Constraint Modification
+
+ void bound_modification(OneVarConstraintMod* mod);
+
+
 
  void dynamic_modification(BlockModAD* mod);
  ///< method for handling a dynamic Modification
@@ -327,6 +328,8 @@ class MILPSolver : public Solver {
 
  void remove_dynamic_variable(ColVariable* r_var);
  ///< method for removing a single dynamic variable to CPLEX
+
+
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------------- SUPPLEMENTARY METHODS  ------------------------*/
@@ -480,6 +483,9 @@ parts of the solution in the fastest possible way. */
  CPXLPptr milp;
 
 /*@}*/
+
+
+ void process_modifications();
 
  private:
  SMSpp_insert_in_factory_h;        // insert it in the Block factory
