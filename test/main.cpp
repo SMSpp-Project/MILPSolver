@@ -25,55 +25,78 @@ int main(int argc, char** argv) {
   return (1);
  }
 
- // Load problem in the block
  auto block = Block::new_Block("SimpleMILPBlock");
  file >> *block;
  std::cout << *block;
 
- // Register MILP Solver
  block->register_Solver(Solver::new_Solver("MILPSolver"));
 
  // First solve
  auto solver = (block->get_registered_solvers()).front();
  int status = solver->compute();
 
- // Print results
- std::cout << "[DEBUG] Status = " << status << std::endl;
- std::cout << "SOLUTION" << std::endl;
  auto smilpblock = dynamic_cast<SimpleMILPBlock*>(block);
+ auto obj = boost::any_cast<FRealObjective*>(smilpblock->get_objective());
+ auto obj_f = obj->get_function();
+
+ std::cout << "Status = " << status << std::endl;
  auto vars = smilpblock->get_x();
  for (auto &i : vars) {
   std::cout << "Variable value =  " << i.get_value() << std::endl;
  }
- auto obj = boost::any_cast<FRealObjective*>(smilpblock->get_objective());
- auto obj_f = obj->get_function();
  std::cout << "Function value =  " << obj_f->get_value() << std::endl;
 
- // Modification test: Change OF
- LinearFunction::v_coeff nc = {-8};
- auto lf = dynamic_cast<LinearFunction*>(obj_f);
- lf->modify_coefficients(nc.begin(), 0, 1);
+ // Testing FunctionMod on Objective
+ LinearFunction::v_coeff nc0 = {-8};
+ auto lf0 = dynamic_cast<LinearFunction*>(obj_f);
+ lf0->modify_coefficients(nc0.begin(), 0, 1);
  status = solver->compute();
- std::cout << "[DEBUG] Status = " << status << std::endl;
- std::cout << "SOLUTION" << std::endl;
- for (auto &i : vars) {
-  std::cout << "Variable value =  " << i.get_value() << std::endl;
- }
- std::cout << "Function value =  " << obj_f->get_value() << std::endl;
 
- // Modification test: Change a constraint
- auto constraints = boost::any_cast<std::vector<FRowConstraint> *>((smilpblock->get_static_constraints())[0]);
+ // Testing ObjectiveMod, maximize
+ obj->set_sense(Objective::eMax);
+ status = solver->compute();
+
+ // Testing ObjectiveMod, minimize
+ obj->set_sense(Objective::eMin);
+ status = solver->compute();
+
+ // Testing RowConstraintMod, set RHS
+ auto constraints = boost::any_cast<std::vector<FRowConstraint> *>(smilpblock->get_static_constraints()[0]);
  (*constraints)[0].set_rhs(20);
  status = solver->compute();
- std::cout << "[DEBUG] Status = " << status << std::endl;
- std::cout << "SOLUTION" << std::endl;
- for (auto &i : vars) {
-  std::cout << "Variable value =  " << i.get_value() << std::endl;
- }
- std::cout << "Function value =  " << obj_f->get_value() << std::endl;
 
+ // Testing FunctionMod on FRowConstraint
+ auto frow_f = (*constraints)[0].get_function();
+ auto lf1 = dynamic_cast<LinearFunction*>(frow_f);
+ LinearFunction::v_coeff nc1 = {60};
+ lf1->modify_coefficients(nc1.begin(), 0, 1);
+ status = solver->compute();
 
+ // Testing VariableMod, fix
+ auto x = boost::any_cast<std::vector<ColVariable> *>(smilpblock->get_static_variables()[0]);
+ (*x)[0].is_fixed(true);
+ status = solver->compute();
 
+ // Testing VariableMod, unfix
+ (*x)[0].is_fixed(false);
+ status = solver->compute();
+
+ // Testing RowConstraintMod, relax
+ (*constraints)[0].relax(true);
+ status = solver->compute();
+
+ // Testing RowConstraintMod, enforce
+ (*constraints)[0].relax(false);
+ status = solver->compute();
+
+ // Testing OneVarConstraint, enforce
+ auto bounds = boost::any_cast<std::vector<BoxConstraint> *>(smilpblock->get_static_constraints()[1]);
+ (*bounds)[0].set_lhs(1);
+ (*bounds)[0].set_rhs(5);
+ (*bounds)[1].set_lhs(2);
+ (*bounds)[1].set_rhs(6);
+ (*bounds)[1].set_both(0);
+ status = solver->compute();
 
  std::cout << "Quitting" << std::endl;
  delete block;

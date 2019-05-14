@@ -6,7 +6,7 @@
  * able to tackle a MILP Problem expressed by a Block via the use of CLPEX
  *
  *
- * \version 0.10
+ * \version 0.20
  *
  * \date 26 - 03 - 2019
  *
@@ -309,7 +309,7 @@ class MILPSolver : public Solver {
  void of_modification(ObjectiveMod* mod);
  ///< method for adding and handling an Objective Modification
 
- void const_modification(RowConstraintMod* mod);
+ void const_modification(ConstraintMod* mod);
  ///< method for adding and handling a RowConstraint Modification
 
  void bound_modification(OneVarConstraintMod* mod);
@@ -341,13 +341,13 @@ class MILPSolver : public Solver {
 /** @name Supplementary Methods that are used in order to assist the above methods
  *  @{ */
 
- void count_constraints(FRowConstraint& constraint, int& numrows);
+ void count_constraints(FRowConstraint& constraint, int& n_rows);
 ///< method used to count the total number of rows
 
- void count_variables(ColVariable& variable, int& numcols);
+ void count_variables(ColVariable& variable, int& n_cols);
  ///< method used to count the total number of columns
 
- void count_nzelements(ColVariable& variable, int& nzelements);
+ void count_nzelements(ColVariable& variable, int& nz_elements);
  ///< method used to count the number of non zero elements
 
  void set_var_value(ColVariable& lvar, double* tmpx, int& i);
