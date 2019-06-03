@@ -96,6 +96,11 @@ class Block;  ///< forward definition of class Block
  * The information can be retrieved by a library of getters.
  * The methods compute(), get_var_solution() and new_var_solution(), derived
  * from the Solver class, do nothing and must be impelmented by derived classes.
+ *
+ * The class defines also an interface that the derived classes should implement
+ * to support modifications. The method process_modifications() is already
+ * implemented and it is the one that dispatches the modifications to the other
+ * methods accordingly.
  */
 class MILPSolver : public Solver {
 
@@ -414,6 +419,46 @@ protected:
  * @return a pointer to the corresponding FRowConstraint
  */
  FRowConstraint* constraint_with_index(int i);
+ 
+/*@}------------------------------------------------------------------------*/
+/*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */
+/*--------------------------------------------------------------------------*/
+
+ /** @name Methods for modifying the constructed CPLEX Problem
+ *  @{ */
+
+ /// It processes all the pending modifications
+ void process_modifications();
+
+ /// It handles a Variable Modification
+ virtual void var_modification(VariableMod* mod) {}
+
+ /// It handles an Objective Modification
+ virtual void of_modification(ObjectiveMod* mod) {}
+
+ /// It handles a RowConstraint Modification
+ virtual void const_modification(ConstraintMod* mod) {}
+
+ /// It handles a OneVarConstraint Modification
+ virtual void bound_modification(OneVarConstraintMod* mod) {}
+
+ /// It handles a Function Modification
+ virtual void function_modification(FunctionMod* mod) {}
+
+ /// It handles a dynamic Modification
+ virtual void dynamic_modification(BlockModAD* mod) {}
+
+ /// It adds a single new dynamic constraint
+ virtual void add_dynamic_constraint(FRowConstraint* p_const) {}
+
+ /// It adds a single new dynamic variable
+ virtual void add_dynamic_variable(ColVariable* p_var) {}
+
+ /// It removes a single dynamic constraint
+ virtual void remove_dynamic_constraint(FRowConstraint* p_const) {}
+
+ /// It removes a single dynamic variable
+ virtual void remove_dynamic_variable(ColVariable* p_var) {}
 
 /*@}------------------------------------------------------------------------*/
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/

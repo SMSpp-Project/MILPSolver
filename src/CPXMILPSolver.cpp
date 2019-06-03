@@ -74,15 +74,18 @@ CPXMILPSolver::~CPXMILPSolver() {
 
 int CPXMILPSolver::compute(bool changedvars) {
 
- // Creation of the problem
  int status;
  env = CPXopenCPLEX(&status);
  milp = CPXcreateprob(env, &status, "MILPCPX");
 
- // TODO:
- // lb[i] = var.get_lb() == -Inf<double>() ? -CPX_INFBOUND : var.get_lb();
- // ub[i] = var.get_ub() == Inf<double>() ? CPX_INFBOUND : var.get_ub();
-
+ for (int i = 0; i < numcols; ++i) {
+  if (lb[i] == -Inf<double>()) {
+   lb[i] = -CPX_INFBOUND;
+  }
+  if (ub[i] == Inf<double>()) {
+   lb[i] = CPX_INFBOUND;
+  }
+ }
 
  CPXcopylp(env, milp,
            numcols,
@@ -291,89 +294,6 @@ void CPXMILPSolver::get_var_solution(Configuration* solc) {
   throw (std::invalid_argument("Objective is not a FRealObjective"));
  }
   delete []tmpx;
-}
-
-/*--------------------------------------------------------------------------*/
-void CPXMILPSolver::process_modifications() {
- /* TODO: Write a better demux function
-  * This function processes one modification after another, without
-  * any attempt of optimization, moreover you have to be CAREFUL to write
-  * all the cases in order from the most specialized to the more generic,
-  * e.g., OneVarConstraintMod before RowConstraintMod before ConstraintMod,
-  * otherwise the generic case will intercept the more specialized Mods.
-  */
-
- while (!v_mod.empty()) {
-  auto mod = v_mod.front();
-
-  // A function like this is needed to be called recursively with GroupModifications
-  std::function<void(sp_Mod)> f;
-  f = [this, &f](sp_Mod mod) {
-
-   std::cout << *mod;
-   {
-    const auto tmod = std::dynamic_pointer_cast<GroupModification>(mod);
-    if (tmod) {
-     for (const auto& submod : tmod->v_sub_Modifications) {
-      f(submod);
-     }
-     return;
-    }
-   }
-   {
-    const auto tmod = std::dynamic_pointer_cast<VariableMod>(mod);
-    if (tmod) {
-     var_modification(tmod.get());
-     return;
-    }
-   }
-   {
-    const auto tmod = std::dynamic_pointer_cast<ObjectiveMod>(mod);
-    if (tmod) {
-     of_modification(tmod.get());
-     return;
-    }
-   }
-   {
-    const auto tmod = std::dynamic_pointer_cast<OneVarConstraintMod>(mod);
-    if (tmod) {
-     bound_modification(tmod.get());
-     return;
-    }
-   }
-   {
-    const auto tmod = std::dynamic_pointer_cast<RowConstraintMod>(mod);
-    if (tmod) {
-     const_modification(tmod.get());
-     return;
-    }
-   }
-   {
-    const auto tmod = std::dynamic_pointer_cast<ConstraintMod>(mod);
-    if (tmod) {
-     const_modification(tmod.get());
-     return;
-    }
-   }
-   {
-    const auto tmod = std::dynamic_pointer_cast<FunctionMod>(mod);
-    if (tmod) {
-     function_modification(tmod.get());
-     return;
-    }
-   }
-   {
-    const auto tmod = std::dynamic_pointer_cast<BlockModAD>(mod);
-    if (tmod) {
-     dynamic_modification(tmod.get());
-     return;
-    }
-   }
-  };
-
-  f(mod);
-  v_mod.pop_front();
- }
 }
 
 /*--------------------------------------------------------------------------*/

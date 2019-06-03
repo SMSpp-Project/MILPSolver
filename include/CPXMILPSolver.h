@@ -133,41 +133,38 @@ class CPXMILPSolver : public MILPSolver {
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
 /*--------------------------------------------------------------------------*/
 
- /** @name Public Methods for modifying the constructed CPLEX Problem
+ /** @name Methods for modifying the constructed CPLEX Problem
   *  @{ */
 
- /// It processes all the pending modifications
- void process_modifications();
-
  /// It handles a Variable Modification
- void var_modification(VariableMod* mod);
+ void var_modification(VariableMod* mod) override;
 
  /// It handles an Objective Modification
- void of_modification(ObjectiveMod* mod);
+ void of_modification(ObjectiveMod* mod) override;
 
  /// It handles a RowConstraint Modification
- void const_modification(ConstraintMod* mod);
+ void const_modification(ConstraintMod* mod) override;
 
  /// It handles a OneVarConstraint Modification
- void bound_modification(OneVarConstraintMod* mod);
+ void bound_modification(OneVarConstraintMod* mod) override;
 
  /// It handles a Function Modification
- void function_modification(FunctionMod* mod);
+ void function_modification(FunctionMod* mod) override;
 
  /// It handles a dynamic Modification
- void dynamic_modification(BlockModAD* mod);
+ void dynamic_modification(BlockModAD* mod) override;
 
  /// It adds a single new dynamic constraint
- void add_dynamic_constraint(FRowConstraint* p_const);
+ void add_dynamic_constraint(FRowConstraint* p_const) override;
 
  /// It adds a single new dynamic variable
- void add_dynamic_variable(ColVariable* p_var);
+ void add_dynamic_variable(ColVariable* p_var) override;
 
  /// It removes a single dynamic constraint
- void remove_dynamic_constraint(FRowConstraint* p_const);
+ void remove_dynamic_constraint(FRowConstraint* p_const) override;
 
  /// It removes a single dynamic variable
- void remove_dynamic_variable(ColVariable* p_var);
+ void remove_dynamic_variable(ColVariable* p_var) override;
 
 /*@}------------------------------------------------------------------------*/
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
