@@ -93,6 +93,10 @@ const std::vector<double>& MILPSolver::get_rhs() const {
  return rhs;
 }
 
+const std::vector<double>& MILPSolver::get_rngval() const {
+ return rngval;
+}
+
 const std::vector<char>& MILPSolver::get_sense() const {
  return sense;
 }
@@ -272,6 +276,7 @@ void MILPSolver::set_Block(Block* block) {
  matval.resize(nzelements);
  // indexed.resize(static_cast<unsigned long>(numcols));
  rhs.resize(numrows);
+ rngval.resize(numrows);
  sense.resize(numrows);
  objective.resize(numcols);
  q_objective.resize(numcols);
@@ -420,6 +425,12 @@ void MILPSolver::set_Block(Block* block) {
  std::cout << "[DEBUG] rhs         = [";
  for (int i = 0; i < numrows; ++i) {
   std::cout << " " << rhs[i];
+ }
+ std::cout << "]" << std::endl;
+
+ std::cout << "[DEBUG] rngval      = [";
+ for (int i = 0; i < numrows; ++i) {
+  std::cout << " " << rngval[i];
  }
  std::cout << "]" << std::endl;
 
@@ -876,47 +887,62 @@ void MILPSolver::scan_dynamic_variable(ColVariable& var, int& i){
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_static_constraint(FRowConstraint& lconst, int& first, int& i) {
+void MILPSolver::scan_static_constraint(FRowConstraint& p_const, int& first, int& i) {
 
 #if DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::scan_static_constraints()" << std::endl;
 #endif
- auto lin_fun = dynamic_cast<const LinearFunction*>(lconst.get_function());
+ auto lin_fun = dynamic_cast<const LinearFunction*>(p_const.get_function());
  if (lin_fun == nullptr) {
   throw (std::invalid_argument("The Constraint is not linear"));
  }
 
 /*
- * In order to define the type of the operation of the constraint we need to
- * check and compare the lhs and the rhs of the Constraint due to the fact
- * that is built in the following form:
+ * We need to define the sense of the constraints as requested by CPLEX.
  *
+ * In SMS++ FRowConstraints are defined as:
  * LHS <= ( some function from Variables to reals ) <= RHS
  *
- * Remember: i is the index of the constraint/row from the CPLEX matrix,
- * and only FRowConstraints with LinearFunctions are counted.
+ * CPLEX uses rhs and rngval arrays as documented in CPXcopylp reference.
  */
 
- auto lconst_lhs = lconst.get_lhs();
- auto lconst_rhs = lconst.get_rhs();
+ auto const_lhs = p_const.get_lhs();
+ auto const_rhs = p_const.get_rhs();
 
- if (lconst_lhs == lconst_rhs) {
-  sense[i] = 'E'; // equality
-  rhs[i] = lconst_rhs;
- } else if (lconst_lhs == -Inf<double>()) {
-  sense[i] = 'L'; // less/equal
-  rhs[i] = lconst_rhs;
- } else if (lconst_rhs == Inf<double>()) {
-  sense[i] = 'G'; // greater/equal
-  rhs[i] = lconst_lhs;
+ if (const_lhs == const_rhs) {
+  // LHS <= function <= RHS, with LHS = RHS
+  // becomes:
+  // function = RHS
+  sense[i] = 'E';
+  rhs[i] = const_rhs;
+
+ } else if (const_lhs == -Inf<double>()) {
+  // -inf <= function <= RHS
+  // becomes:
+  // function <= RHS
+  sense[i] = 'L';
+  rhs[i] = const_rhs;
+
+ } else if (const_rhs == Inf<double>()) {
+  // LHS <= function <= inf
+  // becomes:
+  // function >= LHS
+  sense[i] = 'G';
+  rhs[i] = const_lhs;
+
+ } else {
+  // LHS <= function <= RHS
+  // becomes:
+  // LHS <= function <= LHS + (range),
+  // with range = RHS - LHS
+  sense[i] = 'R';
+  rhs[i] = const_lhs;
+  rngval[i] = const_rhs - const_lhs;
  }
- // TODO else?
 
  if (first == 0) {
-  // We are in the static part
-  // (first is shared with scan_dynamic_constraint())
-  v_s_const_int.emplace_back(&lconst, i);
-  v_int_s_const.emplace_back(i, &lconst);
+  v_s_const_int.emplace_back(&p_const, i);
+  v_int_s_const.emplace_back(i, &p_const);
  }
 
  ++first;
@@ -925,44 +951,61 @@ void MILPSolver::scan_static_constraint(FRowConstraint& lconst, int& first, int&
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_dynamic_constraint(FRowConstraint& lconst, int& i) {
+void MILPSolver::scan_dynamic_constraint(FRowConstraint& p_const, int& i) {
 
 #if DEBUG_COUT
  std::cout << "[DEBUG] ========= MILPSolver::scan_dynamic_constraints()" << std::endl;
 #endif
- auto lin_fun = dynamic_cast<const LinearFunction*>(lconst.get_function());
+ auto lin_fun = dynamic_cast<const LinearFunction*>(p_const.get_function());
  if (lin_fun == nullptr) {
   throw (std::invalid_argument("The Constraint is not linear"));
  }
 
 /*
- * In order to define the type of the operation of the constraint we need to
- * check and compare the lhs and the rhs of the Constraint due to the fact
- * that is built in the following form:
+ * We need to define the sense of the constraints as requested by CPLEX.
  *
+ * In SMS++ FRowConstraints are defined as:
  * LHS <= ( some function from Variables to reals ) <= RHS
  *
- * Remember: i is the index of the constraint/row from the CPLEX matrix,
- * and only FRowConstraints with LinearFunctions are counted.
+ * CPLEX uses rhs and rngval arrays as documented in CPXcopylp reference.
  */
 
- auto lconst_lhs = lconst.get_lhs();
- auto lconst_rhs = lconst.get_rhs();
+ auto const_lhs = p_const.get_lhs();
+ auto const_rhs = p_const.get_rhs();
 
- if (lconst_lhs == lconst_rhs) {
-  sense[i] = 'E'; // equality
-  rhs[i] = lconst_rhs;
- } else if (lconst_lhs == -Inf<double>()) {
-  sense[i] = 'L'; // less/equal
-  rhs[i] = lconst_rhs;
- } else if (lconst_rhs == Inf<double>()) {
-  sense[i] = 'G'; // greater/equal
-  rhs[i] = lconst_lhs;
+ if (const_lhs == const_rhs) {
+  // LHS <= function <= RHS, with LHS = RHS
+  // becomes:
+  // function = RHS
+  sense[i] = 'E';
+  rhs[i] = const_rhs;
+
+ } else if (const_lhs == -Inf<double>()) {
+  // -inf <= function <= RHS
+  // becomes:
+  // function <= RHS
+  sense[i] = 'L';
+  rhs[i] = const_rhs;
+
+ } else if (const_rhs == Inf<double>()) {
+  // LHS <= function <= inf
+  // becomes:
+  // function >= LHS
+  sense[i] = 'G';
+  rhs[i] = const_lhs;
+
+ } else {
+  // LHS <= function <= RHS
+  // becomes:
+  // LHS <= function <= LHS + (range),
+  // with range = RHS - LHS
+  sense[i] = 'R';
+  rhs[i] = const_lhs;
+  rngval[i] = const_rhs - const_lhs;
  }
- // TODO else?
 
- v_d_const_int.emplace_back(&lconst, i);
- v_int_d_const.emplace_back(i, &lconst);
+ v_d_const_int.emplace_back(&p_const, i);
+ v_int_d_const.emplace_back(i, &p_const);
  ++i;
 }
 
@@ -1088,6 +1131,7 @@ void MILPSolver::clear_matrices() {
  matind.clear();
  matval.clear();
  rhs.clear();
+ rngval.clear();
  sense.clear();
  objective.clear();
  q_objective.clear();

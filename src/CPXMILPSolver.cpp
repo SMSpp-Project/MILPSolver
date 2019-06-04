@@ -100,7 +100,7 @@ int CPXMILPSolver::compute(bool changedvars) {
            matval.data(),
            lb.data(),
            ub.data(),
-           nullptr);
+           rngval.data());
 
  const FRealObjective* p_obj;
  p_obj = boost::any_cast<FRealObjective*>(f_Block->get_objective());
@@ -733,12 +733,13 @@ void CPXMILPSolver::add_dynamic_constraint(FRowConstraint* p_const) {
  auto matind = new int[nz_elements];
  auto matval = new double[nz_elements];
  double rhs[1];
+ double rngval[1];
+ int indices[1];
  char sense[1];
 
  int i = 0;
 
- // We need the coefficients of the active ColVariables to
- // fill the CPLEX matrix
+ // Get the coefficients of the active ColVariables to fill the matrix
  for (auto it = p_const->begin(); it != p_const->end(); ++it) {
 
   auto p_var = dynamic_cast<ColVariable*>(&*it);
@@ -763,15 +764,24 @@ void CPXMILPSolver::add_dynamic_constraint(FRowConstraint* p_const) {
 
  auto const_lhs = p_const->get_lhs();
  auto const_rhs = p_const->get_rhs();
- if (const_lhs == const_lhs) {
-  sense[0] = ('E'); // equality
+
+ if (const_lhs == const_rhs) {
+  sense[0] = 'E';
   rhs[0] = const_rhs;
+
  } else if (const_lhs == -Inf<double>()) {
-  sense[0] = ('L'); // less/equal
+  sense[0] = 'L';
   rhs[0] = const_rhs;
+
  } else if (const_rhs == Inf<double>()) {
-  sense[0] = ('G'); // greater/equal
+  sense[0] = 'G';
   rhs[0] = const_lhs;
+
+ } else {
+  sense[0] = 'R';
+  rhs[0] = const_lhs;
+  rngval[0] = const_rhs - const_lhs;
+  indices[0] = v_d_const_int.back().second + 1;
  }
 
  v_d_const_int.emplace_back(p_const, v_d_const_int.back().second + 1);
@@ -780,6 +790,9 @@ void CPXMILPSolver::add_dynamic_constraint(FRowConstraint* p_const) {
  std::sort(v_int_d_const.begin(), v_int_d_const.end());
 
  CPXaddrows(env, milp, 0, 1, nz_elements, rhs, sense, matbeg, matind, matval, nullptr, nullptr);
+ if (sense[0] == 'R') {
+  CPXchgrngval (env, milp, 1, indices, rngval);
+ }
 
  delete[] matind;
  delete[] matval;

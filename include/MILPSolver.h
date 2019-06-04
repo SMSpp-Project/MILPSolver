@@ -149,6 +149,9 @@ class MILPSolver : public Solver {
  /// Getter for rhs
  const std::vector<double>& get_rhs() const;
 
+ /// Getter for rngval
+ const std::vector<double>& get_rngval() const;
+
  /// Getter for sense
  const std::vector<char>& get_sense() const;
 
@@ -312,6 +315,15 @@ protected:
  * for each constraint in the constraint matrix.
  */
  std::vector<double> rhs;
+
+ /**
+  * An array of length at least numrows containing the range value of each
+  * ranged constraint. Ranged rows are those designated by 'R' in the sense
+  * array. If the row is not ranged, the rngval array entry is ignored.
+  * If rngval[i] > 0, then row i activity is in [rhs[i],rhs[i]+rngval[i]],
+  * and if rngval[i] <= 0,then row i activity is in [rhs[i]+rngval[i],rhs[i]].
+  */
+ std::vector<double> rngval;
 
  /**
   * An array of length at least numrows containing the sense of each constraint
@@ -534,20 +546,20 @@ protected:
  /**
   * It scans a static FRowConstraint or a group of static FRowConstraints and
   * fills the vectors of the LP accordingly.
-  * @param lconst a reference to a [vector of] static FRowConstraint[s]
+  * @param p_const a reference to a [vector of] static FRowConstraint[s]
   * @param first an counter that should be 0 when lconst is the first
   *              element of a vector of FRowConstraints.
   * @param i a counter for constraints/rows shared w/ scan_dynamic_constraint()
   */
- void scan_static_constraint(FRowConstraint& lconst, int& first, int& i);
+ void scan_static_constraint(FRowConstraint& p_const, int& first, int& i);
 
  /**
   * It scans a dyn FRowConstraint and fills the vectors of the LP accordingly.
   *
-  * @param lconst a reference to a dynamic FRowConstraint
+  * @param p_const a reference to a dynamic FRowConstraint
   * @param i a counter for constraints/rows shared w/ scan_static_constraint()
   */
- void scan_dynamic_constraint(FRowConstraint& lconst, int& i);
+ void scan_dynamic_constraint(FRowConstraint& p_const, int& i);
 
  /**
   * It scans a FRealObjective and fills the vectors of the LP accordingly.
