@@ -476,6 +476,14 @@ void MILPSolver::set_Block(Block* block) {
 /*--------------------------------------------------------------------------*/
 
 int MILPSolver::index_of_variable(ColVariable* p_var) {
+ try {
+  return index_of_dynamic_variable(p_var);
+ } catch (...) {
+  return index_of_static_variable(p_var);
+ }
+}
+
+int MILPSolver::index_of_static_variable(ColVariable* p_var) {
 
  int i;
  auto it = lower_bound(v_s_var_int.begin(),
@@ -494,20 +502,34 @@ int MILPSolver::index_of_variable(ColVariable* p_var) {
  if (it != v_s_var_int.end()) {
   i = static_cast<int>(it->second + std::distance(it->first, p_var));
  } else {
-  throw (std::invalid_argument("Current Variable is not defined in the CPLEX Coeff Matrix"));
+  throw (std::invalid_argument("Variable not found"));
  }
-
  return i;
 }
 
-/*--------------------------------------------------------------------------*/
-
-int MILPSolver::index_of_constraint(FRowConstraint* p_const) {
-
- auto p_fun = dynamic_cast<const LinearFunction*> (p_const->get_function());
- if (p_fun == nullptr) {
-  throw (std::invalid_argument("The Constraint is not linear"));
+int MILPSolver::index_of_dynamic_variable(ColVariable* p_var) {
+ auto it = find_if(v_d_var_int.begin(),
+                   v_d_var_int.end(),
+                   [&](var_int pair) {
+                    return pair.first == p_var;
+                   });
+ if (it != v_d_var_int.end()) {
+  return it->second;
+ } else {
+  throw (std::invalid_argument("Variable not found"));
  }
+}
+
+/*--------------------------------------------------------------------------*/
+int MILPSolver::index_of_constraint(FRowConstraint* p_const) {
+ try {
+  return index_of_dynamic_constraint(p_const);
+ } catch (...) {
+  return index_of_static_constraint(p_const);
+ }
+}
+
+int MILPSolver::index_of_static_constraint(FRowConstraint* p_const) {
 
  int i = 0;
 
@@ -527,15 +549,28 @@ int MILPSolver::index_of_constraint(FRowConstraint* p_const) {
  if (it != v_s_const_int.end()) {
   i = static_cast<int>(it->second + std::distance(it->first, p_const));
  } else {
-  throw (std::invalid_argument("Current Constraint is not defined in the CPLEX Coeff Matrix"));
+  throw (std::invalid_argument("Constraint not found"));
  }
 
  return i;
 }
 
+int MILPSolver::index_of_dynamic_constraint(FRowConstraint* p_const) {
+ auto it = find_if(v_d_const_int.begin(),
+                   v_d_const_int.end(),
+                   [&](const_int pair) {
+                    return pair.first == p_const;
+                   });
+ if (it != v_d_const_int.end()) {
+  return it->second;
+ } else {
+  throw (std::invalid_argument("Constraint not found"));
+ }
+}
+
 /*--------------------------------------------------------------------------*/
 
-ColVariable* MILPSolver::variable_with_index(int i) {
+ColVariable* MILPSolver::static_variable_with_index(int i) {
 
  ColVariable* p_var;
  auto it = lower_bound(v_int_s_var.begin(),
@@ -554,7 +589,7 @@ ColVariable* MILPSolver::variable_with_index(int i) {
  if (it != v_int_s_var.end()) {
   p_var = it->second;
  } else {
-  throw (std::invalid_argument("Current index is not defined in the CPLEX Coeff Matrix"));
+  throw (std::invalid_argument("Index not found"));
  }
 
  return p_var;
@@ -562,7 +597,7 @@ ColVariable* MILPSolver::variable_with_index(int i) {
 
 /*--------------------------------------------------------------------------*/
 
-FRowConstraint* MILPSolver::constraint_with_index(int i) {
+FRowConstraint* MILPSolver::static_constraint_with_index(int i) {
 
  FRowConstraint* p_const;
  auto it = lower_bound(v_int_s_const.begin(),
@@ -581,7 +616,7 @@ FRowConstraint* MILPSolver::constraint_with_index(int i) {
  if (it != v_int_s_const.end()) {
   p_const = it->second;
  } else {
-  throw (std::invalid_argument("Current index is not defined in the CPLEX Coeff Matrix"));
+  throw (std::invalid_argument("Index not found"));
  }
 
  return p_const;
@@ -730,20 +765,7 @@ void MILPSolver::scan_static_variable(ColVariable& var, int& first, int& i) {
 
   if (it != p_fun->get_v_var().end()) {
    matval[matbeg[i] + j] = it->second;
-
-   // This is done because index_of_constraint() only works for static ones
-   auto it1 = find_if(v_d_const_int.begin(),
-                      v_d_const_int.end(),
-                      [&](const_int pair) {
-                       return pair.first == p_const;
-                      });
-
-   if (it1 != v_d_const_int.end()) {
-    matind[matbeg[i] + j] = static_cast<int>(it1->second);
-   } else {
-    matind[matbeg[i] + j] = index_of_constraint(p_const);
-   }
-
+   matind[matbeg[i] + j] = index_of_constraint(p_const);
   } else {
    // This should never happen because we are looping on the active contraints
    throw (std::invalid_argument("This ColVariable is not active in the examined FRowConstraint"));
@@ -820,20 +842,7 @@ void MILPSolver::scan_dynamic_variable(ColVariable& var, int& i){
 
   if (it != p_fun->get_v_var().end()) {
    matval[matbeg[i] + j] = it->second;
-
-   // This is done because index_of_constraint() only works for static ones
-   auto it1 = find_if(v_d_const_int.begin(),
-                      v_d_const_int.end(),
-                      [&](const_int pair) {
-                       return pair.first == p_const;
-                      });
-
-   if (it1 != v_d_const_int.end()) {
-    matind[matbeg[i] + j] = static_cast<int>(it1->second);
-   } else {
-    matind[matbeg[i] + j] = index_of_constraint(p_const);
-   }
-
+   matind[matbeg[i] + j] = index_of_constraint(p_const);
   } else {
    // This should never happen because we are looping on the active contraints
    throw (std::invalid_argument("This ColVariable is not active in the examined FRowConstraint"));
@@ -1275,7 +1284,7 @@ void MILPSolver::clear_matrices() {
 
      int i = 0;
      for (auto it = ct->get_v_var()->begin(); it != ct->get_v_var()->end(); ++it) {
-      mycutind[i] = index_of_variable(it->first);
+      mycutind[i] = index_of_static_variable(it->first);
       mycutval[i] = it->second;
       i++;
      }

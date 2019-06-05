@@ -396,10 +396,8 @@ protected:
   * The following methods use the tracking vectors to get the indices of the
   * Variables/Constraints from the pointers and viceversa.
   *
-  * FIXME: The following methods only look in the static part
-  * I think that it's because index search is rarely done for the dynamic part.
-  * For the moment it works well and it's not worth changing it,
-  * variable_with_index() and constraint_with_index() are not even used.
+  * We provide separate methods for looking into static, dynamic or both parts
+  * of the problem, so we can reduce searching time when possible
   */
 
  /**
@@ -411,6 +409,22 @@ protected:
  int index_of_variable(ColVariable* p_var);
 
  /**
+ * It returns the constraint matrix column index of a given static variable.
+ *
+ * @param p_var a pointer to a ColVariable
+ * @return the corresponding constraint matrix column index
+ */
+ int index_of_static_variable(ColVariable* p_var);
+
+ /**
+ * It returns the constraint matrix column index of a given dynamic variable.
+ *
+ * @param p_var a pointer to a ColVariable
+ * @return the corresponding constraint matrix column index
+ */
+ int index_of_dynamic_variable(ColVariable* p_var);
+
+ /**
   * It returns the constraint matrix row index of the given constraint.
   *
   * @param p_const a pointer to a FRowConstraint
@@ -419,18 +433,34 @@ protected:
  int index_of_constraint(FRowConstraint* p_const);
 
  /**
+ * It returns the constraint matrix row index of the given static constraint.
+ *
+ * @param p_const a pointer to a FRowConstraint
+ * @return the corresponding constraint matrix row index
+ */
+ int index_of_static_constraint(FRowConstraint* p_const);
+
+ /**
+ * It returns the constraint matrix row index of the given dynamic constraint.
+ *
+ * @param p_const a pointer to a FRowConstraint
+ * @return the corresponding constraint matrix row index
+ */
+ int index_of_dynamic_constraint(FRowConstraint* p_const);
+
+ /**
   * It returns the variable corresponding to the given constraint matrix index.
   * @param i a constraint matrix column index
   * @return a pointer to the corresponding ColVariable
   */
- ColVariable* variable_with_index(int i);
+ ColVariable* static_variable_with_index(int i);
 
  /**
  * It returns the constraint corresponding to the given constraint matrix index.
  * @param i a constraint matrix row index
  * @return a pointer to the corresponding FRowConstraint
  */
- FRowConstraint* constraint_with_index(int i);
+ FRowConstraint* static_constraint_with_index(int i);
  
 /*@}------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */

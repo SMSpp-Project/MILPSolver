@@ -312,7 +312,7 @@ void CPXMILPSolver::var_modification(VariableMod* mod) {
  auto* var = dynamic_cast<ColVariable*>(mod->f_variable);
 
  int indices[2];
- indices[0] = index_of_variable(var);
+ indices[0] = index_of_static_variable(var);
  indices[1] = indices[0];
 
  char ctype[1];
@@ -417,7 +417,7 @@ void CPXMILPSolver::const_modification(ConstraintMod* mod) {
 
    sense[0] = ('G');
    values[0] = -Inf<double>();
-   indices[0] = index_of_constraint(p_const);
+   indices[0] = index_of_static_constraint(p_const);
    CPXchgrhs(env, milp, num_bounds, indices, values);
    CPXchgsense(env, milp, num_bounds, indices, sense);
 
@@ -448,7 +448,7 @@ void CPXMILPSolver::const_modification(ConstraintMod* mod) {
     values[0] = lhs;
    }
 
-   indices[0] = index_of_constraint(p_const);
+   indices[0] = index_of_static_constraint(p_const);
    CPXchgrhs(env, milp, num_bounds, indices, values);
    CPXchgsense(env, milp, num_bounds, indices, sense);
 
@@ -478,7 +478,7 @@ void CPXMILPSolver::const_modification(ConstraintMod* mod) {
     values[0] = lhs;
    }
 
-   indices[0] = index_of_constraint(p_const);
+   indices[0] = index_of_static_constraint(p_const);
    CPXchgrhs(env, milp, num_bounds, indices, values);
    CPXchgsense(env, milp, num_bounds, indices, sense);
    break;
@@ -504,7 +504,7 @@ void CPXMILPSolver::bound_modification(OneVarConstraintMod* mod) {
  auto p_var = dynamic_cast<ColVariable*>(p_const->get_active_var(0));
 
  int indices[2];
- indices[0] = index_of_variable(p_var);
+ indices[0] = index_of_static_variable(p_var);
  indices[1] = indices[0];
  int num_bounds = static_cast<int>(active_bounds[indices[0]].size());
 
@@ -595,7 +595,7 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
 
    int i = 0;
    for (auto el : lf->get_v_var()) {
-    indices[i] = index_of_variable(el.first);
+    indices[i] = index_of_static_variable(el.first);
     values[i] = el.second;
     ++i;
    }
@@ -609,7 +609,7 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
    int i = 0;
    for (auto el : qf->get_v_var()) {
     // Linear coefficients can be changed all at once with CPXchgobj
-    indices[i] = index_of_variable(std::get<0>(el));
+    indices[i] = index_of_static_variable(std::get<0>(el));
     values[i] = std::get<1>(el);
 
     // Quadratic coefficients can be changed one at a time
@@ -634,10 +634,10 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
    auto p_const = (FRowConstraint*)lf->get_Observer();
 
    int indices[1];
-   indices[0] = index_of_constraint(p_const);
+   indices[0] = index_of_static_constraint(p_const);
 
    for (auto el : lf->get_v_var()) {
-    CPXchgcoef(env, milp, indices[0], index_of_variable(el.first), el.second);
+    CPXchgcoef(env, milp, indices[0], index_of_static_variable(el.first), el.second);
    }
   } else {
    throw (std::invalid_argument("Unknown type of Function"));
@@ -742,19 +742,8 @@ void CPXMILPSolver::add_dynamic_constraint(FRowConstraint* p_const) {
 
  // Get the coefficients to fill the matrix
  for (auto it = p_const->begin(); it != p_const->end(); ++it) {
-
   auto p_var = dynamic_cast<ColVariable*>(&*it);
-  auto it1 = find_if(v_int_d_var.begin(),
-                     v_int_d_var.end(),
-                     [&](MILPSolver::int_var pair) {
-                      return pair.second == p_var;
-                     });
-  if (it1 != v_int_d_var.end()) {
-   rmatind[i] = (it1->first);
-  } else {
-   rmatind[i] = index_of_variable(p_var);
-  }
-
+  rmatind[i] = index_of_variable(p_var);
   rmatval[i] = p_fun->get_coefficient(p_var);
   active_constraints[rmatind[i]].push_back(p_const);
   ++i;
@@ -833,17 +822,7 @@ void CPXMILPSolver::add_dynamic_variable(ColVariable* p_var) {
    throw (std::invalid_argument("The Constraint is not linear"));
   }
 
-  auto it = find_if(v_int_d_const.begin(),
-                    v_int_d_const.end(),
-                    [&](MILPSolver::int_const pair) {
-                     return pair.second == p_const;
-                    });
-  if (it != v_int_d_const.end()) {
-   cmatind[i] = it->first;
-  } else {
-   cmatind[i] = index_of_constraint(p_const);
-  }
-
+  cmatind[i] = index_of_constraint(p_const);
   cmatval[i] = p_fun->get_coefficient(p_var);
   ++i;
  }
