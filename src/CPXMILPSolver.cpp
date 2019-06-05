@@ -728,37 +728,35 @@ void CPXMILPSolver::add_dynamic_constraint(FRowConstraint* p_const) {
   throw (std::invalid_argument("The Constraint is not linear"));
  }
 
- int nz_elements = p_const->get_num_active_var();
- int matbeg[2] = {0, nz_elements};
- auto matind = new int[nz_elements];
- auto matval = new double[nz_elements];
- double rhs[1];
- double rngval[1];
- int indices[1];
- char sense[1];
+ int nzcnt = p_const->get_num_active_var();
+ std::array<int, 2> rmatbeg = {0, nzcnt};
+ std::vector<int> rmatind(nzcnt);
+ std::vector<double> rmatval(nzcnt);
+
+ std::array<double, 1> rhs{};
+ std::array<double, 1> rngval{};
+ std::array<int, 1> indices{};
+ std::array<char, 1> sense{};
 
  int i = 0;
 
- // Get the coefficients of the active ColVariables to fill the matrix
+ // Get the coefficients to fill the matrix
  for (auto it = p_const->begin(); it != p_const->end(); ++it) {
 
   auto p_var = dynamic_cast<ColVariable*>(&*it);
-  // Search among dynamic variables
   auto it1 = find_if(v_int_d_var.begin(),
                      v_int_d_var.end(),
                      [&](MILPSolver::int_var pair) {
                       return pair.second == p_var;
                      });
   if (it1 != v_int_d_var.end()) {
-   // Found
-   matind[i] = (it1->first);
+   rmatind[i] = (it1->first);
   } else {
-   // Search among static variables
-   matind[i] = index_of_variable(p_var);
+   rmatind[i] = index_of_variable(p_var);
   }
 
-  matval[i] = p_fun->get_coefficient(i);
-  active_constraints[matind[i]].push_back(p_const);
+  rmatval[i] = p_fun->get_coefficient(p_var);
+  active_constraints[rmatind[i]].push_back(p_const);
   ++i;
  }
 
@@ -789,108 +787,107 @@ void CPXMILPSolver::add_dynamic_constraint(FRowConstraint* p_const) {
  std::sort(v_d_const_int.begin(), v_d_const_int.end());
  std::sort(v_int_d_const.begin(), v_int_d_const.end());
 
- CPXaddrows(env, milp, 0, 1, nz_elements, rhs, sense, matbeg, matind, matval, nullptr, nullptr);
+ CPXaddrows(env, milp, 0, 1, nzcnt, rhs.data(),
+                                    sense.data(),
+                                    rmatbeg.data(),
+                                    rmatind.data(),
+                                    rmatval.data(),
+                                    nullptr,
+                                    nullptr);
  if (sense[0] == 'R') {
-  CPXchgrngval (env, milp, 1, indices, rngval);
+  CPXchgrngval (env, milp, 1, indices.data(), rngval.data());
  }
-
- delete[] matind;
- delete[] matval;
 }
 
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::add_dynamic_variable(ColVariable* p_var) {
 
- std::vector<FRowConstraint *>   var_row_constraints;
- std::vector<OneVarConstraint *> var_box_constraints;
+ std::vector<FRowConstraint*> var_constraints;
+ std::vector<OneVarConstraint*> var_bounds;
 
- int nz_elements = 0;
- for (auto i : p_var->active_stuff()) {
-  auto row = dynamic_cast<FRowConstraint*>(i);
-  if (row != nullptr) {
-   var_row_constraints.push_back(row);
-   ++nz_elements;
+ int nzcnt = 0;
+ for (auto stuff : p_var->active_stuff()) {
+  auto constraint = dynamic_cast<FRowConstraint*>(stuff);
+  if (constraint != nullptr) {
+   var_constraints.push_back(constraint);
+   ++nzcnt;
   }
-  auto box = dynamic_cast<OneVarConstraint*>(i);
-  if (box != nullptr) {
-   var_box_constraints.push_back(box);
+  auto bound = dynamic_cast<OneVarConstraint*>(stuff);
+  if (bound != nullptr) {
+   var_bounds.push_back(bound);
   }
  }
 
- int matbeg[2] = {0, nz_elements};
- int matind[nz_elements];
- double matval[nz_elements];
+ std::array<int, 2> cmatbeg = {0, nzcnt};
+ std::vector<int> cmatind(nzcnt);
+ std::vector<double> cmatval(nzcnt);
 
  int i = 0;
 
  // We need the coefficients for this variable in each constraint
- for (auto* p_const : var_row_constraints) {
+ for (auto* p_const : var_constraints) {
 
   auto p_fun = dynamic_cast<const LinearFunction*>(p_const->get_function());
   if (p_fun == nullptr) {
    throw (std::invalid_argument("The Constraint is not linear"));
   }
 
-  auto it1 = find_if(v_int_d_const.begin(),
-                     v_int_d_const.end(),
-                     [&](MILPSolver::int_const pair) {
-                      return pair.second == p_const;
-                     });
-  if (it1 != v_int_d_const.end()) {
-   matind[i] = (it1->first);
+  auto it = find_if(v_int_d_const.begin(),
+                    v_int_d_const.end(),
+                    [&](MILPSolver::int_const pair) {
+                     return pair.second == p_const;
+                    });
+  if (it != v_int_d_const.end()) {
+   cmatind[i] = it->first;
   } else {
-   matind[i] = index_of_constraint(p_const);
+   cmatind[i] = index_of_constraint(p_const);
   }
 
-  matval[i] = p_fun->get_coefficient(i);
+  cmatval[i] = p_fun->get_coefficient(p_var);
   ++i;
  }
 
- double lb[1];
- double ub[1];
+ std::array<double, 1> lb{};
+ std::array<double, 1> ub{};
 
  lb[0] = p_var->get_lb() == -Inf<double>() ? -CPX_INFBOUND : p_var->get_lb();
  ub[0] = p_var->get_ub() == Inf<double>() ? CPX_INFBOUND : p_var->get_ub();
 
- int bounds = static_cast<int>(var_box_constraints.size());
- for (int j = 0; j < bounds; ++j) {
-  auto box = var_box_constraints[j];
-  lb[0] = lb[0] > box->get_lhs() ? lb[0] : box->get_lhs();
-  ub[0] = ub[0] < box->get_rhs() ? ub[0] : box->get_rhs();
+ for (auto bnd : var_bounds) {
+  lb[0] = lb[0] > bnd->get_lhs() ? lb[0] : bnd->get_lhs();
+  ub[0] = ub[0] < bnd->get_rhs() ? ub[0] : bnd->get_rhs();
  }
 
- active_constraints.emplace_back(var_row_constraints);
- active_bounds.emplace_back(var_box_constraints);
+ active_constraints.emplace_back(var_constraints);
+ active_bounds.emplace_back(var_bounds);
+
  v_d_var_int.emplace_back(p_var, v_d_var_int.back().second + 1);
  v_int_d_var.emplace_back(v_int_d_var.back().first + 1, p_var);
+ std::sort(v_d_var_int.begin(), v_d_var_int.end());
+ std::sort(v_int_d_var.begin(), v_int_d_var.end());
 
- // Update the CPLEX problem
- CPXaddcols(env, milp, 1, nz_elements, nullptr, matbeg, matind, matval, lb, ub, nullptr);
+ CPXaddcols(env, milp, 1, nzcnt, nullptr, cmatbeg.data(),
+            cmatind.data(), cmatval.data(), lb.data(), ub.data(), nullptr);
 }
 
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::remove_dynamic_constraint(FRowConstraint* p_const) {
 
-// Find the index of the constraint in CPLEX matrix
- int i = 0;
+ int index = 0;
  auto it1 = find_if(v_int_d_const.begin(),
                     v_int_d_const.end(),
                     [&](MILPSolver::int_const pair) {
                      return pair.second == p_const;
                     });
  if (it1 != v_int_d_const.end()) {
-  i = it1->first;
+  index = it1->first;
+  v_int_d_const.erase(it1);
  } else {
-  throw (std::invalid_argument("Constraint is not inside the CPLEX matrix"));
+  throw (std::invalid_argument("Cannot find the Constraint"));
  }
 
- // Now i is the index of the constraint in the CPLEX matrix
- CPXdelrows(env, milp, i, i + 1);
-
-// Remove constraint from the vectors of pairs
- v_int_d_const.erase(it1);
  auto it2 = find_if(v_d_const_int.begin(),
                     v_d_const_int.end(),
                     [&](MILPSolver::const_int pair) {
@@ -899,34 +896,22 @@ void CPXMILPSolver::remove_dynamic_constraint(FRowConstraint* p_const) {
  if (it2 != v_d_const_int.end()) {
   v_d_const_int.erase(it2);
  } else {
-  throw (std::invalid_argument("Constraint is not inside the CPLEX matrix"));
+  throw (std::invalid_argument("Cannot find the Constraint"));
  }
 
- // We have to update the indexes greater than i in the vectors of pairs
- // TODO: This is quite ugly but it has to be done, think of something smarter
+ CPXdelrows(env, milp, index, index + 1);
+
  for (auto it: v_d_const_int) {
-  if (it.second > i) {
+  if (it.second > index) {
    it.second--;
   }
  }
  for (auto it: v_int_d_const) {
-  if (it.first > i) {
-   it.first--;
-  }
- }
- for (auto it: v_s_const_int) {
-  if (it.second > i) {
-   it.second--;
-  }
- }
- for (auto it: v_int_s_const) {
-  if (it.first > i) {
+  if (it.first > index) {
    it.first--;
   }
  }
 
- // We have to remove the constraint from the active_row_contraints[]
- // TODO: Look if we can avoiding use active_row_contraints[] altogether
  for (auto& constraints: active_constraints) {
   auto constraint = find(constraints.begin(), constraints.end(), p_const);
   if (constraint != constraints.end()) {
@@ -939,23 +924,19 @@ void CPXMILPSolver::remove_dynamic_constraint(FRowConstraint* p_const) {
 
 void CPXMILPSolver::remove_dynamic_variable(ColVariable* p_var) {
 
-// Find the index of the variable in CPLEX matrix
- int i = 0;
- auto it = find_if(v_int_d_var.begin(),
+ int index = 0;
+ auto it1 = find_if(v_int_d_var.begin(),
                    v_int_d_var.end(),
                    [&](MILPSolver::int_var pair) {
                     return pair.second == p_var;
                    });
- if (it != v_int_d_var.end()) {
-  i = it->first;
+ if (it1 != v_int_d_var.end()) {
+  index = it1->first;
+  v_int_d_var.erase(it1);
  } else {
-  throw (std::invalid_argument("Constraint is not inside the CPLEX matrix"));
+  throw (std::invalid_argument("Cannot find the Variable"));
  }
 
- CPXdelcols(env, milp, i, i + 1);
-
-// Remove variable from the vectors of pairs
- v_int_d_var.erase(it);
  auto it2 = find_if(v_d_var_int.begin(),
                     v_d_var_int.end(),
                     [&](MILPSolver::var_int pair) {
@@ -965,13 +946,24 @@ void CPXMILPSolver::remove_dynamic_variable(ColVariable* p_var) {
  if (it2 != v_d_var_int.end()) {
   v_d_var_int.erase(it2);
  } else {
-  throw (std::invalid_argument("Constraint is not inside the CPLEX matrix"));
+  throw (std::invalid_argument("Cannot find the Variable"));
  }
 
- // Also, remove from the active constraints vectors
- // TODO: Verify that these vectors are kept in the right order
- active_constraints.erase(active_constraints.begin() + i);
- active_bounds.erase(active_bounds.begin() + i);
+ CPXdelcols(env, milp, index, index + 1);
+
+ for (auto it: v_d_var_int) {
+  if (it.second > index) {
+   it.second--;
+  }
+ }
+ for (auto it: v_int_d_var) {
+  if (it.first > index) {
+   it.first--;
+  }
+ }
+
+ active_constraints.erase(active_constraints.begin() + index);
+ active_bounds.erase(active_bounds.begin() + index);
 }
 
 /*--------------------------------------------------------------------------*/
