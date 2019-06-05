@@ -260,8 +260,8 @@ protected:
   * the variables so it is useful to keep track of their addresses.
   */
 
- std::vector<std::vector<FRowConstraint*> > active_row_constraints;
- std::vector<std::vector<OneVarConstraint*> > active_box_constraints;
+ std::vector<std::vector<FRowConstraint*> > active_constraints;
+ std::vector<std::vector<OneVarConstraint*> > active_bounds;
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- FIELDS FOR PROBLEM DESCRIPTION ---------------------*/

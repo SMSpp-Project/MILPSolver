@@ -341,13 +341,13 @@ void CPXMILPSolver::var_modification(VariableMod* mod) {
   lu = new char[2];
   bd = new double[2];
 
-  int bounds = static_cast<int>(active_box_constraints[indices[0]].size());
+  int bounds = static_cast<int>(active_bounds[indices[0]].size());
   lu[0] = 'L';
   lu[1] = 'U';
   bd[0] = -CPX_INFBOUND;
   bd[1] = CPX_INFBOUND;
   for (int i = 0; i < bounds; ++i) {
-   auto box = active_box_constraints[indices[0]][i];
+   auto box = active_bounds[indices[0]][i];
    bd[0] = bd[0] > box->get_lhs() ? bd[0] : box->get_lhs();
    bd[1] = bd[1] < box->get_rhs() ? bd[1] : box->get_rhs();
   }
@@ -506,7 +506,7 @@ void CPXMILPSolver::bound_modification(OneVarConstraintMod* mod) {
  int indices[2];
  indices[0] = index_of_variable(p_var);
  indices[1] = indices[0];
- int num_bounds = static_cast<int>(active_box_constraints[indices[0]].size());
+ int num_bounds = static_cast<int>(active_bounds[indices[0]].size());
 
  char* lu = nullptr;
  double* bd = nullptr;
@@ -521,7 +521,7 @@ void CPXMILPSolver::bound_modification(OneVarConstraintMod* mod) {
    bd[0] = -CPX_INFBOUND;
 
    for (int i = 0; i < num_bounds; ++i) {
-    auto box = active_box_constraints[indices[0]][i];
+    auto box = active_bounds[indices[0]][i];
     bd[0] = bd[0] > box->get_lhs() ? bd[0] : box->get_lhs();
    }
 
@@ -536,7 +536,7 @@ void CPXMILPSolver::bound_modification(OneVarConstraintMod* mod) {
    bd[0] = CPX_INFBOUND;
 
    for (int i = 0; i < num_bounds; ++i) {
-    auto box = active_box_constraints[indices[0]][i];
+    auto box = active_bounds[indices[0]][i];
     bd[0] = bd[0] < box->get_rhs() ? bd[0] : box->get_rhs();
    }
 
@@ -552,7 +552,7 @@ void CPXMILPSolver::bound_modification(OneVarConstraintMod* mod) {
    bd[1] = CPX_INFBOUND;
 
    for (int i = 0; i < num_bounds; ++i) {
-    auto box = active_box_constraints[indices[0]][i];
+    auto box = active_bounds[indices[0]][i];
     bd[0] = bd[0] > box->get_lhs() ? bd[0] : box->get_lhs();
     bd[1] = bd[1] < box->get_rhs() ? bd[1] : box->get_rhs();
    }
@@ -758,7 +758,7 @@ void CPXMILPSolver::add_dynamic_constraint(FRowConstraint* p_const) {
   }
 
   matval[i] = p_fun->get_coefficient(i);
-  active_row_constraints[matind[i]].push_back(p_const);
+  active_constraints[matind[i]].push_back(p_const);
   ++i;
  }
 
@@ -860,8 +860,8 @@ void CPXMILPSolver::add_dynamic_variable(ColVariable* p_var) {
   ub[0] = ub[0] < box->get_rhs() ? ub[0] : box->get_rhs();
  }
 
- active_row_constraints.emplace_back(var_row_constraints);
- active_box_constraints.emplace_back(var_box_constraints);
+ active_constraints.emplace_back(var_row_constraints);
+ active_bounds.emplace_back(var_box_constraints);
  v_d_var_int.emplace_back(p_var, v_d_var_int.back().second + 1);
  v_int_d_var.emplace_back(v_int_d_var.back().first + 1, p_var);
 
@@ -927,7 +927,7 @@ void CPXMILPSolver::remove_dynamic_constraint(FRowConstraint* p_const) {
 
  // We have to remove the constraint from the active_row_contraints[]
  // TODO: Look if we can avoiding use active_row_contraints[] altogether
- for (auto& constraints: active_row_constraints) {
+ for (auto& constraints: active_constraints) {
   auto constraint = find(constraints.begin(), constraints.end(), p_const);
   if (constraint != constraints.end()) {
    constraints.erase(constraint);
@@ -970,8 +970,8 @@ void CPXMILPSolver::remove_dynamic_variable(ColVariable* p_var) {
 
  // Also, remove from the active constraints vectors
  // TODO: Verify that these vectors are kept in the right order
- active_row_constraints.erase(active_row_constraints.begin() + i);
- active_box_constraints.erase(active_box_constraints.begin() + i);
+ active_constraints.erase(active_constraints.begin() + i);
+ active_bounds.erase(active_bounds.begin() + i);
 }
 
 /*--------------------------------------------------------------------------*/
