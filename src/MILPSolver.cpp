@@ -365,7 +365,6 @@ void MILPSolver::set_Block(Block* block) {
  }
 
  // Fourth loop to scan the objective(s?)
- // FIXME: I am not sure that this scan should be done in a loop for the subs
  Q.push(f_Block);
  while (!Q.empty()) {
   Block* q_Block = Q.front();

@@ -311,11 +311,10 @@ void CPXMILPSolver::var_modification(VariableMod* mod) {
 
  auto* var = dynamic_cast<ColVariable*>(mod->f_variable);
 
- int indices[2];
- indices[0] = index_of_static_variable(var);
- indices[1] = indices[0];
-
- char ctype[1];
+ std::vector<int> indices (2, index_of_static_variable(var));
+ std::array<char, 1> ctype{};
+ std::vector<char> lu;
+ std::vector<double> bd;
 
  if (var->is_integer()) {
   if (var->is_unitary() && var->is_positive()) {
@@ -326,36 +325,28 @@ void CPXMILPSolver::var_modification(VariableMod* mod) {
  } else {
   ctype[0] = 'C';  // Continuous
  }
- CPXchgctype(env, milp, 1, indices, ctype);
-
- char* lu;
- double* bd;
+ CPXchgctype(env, milp, 1, indices.data(), ctype.data());
 
  if (var->is_fixed()) {
-  lu = new char[1];
-  bd = new double[1];
+  lu.resize(1);
+  bd.resize(1);
   lu[0] = 'B';
   bd[0] = var->get_value();
-  CPXchgbds(env, milp, 1, indices, lu, bd);
- } else {
-  lu = new char[2];
-  bd = new double[2];
+  CPXchgbds(env, milp, 1, indices.data(), lu.data(), bd.data());
 
-  int bounds = static_cast<int>(active_bounds[indices[0]].size());
+ } else {
+  lu.resize(2);
+  bd.resize(2);
   lu[0] = 'L';
   lu[1] = 'U';
   bd[0] = -CPX_INFBOUND;
   bd[1] = CPX_INFBOUND;
-  for (int i = 0; i < bounds; ++i) {
-   auto box = active_bounds[indices[0]][i];
-   bd[0] = bd[0] > box->get_lhs() ? bd[0] : box->get_lhs();
-   bd[1] = bd[1] < box->get_rhs() ? bd[1] : box->get_rhs();
+  for (auto bnd : active_bounds[indices[0]]) {
+   bd[0] = bd[0] > bnd->get_lhs() ? bd[0] : bnd->get_lhs();
+   bd[1] = bd[1] < bnd->get_rhs() ? bd[1] : bnd->get_rhs();
   }
-  CPXchgbds(env, milp, 2, indices, lu, bd);
+  CPXchgbds(env, milp, 2, indices.data(), lu.data(), bd.data());
  }
-
- delete[] lu;
- delete[] bd;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -370,21 +361,16 @@ void CPXMILPSolver::of_modification(ObjectiveMod* mod) {
 
  switch (mod->f_type) {
 
-  case (ObjectiveMod::eSetMin): {
+  case ObjectiveMod::eSetMin:
    CPXchgobjsen(env, milp, 1);
    break;
-  }
 
-  case (ObjectiveMod::eSetMax): {
-   //setting the objective function to maximize
+  case ObjectiveMod::eSetMax:
    CPXchgobjsen(env, milp, -1);
    break;
-  }
 
-  default: {
+  default:
    throw (std::invalid_argument("Invalid type of ObjectiveMod"));
-   break;
-  }
  }
 }
 
@@ -397,97 +383,97 @@ void CPXMILPSolver::const_modification(ConstraintMod* mod) {
   */
 
  auto p_const = dynamic_cast<FRowConstraint*>(mod->f_constraint);
- auto lf = dynamic_cast<const LinearFunction*>(p_const->get_function());
 
- int num_bounds;
- int* indices;
- double* values;
- char* sense;
+ const int cnt = 1;
+ std::array<int, cnt> indices{};
+ std::array<double, cnt> values{};
+ std::array<char, cnt> sense{};
+ std::array<double, cnt> rngval{};
+
+ RowConstraint::RHSValue const_lhs;
+ RowConstraint::RHSValue const_rhs;
 
  switch (mod->f_type) {
 
-  case (ConstraintMod::eRelaxConst): {
+  case ConstraintMod::eRelaxConst:
    // In order to relax the constraint all we do is transform it
    // into an inequality with RHS equal to infinity
-
-   num_bounds = 1;
-   indices = new int[num_bounds];
-   values = new double[num_bounds];
-   sense = new char[num_bounds];
 
    sense[0] = ('G');
    values[0] = -Inf<double>();
    indices[0] = index_of_static_constraint(p_const);
-   CPXchgrhs(env, milp, num_bounds, indices, values);
-   CPXchgsense(env, milp, num_bounds, indices, sense);
-
+   CPXchgrhs(env, milp, cnt, indices.data(), values.data());
+   CPXchgsense(env, milp, cnt, indices.data(), sense.data());
    break;
-  }
 
-  case (ConstraintMod::eEnforceConst): {
+  case ConstraintMod::eEnforceConst:
    // In order to enforce a relaxed constraint all we need to do is
    // reverse the process of relaxing it, by changing the sense and
    // the rhs back to the original form of the constraint
 
-   num_bounds = 1;
-   indices = new int[num_bounds];
-   values = new double[num_bounds];
-   sense = new char[num_bounds];
+   const_lhs = p_const->get_lhs();
+   const_rhs = p_const->get_rhs();
 
-   auto lhs = p_const->get_lhs();
-   auto rhs = p_const->get_rhs();
-
-   if (lhs == rhs) {
+   if (const_lhs == const_rhs) {
     sense[0] = 'E';
-    values[0] = rhs;
-   } else if (lhs == -Inf<double>()) {
+    values[0] = const_rhs;
+   } else if (const_lhs == -Inf<double>()) {
     sense[0] = 'L';
-    values[0] = rhs;
-   } else if (rhs == Inf<double>()) {
+    values[0] = const_rhs;
+   } else if (const_rhs == Inf<double>()) {
     sense[0] = 'G';
-    values[0] = lhs;
+    values[0] = const_lhs;
+   } else {
+    sense[0] = 'R';
+    values[0] = const_rhs;
+    rngval[0] = const_rhs - const_lhs;
    }
 
    indices[0] = index_of_static_constraint(p_const);
-   CPXchgrhs(env, milp, num_bounds, indices, values);
-   CPXchgsense(env, milp, num_bounds, indices, sense);
-
+   CPXchgrhs(env, milp, cnt, indices.data(), values.data());
+   CPXchgsense(env, milp, cnt, indices.data(), sense.data());
+   if (sense[0] == 'R') {
+    CPXchgrngval(env, milp, cnt, indices.data(), rngval.data());
+   }
    break;
 
-  }
+  case RowConstraintMod::eChgLHS:
+  case RowConstraintMod::eChgRHS:
+  case RowConstraintMod::eChgBTS:
+   /*
+    * For the way the LP vectors are built, handling LHS/RHS/BTS cases
+    * separately is not worth it.
+    */
 
-  default: {
-   // TODO: Specifically handle RHS/LHS/BTS modification
+   const_lhs = p_const->get_lhs();
+   const_rhs = p_const->get_rhs();
 
-   num_bounds = 1;
-   indices = new int[num_bounds];
-   values = new double[num_bounds];
-   sense = new char[num_bounds];
-
-   auto lhs = p_const->get_lhs();
-   auto rhs = p_const->get_rhs();
-
-   if (lhs == rhs) {
+   if (const_lhs == const_rhs) {
     sense[0] = 'E';
-    values[0] = rhs;
-   } else if (lhs == -Inf<double>()) {
+    values[0] = const_rhs;
+   } else if (const_lhs == -Inf<double>()) {
     sense[0] = 'L';
-    values[0] = rhs;
-   } else if (rhs == Inf<double>()) {
+    values[0] = const_rhs;
+   } else if (const_rhs == Inf<double>()) {
     sense[0] = 'G';
-    values[0] = lhs;
+    values[0] = const_lhs;
+   } else {
+    sense[0] = 'R';
+    values[0] = const_rhs;
+    rngval[0] = const_rhs - const_lhs;
    }
 
    indices[0] = index_of_static_constraint(p_const);
-   CPXchgrhs(env, milp, num_bounds, indices, values);
-   CPXchgsense(env, milp, num_bounds, indices, sense);
+   CPXchgrhs(env, milp, cnt, indices.data(), values.data());
+   CPXchgsense(env, milp, cnt, indices.data(), sense.data());
+   if (sense[0] == 'R') {
+    CPXchgrngval(env, milp, cnt, indices.data(), rngval.data());
+   }
    break;
-  }
+
+  default:
+   throw (std::invalid_argument("Invalid type of ObjectiveMod"));
  }
-
- delete[]indices;
- delete[]values;
- delete[]sense;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -503,68 +489,57 @@ void CPXMILPSolver::bound_modification(OneVarConstraintMod* mod) {
  auto p_const = dynamic_cast<OneVarConstraint*>(mod->f_constraint);
  auto p_var = dynamic_cast<ColVariable*>(p_const->get_active_var(0));
 
- int indices[2];
- indices[0] = index_of_static_variable(p_var);
- indices[1] = indices[0];
- int num_bounds = static_cast<int>(active_bounds[indices[0]].size());
-
- char* lu = nullptr;
- double* bd = nullptr;
+ std::vector<int> indices (2, index_of_static_variable(p_var));
+ std::vector<char> lu;
+ std::vector<double> bd;
 
  switch (mod->f_type) {
 
-  case (RowConstraintMod::eChgLHS):
-   lu = new char[1];
-   bd = new double[1];
-
+  case RowConstraintMod::eChgLHS:
+   lu.resize(1);
+   bd.resize(1);
    lu[0] = 'L';
    bd[0] = -CPX_INFBOUND;
 
-   for (int i = 0; i < num_bounds; ++i) {
-    auto box = active_bounds[indices[0]][i];
-    bd[0] = bd[0] > box->get_lhs() ? bd[0] : box->get_lhs();
+   for (auto bnd : active_bounds[indices[0]]) {
+    bd[0] = bd[0] > bnd->get_lhs() ? bd[0] : bnd->get_lhs();
    }
 
-   CPXchgbds(env, milp, 1, indices, lu, bd);
+   CPXchgbds(env, milp, 1, indices.data(), lu.data(), bd.data());
    break;
 
-  case (RowConstraintMod::eChgRHS):
-   lu = new char[1];
-   bd = new double[1];
-
+  case RowConstraintMod::eChgRHS:
+   lu.resize(1);
+   bd.resize(1);
    lu[0] = 'U';
    bd[0] = CPX_INFBOUND;
 
-   for (int i = 0; i < num_bounds; ++i) {
-    auto box = active_bounds[indices[0]][i];
-    bd[0] = bd[0] < box->get_rhs() ? bd[0] : box->get_rhs();
+   for (auto bnd : active_bounds[indices[0]]) {
+    bd[0] = bd[0] < bnd->get_rhs() ? bd[0] : bnd->get_rhs();
    }
 
-   CPXchgbds(env, milp, 1, indices, lu, bd);
+   CPXchgbds(env, milp, 1, indices.data(), lu.data(), bd.data());
    break;
 
-  case (RowConstraintMod::eChgBTS):
-   lu = new char[2];
-   bd = new double[2];
+  case RowConstraintMod::eChgBTS:
+   lu.resize(2);
+   bd.resize(2);
    lu[0] = 'L';
    lu[1] = 'U';
    bd[0] = -CPX_INFBOUND;
    bd[1] = CPX_INFBOUND;
 
-   for (int i = 0; i < num_bounds; ++i) {
-    auto box = active_bounds[indices[0]][i];
-    bd[0] = bd[0] > box->get_lhs() ? bd[0] : box->get_lhs();
-    bd[1] = bd[1] < box->get_rhs() ? bd[1] : box->get_rhs();
+   for (auto bnd : active_bounds[indices[0]]) {
+    bd[0] = bd[0] > bnd->get_lhs() ? bd[0] : bnd->get_lhs();
+    bd[1] = bd[1] < bnd->get_rhs() ? bd[1] : bnd->get_rhs();
    }
 
-   CPXchgbds(env, milp, 2, indices, lu, bd);
+   CPXchgbds(env, milp, 2, indices.data(), lu.data(), bd.data());
    break;
 
   default:
-   break;
+   throw (std::invalid_argument("Invalid type of OneVarConstraintMod"));
  }
- delete[] lu;
- delete[] bd;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -585,13 +560,13 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
   auto qf = dynamic_cast<const DQuadFunction*> (mod_f);
 
   int num_vars;
-  int* indices;
-  double* values;
+  std::vector<int> indices;
+  std::vector<double> values;
 
   if (lf != nullptr) {
    num_vars = static_cast<int>(lf->get_v_var().size());
-   indices = new int[num_vars];
-   values = new double[num_vars];
+   indices.resize(num_vars);
+   values.resize(num_vars);
 
    int i = 0;
    for (auto el : lf->get_v_var()) {
@@ -599,12 +574,12 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
     values[i] = el.second;
     ++i;
    }
-   CPXchgobj(env, milp, num_vars, indices, values);
+   CPXchgobj(env, milp, num_vars, indices.data(), values.data());
 
   } else if (qf != nullptr) {
    num_vars = static_cast<int>(qf->get_v_var().size());
-   indices = new int[num_vars];
-   values = new double[num_vars];
+   indices.resize(num_vars);
+   values.resize(num_vars);
 
    int i = 0;
    for (auto el : qf->get_v_var()) {
@@ -617,14 +592,11 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
     ++i;
    }
 
-   CPXchgobj(env, milp, num_vars, indices, values);
+   CPXchgobj(env, milp, num_vars, indices.data(), values.data());
 
   } else {
    throw (std::invalid_argument("Unknown type of Objective Function"));
   }
-
-  delete[] indices;
-  delete[] values;
 
  } else {
   // Assume Function is a constraint, so it can be only linear
@@ -634,10 +606,10 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
    auto p_const = (FRowConstraint*)lf->get_Observer();
 
    int indices[1];
-   indices[0] = index_of_static_constraint(p_const);
+   indices[0] = index_of_constraint(p_const);
 
    for (auto el : lf->get_v_var()) {
-    CPXchgcoef(env, milp, indices[0], index_of_static_variable(el.first), el.second);
+    CPXchgcoef(env, milp, indices[0], index_of_variable(el.first), el.second);
    }
   } else {
    throw (std::invalid_argument("Unknown type of Function"));
@@ -650,9 +622,9 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
 void CPXMILPSolver::dynamic_modification(BlockModAD* mod) {
 
  switch (mod->f_type) {
+  // TODO: Handle OneVarConstraints
 
-  case (BlockModAD::eAddConst): {
-   // TODO: Handle OneVarConstraints
+  case BlockModAD::eAddConst: {
    if (mod->mod_list.type() == typeid(std::vector<FRowConstraint*>)) {
     auto v_const = boost::any_cast<std::vector<FRowConstraint*> >(mod->mod_list);
     for (auto& i : v_const) {
@@ -667,7 +639,7 @@ void CPXMILPSolver::dynamic_modification(BlockModAD* mod) {
    break;
   }
 
-  case (BlockModAD::eAddVar): {
+  case BlockModAD::eAddVar: {
    if (mod->mod_list.type() == typeid(std::vector<ColVariable*>)) {
     auto v_vars = boost::any_cast<std::vector<ColVariable*> >(mod->mod_list);
     for (auto& v_var : v_vars) {
@@ -682,8 +654,8 @@ void CPXMILPSolver::dynamic_modification(BlockModAD* mod) {
    break;
   }
 
-  case (BlockModAD::eDelConst): {
-   // TODO: Handle OneVarConstraints
+  case BlockModAD::eDelConst: {
+
    if (mod->mod_list.type() == typeid(std::list<FRowConstraint*>)) {
     auto l_const = boost::any_cast<std::list<FRowConstraint*> >(mod->mod_list);
     for (auto& it : l_const) {
@@ -698,7 +670,7 @@ void CPXMILPSolver::dynamic_modification(BlockModAD* mod) {
    break;
   }
 
-  case (BlockModAD::eDelVar): {
+  case BlockModAD::eDelVar: {
    if (mod->mod_list.type() == typeid(std::list<ColVariable*>)) {
     auto l_var = boost::any_cast<std::list<ColVariable*> >(mod->mod_list);
     for (auto& it : l_var) {
@@ -715,7 +687,6 @@ void CPXMILPSolver::dynamic_modification(BlockModAD* mod) {
 
   default:
    throw (std::invalid_argument("Unknown type of BlockAD"));
-   break;
  }
 }
 
