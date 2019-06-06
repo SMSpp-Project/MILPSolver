@@ -75,40 +75,44 @@ CPXMILPSolver::~CPXMILPSolver() {
 int CPXMILPSolver::compute(bool changedvars) {
 
  int status;
- env = CPXopenCPLEX(&status);
- milp = CPXcreateprob(env, &status, "MILPCPX");
 
- for (int i = 0; i < numcols; ++i) {
-  if (lb[i] == -Inf<double>()) {
-   lb[i] = -CPX_INFBOUND;
+ // If it is the first time, we copy the LP problem into CPLEX
+ if (env == nullptr) {
+  env = CPXopenCPLEX(&status);
+  milp = CPXcreateprob(env, &status, "MILPCPX");
+
+  for (int i = 0; i < numcols; ++i) {
+   if (lb[i] == -Inf<double>()) {
+    lb[i] = -CPX_INFBOUND;
+   }
+   if (ub[i] == Inf<double>()) {
+    lb[i] = CPX_INFBOUND;
+   }
   }
-  if (ub[i] == Inf<double>()) {
-   lb[i] = CPX_INFBOUND;
+
+  CPXcopylp(env, milp,
+            numcols,
+            numrows,
+            objsense,
+            objective.data(),
+            rhs.data(),
+            sense.data(),
+            matbeg.data(),
+            matcnt.data(),
+            matind.data(),
+            matval.data(),
+            lb.data(),
+            ub.data(),
+            rngval.data());
+
+  const FRealObjective* p_obj;
+  p_obj = boost::any_cast<FRealObjective*>(f_Block->get_objective());
+  auto p_dquad_fun = dynamic_cast<const DQuadFunction*> (p_obj->get_function());
+  if (p_dquad_fun != nullptr) {
+   CPXcopyqpsep(env, milp, q_objective.data());
   }
+  CPXcopyctype(env, milp, xctype.data());
  }
-
- CPXcopylp(env, milp,
-           numcols,
-           numrows,
-           objsense,
-           objective.data(),
-           rhs.data(),
-           sense.data(),
-           matbeg.data(),
-           matcnt.data(),
-           matind.data(),
-           matval.data(),
-           lb.data(),
-           ub.data(),
-           rngval.data());
-
- const FRealObjective* p_obj;
- p_obj = boost::any_cast<FRealObjective*>(f_Block->get_objective());
- auto p_dquad_fun = dynamic_cast<const DQuadFunction*> (p_obj->get_function());
- if (p_dquad_fun != nullptr) {
-  CPXcopyqpsep(env, milp, q_objective.data());
- }
- CPXcopyctype(env, milp, xctype.data());
 
  process_modifications();
 

@@ -124,7 +124,7 @@ class CPXMILPSolver : public MILPSolver {
  protected:
 
  CPXENVptr env; /// CPLEX environment
- CPXLPptr milp; /// CPLEX LP
+ CPXLPptr milp; /// CPLEX LP problem
 
  /// It writes the solution back on the Block
  void get_var_solution(Configuration* solc) override;

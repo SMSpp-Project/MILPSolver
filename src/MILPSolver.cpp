@@ -45,7 +45,7 @@
 #include "MILPSolver.h"
 
 // TODO: Remove this and all the printouts when done
- #define DEBUG 0
+ #define DEBUG 1
 #if DEBUG
 #define LOG(stuff) std::cout << stuff
 #define LOG_VEC(stuff) std::cout << "[";      \
