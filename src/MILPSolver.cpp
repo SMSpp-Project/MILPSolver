@@ -44,7 +44,18 @@
 
 #include "MILPSolver.h"
 
-#define DEBUG_COUT 1 // TODO: Remove this and all the printouts when done
+// TODO: Remove this and all the printouts when done
+ #define DEBUG 0
+#if DEBUG
+#define LOG(stuff) std::cout << stuff
+#define LOG_VEC(stuff) std::cout << "[";      \
+                       for (auto i : stuff)    \
+                        std::cout << " " << i; \
+                       std::cout << "]\n"
+#else
+#define LOG(stuff)
+#define LOG_VEC(stuff)
+#endif
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -59,7 +70,7 @@ SMSpp_insert_in_factory_cpp_0(MILPSolver);
 
 MILPSolver::MILPSolver() : Solver() {}
 
-MILPSolver::~MILPSolver() {}
+MILPSolver::~MILPSolver() = default;
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------- GETTERS ----------------------------------*/
@@ -167,9 +178,7 @@ void MILPSolver::set_Block(Block* block) {
    Q.push(i);
   }
 
-#if DEBUG_COUT
-  std::cout << "[DEBUG] ========= MILPSolver::set_Block() counting static constraints" << std::endl;
-#endif
+  LOG("[DEBUG] ========= MILPSolver::set_Block() counting static constraints\n");
   for (const auto& i : q_Block->get_static_constraints()) {
    auto f1 = std::bind(&MILPSolver::count_constraints,
                        this,
@@ -178,9 +187,7 @@ void MILPSolver::set_Block(Block* block) {
    un_any_const_static(i, f1, un_any_type<FRowConstraint>());
   }
 
-#if DEBUG_COUT
-  std::cout << "[DEBUG] ========= MILPSolver::set_Block() counting dynamic constraints" << std::endl;
-#endif
+  LOG("[DEBUG] ========= MILPSolver::set_Block() counting dynamic constraints\n");
   for (const auto& i : q_Block->get_dynamic_constraints()) {
    auto f1 = std::bind(&MILPSolver::count_constraints,
                        this,
@@ -189,9 +196,7 @@ void MILPSolver::set_Block(Block* block) {
    un_any_const_dynamic(i, f1, un_any_type<FRowConstraint>());
   }
 
-#if DEBUG_COUT
-  std::cout << "[DEBUG] ========= MILPSolver::set_Block() counting static variables" << std::endl;
-#endif
+  LOG("[DEBUG] ========= MILPSolver::set_Block() counting static variables\n");
   for (const auto& i : q_Block->get_static_variables()) {
    auto f1 = std::bind(&MILPSolver::count_variables,
                        this,
@@ -200,9 +205,7 @@ void MILPSolver::set_Block(Block* block) {
    un_any_const_static(i, f1, un_any_type<ColVariable>());
   }
 
-#if DEBUG_COUT
-  std::cout << "[DEBUG] ========= MILPSolver::set_Block() counting dynamic variables" << std::endl;
-#endif
+  LOG("[DEBUG] ========= MILPSolver::set_Block() counting dynamic variables\n");
   for (const auto& i : q_Block->get_dynamic_variables()) {
    auto f1 = std::bind(&MILPSolver::count_variables,
                        this,
@@ -210,9 +213,8 @@ void MILPSolver::set_Block(Block* block) {
                        std::ref(numcols));
    un_any_const_dynamic(i, f1, un_any_type<ColVariable>());
   }
-#if DEBUG_COUT
-  std::cout << "[DEBUG] ========= MILPSolver::set_Block() nonzero elements" << std::endl;
-#endif
+
+  LOG("[DEBUG] ========= MILPSolver::set_Block() nonzero elements\n");
   int cnt = 0;
   for (const auto& i : q_Block->get_static_variables()) {
    auto f1 = std::bind(&MILPSolver::count_nzelements,
@@ -233,12 +235,10 @@ void MILPSolver::set_Block(Block* block) {
   }
  } // End of while loop on Block queue
 
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::set_Block() after counting" << std::endl;
- std::cout << "constraints/numrows = " << numrows << std::endl;
- std::cout << "variables/numcols =   " << numcols << std::endl;
- std::cout << "nzelements =          " << nzelements << std::endl;
-#endif
+ LOG("[DEBUG] ========= MILPSolver::set_Block() after counting\n");
+ LOG("constraints/numrows = " << numrows << std::endl);
+ LOG("variables/numcols =   " << numcols << std::endl);
+ LOG("nzelements =          " << nzelements << std::endl);
 
  // The +1 is needed by generic interface
  matbeg.resize(numcols + 1);
@@ -306,10 +306,7 @@ void MILPSolver::set_Block(Block* block) {
  std::sort(v_d_const_int.begin(), v_d_const_int.end());
  std::sort(v_int_d_const.begin(), v_int_d_const.end());
 
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::set_Block() after constraint scan" << std::endl;
-#endif
-
+LOG("[DEBUG] ========= MILPSolver::set_Block() after constraint scan\n");
  // Third loop to scan the variables
  Q.push(f_Block);
 
@@ -383,81 +380,19 @@ void MILPSolver::set_Block(Block* block) {
   scan_objective(p_obj);
  } // End of while loop on Block queue
 
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::set_Block() after objective scan" << std::endl;
-
- std::cout << "[DEBUG] objective   = [";
- for (int i = 0; i < numcols; ++i) {
-  std::cout << " " << objective[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] q_objective = [";
- for (int i = 0; i < numcols; ++i) {
-  std::cout << " " << q_objective[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] rhs         = [";
- for (int i = 0; i < numrows; ++i) {
-  std::cout << " " << rhs[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] rngval      = [";
- for (int i = 0; i < numrows; ++i) {
-  std::cout << " " << rngval[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] sense       = [";
- for (int i = 0; i < numrows; ++i) {
-  std::cout << " " << sense[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] matbeg      = [";
- for (int i = 0; i < numcols; ++i) {
-  std::cout << " " << matbeg[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] matcnt      = [";
- for (int i = 0; i < numcols; ++i) {
-  std::cout << " " << matcnt[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] matind      = [";
- for (int i = 0; i < nzelements; ++i) {
-  std::cout << " " << matind[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] matval      = [";
- for (int i = 0; i < nzelements; ++i) {
-  std::cout << " " << matval[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] lb          = [";
- for (int i = 0; i < numcols; ++i) {
-  std::cout << " " << lb[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] ub          = [";
- for (int i = 0; i < numcols; ++i) {
-  std::cout << " " << ub[i];
- }
- std::cout << "]" << std::endl;
-
- std::cout << "[DEBUG] xctype      = [";
- for (int i = 0; i < numcols; ++i) {
-  std::cout << " " << xctype[i];
- }
- std::cout << "]" << std::endl;
-#endif
+ LOG("[DEBUG] ========= MILPSolver::set_Block() after objective scan\n");
+ LOG("[DEBUG] objective   = "); LOG_VEC(objective);
+ LOG("[DEBUG] q_objective = "); LOG_VEC(q_objective);
+ LOG("[DEBUG] rhs         = "); LOG_VEC(rhs);
+ LOG("[DEBUG] rngval      = "); LOG_VEC(rngval);
+ LOG("[DEBUG] sense       = "); LOG_VEC(sense);
+ LOG("[DEBUG] matbeg      = "); LOG_VEC(matbeg);
+ LOG("[DEBUG] matcnt      = "); LOG_VEC(matcnt);
+ LOG("[DEBUG] matind      = "); LOG_VEC(matind);
+ LOG("[DEBUG] matval      = "); LOG_VEC(matval);
+ LOG("[DEBUG] lb          = "); LOG_VEC(lb);
+ LOG("[DEBUG] ub          = "); LOG_VEC(ub);
+ LOG("[DEBUG] xctype      = "); LOG_VEC(xctype);
 
  // Adding cuts
  // cuts = t_pc;
@@ -626,10 +561,7 @@ FRowConstraint* MILPSolver::static_constraint_with_index(int i) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::count_constraints(FRowConstraint& constraint, int& n_rows) {
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::count_constraints()  " << n_rows << " " << constraint;
-#endif
-
+ LOG("[DEBUG] ========= MILPSolver::count_constraints()  " << n_rows << " " << constraint);
  auto fun = dynamic_cast<const LinearFunction*>(constraint.get_function());
  if (fun != nullptr) {
   ++n_rows;
@@ -641,9 +573,7 @@ void MILPSolver::count_constraints(FRowConstraint& constraint, int& n_rows) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::count_variables(ColVariable& variable, int& n_cols) {
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::count_variables()    " << n_cols << " " << variable;
-#endif
+ LOG("[DEBUG] ========= MILPSolver::count_variables()    " << n_cols << " " << variable);
  ++n_cols;
 }
 
@@ -652,10 +582,8 @@ void MILPSolver::count_variables(ColVariable& variable, int& n_cols) {
 void MILPSolver::count_nzelements(ColVariable& variable,
                                   int& nz_elements,
                                   int& cnt) {
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::count_nzelements()   " << cnt << " " << variable;
- std::cout << "[DEBUG] The active stuff is:" << std::endl;
-#endif
+ LOG("[DEBUG] ========= MILPSolver::count_nzelements()   " << cnt << " " << variable);
+ LOG("[DEBUG] The active stuff is:\n");
 
  /*
   * Since counting non-zero elements requires checking if each active thing
@@ -672,25 +600,19 @@ void MILPSolver::count_nzelements(ColVariable& variable,
  for (auto i : variable.active_stuff()) {
   auto row = dynamic_cast<FRowConstraint*>(i);
   if (row != nullptr) {
-#if DEBUG_COUT
-   std::cout << "[DEBUG] " << *row;
-#endif
+   LOG("[DEBUG] " << *row);
    active_constraints[cnt].push_back(row);
    ++nz_elements;
   }
   auto box = dynamic_cast<OneVarConstraint*>(i);
   if (box != nullptr) {
-#if DEBUG_COUT
-   std::cout << "[DEBUG] " << *box;
-#endif
+   LOG("[DEBUG] " << *box);
    active_bounds[cnt].push_back(box);
   }
-#if DEBUG_COUT
   auto obj = dynamic_cast<Objective*>(i);
   if (obj != nullptr) {
-   std::cout << "[DEBUG] " << *obj;
+   LOG("[DEBUG] " << *obj);
   }
-#endif
  }
  ++cnt;
 }
@@ -698,11 +620,9 @@ void MILPSolver::count_nzelements(ColVariable& variable,
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_static_variable(ColVariable& var, int& first, int& i) {
+ LOG("[DEBUG] ========= MILPSolver::scan_static_variable() ");
+ LOG(i << " " << var);
 
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::scan_static_variable() ";
- std::cout << i << " " << var;
-#endif
 
  if (first == 0) {
   v_s_var_int.emplace_back(&var, i);
@@ -777,11 +697,8 @@ void MILPSolver::scan_static_variable(ColVariable& var, int& first, int& i) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_dynamic_variable(ColVariable& var, int& i){
-
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::scan_dynamic_variable() ";
- std::cout << i << " " << var;
-#endif
+ LOG("[DEBUG] ========= MILPSolver::scan_dynamic_variable() ");
+ LOG(i << " " << var);
 
  v_d_var_int.emplace_back(&var, i);
  v_int_d_var.emplace_back(i, &var);
@@ -853,10 +770,8 @@ void MILPSolver::scan_dynamic_variable(ColVariable& var, int& i){
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_static_constraint(FRowConstraint& p_const, int& first, int& i) {
+ LOG("[DEBUG] ========= MILPSolver::scan_static_constraint()  " << p_const);
 
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::scan_static_constraint()  " << p_const;
-#endif
  auto lin_fun = dynamic_cast<const LinearFunction*>(p_const.get_function());
  if (lin_fun == nullptr) {
   throw (std::invalid_argument("The Constraint is not linear"));
@@ -917,10 +832,8 @@ void MILPSolver::scan_static_constraint(FRowConstraint& p_const, int& first, int
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_dynamic_constraint(FRowConstraint& p_const, int& i) {
+ LOG("[DEBUG] ========= MILPSolver::scan_dynamic_constraint() " << p_const);
 
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::scan_dynamic_constraint() " << p_const;
-#endif
  auto lin_fun = dynamic_cast<const LinearFunction*>(p_const.get_function());
  if (lin_fun == nullptr) {
   throw (std::invalid_argument("The Constraint is not linear"));
@@ -977,9 +890,7 @@ void MILPSolver::scan_dynamic_constraint(FRowConstraint& p_const, int& i) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_objective(const FRealObjective* obj) {
-#if DEBUG_COUT
- std::cout << "[DEBUG] ========= MILPSolver::scan_objective() " << *obj;
-#endif
+LOG("[DEBUG] ========= MILPSolver::scan_objective() " << *obj);
 
  auto lin_fun = dynamic_cast<const LinearFunction*> (obj->get_function());
  int k;
