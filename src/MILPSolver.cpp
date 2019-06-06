@@ -147,8 +147,8 @@ const std::vector<char>& MILPSolver::get_xctype() const {
 void MILPSolver::set_Block(Block* block) {
 
  if (f_Block) {
-  f_Block->unregister_Solver(this);
-  clear_matrices();
+  // f_Block->unregister_Solver(this);
+  clear_problem();
  }
 
  f_Block = block;
@@ -160,11 +160,6 @@ void MILPSolver::set_Block(Block* block) {
   * Block and all of each corresponding children if any, in order to populate
   * the LP data.
   */
-
- numrows = 0;
- numcols = 0;
- nzelements = 0;
-
  std::queue<Block*> Q;
 
  // First loop on the queue to count variables and constraints
@@ -247,7 +242,6 @@ void MILPSolver::set_Block(Block* block) {
  matcnt.resize(numcols);
  matind.resize(nzelements);
  matval.resize(nzelements);
- // indexed.resize(static_cast<unsigned long>(numcols));
  rhs.resize(numrows);
  rngval.resize(numrows);
  sense.resize(numrows);
@@ -980,6 +974,12 @@ void MILPSolver::process_modifications() {
      return;
     }
    }
+   {
+    const auto tmod = std::dynamic_pointer_cast<NBModification>(mod);
+    if (tmod) {
+     this->set_Block(f_Block);
+    }
+   }
   };
 
   f(mod);
@@ -989,7 +989,12 @@ void MILPSolver::process_modifications() {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::clear_matrices() {
+void MILPSolver::clear_problem() {
+ numrows = 0;
+ numcols = 0;
+ nzelements = 0;
+ objsense = 0;
+
  matbeg.clear();
  matcnt.clear();
  matind.clear();
@@ -1002,6 +1007,22 @@ void MILPSolver::clear_matrices() {
  lb.clear();
  ub.clear();
  xctype.clear();
+
+ v_s_var_int.clear();
+ v_int_s_var.clear();
+ v_s_const_int.clear();
+ v_int_s_const.clear();
+ v_d_var_int.clear();
+ v_int_d_var.clear();
+ v_d_const_int.clear();
+ v_int_d_const.clear(); 
+
+ for (auto i: active_constraints)
+  i.clear();
+ active_constraints.clear();
+ for (auto i: active_bounds)
+  i.clear();
+ active_bounds.clear();
 }
 
 /*--------------------------------------------------------------------------*/

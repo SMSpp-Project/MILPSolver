@@ -583,7 +583,7 @@ protected:
  /**
   * It clears all the LP vectors
   */
- void clear_matrices();
+ void clear_problem();
 
 /*@}------------------------------------------------------------------------*/
  SMSpp_insert_in_factory_h;
