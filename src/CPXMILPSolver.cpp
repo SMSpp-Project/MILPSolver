@@ -550,10 +550,14 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
   * This function is used when changing coefficents for OFs or constraints.
   */
  auto mod_f = mod->f_function;
+ Function* of;
 
- // TODO: Handle exceptions here
- auto p_obj = boost::any_cast<FRealObjective*>(f_Block->get_objective());
- auto of = p_obj->get_function();
+ try {
+  auto p_obj = boost::any_cast<FRealObjective*>(f_Block->get_objective());
+  of = p_obj->get_function();
+ } catch (boost::bad_any_cast&) {
+  throw (std::invalid_argument("Objective is not a FRealObjective"));
+ }
 
  if (of == mod_f) {
   auto lf = dynamic_cast<const LinearFunction*> (mod_f);
@@ -622,7 +626,6 @@ void CPXMILPSolver::function_modification(FunctionMod* mod) {
 void CPXMILPSolver::dynamic_modification(BlockModAD* mod) {
 
  switch (mod->f_type) {
-  // TODO: Handle OneVarConstraints
 
   case BlockModAD::eAddConst: {
    if (mod->mod_list.type() == typeid(std::vector<FRowConstraint*>)) {
@@ -914,6 +917,67 @@ void CPXMILPSolver::remove_dynamic_variable(ColVariable* p_var) {
 
  active_constraints.erase(active_constraints.begin() + index);
  active_bounds.erase(active_bounds.begin() + index);
+}
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::set_par(const ThinComputeInterface::idx_type par, const int value) {
+ switch (par) {
+  case intMaxIter:
+   f_max_iter = value;
+   CPXsetlongparam(env, CPXPARAM_MIP_Limits_Nodes, value);
+   break;
+  case intMaxSol:
+   f_max_sol = value;
+   CPXsetintparam(env, CPXPARAM_MIP_Limits_Solutions, value);
+   break;
+  case intLogVerb:
+   f_log_verb = value;
+   CPXsetintparam(env, CPX_PARAM_SCRIND, value);
+   break;
+  default:
+   ThinComputeInterface::set_par(par, value);
+ }
+}
+
+void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const double value) {
+ switch (par) {
+  case dblMaxTime:
+   f_max_time = value;
+   CPXsetdblparam(env, CPXPARAM_TimeLimit, value);
+   break;
+  case dblRelAcc:
+   f_rel_acc = value;
+   break;
+  case dblAbsAcc:
+   f_abs_acc = value;
+   break;
+  case dblUpCutOff:
+   f_up_cutoff = value;
+   CPXsetdblparam(env, CPXPARAM_MIP_Tolerances_UpperCutoff, value);
+   break;
+  case dblLwCutOff:
+   f_lw_cutoff = value;
+   CPXsetdblparam(env, CPXPARAM_MIP_Tolerances_LowerCutoff, value);
+   break;
+  case dblRAccSol:
+   f_r_acc_sol = value;
+   CPXsetdblparam(env, CPXPARAM_MIP_Pool_RelGap, value);
+   break;
+  case dblAAccSol:
+   f_a_acc_sol = value;
+   CPXsetdblparam(env, CPXPARAM_MIP_Pool_AbsGap, value);
+   break;
+  case dblFAccSol:
+   f_f_acc_sol = value;
+   break;
+  default:
+   ThinComputeInterface::set_par(par, value);
+ }
+}
+
+void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const std::string& value) {
+   ThinComputeInterface::set_par(par, value);
 }
 
 /*--------------------------------------------------------------------------*/

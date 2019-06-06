@@ -129,6 +129,12 @@ class CPXMILPSolver : public MILPSolver {
  /// It writes the solution back on the Block
  void get_var_solution(Configuration* solc) override;
 
+ void set_par(idx_type par, int value) override;
+
+ void set_par(idx_type par, double value) override;
+
+ void set_par(idx_type par, const std::string & value) override;
+
 /*@}------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
 /*--------------------------------------------------------------------------*/
@@ -170,6 +176,18 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
  private:
+
+ double f_max_time{};   ///< maximum time for each call to solve()
+ int f_max_iter{};      ///< maximum iterations in each call to solve()
+ int f_log_verb{};      ///< "verbosity" of the log
+ double f_rel_acc{};    ///< relative objective function accuracy
+ double f_abs_acc{};    ///< absolute objective function accuracy
+ double f_up_cutoff{};  ///< upper cutoff
+ double f_lw_cutoff{};  ///< lower cutoff
+ int f_max_sol{};       ///< max number of solutions for each call to solve()
+ double f_r_acc_sol{};  ///< max relative error of a solution
+ double f_a_acc_sol{};  ///< max absolute error of a solution
+ double f_f_acc_sol{};  ///< max relative constraint violation of a solution
 
 /**
  * @name Private methods

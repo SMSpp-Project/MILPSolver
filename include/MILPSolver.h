@@ -372,23 +372,6 @@ protected:
 
  int sol_status{};     ///< Solution status (OK, Infeasible, Unbounded, ...)
  int nodes{};          ///< Number of nodes used to solve the problem
- 
-
- /* TODO: Support CPLEX parameters
-  * The following fields are for used in set_var() functions
-  * I have to figure out what to use in new version of SMS++
-  */
- // double f_max_time{};   ///< maximum time for each call to solve()
- // int f_max_iter{};      ///< maximum iterations in each call to solve()
- // int f_log_verb{};      ///< "verbosity" of the log
- // double f_rel_acc{};    ///< relative objective function accuracy
- // double f_abs_acc{};    ///< absolute objective function accuracy
- // double f_up_cutoff{};  ///< upper cutoff
- // double f_lw_cutoff{};  ///< lower cutoff
- // int f_max_sol{};       ///< max number of solutions for each call to solve()
- // double f_r_acc_sol{};  ///< max relative error of a solution
- // double f_a_acc_sol{};  ///< max absolute error of a solution
- // double f_f_acc_sol{};  ///< max relative constraint violation of a solution
 
 /*--------------------------------------------------------------------------*/
 
@@ -603,22 +586,10 @@ protected:
  void clear_matrices();
 
 /*@}------------------------------------------------------------------------*/
-
- // TODO: Support CPLEX parameters
- // void set_par(int par, int value);
- // void set_par(int par, double value);
- // void set_par(int par, long value);
-
- // std::vector<int> indexed;
-
- // TODO: Support cuts callback
- // int cuts{}; //parameter for adding cuts
- // int Callback(CPXCENVptr env, void* cbdata, int wherefrom, int* useraction_p);
-
  SMSpp_insert_in_factory_h;
 };   // end( class MILPSolver )
 
-}; // end( namespace SMSpp_di_unipi_it )
+} // end( namespace SMSpp_di_unipi_it )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
