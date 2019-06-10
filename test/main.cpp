@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
  file >> *block;
  std::cout << *block;
 
- block->register_Solver(Solver::new_Solver("MILPSolver"));
+ block->register_Solver(Solver::new_Solver("CPXMILPSolver"));
 
  // First solve
  auto solver = (block->get_registered_solvers()).front();
