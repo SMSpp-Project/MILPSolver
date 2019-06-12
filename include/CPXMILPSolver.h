@@ -108,11 +108,23 @@ class CPXMILPSolver : public MILPSolver {
 /** @name Public Methods derived of the Base Class
  *  @{ */
 
+ void set_Block(Block* block) override;
+
  int compute(bool changedvars) override;
 
  OFValue get_lb() override;
 
  OFValue get_ub() override;
+
+ void get_var_solution(Configuration* solc) override;
+
+ void get_dual_solution(Configuration* solc) override {}
+
+ void set_par(idx_type par, int value) override;
+
+ void set_par(idx_type par, double value) override;
+
+ void set_par(idx_type par, const std::string & value) override;
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
@@ -126,14 +138,15 @@ class CPXMILPSolver : public MILPSolver {
  CPXENVptr env; /// CPLEX environment
  CPXLPptr milp; /// CPLEX LP problem
 
- /// It writes the solution back on the Block
- void get_var_solution(Configuration* solc) override;
+ /**
+  * It removes the problem from the CPLEX environment
+  */
+ void clear_problem() override;
 
- void set_par(idx_type par, int value) override;
-
- void set_par(idx_type par, double value) override;
-
- void set_par(idx_type par, const std::string & value) override;
+ /**
+  * It loads the problem into CPLEX environment
+  */
+ void load_problem() override;
 
 /*@}------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/

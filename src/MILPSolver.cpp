@@ -68,7 +68,7 @@ SMSpp_insert_in_factory_cpp_0(MILPSolver);
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-MILPSolver::MILPSolver() : Solver() {}
+MILPSolver::MILPSolver() : CDASolver() {}
 
 MILPSolver::~MILPSolver() = default;
 
@@ -145,14 +145,56 @@ const std::vector<char>& MILPSolver::get_xctype() const {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::set_Block(Block* block) {
-
- if (f_Block) {
-  // f_Block->unregister_Solver(this);
-  clear_problem();
+ if (block == f_Block) {
+  return;
  }
+ Solver::set_Block(block);
 
- f_Block = block;
+ clear_problem();
+ load_problem();
+}
 
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::clear_problem() {
+ numrows = 0;
+ numcols = 0;
+ nzelements = 0;
+ objsense = 0;
+
+ matbeg.clear();
+ matcnt.clear();
+ matind.clear();
+ matval.clear();
+ rhs.clear();
+ rngval.clear();
+ sense.clear();
+ objective.clear();
+ q_objective.clear();
+ lb.clear();
+ ub.clear();
+ xctype.clear();
+
+ v_s_var_int.clear();
+ v_int_s_var.clear();
+ v_s_const_int.clear();
+ v_int_s_const.clear();
+ v_d_var_int.clear();
+ v_int_d_var.clear();
+ v_d_const_int.clear();
+ v_int_d_const.clear();
+
+ for (auto i: active_constraints)
+  i.clear();
+ active_constraints.clear();
+ for (auto i: active_bounds)
+  i.clear();
+ active_bounds.clear();
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::load_problem() {
  /*
   * Passing all the data of the Block to the LP.
   *
@@ -300,7 +342,7 @@ void MILPSolver::set_Block(Block* block) {
  std::sort(v_d_const_int.begin(), v_d_const_int.end());
  std::sort(v_int_d_const.begin(), v_int_d_const.end());
 
-LOG("[DEBUG] ========= MILPSolver::set_Block() after constraint scan\n");
+ LOG("[DEBUG] ========= MILPSolver::set_Block() after constraint scan\n");
  // Third loop to scan the variables
  Q.push(f_Block);
 
@@ -387,63 +429,6 @@ LOG("[DEBUG] ========= MILPSolver::set_Block() after constraint scan\n");
  LOG("[DEBUG] lb          = "); LOG_VEC(lb);
  LOG("[DEBUG] ub          = "); LOG_VEC(ub);
  LOG("[DEBUG] xctype      = "); LOG_VEC(xctype);
-}
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::set_par(const ThinComputeInterface::idx_type par, const int value) {
- switch (par) {
-  case intMaxIter:
-   f_max_iter = value;
-   break;
-  case intMaxSol:
-   f_max_sol = value;
-   break;
-  case intLogVerb:
-   f_log_verb = value;
-   break;
-  default:
-   ThinComputeInterface::set_par(par, value);
- }
-}
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::set_par(ThinComputeInterface::idx_type par, const double value) {
- switch (par) {
-  case dblMaxTime:
-   f_max_time = value;
-   break;
-  case dblRelAcc:
-   f_rel_acc = value;
-   break;
-  case dblAbsAcc:
-   f_abs_acc = value;
-   break;
-  case dblUpCutOff:
-   f_up_cutoff = value;
-   break;
-  case dblLwCutOff:
-   f_lw_cutoff = value;
-   break;
-  case dblRAccSol:
-   f_r_acc_sol = value;
-   break;
-  case dblAAccSol:
-   f_a_acc_sol = value;
-   break;
-  case dblFAccSol:
-   f_f_acc_sol = value;
-   break;
-  default:
-   ThinComputeInterface::set_par(par, value);
- }
-}
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::set_par(ThinComputeInterface::idx_type par, const std::string& value) {
- ThinComputeInterface::set_par(par, value);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1035,7 +1020,8 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast<NBModification>(mod);
     if (tmod) {
-     this->set_Block(f_Block);
+     clear_problem();
+     load_problem();
     }
    }
   };
@@ -1043,44 +1029,6 @@ void MILPSolver::process_modifications() {
   f(mod);
   v_mod.pop_front();
  }
-}
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::clear_problem() {
- numrows = 0;
- numcols = 0;
- nzelements = 0;
- objsense = 0;
-
- matbeg.clear();
- matcnt.clear();
- matind.clear();
- matval.clear();
- rhs.clear();
- rngval.clear();
- sense.clear();
- objective.clear();
- q_objective.clear();
- lb.clear();
- ub.clear();
- xctype.clear();
-
- v_s_var_int.clear();
- v_int_s_var.clear();
- v_s_const_int.clear();
- v_int_s_const.clear();
- v_d_var_int.clear();
- v_int_d_var.clear();
- v_d_const_int.clear();
- v_int_d_const.clear(); 
-
- for (auto i: active_constraints)
-  i.clear();
- active_constraints.clear();
- for (auto i: active_bounds)
-  i.clear();
- active_bounds.clear();
 }
 
 /*--------------------------------------------------------------------------*/
