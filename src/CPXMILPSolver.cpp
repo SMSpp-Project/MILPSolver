@@ -961,7 +961,8 @@ void CPXMILPSolver::set_par(const ThinComputeInterface::idx_type par, const int 
    CPXsetintparam(env, CPX_PARAM_SCRIND, value);
    break;
   default:
-   break;
+   // We assume that the symbolic constant is defined in CPLEX instead of SMS++
+   CPXsetintparam(env, par, value);
  }
 }
 
@@ -987,9 +988,11 @@ void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const double val
    CPXsetdblparam(env, CPXPARAM_MIP_Pool_AbsGap, value);
    break;
   case dblFAccSol:
+   CPXsetdblparam(env, CPXPARAM_Simplex_Tolerances_Feasibility, value);
    break;
   default:
-   break;
+   // We assume that the symbolic constant is defined in CPLEX instead of SMS++
+   CPXsetdblparam(env, par, value);
  }
 }
 
@@ -1002,7 +1005,8 @@ void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const std::strin
    output_file = value;
    break;
   default:
-   break;
+   // We assume that the symbolic constant is defined in CPLEX instead of SMS++
+   CPXsetstrparam(env, par, value.c_str());
  }
 }
 
