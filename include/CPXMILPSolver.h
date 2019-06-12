@@ -91,6 +91,22 @@ class CPXMILPSolver : public MILPSolver {
  public:
 
 /*--------------------------------------------------------------------------*/
+/*---------------------------- PUBLIC TYPES --------------------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Public Types
+ *  @{ */
+
+/**
+ * Public enum describing the different types of algorithmic parameters
+ * of "string" type that the CPXMILPSolver has.
+ */
+ enum str_par_type_CPXS {
+  strProblemName = strLastAlgParMILP, ///< Problem name
+  strOutputFile,                     ///< Output .lp file
+  strLastAlgParCPXS
+ };
+
+/*@}------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -126,6 +142,21 @@ class CPXMILPSolver : public MILPSolver {
 
  void set_par(idx_type par, const std::string & value) override;
 
+
+/*@}------------------------------------------------------------------------*/
+/*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Handling the parameters of the CPXMILPSolver
+ *  @{ */
+
+ idx_type get_num_str_par() const override;
+
+ const std::string& get_str_par(idx_type par) const override;
+
+ idx_type str_par_str2idx(const std::string& name) const override;
+
+ const std::string& dbl_par_idx2str(idx_type idx) const override;
+
 /*@}------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
@@ -137,6 +168,9 @@ class CPXMILPSolver : public MILPSolver {
 
  CPXENVptr env; /// CPLEX environment
  CPXLPptr milp; /// CPLEX LP problem
+
+ std::string prob_name;   /// CPLEX problem name
+ std::string output_file; /// Output file for CPXwriteprob
 
  /**
   * It removes the problem from the CPLEX environment

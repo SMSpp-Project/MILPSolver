@@ -99,7 +99,7 @@ void CPXMILPSolver::load_problem() {
  MILPSolver::load_problem();
 
  int status;
- milp = CPXcreateprob(env, &status, "MILPCPX");
+ milp = CPXcreateprob(env, &status, prob_name.c_str());
 
  for (int i = 0; i < numcols; ++i) {
   if (lb[i] == -Inf<double>()) {
@@ -140,15 +140,14 @@ int CPXMILPSolver::compute(bool changedvars) {
 
  process_modifications();
 
- // TODO: Add this feature as configurable
- CPXwriteprob(env, milp, "problem.lp", nullptr);
+ if (!output_file.empty()) {
+  CPXwriteprob(env, milp, output_file.c_str(), nullptr);
+ }
 
  CPXmipopt(env, milp);
 
- // FIXME: nodes value is not read anywhere
  nodes = CPXgetnodecnt(env, milp);
 
- // TODO: Support configuration object
  get_var_solution(nullptr);
 
  int status = CPXgetstat(env, milp);
@@ -948,7 +947,8 @@ void CPXMILPSolver::remove_dynamic_variable(ColVariable* p_var) {
 }
 
 /*--------------------------------------------------------------------------*/
-
+/*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
+/*--------------------------------------------------------------------------*/
 void CPXMILPSolver::set_par(const ThinComputeInterface::idx_type par, const int value) {
  switch (par) {
   case intMaxIter:
@@ -993,7 +993,54 @@ void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const double val
  }
 }
 
-void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const std::string& value) {}
+void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const std::string& value) {
+ switch (par) {
+  case strProblemName:
+   prob_name = value;
+   break;
+  case strOutputFile:
+   output_file = value;
+   break;
+  default:
+   break;
+ }
+}
+
+ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
+ return MILPSolver::get_num_str_par() + strLastAlgParCPXS - strLastAlgParMILP;
+}
+
+const std::string& CPXMILPSolver::get_str_par(const ThinComputeInterface::idx_type par) const {
+ switch (par) {
+  case strProblemName:
+   return prob_name;
+  case strOutputFile:
+   return output_file;
+  default:
+   return MILPSolver::get_str_par(par);
+ }
+}
+
+ThinComputeInterface::idx_type CPXMILPSolver::str_par_str2idx(const std::string& name) const {
+ if (name == "strProblemName")
+  return (strProblemName);
+ if (name == "strOutputFile")
+  return (strOutputFile);
+ return (MILPSolver::str_par_str2idx(name));
+}
+
+const std::string& CPXMILPSolver::dbl_par_idx2str(const ThinComputeInterface::idx_type idx) const {
+ static const std::vector<std::string> pars = {"strProblemName",
+                                               "strOutputFile"};
+ switch (idx) {
+  case strProblemName:
+   return pars[0];
+  case strOutputFile:
+   return pars[1];
+  default:
+   return MILPSolver::dbl_par_idx2str(idx);
+ }
+}
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/

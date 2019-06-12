@@ -111,6 +111,20 @@ class MILPSolver : public CDASolver {
  public:
 
 /*--------------------------------------------------------------------------*/
+/*---------------------------- PUBLIC TYPES --------------------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Public Types
+ *  @{ */
+
+/**
+ * Public enum describing the different types of algorithmic parameters
+ * of "string" type that the MILPSolver might have.
+ */
+ enum str_par_type_CPXS {
+  strLastAlgParMILP = strLastAlgPar
+ };
+
+/*@}------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -175,6 +189,9 @@ class MILPSolver : public CDASolver {
 
  /// Getter for xctype
  const std::vector<char>& get_xctype() const;
+
+ /// Getter for nodes
+ int get_nodes() const;
 
 /*@}------------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
