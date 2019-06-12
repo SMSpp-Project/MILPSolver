@@ -388,6 +388,64 @@ LOG("[DEBUG] ========= MILPSolver::set_Block() after constraint scan\n");
  LOG("[DEBUG] ub          = "); LOG_VEC(ub);
  LOG("[DEBUG] xctype      = "); LOG_VEC(xctype);
 }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::set_par(const ThinComputeInterface::idx_type par, const int value) {
+ switch (par) {
+  case intMaxIter:
+   f_max_iter = value;
+   break;
+  case intMaxSol:
+   f_max_sol = value;
+   break;
+  case intLogVerb:
+   f_log_verb = value;
+   break;
+  default:
+   ThinComputeInterface::set_par(par, value);
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::set_par(ThinComputeInterface::idx_type par, const double value) {
+ switch (par) {
+  case dblMaxTime:
+   f_max_time = value;
+   break;
+  case dblRelAcc:
+   f_rel_acc = value;
+   break;
+  case dblAbsAcc:
+   f_abs_acc = value;
+   break;
+  case dblUpCutOff:
+   f_up_cutoff = value;
+   break;
+  case dblLwCutOff:
+   f_lw_cutoff = value;
+   break;
+  case dblRAccSol:
+   f_r_acc_sol = value;
+   break;
+  case dblAAccSol:
+   f_a_acc_sol = value;
+   break;
+  case dblFAccSol:
+   f_f_acc_sol = value;
+   break;
+  default:
+   ThinComputeInterface::set_par(par, value);
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::set_par(ThinComputeInterface::idx_type par, const std::string& value) {
+ ThinComputeInterface::set_par(par, value);
+}
+
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/

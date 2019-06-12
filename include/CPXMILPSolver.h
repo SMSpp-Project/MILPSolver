@@ -177,18 +177,6 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
  private:
 
- double f_max_time{};   ///< maximum time for each call to solve()
- int f_max_iter{};      ///< maximum iterations in each call to solve()
- int f_log_verb{};      ///< "verbosity" of the log
- double f_rel_acc{};    ///< relative objective function accuracy
- double f_abs_acc{};    ///< absolute objective function accuracy
- double f_up_cutoff{};  ///< upper cutoff
- double f_lw_cutoff{};  ///< lower cutoff
- int f_max_sol{};       ///< max number of solutions for each call to solve()
- double f_r_acc_sol{};  ///< max relative error of a solution
- double f_a_acc_sol{};  ///< max absolute error of a solution
- double f_f_acc_sol{};  ///< max relative constraint violation of a solution
-
 /**
  * @name Private methods
  *  @{

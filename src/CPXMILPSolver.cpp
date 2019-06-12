@@ -940,7 +940,7 @@ void CPXMILPSolver::set_par(const ThinComputeInterface::idx_type par, const int 
    CPXsetintparam(env, CPX_PARAM_SCRIND, value);
    break;
   default:
-   ThinComputeInterface::set_par(par, value);
+   MILPSolver::set_par(par, value);
  }
 }
 
@@ -976,12 +976,12 @@ void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const double val
    f_f_acc_sol = value;
    break;
   default:
-   ThinComputeInterface::set_par(par, value);
+   MILPSolver::set_par(par, value);
  }
 }
 
 void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const std::string& value) {
-   ThinComputeInterface::set_par(par, value);
+ MILPSolver::set_par(par, value);
 }
 
 /*--------------------------------------------------------------------------*/
