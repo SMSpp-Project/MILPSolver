@@ -6,9 +6,9 @@
  * Solver that is able to tackle a MILP Problem expressed by a Block via the
  * use of IMB CLPEX.
  *
- * \version 0.20
+ * \version 0.90
  *
- * \date 31 - 05 - 2019
+ * \date 14 - 06 - 2019
  *
  * \author Antonio Frangioni \n
  *         Operations Research Group \n
@@ -64,8 +64,9 @@ namespace SMSpp_di_unipi_it {
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/// derived class for solving MILP Problems via CPLEX
 /**
+ * Derived class for solving MILP Problems via CPLEX
+ *
  * The CPXMILPSolver class derives from MILPSolver [see MILPSolver.h] and
  * extends the base class to solve MILP Problems using CPLEX.
  *
@@ -80,7 +81,14 @@ namespace SMSpp_di_unipi_it {
  * class into a CPLEX environment, it processes the modifications and then
  * it solves the problem.
  * get_var_solution() retrieves the values of the variables from CPLEX, saves
- * them into the Block variables and evaluates the objective function. 
+ * them into the Block variables and evaluates the objective function.
+ *
+ * Besides the configuration parameters already present in Solver, this class
+ * adds two string parameters that allow to specify the CPLEX name of the
+ * problem and an output file for CPLEX to write out the problem.
+ * Moreover, the user can include in the configuration all the parameters
+ * supported by CPXsetintparam(), CPXsetdblparam() and CPXsetstrparam().
+ * (See the CPLEX Callable Library reference manual for all of them)
  */
 class CPXMILPSolver : public MILPSolver {
 
@@ -93,16 +101,18 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Public Types
- *  @{ */
-
 /**
- * Public enum describing the different types of algorithmic parameters
- * of "string" type that the CPXMILPSolver has.
+ * @name Public Types
+ * @{
  */
+
+ /**
+  * Public enum describing the different types of algorithmic parameters
+  * of "string" type that the CPXMILPSolver has.
+  */
  enum str_par_type_CPXS {
   strProblemName = strLastAlgParMILP, ///< Problem name
-  strOutputFile,                     ///< Output .lp file
+  strOutputFile,                      ///< Output .lp file
   strLastAlgParCPXS
  };
 
@@ -110,8 +120,10 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/** @name Constructor and Destructor
- *  @{ */
+/**
+ * @name Constructor and Destructor
+ * @{
+ */
 
  CPXMILPSolver();
 
@@ -121,8 +133,10 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
-/** @name Public Methods derived of the Base Class
- *  @{ */
+/**
+ * @name Public Methods derived of the Base Class
+ * @{
+ */
 
  void set_Block(Block* block) override;
 
@@ -146,8 +160,10 @@ class CPXMILPSolver : public MILPSolver {
 /*@}------------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Handling the parameters of the CPXMILPSolver
- *  @{ */
+/**
+ * @name Handling the parameters of the CPXMILPSolver
+ * @{
+ */
 
  idx_type get_num_str_par() const override;
 
@@ -161,8 +177,10 @@ class CPXMILPSolver : public MILPSolver {
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
-/** @name Protected Fields of the MILPSolver
- *  @{ */
+/**
+ * @name Protected Fields of the MILPSolver
+ * @{
+ */
 
  protected:
 
@@ -186,8 +204,10 @@ class CPXMILPSolver : public MILPSolver {
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
 /*--------------------------------------------------------------------------*/
 
- /** @name Methods for modifying the constructed CPLEX Problem
-  *  @{ */
+/**
+ * @name Methods for modifying the constructed CPLEX Problem
+ * @{
+ */
 
  /// It handles a Variable Modification
  void var_modification(VariableMod* mod) override;
@@ -226,18 +246,18 @@ class CPXMILPSolver : public MILPSolver {
 
 /**
  * @name Private methods
- *  @{
+ * @{
  */
 
  /**
- * It sets the value of a Colvariable taking it from tmpx[i], then increments i.
- * This method is meant to be used inside get_var_solution(), in conjunction
- * with un_any_const_static() or un_any_const_dynamic().
- *
- * @param lvar The ColVariable to set
- * @param tmpx The array containing the values
- * @param i The position in the array
- */
+  * It sets the value of a Colvariable taking it from tmpx[i], then increments i.
+  * This method is meant to be used inside get_var_solution(), in conjunction
+  * with un_any_const_static() or un_any_const_dynamic().
+  *
+  * @param lvar The ColVariable to set
+  * @param tmpx The array containing the values
+  * @param i The position in the array
+  */
  void set_var_value(ColVariable& lvar, double* tmpx, int& i);
 /*@}------------------------------------------------------------------------*/
  SMSpp_insert_in_factory_h;

@@ -4,12 +4,12 @@
 /** @file
  * Header file for the MILP Solver class, a base class for any other
  * General Purpose Solvers that are able to tackle a MILP problem.
- * It's main purpose is to describe the LP through a series of vectors that
+ * Its main purpose is to describe the LP through a series of vectors that
  * can be used by other solvers like CPLEX.
  *
- * \version 0.20
+ * \version 0.90
  *
- * \date 31 - 05 - 2019
+ * \date 14 - 06 - 2019
  *
  * \author Antonio Frangioni \n
  *         Operations Research Group \n
@@ -63,8 +63,9 @@ class Block;  ///< forward definition of class Block
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/// derived class for describing MILP Problems
 /**
+ * Derived class for describing MILP Problems
+ *
  * The MILPSolver class derives from Solver [see Solver.h] and extends the
  * interface of the base class to be able to efficiently handle MILP Problems.
  * This class alone does not solve problems, but it serves as base class to
@@ -113,13 +114,16 @@ class MILPSolver : public CDASolver {
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Public Types
- *  @{ */
-
 /**
- * Public enum describing the different types of algorithmic parameters
- * of "string" type that the MILPSolver might have.
+ * @name Public Types
+ * @{
  */
+
+ /**
+  * Public enum describing the different types of algorithmic parameters
+  * of "string" type that the MILPSolver might have. At the moment it has none,
+  * but since CPXMILPSolver has them, we add this as compatibility.
+  */
  enum str_par_type_CPXS {
   strLastAlgParMILP = strLastAlgPar
  };
@@ -128,8 +132,10 @@ class MILPSolver : public CDASolver {
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/** @name Constructor and Destructor
- *  @{ */
+/**
+ * @name Constructor and Destructor
+ * @{
+ */
 
  MILPSolver();
 
@@ -139,8 +145,11 @@ class MILPSolver : public CDASolver {
 /*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/** @name Public Methods
- *  @{ */
+/**
+ * @name Getters for LP vectors.
+ * These getters are for the vectors that decribe the LP problem.
+ * @{
+ */
 
  /// Getter for numcols
  int get_numcols() const;
@@ -197,11 +206,21 @@ class MILPSolver : public CDASolver {
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
-/** @name Public Methods derived of the Base Class
- *  @{ */
+/**
+ * @name Public Methods derived of the Base Class
+ * @{
+ */
 
+ /**
+  * It sets the Block that the Solver has to solve, see Solver.h.
+  * It also calls the procedures that build the LP vectors.
+  */
  void set_Block(Block* block) override;
 
+ /**
+  * Since MILPSolver only builds a description of the problem without actually
+  * solving it, this method does nothing.
+  */
  int compute(bool changedvars) override { return 0; }
 
  void get_var_solution(Configuration* solc) override {}
@@ -214,8 +233,10 @@ class MILPSolver : public CDASolver {
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
-/** @name Protected Fields of the MILPSolver
- *  @{ */
+/**
+ * @name Protected Fields of the MILPSolver
+ * @{
+ */
 
 protected:
 
@@ -312,9 +333,9 @@ protected:
  int nzelements{};
  
  /**
- * An integer that specifies whether the problem is a minimization or
- * maximization problem.
- */
+  * An integer that specifies whether the problem is a minimization or
+  * maximization problem.
+  */
  int objsense{};
 
  /**
@@ -330,9 +351,9 @@ protected:
  std::vector<double> q_objective;
 
  /**
- * An array of length at least numrows containing the righthand side value
- * for each constraint in the constraint matrix.
- */
+  * An array of length at least numrows containing the righthand side value
+  * for each constraint in the constraint matrix.
+  */
  std::vector<double> rhs;
 
  /**
@@ -351,16 +372,16 @@ protected:
  std::vector<char> sense;
 
  /**
- * The following vectors define the constraint matrix.
- *
- * CPLEX needs to know only the nonzero coefficients. These are grouped by
- * column in the array matval. The nonzero elements of every column must be
- * stored in sequential locations in this array with matbeg[j] containing the
- * index of the beginning of column j and matcnt[j] containing the number of
- * entries in column j. The components of matbeg must be in ascending order.
- * For each k, matind[k] specifies the row number of the corresponding
- * coefficient, matval[k].
- */
+  * The following vectors define the constraint matrix.
+  *
+  * CPLEX needs to know only the nonzero coefficients. These are grouped by
+  * column in the array matval. The nonzero elements of every column must be
+  * stored in sequential locations in this array with matbeg[j] containing the
+  * index of the beginning of column j and matcnt[j] containing the number of
+  * entries in column j. The components of matbeg must be in ascending order.
+  * For each k, matind[k] specifies the row number of the corresponding
+  * coefficient, matval[k].
+  */
  std::vector<int> matbeg;
  std::vector<int> matcnt;
  std::vector<int> matind;
@@ -395,8 +416,17 @@ protected:
 /*--------------------------------------------------------------------------*/
 
  /**
- * It clears all the LP vectors
- */
+  * The following two methods include the main logic of the class.
+  * They are called in the set_Block() method to build the problem when the
+  * Solver is [re]registered to a Block, but also when a NBModification is
+  * processed.
+  * Note: A derived class can override these methods but should call the base
+  * versions if it wants to use the LP vectors (see CPXMILPSolver).
+  */
+
+ /**
+  * It clears all the LP vectors
+  */
  virtual void clear_problem();
 
  /**
@@ -423,19 +453,19 @@ protected:
  int index_of_variable(ColVariable* p_var);
 
  /**
- * It returns the constraint matrix column index of a given static variable.
- *
- * @param p_var a pointer to a ColVariable
- * @return the corresponding constraint matrix column index
- */
+  * It returns the constraint matrix column index of a given static variable.
+  *
+  * @param p_var a pointer to a ColVariable
+  * @return the corresponding constraint matrix column index
+  */
  int index_of_static_variable(ColVariable* p_var);
 
  /**
- * It returns the constraint matrix column index of a given dynamic variable.
- *
- * @param p_var a pointer to a ColVariable
- * @return the corresponding constraint matrix column index
- */
+  * It returns the constraint matrix column index of a given dynamic variable.
+  *
+  * @param p_var a pointer to a ColVariable
+  * @return the corresponding constraint matrix column index
+  */
  int index_of_dynamic_variable(ColVariable* p_var);
 
  /**
@@ -447,19 +477,19 @@ protected:
  int index_of_constraint(FRowConstraint* p_const);
 
  /**
- * It returns the constraint matrix row index of the given static constraint.
- *
- * @param p_const a pointer to a FRowConstraint
- * @return the corresponding constraint matrix row index
- */
+  * It returns the constraint matrix row index of the given static constraint.
+  *
+  * @param p_const a pointer to a FRowConstraint
+  * @return the corresponding constraint matrix row index
+  */
  int index_of_static_constraint(FRowConstraint* p_const);
 
  /**
- * It returns the constraint matrix row index of the given dynamic constraint.
- *
- * @param p_const a pointer to a FRowConstraint
- * @return the corresponding constraint matrix row index
- */
+  * It returns the constraint matrix row index of the given dynamic constraint.
+  *
+  * @param p_const a pointer to a FRowConstraint
+  * @return the corresponding constraint matrix row index
+  */
  int index_of_dynamic_constraint(FRowConstraint* p_const);
 
  /**
@@ -470,18 +500,24 @@ protected:
  ColVariable* static_variable_with_index(int i);
 
  /**
- * It returns the constraint corresponding to the given constraint matrix index.
- * @param i a constraint matrix row index
- * @return a pointer to the corresponding FRowConstraint
- */
+  * It returns the constraint corresponding to the given constraint matrix index.
+  * @param i a constraint matrix row index
+  * @return a pointer to the corresponding FRowConstraint
+  */
  FRowConstraint* static_constraint_with_index(int i);
  
 /*@}------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */
 /*--------------------------------------------------------------------------*/
 
- /** @name Methods for modifying the constructed CPLEX Problem
- *  @{ */
+/**
+ * @name Methods for modifying the constructed CPLEX Problem
+ *
+ * The method process_modifications() is the one that checks the Mod queue
+ * for pending modifications and calls the proper method. A derived class
+ * should implement these.
+ * @{
+ */
 
  /// It processes all the pending modifications
  void process_modifications();
@@ -528,7 +564,8 @@ protected:
 
 /**
  * @name Private auxiliary methods for reading the data from the Block
- *  @{ */
+ * @{
+ */
 
  /**
   * All of these auxiliary methods, except scan_objective(), take integer
