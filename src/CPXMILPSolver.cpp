@@ -4,9 +4,9 @@
 /** @file
  * Implementation of the MILPSolver class.
  *
- * \version 0.20
+ * \version 0.90
  *
- * \date 31 - 05 - 2019
+ * \date 14 - 06 - 2019
  *
  * \author Antonio Frangioni \n
  *         Operations Research Group \n
@@ -57,77 +57,100 @@ SMSpp_insert_in_factory_cpp_0(CPXMILPSolver);
 /*--------------------------------------------------------------------------*/
 
 CPXMILPSolver::CPXMILPSolver() : MILPSolver() {
- env = nullptr;
+ int status;
+ env = CPXopenCPLEX(&status);
+ if (env == nullptr) {
+  throw (std::runtime_error("CPXopenCPLEX returned with status " + std::to_string(status)));
+ }
  milp = nullptr;
 }
 
 CPXMILPSolver::~CPXMILPSolver() {
- if (env) {
+ if (milp) {
   CPXfreeprob(env, &milp);
-  CPXcloseCPLEX(&env);
  }
+ CPXcloseCPLEX(&env);
 }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::compute(bool changedvars) {
+void CPXMILPSolver::set_Block(Block* block) {
+ if (block == f_Block) {
+  return;
+ }
+ MILPSolver::set_Block(block);
+}
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::clear_problem() {
+ MILPSolver::clear_problem();
+
+ if (milp) {
+  CPXfreeprob(env, &milp);
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::load_problem() {
+ MILPSolver::load_problem();
 
  int status;
+ milp = CPXcreateprob(env, &status, prob_name.c_str());
 
- // If it is the first time, we copy the LP problem into CPLEX
- if (env == nullptr) {
-  env = CPXopenCPLEX(&status);
-  milp = CPXcreateprob(env, &status, "MILPCPX");
-
-  for (int i = 0; i < numcols; ++i) {
-   if (lb[i] == -Inf<double>()) {
-    lb[i] = -CPX_INFBOUND;
-   }
-   if (ub[i] == Inf<double>()) {
-    lb[i] = CPX_INFBOUND;
-   }
+ for (int i = 0; i < numcols; ++i) {
+  if (lb[i] == -Inf<double>()) {
+   lb[i] = -CPX_INFBOUND;
   }
-
-  CPXcopylp(env, milp,
-            numcols,
-            numrows,
-            objsense,
-            objective.data(),
-            rhs.data(),
-            sense.data(),
-            matbeg.data(),
-            matcnt.data(),
-            matind.data(),
-            matval.data(),
-            lb.data(),
-            ub.data(),
-            rngval.data());
-
-  const FRealObjective* p_obj;
-  p_obj = boost::any_cast<FRealObjective*>(f_Block->get_objective());
-  auto p_dquad_fun = dynamic_cast<const DQuadFunction*> (p_obj->get_function());
-  if (p_dquad_fun != nullptr) {
-   CPXcopyqpsep(env, milp, q_objective.data());
+  if (ub[i] == Inf<double>()) {
+   lb[i] = CPX_INFBOUND;
   }
-  CPXcopyctype(env, milp, xctype.data());
  }
+
+ CPXcopylp(env, milp,
+           numcols,
+           numrows,
+           objsense,
+           objective.data(),
+           rhs.data(),
+           sense.data(),
+           matbeg.data(),
+           matcnt.data(),
+           matind.data(),
+           matval.data(),
+           lb.data(),
+           ub.data(),
+           rngval.data());
+
+ const FRealObjective* p_obj;
+ p_obj = boost::any_cast<FRealObjective*>(f_Block->get_objective());
+ auto p_dquad_fun = dynamic_cast<const DQuadFunction*> (p_obj->get_function());
+ if (p_dquad_fun != nullptr) {
+  CPXcopyqpsep(env, milp, q_objective.data());
+ }
+ CPXcopyctype(env, milp, xctype.data());
+}
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::compute(bool changedvars) {
 
  process_modifications();
 
- // TODO: Add this feature as configurable
- CPXwriteprob(env, milp, "problem.lp", nullptr);
+ if (!output_file.empty()) {
+  CPXwriteprob(env, milp, output_file.c_str(), nullptr);
+ }
 
  CPXmipopt(env, milp);
 
- // FIXME: nodes value is not read anywhere
  nodes = CPXgetnodecnt(env, milp);
 
- // TODO: Support configuration object
  get_var_solution(nullptr);
 
- status = CPXgetstat(env, milp);
+ int status = CPXgetstat(env, milp);
 
  switch (status) {
   case 101:
@@ -924,64 +947,103 @@ void CPXMILPSolver::remove_dynamic_variable(ColVariable* p_var) {
 }
 
 /*--------------------------------------------------------------------------*/
-
+/*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
+/*--------------------------------------------------------------------------*/
 void CPXMILPSolver::set_par(const ThinComputeInterface::idx_type par, const int value) {
  switch (par) {
   case intMaxIter:
-   f_max_iter = value;
    CPXsetlongparam(env, CPXPARAM_MIP_Limits_Nodes, value);
    break;
   case intMaxSol:
-   f_max_sol = value;
    CPXsetintparam(env, CPXPARAM_MIP_Limits_Solutions, value);
    break;
   case intLogVerb:
-   f_log_verb = value;
    CPXsetintparam(env, CPX_PARAM_SCRIND, value);
    break;
   default:
-   ThinComputeInterface::set_par(par, value);
+   // We assume that the symbolic constant is defined in CPLEX instead of SMS++
+   CPXsetintparam(env, par, value);
  }
 }
 
 void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const double value) {
  switch (par) {
   case dblMaxTime:
-   f_max_time = value;
    CPXsetdblparam(env, CPXPARAM_TimeLimit, value);
    break;
   case dblRelAcc:
-   f_rel_acc = value;
    break;
   case dblAbsAcc:
-   f_abs_acc = value;
    break;
   case dblUpCutOff:
-   f_up_cutoff = value;
    CPXsetdblparam(env, CPXPARAM_MIP_Tolerances_UpperCutoff, value);
    break;
   case dblLwCutOff:
-   f_lw_cutoff = value;
    CPXsetdblparam(env, CPXPARAM_MIP_Tolerances_LowerCutoff, value);
    break;
   case dblRAccSol:
-   f_r_acc_sol = value;
    CPXsetdblparam(env, CPXPARAM_MIP_Pool_RelGap, value);
    break;
   case dblAAccSol:
-   f_a_acc_sol = value;
    CPXsetdblparam(env, CPXPARAM_MIP_Pool_AbsGap, value);
    break;
   case dblFAccSol:
-   f_f_acc_sol = value;
+   CPXsetdblparam(env, CPXPARAM_Simplex_Tolerances_Feasibility, value);
    break;
   default:
-   ThinComputeInterface::set_par(par, value);
+   // We assume that the symbolic constant is defined in CPLEX instead of SMS++
+   CPXsetdblparam(env, par, value);
  }
 }
 
 void CPXMILPSolver::set_par(ThinComputeInterface::idx_type par, const std::string& value) {
-   ThinComputeInterface::set_par(par, value);
+ switch (par) {
+  case strProblemName:
+   prob_name = value;
+   break;
+  case strOutputFile:
+   output_file = value;
+   break;
+  default:
+   // We assume that the symbolic constant is defined in CPLEX instead of SMS++
+   CPXsetstrparam(env, par, value.c_str());
+ }
+}
+
+ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
+ return MILPSolver::get_num_str_par() + strLastAlgParCPXS - strLastAlgParMILP;
+}
+
+const std::string& CPXMILPSolver::get_str_par(const ThinComputeInterface::idx_type par) const {
+ switch (par) {
+  case strProblemName:
+   return prob_name;
+  case strOutputFile:
+   return output_file;
+  default:
+   return MILPSolver::get_str_par(par);
+ }
+}
+
+ThinComputeInterface::idx_type CPXMILPSolver::str_par_str2idx(const std::string& name) const {
+ if (name == "strProblemName")
+  return (strProblemName);
+ if (name == "strOutputFile")
+  return (strOutputFile);
+ return (MILPSolver::str_par_str2idx(name));
+}
+
+const std::string& CPXMILPSolver::dbl_par_idx2str(const ThinComputeInterface::idx_type idx) const {
+ static const std::vector<std::string> pars = {"strProblemName",
+                                               "strOutputFile"};
+ switch (idx) {
+  case strProblemName:
+   return pars[0];
+  case strOutputFile:
+   return pars[1];
+  default:
+   return MILPSolver::dbl_par_idx2str(idx);
+ }
 }
 
 /*--------------------------------------------------------------------------*/

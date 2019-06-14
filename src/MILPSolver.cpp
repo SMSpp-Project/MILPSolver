@@ -4,9 +4,9 @@
 /** @file
  * Implementation of the MILPSolver class.
  *
- * \version 0.20
+ * \version 0.90
  *
- * \date 26 - 03 - 2019
+ * \date 14 - 06 - 2019
  *
  * \author Antonio Frangioni \n
  *         Operations Research Group \n
@@ -68,7 +68,7 @@ SMSpp_insert_in_factory_cpp_0(MILPSolver);
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-MILPSolver::MILPSolver() : Solver() {}
+MILPSolver::MILPSolver() : CDASolver() {}
 
 MILPSolver::~MILPSolver() = default;
 
@@ -140,19 +140,65 @@ const std::vector<char>& MILPSolver::get_xctype() const {
  return xctype;
 }
 
+int MILPSolver::get_nodes() const {
+ return nodes;
+}
+
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- SET_BLOCK -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::set_Block(Block* block) {
-
- if (f_Block) {
-  // f_Block->unregister_Solver(this);
-  clear_problem();
+ if (block == f_Block) {
+  return;
  }
+ Solver::set_Block(block);
 
- f_Block = block;
+ clear_problem();
+ load_problem();
+}
 
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::clear_problem() {
+ numrows = 0;
+ numcols = 0;
+ nzelements = 0;
+ objsense = 0;
+
+ matbeg.clear();
+ matcnt.clear();
+ matind.clear();
+ matval.clear();
+ rhs.clear();
+ rngval.clear();
+ sense.clear();
+ objective.clear();
+ q_objective.clear();
+ lb.clear();
+ ub.clear();
+ xctype.clear();
+
+ v_s_var_int.clear();
+ v_int_s_var.clear();
+ v_s_const_int.clear();
+ v_int_s_const.clear();
+ v_d_var_int.clear();
+ v_int_d_var.clear();
+ v_d_const_int.clear();
+ v_int_d_const.clear();
+
+ for (auto i: active_constraints)
+  i.clear();
+ active_constraints.clear();
+ for (auto i: active_bounds)
+  i.clear();
+ active_bounds.clear();
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::load_problem() {
  /*
   * Passing all the data of the Block to the LP.
   *
@@ -300,7 +346,7 @@ void MILPSolver::set_Block(Block* block) {
  std::sort(v_d_const_int.begin(), v_d_const_int.end());
  std::sort(v_int_d_const.begin(), v_int_d_const.end());
 
-LOG("[DEBUG] ========= MILPSolver::set_Block() after constraint scan\n");
+ LOG("[DEBUG] ========= MILPSolver::set_Block() after constraint scan\n");
  // Third loop to scan the variables
  Q.push(f_Block);
 
@@ -388,6 +434,7 @@ LOG("[DEBUG] ========= MILPSolver::set_Block() after constraint scan\n");
  LOG("[DEBUG] ub          = "); LOG_VEC(ub);
  LOG("[DEBUG] xctype      = "); LOG_VEC(xctype);
 }
+
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/
@@ -977,7 +1024,8 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast<NBModification>(mod);
     if (tmod) {
-     this->set_Block(f_Block);
+     clear_problem();
+     load_problem();
     }
    }
   };
@@ -985,44 +1033,6 @@ void MILPSolver::process_modifications() {
   f(mod);
   v_mod.pop_front();
  }
-}
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::clear_problem() {
- numrows = 0;
- numcols = 0;
- nzelements = 0;
- objsense = 0;
-
- matbeg.clear();
- matcnt.clear();
- matind.clear();
- matval.clear();
- rhs.clear();
- rngval.clear();
- sense.clear();
- objective.clear();
- q_objective.clear();
- lb.clear();
- ub.clear();
- xctype.clear();
-
- v_s_var_int.clear();
- v_int_s_var.clear();
- v_s_const_int.clear();
- v_int_s_const.clear();
- v_d_var_int.clear();
- v_int_d_var.clear();
- v_d_const_int.clear();
- v_int_d_const.clear(); 
-
- for (auto i: active_constraints)
-  i.clear();
- active_constraints.clear();
- for (auto i: active_bounds)
-  i.clear();
- active_bounds.clear();
 }
 
 /*--------------------------------------------------------------------------*/

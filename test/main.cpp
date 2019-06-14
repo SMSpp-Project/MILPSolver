@@ -8,6 +8,7 @@
 #include "SimpleMILPBlock.h"
 #include "MILPSolver.h"
 #include "LinearFunction.h"
+#include "Configuration.h"
 
 using namespace std;
 using namespace SMSpp_di_unipi_it;
@@ -29,10 +30,17 @@ int main(int argc, char** argv) {
  file >> *block;
  std::cout << *block;
 
- block->register_Solver(Solver::new_Solver("CPXMILPSolver"));
+ Solver* solver = Solver::new_Solver("CPXMILPSolver");
+
+ ComputeConfig conf;
+ std::pair<std::string, std::string> problem_name = {"strProblemName", "testCPX"};
+ std::pair<std::string, std::string> output_file = {"strOutputFile", "output.lp"};
+ conf.str_pars.emplace_back(problem_name);
+ conf.str_pars.emplace_back(output_file);
+
+ block->register_Solver(solver);
 
  // First solve
- auto solver = (block->get_registered_solvers()).front();
  int status = solver->compute();
 
  auto smilpblock = dynamic_cast<SimpleMILPBlock*>(block);
