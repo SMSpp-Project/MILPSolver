@@ -157,29 +157,29 @@ class MILPSolver : public CDASolver {
 
  int get_objsense() const;
 
- const std::vector<double>& get_objective() const;
+ const std::vector< double > & get_objective() const;
 
- const std::vector<double>& get_q_objective() const;
+ const std::vector< double > & get_q_objective() const;
 
- const std::vector<double>& get_rhs() const;
+ const std::vector< double > & get_rhs() const;
 
- const std::vector<double>& get_rngval() const;
+ const std::vector< double > & get_rngval() const;
 
- const std::vector<char>& get_sense() const;
+ const std::vector< char > & get_sense() const;
 
- const std::vector<int>& get_matbeg() const;
+ const std::vector< int > & get_matbeg() const;
 
- const std::vector<int>& get_matcnt() const;
+ const std::vector< int > & get_matcnt() const;
 
- const std::vector<int>& get_matind() const;
+ const std::vector< int > & get_matind() const;
 
- const std::vector<double>& get_matval() const;
+ const std::vector< double > & get_matval() const;
 
- const std::vector<double>& get_lb() const;
+ const std::vector< double > & get_lb() const;
 
- const std::vector<double>& get_ub() const;
+ const std::vector< double > & get_ub() const;
 
- const std::vector<char>& get_xctype() const;
+ const std::vector< char > & get_xctype() const;
 
  int get_nodes() const;
  /// @}
@@ -194,31 +194,31 @@ class MILPSolver : public CDASolver {
  */
 
  /// It sets the Block that the Solver has to solve and build the LP vectors.
- void set_Block(Block* block) override;
+ void set_Block( Block * block ) override;
 
- int compute(bool changedvars) override { return 0; }
+ int compute( bool changedvars ) override { return 0; }
 
- void get_var_solution(Configuration* solc) override {}
+ void get_var_solution( Configuration * solc ) override {}
 
- bool new_var_solution() override { return (false); }
+ bool new_var_solution() override { return ( false ); }
 
- void get_dual_solution(Configuration* solc) override {}
+ void get_dual_solution( Configuration * solc ) override {}
  /// @}
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
-protected:
+ protected:
 
 /*--------------------------------------------------------------------------*/
 /*---------------- VARIABLE AND CONSTRAINT TRACKING VECTORS ----------------*/
 /*--------------------------------------------------------------------------*/
 
- typedef std::pair<ColVariable*, int> var_int;
- typedef std::pair<int, ColVariable*> int_var;
- typedef std::pair<FRowConstraint*, int> const_int;
- typedef std::pair<int, FRowConstraint*> int_const;
+ typedef std::pair< ColVariable *, int > var_int;
+ typedef std::pair< int, ColVariable * > int_var;
+ typedef std::pair< FRowConstraint *, int > const_int;
+ typedef std::pair< int, FRowConstraint * > int_const;
 
  /** @name Correspondance vectors
   *
@@ -255,17 +255,17 @@ protected:
   *
   * @{
   */
- std::vector<var_int> v_s_var_int; ///< From static variable to index
- std::vector<int_var> v_int_s_var; ///< From index to static variable
+ std::vector< var_int > v_s_var_int; ///< From static variable to index
+ std::vector< int_var > v_int_s_var; ///< From index to static variable
 
- std::vector<const_int> v_s_const_int; ///< From static constraint to index
- std::vector<int_const> v_int_s_const; ///< From index to static constraint
+ std::vector< const_int > v_s_const_int; ///< From static constraint to index
+ std::vector< int_const > v_int_s_const; ///< From index to static constraint
 
- std::vector<var_int> v_d_var_int; ///< From dynamic variable to index
- std::vector<int_var> v_int_d_var; ///< From index to dynamic variable
+ std::vector< var_int > v_d_var_int; ///< From dynamic variable to index
+ std::vector< int_var > v_int_d_var; ///< From index to dynamic variable
 
- std::vector<const_int> v_d_const_int; ///< From dynamic constraint to index
- std::vector<int_const> v_int_d_const; ///< From index to dynamic constraint
+ std::vector< const_int > v_d_const_int; ///< From dynamic constraint to index
+ std::vector< int_const > v_int_d_const; ///< From index to dynamic constraint
  /// @}
 
  /**
@@ -279,10 +279,10 @@ protected:
   */
 
  /// Active constraints for each Variable
- std::vector<std::vector<FRowConstraint*> > active_constraints;
+ std::vector< std::vector< FRowConstraint * > > active_constraints;
 
  /// Active bounds for each Variable
- std::vector<std::vector<OneVarConstraint*> > active_bounds;
+ std::vector< std::vector< OneVarConstraint * > > active_bounds;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -325,7 +325,7 @@ protected:
   * constraint matrix, used to properly size matind and matval.
   */
  int nzelements{};
- 
+
  /**
   * An integer that specifies whether the problem is a minimization or
   * maximization problem.
@@ -336,19 +336,19 @@ protected:
   * An array of length at least numcols containing the objective function
   * coefficients.
   */
- std::vector<double> objective;
+ std::vector< double > objective;
 
  /**
   * An array of length numcols containing the quadratic coefficients of
   * the separable quadratic objective.
   */
- std::vector<double> q_objective;
+ std::vector< double > q_objective;
 
  /**
   * An array of length at least numrows containing the righthand side value
   * for each constraint in the constraint matrix.
   */
- std::vector<double> rhs;
+ std::vector< double > rhs;
 
  /**
   * An array of length at least numrows containing the range value of each
@@ -357,30 +357,30 @@ protected:
   * If rngval[i] > 0, then row i activity is in [rhs[i],rhs[i]+rngval[i]],
   * and if rngval[i] <= 0,then row i activity is in [rhs[i]+rngval[i],rhs[i]].
   */
- std::vector<double> rngval;
+ std::vector< double > rngval;
 
  /**
   * An array of length at least numrows containing the sense of each constraint
   * in the constraint matrix.
   */
- std::vector<char> sense;
+ std::vector< char > sense;
 
- std::vector<int> matbeg;     ///< Beginnings of constraint matrix columns
- std::vector<int> matcnt;     ///< Sizes of constraint matrix columns
- std::vector<int> matind;     ///< Indices of rows for each coefficient
- std::vector<double> matval;  ///< All nonzero coefficients
- 
+ std::vector< int > matbeg;     ///< Beginnings of constraint matrix columns
+ std::vector< int > matcnt;     ///< Sizes of constraint matrix columns
+ std::vector< int > matind;     ///< Indices of rows for each coefficient
+ std::vector< double > matval;  ///< All nonzero coefficients
+
  /**
   * An array of length at least numcols containing the lower bound on each
   * of the variables.
   */
- std::vector<double> lb;
+ std::vector< double > lb;
 
  /**
   * An array of length at least numcols containing the upper bound on each
   * of the variables.
   */
- std::vector<double> ub;
+ std::vector< double > ub;
 
  /**
   * An array of length numcols containing the type of each column in
@@ -394,7 +394,7 @@ protected:
   * | `CPX_SEMICONT`   |  'S'  | semi-continuous  |
   * | `CPX_SEMIINT`    |  'N'  | semi-integer     |
   */
- std::vector<char> xctype;
+ std::vector< char > xctype;
 
  int sol_status{};      ///< Solution status (OK, Infeasible, Unbounded, ...)
  int nodes{};           ///< Number of nodes used to solve the problem
@@ -434,7 +434,7 @@ protected:
   * @param p_var a pointer to a ColVariable
   * @return the corresponding constraint matrix column index
   */
- int index_of_variable(ColVariable* p_var);
+ int index_of_variable( ColVariable * p_var );
 
  /**
   * It returns the constraint matrix column index of a given static variable.
@@ -442,7 +442,7 @@ protected:
   * @param p_var a pointer to a ColVariable
   * @return the corresponding constraint matrix column index
   */
- int index_of_static_variable(ColVariable* p_var);
+ int index_of_static_variable( ColVariable * p_var );
 
  /**
   * It returns the constraint matrix column index of a given dynamic variable.
@@ -450,7 +450,7 @@ protected:
   * @param p_var a pointer to a ColVariable
   * @return the corresponding constraint matrix column index
   */
- int index_of_dynamic_variable(ColVariable* p_var);
+ int index_of_dynamic_variable( ColVariable * p_var );
 
  /**
   * It returns the constraint matrix row index of the given constraint.
@@ -458,7 +458,7 @@ protected:
   * @param p_const a pointer to a FRowConstraint
   * @return the corresponding constraint matrix row index
   */
- int index_of_constraint(FRowConstraint* p_const);
+ int index_of_constraint( FRowConstraint * p_const );
 
  /**
   * It returns the constraint matrix row index of the given static constraint.
@@ -466,7 +466,7 @@ protected:
   * @param p_const a pointer to a FRowConstraint
   * @return the corresponding constraint matrix row index
   */
- int index_of_static_constraint(FRowConstraint* p_const);
+ int index_of_static_constraint( FRowConstraint * p_const );
 
  /**
   * It returns the constraint matrix row index of the given dynamic constraint.
@@ -474,23 +474,23 @@ protected:
   * @param p_const a pointer to a FRowConstraint
   * @return the corresponding constraint matrix row index
   */
- int index_of_dynamic_constraint(FRowConstraint* p_const);
+ int index_of_dynamic_constraint( FRowConstraint * p_const );
 
  /**
   * It returns the variable corresponding to the given constraint matrix index.
   * @param i a constraint matrix column index
   * @return a pointer to the corresponding ColVariable
   */
- ColVariable* static_variable_with_index(int i);
+ ColVariable * static_variable_with_index( int i );
 
  /**
   * It returns the constraint corresponding to the given constraint matrix index.
   * @param i a constraint matrix row index
   * @return a pointer to the corresponding FRowConstraint
   */
- FRowConstraint* static_constraint_with_index(int i);
+ FRowConstraint * static_constraint_with_index( int i );
  /// @}
- 
+
 /*--------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */
 /*--------------------------------------------------------------------------*/
@@ -511,34 +511,34 @@ protected:
  void process_modifications();
 
  /// It handles a variable modification
- virtual void var_modification(VariableMod* mod) {}
+ virtual void var_modification( VariableMod * mod ) {}
 
  /// It handles an objective modification
- virtual void of_modification(ObjectiveMod* mod) {}
+ virtual void of_modification( ObjectiveMod * mod ) {}
 
  /// It handles a constraint modification
- virtual void const_modification(ConstraintMod* mod) {}
+ virtual void const_modification( ConstraintMod * mod ) {}
 
  /// It handles a bound modification
- virtual void bound_modification(OneVarConstraintMod* mod) {}
+ virtual void bound_modification( OneVarConstraintMod * mod ) {}
 
  /// It handles a function modification
- virtual void function_modification(FunctionMod* mod) {}
+ virtual void function_modification( FunctionMod * mod ) {}
 
  /// It handles a dynamic modification
- virtual void dynamic_modification(BlockModAD* mod) {}
+ virtual void dynamic_modification( BlockModAD * mod ) {}
 
  /// It adds a single new dynamic constraint
- virtual void add_dynamic_constraint(FRowConstraint* p_const) {}
+ virtual void add_dynamic_constraint( FRowConstraint * p_const ) {}
 
  /// It adds a single new dynamic variable
- virtual void add_dynamic_variable(ColVariable* p_var) {}
+ virtual void add_dynamic_variable( ColVariable * p_var ) {}
 
  /// It removes a single dynamic constraint
- virtual void remove_dynamic_constraint(FRowConstraint* p_const) {}
+ virtual void remove_dynamic_constraint( FRowConstraint * p_const ) {}
 
  /// It removes a single dynamic variable
- virtual void remove_dynamic_variable(ColVariable* p_var) {}
+ virtual void remove_dynamic_variable( ColVariable * p_var ) {}
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -571,7 +571,7 @@ protected:
   * @param constraint FRowConstraint to be counted
   * @param n_rows accumulator for rows
   */
- void count_constraints(FRowConstraint& constraint, int& n_rows);
+ void count_constraints( FRowConstraint & constraint, int & n_rows );
 
  /**
   * Accumulating procedure that helps getting the total number of columns.
@@ -579,7 +579,7 @@ protected:
   * @param variable ColVariable to be counted
   * @param n_cols accumulator for columns
   */
- void count_variables(ColVariable& variable, int& n_cols);
+ void count_variables( ColVariable & variable, int & n_cols );
 
  /**
   * Accumulating procedure that helps getting the total number of nonzero
@@ -592,7 +592,7 @@ protected:
   * @param nz_elements accumulator for nonzero elements
   * @param cnt counter that keeps track of variable index
   */
- void count_nzelements(ColVariable& variable, int& nz_elements, int& cnt);
+ void count_nzelements( ColVariable & variable, int & nz_elements, int & cnt );
 
  /**
   * It scans a static ColVariable or a group of static ColVariables and fills
@@ -603,7 +603,7 @@ protected:
   *              element of a vector of ColVariables.
   * @param i a counter for variables/columns shared w/ scan_dynamic_variable()
   */
- void scan_static_variable(ColVariable& var, int& first, int& i);
+ void scan_static_variable( ColVariable & var, int & first, int & i );
 
  /**
   * It scans a dynamic ColVariable and fills the vectors of the LP accordingly.
@@ -611,7 +611,7 @@ protected:
   * @param var a reference to a dynamic ColVariable
   * @param i a counter for variables/columns shared with scan_static_variable()
   */
- void scan_dynamic_variable(ColVariable& lvar, int& i);
+ void scan_dynamic_variable( ColVariable & lvar, int & i );
 
  /**
   * It scans a static FRowConstraint or a group of static FRowConstraints and
@@ -621,7 +621,7 @@ protected:
   *              element of a vector of FRowConstraints.
   * @param i a counter for constraints/rows shared w/ scan_dynamic_constraint()
   */
- void scan_static_constraint(FRowConstraint& p_const, int& first, int& i);
+ void scan_static_constraint( FRowConstraint & p_const, int & first, int & i );
 
  /**
   * It scans a dyn FRowConstraint and fills the vectors of the LP accordingly.
@@ -629,13 +629,13 @@ protected:
   * @param p_const a reference to a dynamic FRowConstraint
   * @param i a counter for constraints/rows shared w/ scan_static_constraint()
   */
- void scan_dynamic_constraint(FRowConstraint& p_const, int& i);
+ void scan_dynamic_constraint( FRowConstraint & p_const, int & i );
 
  /**
   * It scans a FRealObjective and fills the vectors of the LP accordingly.
   * @param obj a FRealObjective
   */
- void scan_objective(const FRealObjective* obj);
+ void scan_objective( const FRealObjective * obj );
  /// @}
 
  SMSpp_insert_in_factory_h;

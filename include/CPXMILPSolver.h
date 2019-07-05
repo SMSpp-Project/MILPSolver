@@ -134,23 +134,23 @@ class CPXMILPSolver : public MILPSolver {
  * @{
  */
 
- void set_Block(Block* block) override;
+ void set_Block( Block * block ) override;
 
- int compute(bool changedvars) override;
+ int compute( bool changedvars ) override;
 
  OFValue get_lb() override;
 
  OFValue get_ub() override;
 
- void get_var_solution(Configuration* solc) override;
+ void get_var_solution( Configuration * solc ) override;
 
- void get_dual_solution(Configuration* solc) override {}
+ void get_dual_solution( Configuration * solc ) override {}
 
- void set_par(idx_type par, int value) override;
+ void set_par( idx_type par, int value ) override;
 
- void set_par(idx_type par, double value) override;
+ void set_par( idx_type par, double value ) override;
 
- void set_par(idx_type par, const std::string & value) override;
+ void set_par( idx_type par, const std::string & value ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -163,11 +163,11 @@ class CPXMILPSolver : public MILPSolver {
 
  idx_type get_num_str_par() const override;
 
- const std::string& get_str_par(idx_type par) const override;
+ const std::string & get_str_par( idx_type par ) const override;
 
- idx_type str_par_str2idx(const std::string& name) const override;
+ idx_type str_par_str2idx( const std::string & name ) const override;
 
- const std::string& dbl_par_idx2str(idx_type idx) const override;
+ const std::string & dbl_par_idx2str( idx_type idx ) const override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -209,34 +209,34 @@ class CPXMILPSolver : public MILPSolver {
  */
 
  /// It handles a variable modification
- void var_modification(VariableMod* mod) override;
+ void var_modification( VariableMod * mod ) override;
 
  /// It handles an objective modification
- void of_modification(ObjectiveMod* mod) override;
+ void of_modification( ObjectiveMod * mod ) override;
 
  /// It handles a constraint modification
- void const_modification(ConstraintMod* mod) override;
+ void const_modification( ConstraintMod * mod ) override;
 
  /// It handles a bound modification
- void bound_modification(OneVarConstraintMod* mod) override;
+ void bound_modification( OneVarConstraintMod * mod ) override;
 
  /// It handles a function modification
- void function_modification(FunctionMod* mod) override;
+ void function_modification( FunctionMod * mod ) override;
 
  /// It handles a dynamic modification
- void dynamic_modification(BlockModAD* mod) override;
+ void dynamic_modification( BlockModAD * mod ) override;
 
  /// It adds a single new dynamic constraint
- void add_dynamic_constraint(FRowConstraint* p_const) override;
+ void add_dynamic_constraint( FRowConstraint * p_const ) override;
 
  /// It adds a single new dynamic variable
- void add_dynamic_variable(ColVariable* p_var) override;
+ void add_dynamic_variable( ColVariable * p_var ) override;
 
  /// It removes a single dynamic constraint
- void remove_dynamic_constraint(FRowConstraint* p_const) override;
+ void remove_dynamic_constraint( FRowConstraint * p_const ) override;
 
  /// It removes a single dynamic variable
- void remove_dynamic_variable(ColVariable* p_var) override;
+ void remove_dynamic_variable( ColVariable * p_var ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -253,7 +253,7 @@ class CPXMILPSolver : public MILPSolver {
   * @param tmpx The array containing the values
   * @param i The position in the array
   */
- void set_var_value(ColVariable& lvar, double* tmpx, int& i);
+ void set_var_value( ColVariable & lvar, double * tmpx, int & i );
 
  SMSpp_insert_in_factory_h;
 };
