@@ -385,21 +385,17 @@ void MILPSolver::load_problem() {
  std::sort( v_int_d_var.begin(), v_int_d_var.end() );
 
  const FRealObjective * p_obj;
- try {
-  p_obj = boost::any_cast< FRealObjective * >( f_Block->get_objective() );
-  switch( p_obj->get_sense() ) {
-   case ( Objective::eMax ):
-    objsense = -1;
-    break;
-   case ( Objective::eMin ):
-    objsense = 1;
-    break;
-   default:
-    objsense = 0;
-    break;
-  }
- } catch( boost::bad_any_cast & ) {
-  throw ( std::invalid_argument( "Objective is not a FRealObjective" ) );
+ p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
+ switch( p_obj->get_sense() ) {
+  case ( Objective::eMax ):
+   objsense = -1;
+   break;
+  case ( Objective::eMin ):
+   objsense = 1;
+   break;
+  default:
+   objsense = 0;
+   break;
  }
 
  // Fourth loop to scan the objective(s?)
@@ -412,12 +408,7 @@ void MILPSolver::load_problem() {
    Q.push( i );
   }
 
-  try {
-   p_obj = boost::any_cast< FRealObjective * >( q_Block->get_objective() );
-  } catch( boost::bad_any_cast & ) {
-   throw ( std::invalid_argument( "Objective is not a FRealObjective" ) );
-  }
-
+  p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
   scan_objective( p_obj );
  } // End of while loop on Block queue
 

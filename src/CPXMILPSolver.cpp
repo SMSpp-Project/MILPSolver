@@ -128,7 +128,7 @@ void CPXMILPSolver::load_problem() {
             rngval.data() );
 
  const FRealObjective * p_obj;
- p_obj = boost::any_cast< FRealObjective * >( f_Block->get_objective() );
+ p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
  auto p_dquad_fun = dynamic_cast<const DQuadFunction *> (p_obj->get_function());
  if( p_dquad_fun != nullptr ) {
   CPXcopyqpsep( env, milp, q_objective.data() );
@@ -316,12 +316,9 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
 
  // After the Objective is computed (evaluated), the solution can be retrieved
  // directly from there.
- try {
-  auto p_obj = boost::any_cast< FRealObjective * >( f_Block->get_objective() );
-  p_obj->compute();
- } catch( boost::bad_any_cast & ) {
-  throw ( std::invalid_argument( "Objective is not a FRealObjective" ) );
- }
+ auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
+ p_obj->compute();
+
  delete[]tmpx;
 }
 
@@ -581,12 +578,8 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
  auto mod_f = mod->f_function;
  Function * of;
 
- try {
-  auto p_obj = boost::any_cast< FRealObjective * >( f_Block->get_objective() );
-  of = p_obj->get_function();
- } catch( boost::bad_any_cast & ) {
-  throw ( std::invalid_argument( "Objective is not a FRealObjective" ) );
- }
+ auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
+ of = p_obj->get_function();
 
  if( of == mod_f ) {
   auto lf = dynamic_cast<const LinearFunction *> (mod_f);
