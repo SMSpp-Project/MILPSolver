@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
  int status = solver->compute();
 
  auto smilpblock = dynamic_cast<SimpleMILPBlock*>(block);
- auto obj = boost::any_cast<FRealObjective*>(smilpblock->get_objective());
+ auto obj = dynamic_cast<FRealObjective*>(smilpblock->get_objective());
  auto obj_f = obj->get_function();
 
  std::cout << "Status = " << status << std::endl;
