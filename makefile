@@ -22,14 +22,14 @@
 #           $(SMS++INC)    = the -I$( core SMS++ directory )                 #
 #           $(SMS++OBJ)    = the core SMS++ library                          #
 #           $(libCPLEXINC) = the -I$( Cplex library )                        #
-#           $(MILPSSDR)  = the directory where the source is                 #
+#           $(MILPSSDR)    = the directory where the source is               #
 #                                                                            #
-#   Output: $(MILPSOBJ) = the final object(s) / library                      #
-#           $(MILPSH)   = the .h files to include                            #
-#           $(MILPSINC) = the -I$( source directory )                        #
+#   Output: $(MILPSOBJ)    = the final object(s) / library                   #
+#           $(MILPSH)      = the .h files to include                         #
+#           $(MILPSINC)    = the -I$( source directory )                     #
 #                                                                            #
-#                                VERSION 1.00                                #
-#                               07 - 03 - 2019                               #
+#                                VERSION 2.00                                #
+#                               21 - 08 - 2019                               #
 #                                                                            #
 #                              Antonio Frangioni                             #
 #                          Operations Research Group                         #
@@ -41,11 +41,13 @@
 
 # macroes to be exported- - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-MILPSOBJ = $(MILPSSDR)obj/MILPSolver.o
+MILPSOBJ = $(MILPSSDR)obj/MILPSolver.o \
+	$(MILPSSDR)obj/CPXMILPSolver.o
 
 MILPSINC = -I$(MILPSSDR)include/
 
-MILPSH   = $(MILPSSDR)include/MILPSolver.h
+MILPSH = $(MILPSSDR)include/MILPSolver.h \
+	$(MILPSSDR)include/CPXMILPSolver.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -54,8 +56,15 @@ clean::
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
 
-$(MILPSOBJ): $(MILPSSDR)src/MILPSolver.cpp $(MILPSH) $(SMS++OBJ)
+$(MILPSSDR)obj/MILPSolver.o: $(MILPSSDR)src/MILPSolver.cpp \
+	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)src/MILPSolver.cpp -o $@ \
+	$(MILPSINC) $(SMS++INC) $(SW)
+
+$(MILPSSDR)obj/CPXMILPSolver.o: $(MILPSSDR)src/CPXMILPSolver.cpp \
+	$(MILPSSDR)include/CPXMILPSolver.h \
+	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)src/CPXMILPSolver.cpp -o $@ \
 	$(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(SW)
 
 ########################## End of makefile ###################################
