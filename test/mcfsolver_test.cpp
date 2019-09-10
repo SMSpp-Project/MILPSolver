@@ -765,11 +765,11 @@ int main(int argc, char** argv) {
        lf->modify_coefficients(newcsts.begin(), strt, stp);
       }
      } else {  // change via call to chg_* method
-      mMCFB->chg_costs(newcsts.begin(), strt, stp);
+      mMCFB->chg_costs(newcsts.begin(), Block::Range(strt, stp));
       cout << "s(r) - ";
      }
     } else {
-     MCFBlock::Vec_Index nms(m + 1);
+     MCFBlock::Subset nms(m + 1);
      for (MCFBlock::Index i = 0; i < m; i++)
       nms[i] = i;
 
@@ -843,11 +843,11 @@ int main(int argc, char** argv) {
       for (MCFBlock::Index i = 0; i < tochange; ++i)
        mMCFB->i2p_ub(i + strt)->set_rhs(newcaps[i]);
      } else {  // change via call to chg_* method
-      mMCFB->chg_ucaps(newcaps.begin(), strt, stp);
+      mMCFB->chg_ucaps(newcaps.begin(), Block::Range(strt, stp));
       cout << "ies(r) - ";
      }
     } else {
-     MCFBlock::Vec_Index nms(m + 1);
+     MCFBlock::Subset nms(m + 1);
      for (MCFBlock::Index i = 0; i < m; i++)
       nms[i] = i;
 
@@ -936,7 +936,7 @@ int main(int argc, char** argv) {
   if ((wchg & 8) && (drand48() <= p_change)) {
    MCFBlock::Index changed = 0;
 
-   MCFBlock::Vec_Index nms(n_change);
+   MCFBlock::Subset nms(n_change);
    for (MCFBlock::Index i = mMCFB->get_NStaticArcs();
         i < mMCFB->get_NArcs(); ++i) {
     if (mcf->IsDeletedArc(i))
@@ -977,7 +977,7 @@ int main(int argc, char** argv) {
   if ((wchg & 16) && (drand48() <= p_change)) {
    MCFBlock::Index changed = 0;
 
-   MCFBlock::Vec_Index nms(n_change);
+   MCFBlock::Subset nms(n_change);
    for (MCFBlock::Index i = mMCFB->get_NStaticArcs();
         i < mMCFB->get_NArcs(); ++i) {
     if (mcf->IsDeletedArc(i))
