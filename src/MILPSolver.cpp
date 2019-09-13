@@ -966,10 +966,10 @@ void MILPSolver::process_modifications() {
   std::function< void( sp_Mod ) > f;
   f = [ this, &f ]( sp_Mod mod ) {
 
-   std::cout << *mod;
    {
     const auto tmod = std::dynamic_pointer_cast< GroupModification >( mod );
     if( tmod ) {
+     LOG("GroupModification containing:");
      for( const auto & submod : tmod->v_sub_Modifications ) {
       f( submod );
      }
@@ -979,6 +979,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< VariableMod >( mod );
     if( tmod ) {
+     LOG(*mod);
      var_modification( tmod.get() );
      return;
     }
@@ -986,6 +987,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< ObjectiveMod >( mod );
     if( tmod ) {
+     LOG(*mod);
      of_modification( tmod.get() );
      return;
     }
@@ -993,6 +995,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< OneVarConstraintMod >( mod );
     if( tmod ) {
+     LOG(*mod);
      bound_modification( tmod.get() );
      return;
     }
@@ -1000,6 +1003,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< RowConstraintMod >( mod );
     if( tmod ) {
+     LOG(*mod);
      const_modification( tmod.get() );
      return;
     }
@@ -1007,6 +1011,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< ConstraintMod >( mod );
     if( tmod ) {
+     LOG(*mod);
      const_modification( tmod.get() );
      return;
     }
@@ -1014,6 +1019,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< FunctionMod >( mod );
     if( tmod ) {
+     LOG(*mod);
      function_modification( tmod.get() );
      return;
     }
@@ -1021,6 +1027,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< BlockModAD >( mod );
     if( tmod ) {
+     LOG(*mod);
      dynamic_modification( tmod.get() );
      return;
     }
@@ -1028,6 +1035,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< NBModification >( mod );
     if( tmod ) {
+     LOG("\033[1;33m" << *mod << "\033[0m");
      clear_problem();
      load_problem();
     }

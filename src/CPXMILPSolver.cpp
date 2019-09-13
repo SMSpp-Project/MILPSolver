@@ -337,7 +337,7 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
 
  auto * var = dynamic_cast<ColVariable *>(mod->f_variable);
 
- std::vector< int > indices( 2, index_of_static_variable( var ) );
+ std::vector< int > indices( 2, index_of_variable( var ) );
  std::array< char, 1 > ctype{};
  std::vector< char > lu;
  std::vector< double > bd;
@@ -427,7 +427,7 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
 
    sense[ 0 ] = ( 'G' );
    values[ 0 ] = -Inf< double >();
-   indices[ 0 ] = index_of_static_constraint( p_const );
+   indices[ 0 ] = index_of_constraint( p_const );
    CPXchgrhs( env, milp, cnt, indices.data(), values.data() );
    CPXchgsense( env, milp, cnt, indices.data(), sense.data() );
    break;
@@ -455,7 +455,7 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
     rngval[ 0 ] = const_rhs - const_lhs;
    }
 
-   indices[ 0 ] = index_of_static_constraint( p_const );
+   indices[ 0 ] = index_of_constraint( p_const );
    CPXchgrhs( env, milp, cnt, indices.data(), values.data() );
    CPXchgsense( env, milp, cnt, indices.data(), sense.data() );
    if( sense[ 0 ] == 'R' ) {
@@ -489,7 +489,7 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
     rngval[ 0 ] = const_rhs - const_lhs;
    }
 
-   indices[ 0 ] = index_of_static_constraint( p_const );
+   indices[ 0 ] = index_of_constraint( p_const );
    CPXchgrhs( env, milp, cnt, indices.data(), values.data() );
    CPXchgsense( env, milp, cnt, indices.data(), sense.data() );
    if( sense[ 0 ] == 'R' ) {
@@ -515,7 +515,7 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
  auto p_const = dynamic_cast<OneVarConstraint *>(mod->f_constraint);
  auto p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
 
- std::vector< int > indices( 2, index_of_static_variable( p_var ) );
+ std::vector< int > indices( 2, index_of_variable( p_var ) );
  std::vector< char > lu;
  std::vector< double > bd;
 
@@ -596,7 +596,7 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
 
    int i = 0;
    for( auto el : lf->get_v_var() ) {
-    indices[ i ] = index_of_static_variable( el.first );
+    indices[ i ] = index_of_variable( el.first );
     values[ i ] = el.second;
     ++i;
    }
@@ -610,7 +610,7 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
    int i = 0;
    for( auto el : qf->get_v_var() ) {
     // Linear coefficients can be changed all at once with CPXchgobj
-    indices[ i ] = index_of_static_variable( std::get< 0 >( el ) );
+    indices[ i ] = index_of_variable( std::get< 0 >( el ) );
     values[ i ] = std::get< 1 >( el );
 
     // Quadratic coefficients can be changed one at a time
