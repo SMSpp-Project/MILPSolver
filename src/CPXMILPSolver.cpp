@@ -267,6 +267,10 @@ Solver::OFValue CPXMILPSolver::get_ub() {
  return upper_bound;
 }
 
+void CPXMILPSolver::write_lp(const std::string & filename ) {
+ CPXwriteprob( env, milp, filename.c_str(), nullptr );
+}
+
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/

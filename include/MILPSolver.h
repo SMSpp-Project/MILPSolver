@@ -184,6 +184,8 @@ class MILPSolver : public CDASolver {
  int get_nodes() const;
  /// @}
 
+ virtual void write_lp(const std::string & filename) {}
+
 /*--------------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
