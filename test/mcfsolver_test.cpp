@@ -204,15 +204,15 @@ static inline bool SolveMCF() {
   int mcf_status = mcfsolver->compute( false );
 
   // Print problem on file
-  ofstream output_stream;
-  std::ostringstream ss;
-  ss << std::setw( 2 ) << std::setfill( '0' ) << file_counter;
-  output_stream.open( ss.str() + ".dmx" );
-  dynamic_cast<MCFSolver< MCFC > *>(mcfsolver)->WriteMCF( output_stream );
-  output_stream.close();
-  dynamic_cast<CPXMILPSolver *>(milpsolver)->write_lp( ss.str() + ".lp" );
-  cout << ss.str() << " - ";
-  file_counter++;
+  // ofstream output_stream;
+  // std::ostringstream ss;
+  // ss << std::setw( 2 ) << std::setfill( '0' ) << file_counter;
+  // output_stream.open( ss.str() + ".dmx" );
+  // dynamic_cast<MCFSolver< MCFC > *>(mcfsolver)->WriteMCF( output_stream );
+  // output_stream.close();
+  // dynamic_cast<CPXMILPSolver *>(milpsolver)->write_lp( ss.str() + ".lp" );
+  // cout << ss.str() << " - ";
+  // file_counter++;
 
   // EQUAL STATUS
   if( milp_status == mcf_status ) {

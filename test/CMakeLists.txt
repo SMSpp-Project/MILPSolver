@@ -1,7 +1,3 @@
-#add_compile_definitions(HAVE_MFSMX)
-#add_compile_definitions(HAVE_CPLEX)
-add_compile_definitions(HAVE_RELAX)
-
 add_executable(MILPSolver_test milpsolver_test.cpp)
 
 target_link_libraries(MILPSolver_test
