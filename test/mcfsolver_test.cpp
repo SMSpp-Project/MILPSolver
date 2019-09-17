@@ -210,6 +210,7 @@ static inline bool SolveMCF() {
   output_stream.open( ss.str() + ".dmx" );
   dynamic_cast<MCFSolver< MCFC > *>(mcfsolver)->WriteMCF( output_stream );
   output_stream.close();
+  dynamic_cast<CPXMILPSolver *>(milpsolver)->write_lp( ss.str() + ".lp" );
   cout << ss.str() << " - ";
   file_counter++;
 
@@ -238,7 +239,7 @@ static inline bool SolveMCF() {
 
   // STATUS DIFFERS
   cout << "\033[1;31mNot OK\033[0m: MILPSolver = ";
-  switch (milp_status) {
+  switch( milp_status ) {
    case Solver::kInfeasible :
     cout << "Infeasible";
     break;
@@ -250,7 +251,7 @@ static inline bool SolveMCF() {
   }
 
   cout << ", MCFSolver = ";
-  switch (mcf_status) {
+  switch( mcf_status ) {
    case Solver::kInfeasible :
     cout << "Infeasible";
     break;
@@ -261,7 +262,7 @@ static inline bool SolveMCF() {
     cout << mcfsolver->get_ub();
   }
   cout << endl;
-  return true;
+  return false;
 
  }
  catch( exception & e ) {
@@ -308,9 +309,7 @@ int main( int argc, char ** argv ) {
         << endl <<
         "             0 = abstract (0) or physical (1) "
         << endl <<
-        "             +2 = use methods factory "
-        << endl <<
-        "             +4 = use ranged changes instead of sparse"
+        "             +2 = use ranged changes instead of sparse"
         << endl <<
         "       what: what to change, coded bit-wise "
         << endl <<
@@ -336,23 +335,17 @@ int main( int argc, char ** argv ) {
  }
 
  bool abstract = false;
- bool direct_call = false;
  bool ranged = false;
+
  if( mode & 1u ) {
   std::cout << "Changing physical representation ";
   abstract = false;
-  if( mode & 2u ) {
-   std::cout << "with methods factory ";
-   direct_call = false;
-  } else {
-   std::cout << "with direct calls ";
-   direct_call = true;
-  }
  } else {
   std::cout << "Changing abstract representation ";
   abstract = true;
  }
- if( mode & 4u ) {
+
+ if( mode & 2u ) {
   std::cout << "using ranged modifications" << std::endl;
   ranged = true;
  } else {
@@ -383,7 +376,7 @@ int main( int argc, char ** argv ) {
  MCFClass::Index m = mcfb->get_NArcs();
  MCFClass::Index n = mcfb->get_NNodes();
 
- cout << ", n = " << n << ", m = " << m << endl;
+ cout << "n = " << n << ", m = " << m << endl;
  if( n_change > m ) n_change = m;
  MCFClass::CNumber c_max = -OPTtypes_di_unipi_it::Inf< MCFClass::CNumber >();
  MCFClass::CNumber c_min = -c_max;
@@ -409,6 +402,9 @@ int main( int argc, char ** argv ) {
   }
  }
 
+ Solver * mcfsolver = mcfb->get_registered_solvers().back();
+ dynamic_cast<MCFSolver< MCFC > *>(mcfsolver)->set_par( Solver::dblAbsAcc, u_avg * 1e-8 );
+ // mcfsolver->set_par( Solver::dblAbsAcc , u_avg * 1e-10 );
  cout << "First call: " << endl;
  cout.setf( ios::scientific, ios::floatfield );
  cout << setprecision( 6 );
@@ -442,8 +438,6 @@ int main( int argc, char ** argv ) {
     auto arc = MCFBlock::Index( drand48() * ( m - 1 ) );
 
     if( abstract ) {
-
-     // Change via abstract representation
      cout << "(a)" << std::endl;
      auto obj = dynamic_cast<FRealObjective *>( mcfb->get_objective() );
      auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
@@ -451,9 +445,8 @@ int main( int argc, char ** argv ) {
      LinearFunction::v_coeff nc = { newcst };
      lf->modify_coefficient( mcfb->i2p_x( arc ), nc.front() );
     } else {
-
-     // Change via call to chg_* method
      mcfb->chg_cost( newcst, arc );
+     cout << "(s)" << std::endl;
     }
 
    } else {
@@ -468,7 +461,6 @@ int main( int argc, char ** argv ) {
 
      if( abstract ) {
 
-      // Change via abstract representation
       cout << "s(r,a)" << std::endl;
       auto obj = dynamic_cast<FRealObjective *>( mcfb->get_objective() );
       auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
@@ -489,23 +481,10 @@ int main( int argc, char ** argv ) {
        stp += dlt;
        lf->modify_coefficients( newcsts.begin(), strt, stp );
       }
+
      } else {
-
-      // Change via call to chg_* method
-      if( direct_call ) {
-
-       // Direct call
-       mcfb->chg_costs( newcsts.begin(), Block::Range( strt, stp ) );
-       cout << "s(r)" << std::endl;
-      } else {
-
-       // Use the methods factory
-       std::string name = "MCFBlock::chg_costs";
-       auto mthd = Block::get_method_fs( name, Block::MS_dbl_rngd::args() );
-       assert( name == Block::get_method_name_fs( mthd, Block::MS_dbl_rngd::args() ) );
-       std::invoke( *mthd, mcfb, newcsts.begin(), Block::Range( strt, stp ), eNoBlck, eNoBlck );
-       cout << "s(r-mf)" << std::endl;
-      }
+      mcfb->chg_costs( newcsts.begin(), Block::Range( strt, stp ) );
+      cout << "s(r)" << std::endl;
      }
     } else {
 
@@ -539,22 +518,8 @@ int main( int argc, char ** argv ) {
        lf->modify_coefficients( newcsts.begin(), nms, true );
       }
      } else {
-
-      // Change via call to chg_* method
-      if( direct_call ) {
-
-       // Direct call
-       mcfb->chg_costs( newcsts.begin(), std::move( nms ), true );
-       cout << "s(s)" << std::endl;
-      } else {
-
-       // Use the methods factory
-       std::string name = "MCFBlock::chg_costs";
-       auto mthd = Block::get_method_fs( name, Block::MS_dbl_sbst::args() );
-       assert( name == Block::get_method_name_fs( mthd, Block::MS_dbl_sbst::args() ) );
-       std::invoke( *mthd, mcfb, newcsts.begin(), std::move( nms ), true, eNoBlck, eNoBlck );
-       cout << "s(s-mf)" << std::endl;
-      }
+      mcfb->chg_costs( newcsts.begin(), std::move( nms ), true );
+      cout << "s(s)" << std::endl;
      }
     }
    }
@@ -572,12 +537,10 @@ int main( int argc, char ** argv ) {
 
     if( abstract ) {
 
-     // Change via abstract representation
      cout << "y(a)" << std::endl;
      mcfb->i2p_ub( arc )->set_rhs( newcap );
     } else {
 
-     // Change via call to chg_* method
      mcfb->chg_ucap( newcap, arc );
      cout << "y" << std::endl;
     }
@@ -586,7 +549,6 @@ int main( int argc, char ** argv ) {
 
     if( ranged ) {
 
-     // Ranged modification
      MCFBlock::Index strt = drand48() * ( m - tochange );
      MCFBlock::Index stp = strt + tochange;
      for( MCFBlock::Index i = 0; i < tochange; ++i )
@@ -594,27 +556,13 @@ int main( int argc, char ** argv ) {
 
      if( abstract ) {
 
-      // Change via abstract representation
       cout << "ies(a,r)" << std::endl;
       for( MCFBlock::Index i = 0; i < tochange; ++i )
        mcfb->i2p_ub( i + strt )->set_rhs( newcaps[ i ] );
      } else {
 
-      // Change via call to chg_* method
-      if( direct_call ) {
-
-       // Direct call
-       mcfb->chg_ucaps( newcaps.begin(), Block::Range( strt, stp ) );
-       cout << "ies(r)" << std::endl;
-      } else {
-
-       // Methods factory
-       std::string name = "MCFBlock::chg_ucaps";
-       auto mthd = Block::get_method_fs( name, Block::MS_dbl_rngd::args() );
-       assert( name == Block::get_method_name_fs( mthd, Block::MS_dbl_rngd::args() ) );
-       std::invoke( *mthd, mcfb, newcaps.begin(), Block::Range( strt, stp ), eNoBlck, eNoBlck );
-       cout << "ies(r-mf)" << std::endl;
-      }
+      mcfb->chg_ucaps( newcaps.begin(), Block::Range( strt, stp ) );
+      cout << "ies(r)" << std::endl;
      }
     } else {
 
@@ -633,27 +581,13 @@ int main( int argc, char ** argv ) {
 
      if( abstract ) {
 
-      // Change via abstract representation
       cout << "ies(a,s)" << std::endl;
       for( MCFBlock::Index i = 0; i < tochange; ++i )
        mcfb->i2p_ub( nms[ i ] )->set_rhs( newcaps[ i ] );
      } else {
 
-      // Change via call to chg_* method
-      if( direct_call ) {
-
-       // Direct call
-       mcfb->chg_ucaps( newcaps.begin(), std::move( nms ), true );
-       cout << "ies(s)" << std::endl;
-      } else {
-
-       // Methods factory
-       std::string name = "MCFBlock::chg_ucaps";
-       auto mthd = Block::get_method_fs( name, Block::MS_dbl_sbst::args() );
-       assert( name == Block::get_method_name_fs( mthd, Block::MS_dbl_sbst::args() ) );
-       std::invoke( *mthd, mcfb, newcaps.begin(), std::move( nms ), true, eNoBlck, eNoBlck );
-       cout << "ies(s-mf)" << std::endl;
-      }
+      mcfb->chg_ucaps( newcaps.begin(), std::move( nms ), true );
+      cout << "ies(s)" << std::endl;
      }
     }
    }
@@ -687,7 +621,7 @@ int main( int argc, char ** argv ) {
     posd = negd = 0;
    }
 
-   MCFClass::FNumber Dlt = u_avg * 2 * drand48();
+   MCFClass::FNumber Dlt = std::ceil( u_avg * 2 * drand48() );
    if( drand48() <= 0.5 ) {  // in 50% of cases up, in 50% of cases down
     posd += Dlt;
     negd -= Dlt;
@@ -740,7 +674,6 @@ int main( int argc, char ** argv ) {
 
     if( abstract ) {
 
-     // Change via abstract representation
      cout << "(a)";
      for( auto i : nms ) {
       auto x = mcfb->i2p_x( i );
@@ -749,20 +682,7 @@ int main( int argc, char ** argv ) {
      }
     } else {
 
-     // Change via call to chg_* method
-     if( direct_call ) {
-
-      // Direct call
-      mcfb->close_arcs( std::move( nms ) );
-     } else {
-
-      // Methods factory
-      std::string name = "MCFBlock::close_arcs";
-      auto mthd = Block::get_method_fs( name, Block::MS_sbst::args() );
-      assert( name == Block::get_method_name_fs( mthd, Block::MS_sbst::args() ) );
-      std::invoke( *mthd, mcfb, std::move( nms ), false, eNoBlck, eNoBlck );
-      cout << "(mf)";
-     }
+     mcfb->close_arcs( std::move( nms ) );
     }
     cout << "" << std::endl;
    }
@@ -795,26 +715,13 @@ int main( int argc, char ** argv ) {
 
     if( abstract ) {
 
-     // Change via abstract representation
      cout << "(a)";
      for( auto i : nms )
       mcfb->i2p_x( i )->is_fixed( false );
     } else {
 
-     // Change via call to chg_* method
-     if( direct_call ) {
+     mcfb->open_arcs( std::move( nms ) );
 
-      // Direct call
-      mcfb->open_arcs( std::move( nms ) );
-     } else {
-
-      // Methods factory
-      std::string name = "MCFBlock::open_arcs";
-      auto mthd = Block::get_method_fs( name, Block::MS_sbst::args() );
-      assert( name == Block::get_method_name_fs( mthd, Block::MS_sbst::args() ) );
-      std::invoke( *mthd, mcfb, std::move( nms ), false, eNoBlck, eNoBlck );
-      cout << "(mf)";
-     }
     }
 
     cout << "" << std::endl;

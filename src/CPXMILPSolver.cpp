@@ -666,6 +666,8 @@ void CPXMILPSolver::dynamic_modification( BlockModAD * mod ) {
    } else if( mod->mod_list.type() == typeid( FRowConstraint * ) ) {
     auto p_const = boost::any_cast< FRowConstraint * >( mod->mod_list );
     add_dynamic_constraint( p_const );
+   // } else if (mod->mod_list.type() == typeid( LB0Constraint * )) {
+   //  TODO
    } else {
     throw ( std::invalid_argument( "Received unexpected type of Constraint to be added" ) );
    }
@@ -697,6 +699,8 @@ void CPXMILPSolver::dynamic_modification( BlockModAD * mod ) {
    } else if( mod->mod_list.type() == typeid( FRowConstraint * ) ) {
     auto * p_const = boost::any_cast< FRowConstraint * >( mod->mod_list );
     remove_dynamic_constraint( p_const );
+   // } else if(mod->mod_list.type() == typeid( std::list< LB0Constraint > ) ){
+   //  TODO
    } else {
     throw ( std::invalid_argument( "Received unexpected type of Constraint to be removed" ) );
    }
@@ -712,8 +716,10 @@ void CPXMILPSolver::dynamic_modification( BlockModAD * mod ) {
    } else if( mod->mod_list.type() == typeid( ColVariable * ) ) {
     auto * p_const = boost::any_cast< ColVariable * >( mod->mod_list );
     remove_dynamic_variable( p_const );
+   // } else if( mod->mod_list.type() == typeid( std::list< ColVariable > ) ) {
+   //  TODO
    } else {
-    throw ( std::invalid_argument( "Received unexpected type of Constraint to be removed" ) );
+    throw ( std::invalid_argument( "Received unexpected type of Variable to be removed" ) );
    }
    break;
   }
