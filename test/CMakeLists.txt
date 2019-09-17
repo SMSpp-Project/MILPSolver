@@ -4,8 +4,7 @@ target_link_libraries(MILPSolver_test
         SMS++
         SMILPBLock
         MILPSolver
-        cplex
-        ilocplex
+        cplex-library
         netcdf
         netcdf-cxx4)
 
@@ -16,7 +15,6 @@ target_link_libraries(MCFSolver_test
         MCFBlock
         MCFClass
         MILPSolver
-        /Applications/CPLEX_Studio128/cplex/lib/x86-64_osx/static_pic/libcplex.a
-        /Applications/CPLEX_Studio128/cplex/lib/x86-64_osx/static_pic/libilocplex.a
+        cplex-library
         netcdf
         netcdf-cxx4)

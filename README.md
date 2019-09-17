@@ -10,8 +10,7 @@ and also IBM® ILOG® CPLEX® Optimization Studio.
 
 ## Build
 
-You can use CMake to build the project. Before that, edit the main SMS++
-CMakeLists.txt with the proper directory of CPLEX header files. Then, go
+You can use CMake to build the project, go
 in the main SMS++ directory and type:
 
      mkdir build
