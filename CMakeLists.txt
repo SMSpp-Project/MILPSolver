@@ -6,24 +6,21 @@ set(CMAKE_VERBOSE_MAKEFILE OFF)
 # ----- Project description and directories ------------------------------------
 project(MILPSolver DESCRIPTION "MILPSolver for SMS++")
 
-set(PROJECT_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include)
-set(PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(PROJECT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(PROJECT_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # ----- Requirements -----------------------------------------------------------
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR})
 find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(CPLEX REQUIRED)
+#find_package(CPLEX REQUIRED)
 
-# ----- Includes ---------------------------------------------------------------
-include_directories(${Boost_INCLUDE_DIRS})
-include_directories(${EIGEN3_INCLUDE_DIRS})
-include_directories(${CPLEX_INCLUDE_DIR})
-include_directories("${PROJECT_INCLUDE_DIR}")
-# TODO: Write and use a FindSMS++.cmake
-include_directories(../SMS++/include)
+# ----- Custom includes --------------------------------------------------------
+# TODO: When libraries will be installable, fix this
+set(SMS++_INCLUDE_DIR ../SMS++/include)
 
-# ----- SOURCE FILES -----------------------------------------------------------
+# ----- Library ----------------------------------------------------------------
 set(${PROJECT_NAME}_SOURCES
     ${PROJECT_SOURCE_DIR}/MILPSolver.cpp
     ${PROJECT_SOURCE_DIR}/CPXMILPSolver.cpp
@@ -31,6 +28,19 @@ set(${PROJECT_NAME}_SOURCES
 
 # TODO: Find out why STATIC doesn't work
 add_library(${PROJECT_NAME} OBJECT ${${PROJECT_NAME}_SOURCES})
+target_include_directories(${PROJECT_NAME} PUBLIC ${Boost_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} PUBLIC ${EIGEN3_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_INCLUDE_DIR})
+#target_include_directories(${PROJECT_NAME} PUBLIC ${CPLEX_INCLUDE_DIR})
+target_include_directories(${PROJECT_NAME} PUBLIC ${SMS++_INCLUDE_DIR})
+
+# FIXME: Workaround for CPLEX
+if (OVERRIDE_CPLEX_INC)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${OVERRIDE_CPLEX_INC})
+else ()
+    find_package(CPLEX REQUIRED)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${CPLEX_INCLUDE_DIR})
+endif ()
 
 # ----- Subdirectories ---------------------------------------------------------
 add_subdirectory(test)

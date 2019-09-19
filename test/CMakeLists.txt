@@ -1,51 +1,62 @@
 find_package(netCDF REQUIRED)
-include_directories(${netCDF_INCLUDE_DIR})
-link_directories(${netCDF_LIB_DIR})
 
-# TODO: Write and use a FindSMILPBLock.cmake
+# ----- Custom includes --------------------------------------------------------
+# TODO: When libraries will be installable, fix this
 set(SMS++_MAIN_DIR ${PROJECT_SOURCE_DIR}/../..)
-include_directories(${SMS++_MAIN_DIR}/SMILPBlock)
-include_directories(${SMS++_MAIN_DIR}/MCFBlock)
+set(MCFBlock_INCLUDE_DIR ${SMS++_MAIN_DIR}/MCFBlock)
+set(SMILPBlock_INCLUDE_DIR ${SMS++_MAIN_DIR}/SMILPBlock)
 set(MCFClass_INCLUDE_DIR ${SMS++_MAIN_DIR}/MCFClass)
-include_directories(${MCFClass_INCLUDE_DIR}/MCFClass
-                    ${MCFClass_INCLUDE_DIR}/MCFClone
-                    ${MCFClass_INCLUDE_DIR}/MCFCplex
-                    ${MCFClass_INCLUDE_DIR}/MCFSimplex
-                    ${MCFClass_INCLUDE_DIR}/OPTUtils
-                    ${MCFClass_INCLUDE_DIR}/RelaxIV
-                    )
+set(MCFClass_INCLUDE_DIRS
+    ${MCFClass_INCLUDE_DIR}/MCFClass
+    ${MCFClass_INCLUDE_DIR}/MCFClone
+    ${MCFClass_INCLUDE_DIR}/MCFCplex
+    ${MCFClass_INCLUDE_DIR}/MCFSimplex
+    ${MCFClass_INCLUDE_DIR}/OPTUtils
+    ${MCFClass_INCLUDE_DIR}/RelaxIV
+    )
 
-
-add_executable(MILPSolver_test
-               milpsolver_test.cpp
-               )
-
-# TODO: Linking doesn't work in standalone mode
+# ----- MILPSolver_test --------------------------------------------------------
+add_executable(MILPSolver_test milpsolver_test.cpp)
+target_include_directories(MILPSolver_test PRIVATE ${MCFBlock_INCLUDE_DIR})
+target_include_directories(MILPSolver_test PRIVATE ${SMILPBlock_INCLUDE_DIR})
+target_include_directories(MILPSolver_test PRIVATE ${MCFClass_INCLUDE_DIRS})
+target_include_directories(MILPSolver_test PRIVATE ${netCDF_INCLUDE_DIR})
+target_link_directories(MILPSolver_test PRIVATE ${netCDF_LIB_DIR})
 target_link_libraries(MILPSolver_test
                       SMS++
                       SMILPBLock
                       MILPSolver
-                      cplex-library
+                      #cplex-library
                       netcdf
                       netcdf-cxx4
                       )
 
-# Options for choosing the MCF Solver
-# TODO: Find how avoid duplication
+# ----- MCFSolver_test ---------------------------------------------------------
+# TODO: Do it in a more fashionable way and avoid duplication
 #add_compile_definitions(HAVE_MFSMX)
 #add_compile_definitions(HAVE_CPLEX)
 add_compile_definitions(HAVE_RELAX)
 
-add_executable(MCFSolver_test
-               mcfsolver_test.cpp
-               )
-
+add_executable(MCFSolver_test mcfsolver_test.cpp)
+target_include_directories(MILPSolver_test PRIVATE ${MCFBlock_INCLUDE_DIR})
+target_include_directories(MILPSolver_test PRIVATE ${MCFClass_INCLUDE_DIRS})
+target_include_directories(MCFSolver_test PRIVATE ${netCDF_INCLUDE_DIR})
+target_link_directories(MCFSolver_test PRIVATE ${netCDF_LIB_DIR})
 target_link_libraries(MCFSolver_test
                       SMS++
                       MCFBlock
                       MCFClass
                       MILPSolver
-                      cplex-library
+                      #cplex-library
                       netcdf
                       netcdf-cxx4
                       )
+
+# FIXME: Workaround for CPLEX
+if (OVERRIDE_CPLEX_LIB)
+    target_link_libraries(MILPSolver_test ${OVERRIDE_CPLEX_LIB})
+    target_link_libraries(MCFSolver_test ${OVERRIDE_CPLEX_LIB})
+else ()
+    target_link_libraries(MILPSolver_test cplex-library)
+    target_link_libraries(MCFSolver_test cplex-library)
+endif ()
