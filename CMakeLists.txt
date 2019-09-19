@@ -14,7 +14,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # ----- Requirements -----------------------------------------------------------
 find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
-#find_package(CPLEX REQUIRED)
+find_package(CPLEX REQUIRED)
 
 # ----- Custom includes --------------------------------------------------------
 # TODO: When libraries will be installable, fix this
@@ -31,16 +31,8 @@ add_library(${PROJECT_NAME} OBJECT ${${PROJECT_NAME}_SOURCES})
 target_include_directories(${PROJECT_NAME} PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PUBLIC ${EIGEN3_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_INCLUDE_DIR})
-#target_include_directories(${PROJECT_NAME} PUBLIC ${CPLEX_INCLUDE_DIR})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CPLEX_INCLUDE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${SMS++_INCLUDE_DIR})
-
-# FIXME: Workaround for CPLEX
-if (OVERRIDE_CPLEX_INC)
-    target_include_directories(${PROJECT_NAME} PUBLIC ${OVERRIDE_CPLEX_INC})
-else ()
-    find_package(CPLEX REQUIRED)
-    target_include_directories(${PROJECT_NAME} PUBLIC ${CPLEX_INCLUDE_DIR})
-endif ()
 
 # ----- Subdirectories ---------------------------------------------------------
 add_subdirectory(test)

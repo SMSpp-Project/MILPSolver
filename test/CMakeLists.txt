@@ -26,7 +26,7 @@ target_link_libraries(MILPSolver_test
                       SMS++
                       SMILPBLock
                       MILPSolver
-                      #cplex-library
+                      cplex-library
                       netcdf
                       netcdf-cxx4
                       )
@@ -47,16 +47,7 @@ target_link_libraries(MCFSolver_test
                       MCFBlock
                       MCFClass
                       MILPSolver
-                      #cplex-library
+                      cplex-library
                       netcdf
                       netcdf-cxx4
                       )
-
-# FIXME: Workaround for CPLEX
-if (OVERRIDE_CPLEX_LIB)
-    target_link_libraries(MILPSolver_test ${OVERRIDE_CPLEX_LIB})
-    target_link_libraries(MCFSolver_test ${OVERRIDE_CPLEX_LIB})
-else ()
-    target_link_libraries(MILPSolver_test cplex-library)
-    target_link_libraries(MCFSolver_test cplex-library)
-endif ()
