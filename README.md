@@ -3,20 +3,36 @@
 
 ## Requirements
 
-The project requires the core SMS++ and it is assumed to be in MILPSolver
-directory besides SMS++.
+The project requires the [core SMS++](https://gitlab.com/frangio68/sms_plus_plus).
+
 It has the same requirements of the core SMS++ project (Boost, Eigen3 and netCDF)
 and also IBM® ILOG® CPLEX® Optimization Studio.
 
-## Build
+## Download and build
 
-You can use CMake to build the project, go
-in the main SMS++ directory and type:
+- Clone the project from the repository:
 
-     mkdir build
-     cd build
-     cmake
-     make
+      $ git clone https://gitlab.com/niccolo/milpsolver
+
+- Navigate inside the project directory:
+
+      $ cd milpsolver
+
+- Then configure and build the library:
+
+      $ mkdir build
+      $ cd build
+      $ cmake ..
+      $ make
+
+- Optionally, you can install the library with:
+
+      $ make install
+
+- After the library is configured, you can use it in your CMake project with:
+
+      find_package(MILPSolver)
+      target_link_libraries(<my_target> SMS++::MILPSolver)
 
 ## Test
 
@@ -43,4 +59,3 @@ The usage is:
                             0 = Dantzig, 2 = First Eligible, 4 = MPP
                   Simplex : 1st bit == 1 ==> primal +
                             0 = Dantzig, 2 = First Eligible, 4 = MPP
-
