@@ -1,7 +1,7 @@
 find_package(netCDF REQUIRED)
 
 # ----- MILPSolver_test --------------------------------------------------------
-find_package(SMILPBLock REQUIRED)
+#find_package(SMILPBLock REQUIRED)
 add_executable(MILPSolver_test milpsolver_test.cpp)
 
 target_link_directories(MILPSolver_test PRIVATE ${netCDF_LIB_DIR})
