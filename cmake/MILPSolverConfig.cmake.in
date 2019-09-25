@@ -6,10 +6,10 @@ include(CMakeFindDependencyMacro)
 # Do this to use FindCPLEX.cmake
 list(APPEND CMAKE_MODULE_PATH ${MILPSolver_CMAKE_DIR})
 
-find_package(Boost REQUIRED)
-find_package(Eigen3 REQUIRED)
-find_package(SMSpp REQUIRED)
-find_package(CPLEX REQUIRED)
+include(${MILPSolver_CMAKE_DIR}/CMakeConfig.txt OPTIONAL)
+find_package(CPLEX)
+find_package(SMSpp  REQUIRED)
+find_package(Boost  REQUIRED)
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)
 

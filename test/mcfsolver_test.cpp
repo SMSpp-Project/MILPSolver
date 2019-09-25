@@ -369,8 +369,10 @@ int main( int argc, char ** argv ) {
  }
 
  load( argv[ 1 ] );
- mcfb->register_Solver( Solver::new_Solver( "CPXMILPSolver" ) );
- mcfb->register_Solver( Solver::new_Solver( solver_name( MCFC ) ) );
+ // mcfb->register_Solver( Solver::new_Solver( "CPXMILPSolver" ) );
+ // mcfb->register_Solver( Solver::new_Solver( solver_name( MCFC ) ) );
+ mcfb->register_Solver( new CPXMILPSolver() );
+ mcfb->register_Solver( new MCFSolver<MCFC>() );
 
  // Compute min/max cost & max deficit
  MCFClass::Index m = mcfb->get_NArcs();

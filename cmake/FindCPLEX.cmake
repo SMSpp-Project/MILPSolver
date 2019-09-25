@@ -2,15 +2,15 @@
 #
 # Once done this will add the following imported targets:
 #
-#  cplex-library - the CPLEX library
-#  cplex-concert - the Concert library
-#  ilocplex - the IloCplex library
-#  cplex-cp - the CP Optimizer library
+#  CPLEX::Cplex - the CPLEX library
+#  CPLEX::Concert - the Concert library
+#  CPLEX::IloCplex - the IloCplex library
+#  CPLEX::CPOptimizer - the CP Optimizer library
 
 include(FindPackageHandleStandardArgs)
 
 # Find the path to CPLEX Studio.
-# ------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 if (UNIX)
     set(CPLEX_ILOG_DIRS /opt/ibm/ILOG /opt/IBM/ILOG)
 
@@ -86,9 +86,8 @@ endif ()
 
 find_package(Threads)
 
-# ----------------------------------------------------------------------------
 # CPLEX
-
+# ----------------------------------------------------------------------------
 set(CPLEX_DIR ${CPLEX_STUDIO_DIR_}/cplex)
 
 # Find the CPLEX include directory
@@ -149,7 +148,7 @@ mark_as_advanced(CPLEX_LIBRARY
                  CPLEX_LIBRARY_DEBUG
                  CPLEX_INCLUDE_DIR)
 
-if (CPLEX_FOUND AND NOT TARGET cplex-library)
+if (CPLEX_FOUND AND NOT TARGET CPLEX::Cplex)
     set(CPLEX_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
     check_library_exists(m floor "" HAVE_LIBM)
 
@@ -157,8 +156,8 @@ if (CPLEX_FOUND AND NOT TARGET cplex-library)
         set(CPLEX_LINK_LIBRARIES ${CPLEX_LINK_LIBRARIES} m)
     endif ()
 
-    add_library(cplex-library STATIC IMPORTED GLOBAL)
-    set_target_properties(cplex-library PROPERTIES
+    add_library(CPLEX::Cplex STATIC IMPORTED GLOBAL)
+    set_target_properties(CPLEX::Cplex PROPERTIES
                           IMPORTED_LOCATION "${CPLEX_LIBRARY}"
                           IMPORTED_LOCATION_DEBUG "${CPLEX_LIBRARY_DEBUG}"
                           INTERFACE_INCLUDE_DIRECTORIES "${CPLEX_INCLUDE_DIR}"
@@ -203,9 +202,9 @@ mark_as_advanced(CPLEX_CONCERT_LIBRARY
                  CPLEX_CONCERT_LIBRARY_DEBUG
                  CPLEX_CONCERT_INCLUDE_DIR)
 
-if (CPLEX_CONCERT_FOUND AND NOT TARGET cplex-concert)
-    add_library(cplex-concert STATIC IMPORTED GLOBAL)
-    set_target_properties(cplex-concert PROPERTIES
+if (CPLEX_CONCERT_FOUND AND NOT TARGET CPLEX::Concert)
+    add_library(CPLEX::Concert STATIC IMPORTED GLOBAL)
+    set_target_properties(CPLEX::Concert PROPERTIES
                           IMPORTED_LOCATION "${CPLEX_CONCERT_LIBRARY}"
                           IMPORTED_LOCATION_DEBUG "${CPLEX_CONCERT_LIBRARY_DEBUG}"
                           INTERFACE_COMPILE_DEFINITIONS IL_STD # Require standard compliance.
@@ -245,13 +244,13 @@ mark_as_advanced(CPLEX_ILOCPLEX_LIBRARY
                  CPLEX_ILOCPLEX_LIBRARY_DEBUG
                  CPLEX_ILOCPLEX_INCLUDE_DIR)
 
-if (CPLEX_ILOCPLEX_FOUND AND NOT TARGET ilocplex)
-    add_library(ilocplex STATIC IMPORTED GLOBAL)
-    set_target_properties(ilocplex PROPERTIES
+if (CPLEX_ILOCPLEX_FOUND AND NOT TARGET CPLEX::IloCplex)
+    add_library(CPLEX::IloCplex STATIC IMPORTED GLOBAL)
+    set_target_properties(CPLEX::IloCplex PROPERTIES
                           IMPORTED_LOCATION "${CPLEX_ILOCPLEX_LIBRARY}"
                           IMPORTED_LOCATION_DEBUG "${CPLEX_ILOCPLEX_LIBRARY_DEBUG}"
                           INTERFACE_INCLUDE_DIRECTORIES "${CPLEX_ILOCPLEX_INCLUDE_DIR}"
-                          INTERFACE_LINK_LIBRARIES "cplex-concert;cplex-library")
+                          INTERFACE_LINK_LIBRARIES "CPLEX::Concert;CPLEX::Cplex")
 endif ()
 
 # ----------------------------------------------------------------------------
@@ -281,11 +280,11 @@ mark_as_advanced(CPLEX_CP_LIBRARY
                  CPLEX_CP_LIBRARY_DEBUG
                  CPLEX_CP_INCLUDE_DIR)
 
-if (CPLEX_CP_FOUND AND NOT TARGET cplex-cp)
-    add_library(cplex-cp STATIC IMPORTED GLOBAL)
-    set_target_properties(cplex-cp PROPERTIES
+if (CPLEX_CP_FOUND AND NOT TARGET CPLEX::CPOptimizer)
+    add_library(CPLEX::CPOptimizer STATIC IMPORTED GLOBAL)
+    set_target_properties(CPLEX::CPOptimizer PROPERTIES
                           IMPORTED_LOCATION "${CPLEX_CP_LIBRARY}"
                           IMPORTED_LOCATION_DEBUG "${CPLEX_CP_LIBRARY_DEBUG}"
                           INTERFACE_INCLUDE_DIRECTORIES "${CPLEX_CP_INCLUDE_DIR}"
-                          INTERFACE_LINK_LIBRARIES "cplex-concert;${CPLEX_CP_EXTRA_LIBRARIES}")
+                          INTERFACE_LINK_LIBRARIES "CPLEX::Concert;${CPLEX_CP_EXTRA_LIBRARIES}")
 endif ()

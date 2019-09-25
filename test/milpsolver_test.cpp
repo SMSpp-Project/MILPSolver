@@ -7,6 +7,7 @@
 
 #include "SimpleMILPBlock.h"
 #include "MILPSolver.h"
+#include "CPXMILPSolver.h"
 #include "LinearFunction.h"
 #include "Configuration.h"
 
@@ -30,7 +31,8 @@ int main(int argc, char** argv) {
  file >> *block;
  std::cout << *block;
 
- Solver* solver = Solver::new_Solver("CPXMILPSolver");
+ // Solver* solver = Solver::new_Solver("CPXMILPSolver");
+ Solver* solver = new CPXMILPSolver();
 
  ComputeConfig conf;
  std::pair<std::string, std::string> problem_name = {"strProblemName", "testCPX"};
