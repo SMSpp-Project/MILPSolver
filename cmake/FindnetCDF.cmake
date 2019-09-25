@@ -35,9 +35,8 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-
 # TODO: Export netCDFCxx_VERSION
-# Try to find a CMake-built NetCDF --------------------------------------------
+# Try to find a CMake-built NetCDF ------------------------------------------ #
 find_package(netCDF CONFIG QUIET)
 if (netCDF_FOUND)
     # Forward the variables in a consistent way.
@@ -52,7 +51,7 @@ if (netCDF_FOUND)
     endif ()
 
 else ()
-    # Try to find a NetCDF "manually" -----------------------------------------
+    # Try to find a NetCDF "manually" --------------------------------------- #
     find_path(netCDF_INCLUDE_DIR
               NAMES netcdf.h
               HINTS ${NETCDF_INC}
@@ -101,7 +100,7 @@ else ()
     endif ()
 endif ()
 
-# NetCDF-C++ is not checked anyway --------------------------------------------
+# NetCDF-C++ is not checked anyway ------------------------------------------ #
 find_path(netCDFCxx_INCLUDE_DIR
           NAMES netcdf.h
           HINTS ${NETCDF_INC}

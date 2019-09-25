@@ -1,22 +1,22 @@
-# ----- MILPSolver_test --------------------------------------------------------
-find_package(SMILPBLock REQUIRED)
+if (NOT SMS++_CONFIG_ALL)
+    # Trying to find them while configuring all at once
+    # gave some errors (probably race conditions).
+    find_package(SMILPBLock REQUIRED)
+    find_package(MCFBlock REQUIRED)
+endif ()
+
+# ----- MILPSolver_test -------------------------------------------------------
 add_executable(MILPSolver_test milpsolver_test.cpp)
 
 target_link_libraries(MILPSolver_test PRIVATE
-                      SMS++::SMILPBLock
-                      SMS++::MILPSolver)
+                      SMS++::MILPSolver
+                      SMS++::SMILPBLock)
 
 # ----- MCFSolver_test ---------------------------------------------------------
-# TODO: Do it in a more fashionable way and avoid duplication
-#add_compile_definitions(HAVE_MFSMX)
-#add_compile_definitions(HAVE_CPLEX)
-add_compile_definitions(HAVE_RELAX)
-
-find_package(MCFBlock REQUIRED)
 find_package(netCDF REQUIRED)
 add_executable(MCFSolver_test mcfsolver_test.cpp)
 
 target_link_libraries(MCFSolver_test PRIVATE
-                      SMS++::MCFBlock
                       SMS++::MILPSolver
+                      SMS++::MCFBlock
                       NetCDF::NetCDFCxx)
