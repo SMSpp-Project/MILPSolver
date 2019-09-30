@@ -339,7 +339,7 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   *  - if the variable is not fixed, we reset LHS and RHS values
   */
 
- auto * var = dynamic_cast<ColVariable *>(mod->f_variable);
+ auto * var = dynamic_cast<ColVariable *>(mod->variable());
 
  std::vector< int > indices( 2, index_of_variable( var ) );
  std::array< char, 1 > ctype{};
@@ -412,7 +412,7 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
   * To change the coefficents, a FunctionMod must be used.
   */
 
- auto p_const = dynamic_cast<FRowConstraint *>(mod->f_constraint);
+ auto p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
 
  const int cnt = 1;
  std::array< int, cnt > indices{};
@@ -423,7 +423,7 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
  RowConstraint::RHSValue const_lhs;
  RowConstraint::RHSValue const_rhs;
 
- switch( mod->f_type ) {
+ switch( mod->type() ) {
 
   case ConstraintMod::eRelaxConst:
    // In order to relax the constraint all we do is transform it
@@ -516,14 +516,14 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
   * of the Variable change.
   */
 
- auto p_const = dynamic_cast<OneVarConstraint *>(mod->f_constraint);
+ auto p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
  auto p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
 
  std::vector< int > indices( 2, index_of_variable( p_var ) );
  std::vector< char > lu;
  std::vector< double > bd;
 
- switch( mod->f_type ) {
+ switch( mod->type() ) {
 
   case RowConstraintMod::eChgLHS:
    lu.resize( 1 );
@@ -579,7 +579,7 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
  /*
   * This function is used when changing coefficents for OFs or constraints.
   */
- auto mod_f = mod->f_function;
+ auto mod_f = mod->function();
  Function * of;
 
  auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
@@ -655,78 +655,39 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
 
 void CPXMILPSolver::dynamic_modification( BlockModAD * mod ) {
 
- switch( mod->f_type ) {
-
-  case BlockModAD::eAddConst: {
-   if( mod->mod_list.type() == typeid( std::vector< FRowConstraint * > ) ) {
-    auto v_const = boost::any_cast< std::vector< FRowConstraint * > >( mod->mod_list );
-    for( auto & i : v_const ) {
+ auto addcon_mod = dynamic_cast<BlockModAdd<FRowConstraint>*>(mod);
+ if ( addcon_mod) {
+  for( auto i : addcon_mod->added() ) {
      add_dynamic_constraint( i );
     }
-   } else if( mod->mod_list.type() == typeid( FRowConstraint * ) ) {
-    auto p_const = boost::any_cast< FRowConstraint * >( mod->mod_list );
-    add_dynamic_constraint( p_const );
-   // } else if (mod->mod_list.type() == typeid( LB0Constraint * )) {
-   //  TODO
-   } else {
-    throw ( std::invalid_argument( "Received unexpected type of Constraint to be added" ) );
-   }
-   break;
-  }
-
-  case BlockModAD::eAddVar: {
-   if( mod->mod_list.type() == typeid( std::vector< ColVariable * > ) ) {
-    auto v_vars = boost::any_cast< std::vector< ColVariable * > >( mod->mod_list );
-    for( auto & v_var : v_vars ) {
-     add_dynamic_variable( v_var );
-    }
-   } else if( mod->mod_list.type() == typeid( ColVariable * ) ) {
-    auto p_var = boost::any_cast< ColVariable * >( mod->mod_list );
-    add_dynamic_variable( p_var );
-   } else {
-    throw ( std::invalid_argument( "Received unexpected type of Variable to be added" ) );
-   }
-   break;
-  }
-
-  case BlockModAD::eDelConst: {
-
-   if( mod->mod_list.type() == typeid( std::list< FRowConstraint * > ) ) {
-    auto l_const = boost::any_cast< std::list< FRowConstraint * > >( mod->mod_list );
-    for( auto & it : l_const ) {
-     remove_dynamic_constraint( it );
-    }
-   } else if( mod->mod_list.type() == typeid( FRowConstraint * ) ) {
-    auto * p_const = boost::any_cast< FRowConstraint * >( mod->mod_list );
-    remove_dynamic_constraint( p_const );
-   // } else if(mod->mod_list.type() == typeid( std::list< LB0Constraint > ) ){
-   //  TODO
-   } else {
-    throw ( std::invalid_argument( "Received unexpected type of Constraint to be removed" ) );
-   }
-   break;
-  }
-
-  case BlockModAD::eDelVar: {
-   if( mod->mod_list.type() == typeid( std::list< ColVariable * > ) ) {
-    auto l_var = boost::any_cast< std::list< ColVariable * > >( mod->mod_list );
-    for( auto & it : l_var ) {
-     remove_dynamic_variable( it );
-    }
-   } else if( mod->mod_list.type() == typeid( ColVariable * ) ) {
-    auto * p_const = boost::any_cast< ColVariable * >( mod->mod_list );
-    remove_dynamic_variable( p_const );
-   // } else if( mod->mod_list.type() == typeid( std::list< ColVariable > ) ) {
-   //  TODO
-   } else {
-    throw ( std::invalid_argument( "Received unexpected type of Variable to be removed" ) );
-   }
-   break;
-  }
-
-  default:
-   throw ( std::invalid_argument( "Unknown type of BlockAD" ) );
+  return;
  }
+
+ auto rmvcon_mod = dynamic_cast<BlockModRmv<FRowConstraint>*>(mod);
+ if ( rmvcon_mod) {
+  for( auto i : rmvcon_mod->removed() ) {
+   remove_dynamic_constraint(&i);
+  }
+  return;
+ }
+
+ auto addvar_mod = dynamic_cast<BlockModAdd<ColVariable>*>(mod);
+ if (addvar_mod ) {
+  for( auto i : addvar_mod->added()) {
+   add_dynamic_variable(i);
+  }
+  return;
+ }
+
+ auto rmvvar_mod = dynamic_cast<BlockModRmv<ColVariable>*>(mod);
+ if (rmvvar_mod) {
+  for( auto i : rmvvar_mod->removed() ) {
+   remove_dynamic_variable(&i);
+  }
+  return;
+ }
+
+ throw ( std::invalid_argument( "Unknown type of BlockAD" ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -751,10 +712,10 @@ void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  int i = 0;
 
  // Get the coefficients to fill the matrix
- for( auto it = p_const->begin(); it != p_const->end(); ++it ) {
-  auto p_var = dynamic_cast<ColVariable *>(&*it);
+ for( int it = 0; it < nzcnt; ++it ) {
+  auto p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var(it));
   rmatind[ i ] = index_of_variable( p_var );
-  rmatval[ i ] = p_fun->get_coefficient( p_var );
+  rmatval[ i ] = p_fun->get_coefficient( it );
   active_constraints[ rmatind[ i ] ].push_back( p_const );
   ++i;
  }
@@ -831,9 +792,8 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
   if( p_fun == nullptr ) {
    throw ( std::invalid_argument( "The Constraint is not linear" ) );
   }
-
   cmatind[ i ] = index_of_constraint( p_const );
-  cmatval[ i ] = p_fun->get_coefficient( p_var );
+  cmatval[ i ] = p_fun->get_coefficient( i );
   ++i;
  }
 
