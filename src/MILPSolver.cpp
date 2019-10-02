@@ -153,9 +153,10 @@ void MILPSolver::set_Block( Block * block ) {
   return;
  }
  Solver::set_Block( block );
-
- clear_problem();
- load_problem();
+ if( block) {
+  clear_problem();
+  load_problem();
+ }
 }
 
 /*--------------------------------------------------------------------------*/
