@@ -1,4 +1,4 @@
-if (NOT SMS++_CONFIG_ALL)
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     # Trying to find them while configuring all at once
     # gave some errors (probably race conditions).
     find_package(SMILPBLock REQUIRED)

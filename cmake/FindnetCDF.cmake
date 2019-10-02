@@ -1,15 +1,9 @@
 # --------------------------------------------------------------------------- #
 #    CMake find module for NetCDF                                             #
 #                                                                             #
-#    This find module is provided for three reasons:                          #
-#    1) The user may not have the NetCDF CMake configuration installed in     #
-#       the system default directories.                                       #
-#    2) The original NetCDF CMake configuration does not provide              #
-#       a target to use with target_link_libraries(), which is desiderable    #
-#       in modern CMake.                                                      #
-#    3) The original NetCDF CMake configuration does not check for            #
-#       NetCDF-C++ library and headers.                                       #
-#    If available, it uses the installed CMake configuration.                 #
+#    This find module is provided because NetCDF and NetCDF-C++ support for   #
+#    both CMake and PkgConfig configuration files is inconsistent between     #
+#    original distribution, Homebrew formula and .deb packages.               #
 #                                                                             #
 #    Accepts the following HINTS:                                             #
 #                                                                             #
@@ -26,6 +20,7 @@
 #    - netCDFCxx_FOUND - Whether NetCDF-C++ was found or not                  #
 #    - netCDFCxx_INCLUDE_DIRS - Include directories for NetCDF-C++            #
 #    - netCDFCxx_LIBRARIES - Libraries necessary to use NetCDF-C++            #
+#    - netCDFCxx_VERSION - The version of NetCDF-C++ found                    #
 #                                                                             #
 #    - NetCDF::NetCDF - A target to use with target_link_libraries()          #
 #    - NetCDF::NetCDFCxx - A target to use with target_link_libraries()       #
@@ -35,23 +30,54 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-# TODO: Export netCDFCxx_VERSION
-# Try to find a CMake-built NetCDF ------------------------------------------ #
+
+# ----- NetCDF-C ------------------------------------------------------------ #
+
+# Try to find a CMake configuration file
 find_package(netCDF CONFIG QUIET)
 if (netCDF_FOUND)
-    # Forward the variables in a consistent way.
+    # Forward the variables in a consistent way
     set(netCDF_INCLUDE_DIRS "${netCDF_INCLUDE_DIR}")
     set(netCDF_VERSION "${NetCDFVersion}")
 
-    # The original CMake config file does not export the target
+    # The original CMake config file exports a target without a namespace
     if (NOT TARGET NetCDF::NetCDF)
         add_library(NetCDF::NetCDF INTERFACE IMPORTED)
-        set_target_properties(NetCDF::NetCDF PROPERTIES
-                              INTERFACE_LINK_LIBRARIES "${netCDF_LIBRARIES}")
+        set_target_properties(
+                NetCDF::NetCDF PROPERTIES
+                INTERFACE_LINK_LIBRARIES "${netCDF_LIBRARIES}")
     endif ()
+endif ()
 
-else ()
-    # Try to find a NetCDF "manually" --------------------------------------- #
+# Try to find a PkgConfig module
+if (NOT netCDF_FOUND)
+
+    find_package(PkgConfig QUIET)
+    if (PkgConfig_FOUND)
+        pkg_check_modules(_NetCDF QUIET netcdf IMPORTED_TARGET)
+        if (_NetCDF_FOUND)
+            # Forward the variables in a consistent way
+            set(netCDF_FOUND "${_NetCDF_FOUND}")
+            set(netCDF_INCLUDE_DIRS "${_NetCDF_INCLUDE_DIRS}")
+            set(netCDF_INCLUDE_DIR "${_NetCDF_INCLUDE_DIRS}")
+            set(netCDF_LIBRARIES "${_NetCDF_LIBRARIES}")
+            set(netCDF_VERSION "${_NetCDF_VERSION}")
+
+            # Export a target
+            if (NOT TARGET NetCDF::NetCDF)
+                add_library(NetCDF::NetCDF INTERFACE IMPORTED)
+                set_target_properties(
+                        NetCDF::NetCDF PROPERTIES
+                        INTERFACE_LINK_LIBRARIES "PkgConfig::_NetCDF")
+            endif ()
+        endif ()
+    endif ()
+endif ()
+
+
+# Try to find it manually
+if (NOT netCDF_FOUND)
+
     find_path(netCDF_INCLUDE_DIR
               NAMES netcdf.h
               HINTS ${NETCDF_INC}
@@ -100,34 +126,61 @@ else ()
     endif ()
 endif ()
 
-# NetCDF-C++ is not checked anyway ------------------------------------------ #
-find_path(netCDFCxx_INCLUDE_DIR
-          NAMES netcdf.h
-          HINTS ${NETCDF_INC}
-          DOC "NetCDF include directories")
-mark_as_advanced(netCDFCxx_INCLUDE_DIR)
+# ----- NetCDF-C++ ---------------------------------------------------------- #
 
-find_library(netCDFCxx_LIBRARY
-             NAMES netcdf-cxx4 netcdf_c++4
-             HINTS ${NETCDF_LIB}
-             DOC "NetCDF-C++ library")
-mark_as_advanced(netCDFCxx_LIBRARY)
+# Try to find a PkgConfig module
+find_package(PkgConfig QUIET)
+if (PkgConfig_FOUND)
+    pkg_check_modules(_NetCDFCxx QUIET netcdf-cxx4 IMPORTED_TARGET)
+    if (_NetCDFCxx_FOUND)
+        # Forward the variables in a consistent way
+        set(netCDFCxx_FOUND "${_NetCDFCxx_FOUND}")
+        set(netCDFCxx_INCLUDE_DIRS "${_NetCDFCxx_INCLUDE_DIRS}")
+        set(netCDFCxx_INCLUDE_DIR "${_NetCDFCxx_INCLUDE_DIRS}")
+        set(netCDFCxx_LIBRARIES "${_NetCDFCxx_LIBRARIES}")
+        set(netCDFCxx_VERSION "${_NetCDFCxx_VERSION}")
 
-include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(
-        netCDFCxx
-        REQUIRED_VARS netCDFCxx_LIBRARY netCDFCxx_INCLUDE_DIR
-        VERSION_VAR netCDF_VERSION)
+        # Export a target
+        if (NOT TARGET NetCDF::NetCDFCxx)
+            add_library(NetCDF::NetCDFCxx INTERFACE IMPORTED)
+            set_target_properties(
+                    NetCDF::NetCDFCxx PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "PkgConfig::_NetCDFCxx")
+        endif ()
+    endif ()
+endif ()
 
-if (netCDFCxx_FOUND)
-    set(netCDFCxx_INCLUDE_DIRS "${netCDFCxx_INCLUDE_DIR}")
-    set(netCDFCxx_LIBRARIES "${netCDFCxx_LIBRARY}")
+# Try to find it manually
+if (NOT netCDFCxx_FOUND)
 
-    if (NOT TARGET NetCDF::NetCDFCxx)
-        add_library(NetCDF::NetCDFCxx UNKNOWN IMPORTED)
-        set_target_properties(
-                NetCDF::NetCDFCxx PROPERTIES
-                IMPORTED_LOCATION "${netCDFCxx_LIBRARY}"
-                INTERFACE_INCLUDE_DIRECTORIES "${netCDFCxx_INCLUDE_DIR}")
+    find_path(netCDFCxx_INCLUDE_DIR
+              NAMES netcdf
+              HINTS ${NETCDF_INC}
+              DOC "NetCDF-C++ include directories")
+    mark_as_advanced(netCDFCxx_INCLUDE_DIR)
+
+    find_library(netCDFCxx_LIBRARY
+                 NAMES netcdf-cxx4 netcdf_c++4
+                 HINTS ${NETCDF_LIB}
+                 DOC "NetCDF-C++ library")
+    mark_as_advanced(netCDFCxx_LIBRARY)
+
+    include(FindPackageHandleStandardArgs)
+    find_package_handle_standard_args(
+            netCDFCxx
+            REQUIRED_VARS netCDFCxx_LIBRARY netCDFCxx_INCLUDE_DIR
+            VERSION_VAR netCDF_VERSION)
+
+    if (netCDFCxx_FOUND)
+        set(netCDFCxx_INCLUDE_DIRS "${netCDFCxx_INCLUDE_DIR}")
+        set(netCDFCxx_LIBRARIES "${netCDFCxx_LIBRARY}")
+
+        if (NOT TARGET NetCDF::NetCDFCxx)
+            add_library(NetCDF::NetCDFCxx UNKNOWN IMPORTED)
+            set_target_properties(
+                    NetCDF::NetCDFCxx PROPERTIES
+                    IMPORTED_LOCATION "${netCDFCxx_LIBRARY}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${netCDFCxx_INCLUDE_DIR}")
+        endif ()
     endif ()
 endif ()

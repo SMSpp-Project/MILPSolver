@@ -1,23 +1,14 @@
 # --------------------------------------------------------------------------- #
 #    Main CMake file for SMS++ MILPSolver                                     #
 #                                                                             #
-#    If Boost, Eigen3 and netCDF are installed properly,                      #
-#    and SMS++ core library is either installed or already built              #
-#    on this system using CMake, this should run just fine.                   #
-#    Otherwise, edit CMakeCustom.txt to set the proper paths.                 #
-#                                                                             #
 #                              Niccolo' Iardella                              #
 #                          Operations Research Group                          #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.8)
-# ----- Project definition and directories ---------------------------------- #
+cmake_minimum_required(VERSION 3.8...3.15)
 # TODO: set proper version
-project(MILPSolver VERSION 1.0.0)
-
-set(PROJECT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
-set(PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+project(MILPSolver VERSION 1.0.0 LANGUAGES CXX)
 
 # ----- Requirements -------------------------------------------------------- #
 # find_package() is used to find libraries and automatically configure them.
@@ -29,7 +20,7 @@ set(PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # If we are building this project alone we use its settings but we check
 # also for settings in its parent directory.
 # TODO: Check if this behaviour is correct
-if (NOT SMS++_CONFIG_ALL)
+if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     include(CMakeCustom.txt OPTIONAL)
     include(../CMakeCustom.txt OPTIONAL)
 endif ()
@@ -45,12 +36,12 @@ find_package(CPLEX)
 add_library(MILPSolver STATIC)
 target_compile_features(MILPSolver PUBLIC cxx_std_17)
 
-target_sources(MILPSolver PRIVATE
-               ${PROJECT_SOURCE_DIR}/MILPSolver.cpp)
+target_sources(MILPSolver PRIVATE src/MILPSolver.cpp)
 
-target_include_directories(MILPSolver PUBLIC
-                           $<INSTALL_INTERFACE:include/SMS++>
-                           $<BUILD_INTERFACE:${PROJECT_INCLUDE_DIR}>)
+target_include_directories(
+        MILPSolver PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include/SMS++>)
 
 target_link_libraries(MILPSolver PUBLIC
                       SMS++::SMSpp
@@ -58,7 +49,7 @@ target_link_libraries(MILPSolver PUBLIC
 
 if (CPLEX_FOUND)
     message(STATUS "CPLEX found: ${CPLEX_STUDIO_DIR}")
-    target_sources(MILPSolver PRIVATE ${PROJECT_SOURCE_DIR}/CPXMILPSolver.cpp)
+    target_sources(MILPSolver PRIVATE src/CPXMILPSolver.cpp)
     target_link_libraries(MILPSolver PUBLIC CPLEX::Cplex)
 endif ()
 
@@ -70,7 +61,6 @@ add_library(SMS++::MILPSolver ALIAS MILPSolver)
 # Not required for local builds (see below).
 
 include(GNUInstallDirs)
-set(INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/SMS++)
 
 # Install library
 install(TARGETS MILPSolver
@@ -86,7 +76,7 @@ install(DIRECTORY include/
 install(EXPORT MILPSolver-targets
         FILE MILPSolverTargets.cmake
         NAMESPACE SMS++::
-        DESTINATION ${INSTALL_CONFIGDIR})
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SMS++)
 
 # Generate package version file
 include(CMakePackageConfigHelpers)
@@ -99,44 +89,48 @@ write_basic_package_version_file(
 configure_package_config_file(
         ${CMAKE_CURRENT_LIST_DIR}/cmake/MILPSolverConfig.cmake.in
         ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfig.cmake
-        INSTALL_DESTINATION ${INSTALL_CONFIGDIR})
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SMS++)
 
 # Install package version and configuration files
-# TODO: Check if we should install also find modules
 install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfig.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfigVersion.cmake
-        # ${CMAKE_CURRENT_LIST_DIR}/cmake/FindCPLEX.cmake
-        # ${CMAKE_CURRENT_LIST_DIR}/cmake/FindnetCDF.cmake
-        DESTINATION ${INSTALL_CONFIGDIR})
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SMS++)
+
+# Shipping custom find modules should not be encouraged because third
+# party developers should provide them.
+# We ship FindCPLEX because CPLEX does not on its own.
+install(FILES
+        ${CMAKE_CURRENT_LIST_DIR}/cmake/FindCPLEX.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SMS++)
+
 
 # ----- Export from the build tree ------------------------------------------ #
 # This is needed so other projects can find the library in a local build.
 # It does not affect installation.
 
-export(EXPORT MILPSolver-targets
-       FILE ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverTargets.cmake
-       NAMESPACE SMS++::)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
 
-# Export also the find modules for the local config file to use it
-configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/FindCPLEX.cmake
-               ${CMAKE_CURRENT_BINARY_DIR}/FindCPLEX.cmake
-               COPYONLY)
+    export(EXPORT MILPSolver-targets
+           FILE ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverTargets.cmake
+           NAMESPACE SMS++::)
 
-configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/FindnetCDF.cmake
-               ${CMAKE_CURRENT_BINARY_DIR}/FindnetCDF.cmake
-               COPYONLY)
+    # Export also the find modules for the local config file to use it
+    configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/FindCPLEX.cmake
+                   ${CMAKE_CURRENT_BINARY_DIR}/FindCPLEX.cmake
+                   COPYONLY)
 
-# FIXME: I think that exporting this is a bad idea
-#configure_file(${CMAKE_CURRENT_LIST_DIR}/CMakeCustom.txt
-#               ${CMAKE_CURRENT_BINARY_DIR}/CMakeCustom.txt
-#               COPYONLY)
+    configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/FindnetCDF.cmake
+                   ${CMAKE_CURRENT_BINARY_DIR}/FindnetCDF.cmake
+                   COPYONLY)
 
-# Register package in user's package registry (~/.cmake/registry)
-export(PACKAGE MILPSolver)
+    # Register package in user's package registry (~/.cmake/registry)
+    export(PACKAGE MILPSolver)
+endif ()
 
-# ----- Subdirectories --------------------------------------------------------
+# ----- Subdirectories ------------------------------------------------------ #
 if (CPLEX_FOUND)
     # All tests use CPLEX
     add_subdirectory(test)
-endif()
+endif ()
