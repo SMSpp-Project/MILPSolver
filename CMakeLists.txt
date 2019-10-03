@@ -130,7 +130,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif ()
 
 # ----- Subdirectories ------------------------------------------------------ #
-if (CPLEX_FOUND)
+
+if (CPLEX_FOUND AND CMAKE_TESTING_ENABLED)
     # All tests use CPLEX
     add_subdirectory(test)
 endif ()
