@@ -30,6 +30,7 @@
 
 #include <gtest/gtest.h>
 #include <iomanip>
+#include <netcdf>
 
 #ifdef HAVE_CSCL2
 #include "CS2.h"
@@ -77,7 +78,6 @@ using namespace MCFClass_di_unipi_it;
 using namespace std;
 #endif
 using namespace SMSpp_di_unipi_it;
-
 /*--------------------------------------------------------------------------*/
 /*------------------------------- GLOBALS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -87,30 +87,31 @@ template<> const std::vector< int > MCFSolver< MCFC >::Solver_2_MCFClass_int;
 template<> const std::vector< int > MCFSolver< MCFC >::Solver_2_MCFClass_dbl;
 
 // Typedefs for a more readable parametrization
-typedef std::string TestFile;
-typedef long int Seed;
-typedef unsigned int MaxChanges;
-typedef unsigned int NumRepeats;
-typedef std::tuple< TestFile, Seed, NumRepeats, MaxChanges > TestParameter;
+struct TestParameters {
+ std::string test_file;
+ long int seed;
+ unsigned int max_changes;
+ unsigned int num_repeats;
+};
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- PARAMETRIZED FIXTURE ---------------------------*/
 /*--------------------------------------------------------------------------*/
 
 class MCFMILPSolversTest :
- public ::testing::TestWithParam< TestParameter > {
+ public ::testing::TestWithParam< TestParameters > {
  protected:
  MCFMILPSolversTest() {
-  seed = std::get< 1 >( GetParam() );
-  num_repeats = std::get< 2 >( GetParam() );
-  max_changes = std::get< 3 >( GetParam() );
+  seed = GetParam().seed;
+  num_repeats = GetParam().num_repeats;
+  max_changes = GetParam().max_changes;
  }
 
  ~MCFMILPSolversTest() override = default;
 
+ long int seed;
  unsigned int max_changes;
  unsigned int num_repeats;
- long int seed;
 
  MCFBlock * mcfb{};
  MCFClass::Index m{};
@@ -122,14 +123,11 @@ class MCFMILPSolversTest :
  MCFClass::FNumber u_min{};
  bool nz_deficits = false;
 
- int milp_status{};
- int mcf_status{};
-
  void SetUp() override {
   mcfb = dynamic_cast<MCFBlock *>( Block::new_Block( "MCFBlock" ));
   EXPECT_TRUE( mcfb != nullptr );
 
-  std::string filename( std::get< 0 >( GetParam() ) );
+  std::string filename( GetParam().test_file );
   load_nc4( filename );
 
   mcfb->generate_abstract_constraints();
@@ -152,6 +150,43 @@ class MCFMILPSolversTest :
   delete mcfb;
  }
 
+ void solve() {
+  Solver * milpsolver = mcfb->get_registered_solvers().front();
+  Solver * mcfsolver = mcfb->get_registered_solvers().back();
+
+  auto milp_status = milpsolver->compute( false );
+  auto mcf_status = mcfsolver->compute( false );
+  EXPECT_EQ( milp_status, mcf_status );
+
+  auto milp_ub = milpsolver->get_ub();
+  auto mcf_ub = mcfsolver->get_ub();
+
+  auto abs_error = 1e-9 * max( double( 1 ), abs( max( milp_ub, mcf_ub ) ) );
+  EXPECT_NEAR( milp_ub, mcf_ub, abs_error );
+ }
+
+ static inline double rndfctr() {
+  // return a random number between 0.5 and 2, with 50% prob. of being < 1
+  double fctr = drand48() - 0.5;
+  return ( fctr < 0 ? -fctr : fctr * 4 );
+ }
+
+ public:
+ // Prints the test name
+ struct PrintToStringParamName {
+  template< class ParamType >
+  std::string operator()( const testing::TestParamInfo< ParamType > & info ) const {
+   auto s = static_cast<TestParameters>(info.param).test_file;
+   // Test names must be non-empty, unique, and may only contain ASCII
+   // alphanumeric characters or underscore.
+   std::replace( s.begin(), s.end(), '/', '_');
+   std::replace( s.begin(), s.end(), '.', '_');
+   std::replace( s.begin(), s.end(), '-', '_');
+   return s;
+  }
+ };
+
+ private:
  void load_nc4( std::string & filename ) {
   netCDF::NcFile f( filename, netCDF::NcFile::read );
   ASSERT_FALSE( f.isNull() );
@@ -161,20 +196,12 @@ class MCFMILPSolversTest :
 
   int type;
   gtype.getValues( &type );
-  ASSERT_TRUE( type = eBlockFile );
+  ASSERT_EQ( type, eBlockFile );
 
   netCDF::NcGroup bg = f.getGroup( "Block_0" );
   ASSERT_FALSE( bg.isNull() );
 
   mcfb->deserialize( bg );
- }
-
- void solve() {
-  Solver * milpsolver = mcfb->get_registered_solvers().front();
-  Solver * mcfsolver = mcfb->get_registered_solvers().back();
-
-  milp_status = milpsolver->compute( false );
-  mcf_status = mcfsolver->compute( false );
  }
 
  void compute_costs_deficits() {
@@ -209,13 +236,6 @@ class MCFMILPSolversTest :
    }
   }
  }
-
- static inline double rndfctr() {
-  // return a random number between 0.5 and 2, with 50% probability of being
-  // < 1
-  double fctr = drand48() - 0.5;
-  return ( fctr < 0 ? -fctr : fctr * 4 );
- }
 };
 
 /*--------------------------------------------------------------------------*/
@@ -223,7 +243,6 @@ class MCFMILPSolversTest :
 /*--------------------------------------------------------------------------*/
 TEST_P ( MCFMILPSolversTest, SimpleSolve ) {
  solve();
- EXPECT_TRUE( milp_status == mcf_status );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -240,7 +259,6 @@ TEST_P ( MCFMILPSolversTest, ChangeOneCost_Abstract ) {
   lf->modify_coefficient( mcfb->i2p_x( arc ), nc.front() );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -254,7 +272,6 @@ TEST_P ( MCFMILPSolversTest, ChangeOneCost_Physical ) {
   mcfb->chg_cost( newcst, arc );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -293,7 +310,6 @@ TEST_P ( MCFMILPSolversTest, ChangeCosts_RangedAbstract ) {
   }
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -314,7 +330,6 @@ TEST_P ( MCFMILPSolversTest, ChangeCosts_RangedPhysical ) {
   mcfb->chg_costs( newcsts.begin(), Block::Range( strt, stp ) );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -354,7 +369,6 @@ TEST_P ( MCFMILPSolversTest, ChangeCosts_SparseAbstract ) {
   }
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -382,7 +396,6 @@ TEST_P ( MCFMILPSolversTest, ChangeCosts_SparsePhysical ) {
   mcfb->chg_costs( newcsts.begin(), std::move( nms ), true );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -397,7 +410,6 @@ TEST_P ( MCFMILPSolversTest, ChangeOneCapacity_Abstract ) {
   mcfb->i2p_ub( arc )->set_rhs( newcap );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -412,7 +424,6 @@ TEST_P ( MCFMILPSolversTest, ChangeOneCapacity_Physical ) {
   mcfb->chg_ucap( newcap, arc );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -433,7 +444,6 @@ TEST_P ( MCFMILPSolversTest, ChangeCapacities_RangedAbstract ) {
    mcfb->i2p_ub( i + strt )->set_rhs( newcaps[ i ] );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -453,7 +463,6 @@ TEST_P ( MCFMILPSolversTest, ChangeCapacities_RangedPhysical ) {
   mcfb->chg_ucaps( newcaps.begin(), Block::Range( strt, stp ) );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -481,7 +490,6 @@ TEST_P ( MCFMILPSolversTest, ChangeCapacities_SparseAbstract ) {
    mcfb->i2p_ub( nms[ i ] )->set_rhs( newcaps[ i ] );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -508,7 +516,6 @@ TEST_P ( MCFMILPSolversTest, ChangeCapacities_SparsePhysical ) {
   mcfb->chg_ucaps( newcaps.begin(), std::move( nms ), true );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -554,7 +561,6 @@ TEST_P ( MCFMILPSolversTest, ChangeDeficits_Abstract ) {
   mcfb->i2p_e( negn )->set_both( negd );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -600,7 +606,6 @@ TEST_P ( MCFMILPSolversTest, ChangeDeficits_Physical ) {
   mcfb->chg_dfct( negd, negn );
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -638,7 +643,6 @@ TEST_P ( MCFMILPSolversTest, CloseArcs_Abstract ) {
   }
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -671,7 +675,6 @@ TEST_P ( MCFMILPSolversTest, CloseArcs_Physical ) {
   }
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -704,7 +707,6 @@ TEST_P ( MCFMILPSolversTest, OpenArcs_Abstract ) {
   }
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -736,7 +738,6 @@ TEST_P ( MCFMILPSolversTest, OpenArcs_Physical ) {
   }
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -757,7 +758,7 @@ TEST_P ( MCFMILPSolversTest, DeleteArcs ) {
     if( drand48() <= 0.75 )
      continue;
 
-    mcfb->remove_arc( i );
+    ASSERT_NO_THROW(mcfb->remove_arc( i ));
     ++changed;
     if( changed >= max_changes )
      break;
@@ -771,14 +772,13 @@ TEST_P ( MCFMILPSolversTest, DeleteArcs ) {
     if( drand48() <= 0.13 )
      break;
 
-    mcfb->remove_arc( i );
+    ASSERT_NO_THROW(mcfb->remove_arc( i ));
     ++changed;
     if( changed >= max_changes )
      break;
    }
 
    solve();
-   EXPECT_TRUE( milp_status == mcf_status );
   }
  }
 }
@@ -818,7 +818,6 @@ TEST_P ( MCFMILPSolversTest, AddNewArcs ) {
   }
 
   solve();
-  EXPECT_TRUE( milp_status == mcf_status );
  }
 }
 
@@ -829,21 +828,22 @@ TEST_P ( MCFMILPSolversTest, AddNewArcs ) {
 INSTANTIATE_TEST_CASE_P( MCFMILPSolversTests,
                          MCFMILPSolversTest,
                          ::testing::Values(
-                          TestParameter( TestFile( "data/N3-0-0-0-0.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-0-0-0-1.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-0-0-0-5.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-0-0-1-0.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-0-0-5-0.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-0-1-0-0.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-0-5-0-0.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-1-0-0-0.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-1-1-0-0.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-1-1-1-1.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-5-0-0-0.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-5-5-0-0.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-5-5-1-1.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) ),
-                          TestParameter( TestFile( "data/N3-5-5-2-2.nc4" ), Seed( 0 ), NumRepeats( 10 ), MaxChanges( 10 ) )
-                         ) );
+                          TestParameters{ "data/N3-0-0-0-0.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-0-0-0-1.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-0-0-0-5.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-0-0-1-0.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-0-0-5-0.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-0-1-0-0.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-0-5-0-0.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-1-0-0-0.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-1-1-0-0.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-1-1-1-1.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-5-0-0-0.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-5-5-0-0.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-5-5-1-1.nc4", 0, 10, 10 },
+                          TestParameters{ "data/N3-5-5-2-2.nc4", 0, 10, 10 }
+                         ),
+                         MCFMILPSolversTest::PrintToStringParamName() );
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------------- MAIN ----------------------------------*/
