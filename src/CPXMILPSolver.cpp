@@ -1060,7 +1060,7 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const ThinComputeInterface::
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::set_var_value( ColVariable & lvar, double * tmpx, int & i ) {
-#if DEBUG_COUT
+#if MILPSLVR_DEBUG
  std::cout << "[DEBUG] ========= MILPSolver::set_var_value()" << std::endl;
  std::cout << "[DEBUG] i     = " << i << std::endl;
  std::cout << "[DEBUG] value = " << tmpx[i] << std::endl;
