@@ -131,7 +131,13 @@ void CPXMILPSolver::load_problem() {
  p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
  auto p_dquad_fun = dynamic_cast<const DQuadFunction *> (p_obj->get_function());
  if( p_dquad_fun != nullptr ) {
-  CPXcopyqpsep( env, milp, q_objective.data() );
+  // CPLEX evaluates the corresponding objective with a factor
+  // of 0.5 in front of the quadratic objective term.
+  std::vector<double> double_q_obj = q_objective;
+  for (auto i: double_q_obj) {
+   i *= 2;
+  }
+  CPXcopyqpsep( env, milp, double_q_obj.data() );
  }
  CPXcopyctype( env, milp, xctype.data() );
 }
