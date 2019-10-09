@@ -134,8 +134,8 @@ void CPXMILPSolver::load_problem() {
   // CPLEX evaluates the corresponding objective with a factor
   // of 0.5 in front of the quadratic objective term.
   std::vector<double> double_q_obj = q_objective;
-  for (auto i: double_q_obj) {
-   i *= 2;
+  for (auto & i: double_q_obj) {
+   i = i*2;
   }
   CPXcopyqpsep( env, milp, double_q_obj.data() );
  }
