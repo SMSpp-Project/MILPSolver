@@ -108,7 +108,7 @@ void CPXMILPSolver::load_problem() {
    lb[ i ] = -CPX_INFBOUND;
   }
   if( ub[ i ] == Inf< double >() ) {
-   lb[ i ] = CPX_INFBOUND;
+   ub[ i ] = CPX_INFBOUND;
   }
  }
 
