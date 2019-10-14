@@ -663,14 +663,20 @@ void MILPSolver::scan_static_variable( ColVariable & var, int & first, int & i )
   v_int_s_var.emplace_back( i, &var );
  }
 
- lb[ i ] = var.get_lb();
- ub[ i ] = var.get_ub();
+ if (var.is_fixed()) {
+  lb[ i ] = var.get_value();
+  ub[ i ] = var.get_value();
+ } else {
 
- int num_bounds = static_cast<int>(active_bounds[ i ].size());
- for( int j = 0; j < num_bounds; ++j ) {
-  auto bound = active_bounds[ i ][ j ];
-  lb[ i ] = lb[ i ] > bound->get_lhs() ? lb[ i ] : bound->get_lhs();
-  ub[ i ] = ub[ i ] < bound->get_rhs() ? ub[ i ] : bound->get_rhs();
+  lb[ i ] = var.get_lb();
+  ub[ i ] = var.get_ub();
+
+  int num_bounds = static_cast<int>(active_bounds[ i ].size());
+  for( int j = 0; j < num_bounds; ++j ) {
+   auto bound = active_bounds[ i ][ j ];
+   lb[ i ] = lb[ i ] > bound->get_lhs() ? lb[ i ] : bound->get_lhs();
+   ub[ i ] = ub[ i ] < bound->get_rhs() ? ub[ i ] : bound->get_rhs();
+  }
  }
 
  if( var.is_integer() ) {
@@ -737,14 +743,19 @@ void MILPSolver::scan_dynamic_variable( ColVariable & var, int & i ) {
  v_d_var_int.emplace_back( &var, i );
  v_int_d_var.emplace_back( i, &var );
 
- lb[ i ] = var.get_lb();
- ub[ i ] = var.get_ub();
+ if (var.is_fixed()) {
+  lb[ i ] = var.get_value();
+  ub[ i ] = var.get_value();
+ } else {
+  lb[ i ] = var.get_lb();
+  ub[ i ] = var.get_ub();
 
- int num_bounds = static_cast<int>(active_bounds[ i ].size());
- for( int j = 0; j < num_bounds; ++j ) {
-  auto bound = active_bounds[ i ][ j ];
-  lb[ i ] = lb[ i ] > bound->get_lhs() ? lb[ i ] : bound->get_lhs();
-  ub[ i ] = ub[ i ] < bound->get_rhs() ? ub[ i ] : bound->get_rhs();
+  int num_bounds = static_cast<int>(active_bounds[ i ].size());
+  for( int j = 0; j < num_bounds; ++j ) {
+   auto bound = active_bounds[ i ][ j ];
+   lb[ i ] = lb[ i ] > bound->get_lhs() ? lb[ i ] : bound->get_lhs();
+   ub[ i ] = ub[ i ] < bound->get_rhs() ? ub[ i ] : bound->get_rhs();
+  }
  }
 
  if( var.is_integer() ) {
