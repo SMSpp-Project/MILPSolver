@@ -57,9 +57,8 @@ int main(int argc, char** argv) {
  std::cout << "Function value =  " << obj_f->get_value() << std::endl;
 
  // Testing FunctionMod on Objective
- LinearFunction::v_coeff nc0 = {-8};
  auto lf0 = dynamic_cast<LinearFunction*>(obj_f);
- lf0->modify_coefficients(nc0.begin(), 0, 1);
+ lf0->modify_coefficient(0, -8);
  status = solver->compute();
 
  // Testing ObjectiveMod, maximize
@@ -78,8 +77,7 @@ int main(int argc, char** argv) {
  // Testing FunctionMod on FRowConstraint
  auto frow_f = (*constraints)[0].get_function();
  auto lf1 = dynamic_cast<LinearFunction*>(frow_f);
- LinearFunction::v_coeff nc1 = {60};
- lf1->modify_coefficients(nc1.begin(), 0, 1);
+ lf1->modify_coefficient(0, 60);
  status = solver->compute();
 
  // Testing VariableMod, fix

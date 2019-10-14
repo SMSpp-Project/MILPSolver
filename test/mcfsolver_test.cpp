@@ -449,7 +449,7 @@ int main( int argc, char ** argv ) {
      auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
      assert( lf );
      LinearFunction::v_coeff nc = { newcst };
-     lf->modify_coefficient( mcfb->i2p_x( arc ), nc.front() );
+     lf->modify_coefficient( arc, nc.front() );
     } else {
      mcfb->chg_cost( newcst, arc );
      cout << "(s)" << std::endl;
@@ -471,22 +471,8 @@ int main( int argc, char ** argv ) {
       auto obj = dynamic_cast<FRealObjective *>( mcfb->get_objective() );
       auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
       assert( lf );
-      if( mcfb->HasDynamicX() ) {
-       LinearFunction::v_coeff_pair chg( tochange );
-       for( MCFBlock::Index i = 0; i < tochange; ++i ) {
-        chg[ i ].first = mcfb->i2p_x( i + strt );
-        chg[ i ].second = newcsts[ i ];
-       }
-       // chg is ordered only if all arcs are static
-       lf->modify_coefficients( chg, stp <= mcfb->get_NStaticArcs() );
-      } else {
-       // note that all static Variable are consecutive, but not
-       // necessarily the first ones as dynamic Variable may come first
-       auto dlt = lf->is_active( mcfb->i2p_x( 0 ) );
-       strt += dlt;
-       stp += dlt;
-       lf->modify_coefficients( newcsts.begin(), strt, stp );
-      }
+      lf->modify_coefficients( std::move( newcsts ) ,
+                               Function::Range( strt , stp ) );
 
      } else {
       mcfb->chg_costs( newcsts.begin(), Block::Range( strt, stp ) );
@@ -512,17 +498,9 @@ int main( int argc, char ** argv ) {
       auto obj = dynamic_cast<FRealObjective *>( mcfb->get_objective() );
       auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
       assert( lf );
-      if( mcfb->HasDynamicX() ) {
-       LinearFunction::v_coeff_pair chg( tochange );
-       for( MCFBlock::Index i = 0; i < tochange; ++i ) {
-        chg[ i ].first = mcfb->i2p_x( nms[ i ] );
-        chg[ i ].second = newcsts[ i ];
-       }
-       // chg is ordered only if all arcs are static
-       lf->modify_coefficients( chg, nms.back() < mcfb->get_NStaticArcs() );
-      } else {
-       lf->modify_coefficients( newcsts.begin(), nms, true );
-      }
+      lf->modify_coefficients( std::move( newcsts ),
+                               std::move( nms ),
+                               true );
      } else {
       mcfb->chg_costs( newcsts.begin(), std::move( nms ), true );
       cout << "s(s)" << std::endl;

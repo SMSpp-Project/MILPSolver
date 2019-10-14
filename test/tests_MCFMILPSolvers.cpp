@@ -179,9 +179,9 @@ class MCFMILPSolversTest :
    auto s = static_cast<TestParameters>(info.param).test_file;
    // Test names must be non-empty, unique, and may only contain ASCII
    // alphanumeric characters or underscore.
-   std::replace( s.begin(), s.end(), '/', '_');
-   std::replace( s.begin(), s.end(), '.', '_');
-   std::replace( s.begin(), s.end(), '-', '_');
+   std::replace( s.begin(), s.end(), '/', '_' );
+   std::replace( s.begin(), s.end(), '.', '_' );
+   std::replace( s.begin(), s.end(), '-', '_' );
    return s;
   }
  };
@@ -256,7 +256,7 @@ TEST_P ( MCFMILPSolversTest, ChangeOneCost_Abstract ) {
   auto obj = dynamic_cast<FRealObjective *>( mcfb->get_objective() );
   auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
   LinearFunction::v_coeff nc = { newcst };
-  lf->modify_coefficient( mcfb->i2p_x( arc ), nc.front() );
+  lf->modify_coefficient( arc, nc.front() );
 
   solve();
  }
@@ -292,22 +292,7 @@ TEST_P ( MCFMILPSolversTest, ChangeCosts_RangedAbstract ) {
   auto obj = dynamic_cast<FRealObjective *>( mcfb->get_objective() );
   auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
 
-  if( mcfb->HasDynamicX() ) {
-   LinearFunction::v_coeff_pair chg( tochange );
-   for( MCFBlock::Index i = 0; i < tochange; ++i ) {
-    chg[ i ].first = mcfb->i2p_x( i + strt );
-    chg[ i ].second = newcsts[ i ];
-   }
-   // chg is ordered only if all arcs are static
-   lf->modify_coefficients( chg, stp <= mcfb->get_NStaticArcs() );
-  } else {
-   // note that all static Variable are consecutive, but not
-   // necessarily the first ones as dynamic Variable may come first
-   auto dlt = lf->is_active( mcfb->i2p_x( 0 ) );
-   strt += dlt;
-   stp += dlt;
-   lf->modify_coefficients( newcsts.begin(), strt, stp );
-  }
+  lf->modify_coefficients( std::move( newcsts ), Function::Range( strt, stp ) );
 
   solve();
  }
@@ -356,17 +341,10 @@ TEST_P ( MCFMILPSolversTest, ChangeCosts_SparseAbstract ) {
 
   auto obj = dynamic_cast<FRealObjective *>( mcfb->get_objective() );
   auto lf = dynamic_cast<LinearFunction *>( obj->get_function() );
-  if( mcfb->HasDynamicX() ) {
-   LinearFunction::v_coeff_pair chg( tochange );
-   for( MCFBlock::Index i = 0; i < tochange; ++i ) {
-    chg[ i ].first = mcfb->i2p_x( nms[ i ] );
-    chg[ i ].second = newcsts[ i ];
-   }
-   // chg is ordered only if all arcs are static
-   lf->modify_coefficients( chg, nms.back() < mcfb->get_NStaticArcs() );
-  } else {
-   lf->modify_coefficients( newcsts.begin(), nms, true );
-  }
+
+  lf->modify_coefficients( std::move( newcsts ),
+                           std::move( nms ),
+                           true );
 
   solve();
  }
@@ -758,7 +736,7 @@ TEST_P ( MCFMILPSolversTest, DeleteArcs ) {
     if( drand48() <= 0.75 )
      continue;
 
-    ASSERT_NO_THROW(mcfb->remove_arc( i ));
+    ASSERT_NO_THROW( mcfb->remove_arc( i ) );
     ++changed;
     if( changed >= max_changes )
      break;
@@ -772,7 +750,7 @@ TEST_P ( MCFMILPSolversTest, DeleteArcs ) {
     if( drand48() <= 0.13 )
      break;
 
-    ASSERT_NO_THROW(mcfb->remove_arc( i ));
+    ASSERT_NO_THROW( mcfb->remove_arc( i ) );
     ++changed;
     if( changed >= max_changes )
      break;
