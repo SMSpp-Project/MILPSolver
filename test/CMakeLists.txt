@@ -13,20 +13,16 @@ if(NOT googletest_POPULATED)
 endif ()
 
 # ----- Requirements -------------------------------------------------------- #
-if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    # Trying to find SMILPBLock while configuring all at once
-    # gave some errors (probably race conditions).
-    find_package(SMILPBLock REQUIRED)
-    find_package(MCFBlock REQUIRED)
-    find_package(netCDF REQUIRED)
-endif ()
+find_package(SMILPBlock REQUIRED)
+find_package(MCFBlock REQUIRED)
+find_package(netCDF REQUIRED)
 
 # ----- CPXMILPSolver_test -------------------------------------------------- #
 add_executable(CPXMILPSolver_test tests_CPXMILPSolver.cpp)
 
 target_link_libraries(CPXMILPSolver_test PRIVATE
                       SMS++::MILPSolver
-                      SMS++::SMILPBLock
+                      SMS++::SMILPBlock
                       gtest)
 
 add_test(
@@ -56,7 +52,7 @@ add_executable(MILPSolver_test milpsolver_test.cpp)
 
 target_link_libraries(MILPSolver_test PRIVATE
                       SMS++::MILPSolver
-                      SMS++::SMILPBLock)
+                      SMS++::SMILPBlock)
 
 add_executable(MCFSolver_test mcfsolver_test.cpp)
 
