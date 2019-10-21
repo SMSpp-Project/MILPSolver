@@ -63,4 +63,4 @@ add_compile_options(
 # MCF Solver (HAVE_RELAX, HAVE_CPLEX, HAVE_MFSMX)
 #add_definitions(-DHAVE_RELAX)
 add_compile_definitions(HAVE_RELAX)
-add_compile_definitions(MILPSLVR_DEBUG)
+#add_compile_definitions(MILPSLVR_DEBUG)
