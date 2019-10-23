@@ -30,7 +30,7 @@ find_package(SMSpp REQUIRED)
 find_package(CPLEX)
 
 # ----- Library ------------------------------------------------------------- #
-add_library(MILPSolver STATIC)
+add_library(MILPSolver)
 target_compile_features(MILPSolver PUBLIC cxx_std_17)
 
 target_sources(MILPSolver PRIVATE src/MILPSolver.cpp)
