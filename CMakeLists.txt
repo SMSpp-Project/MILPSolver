@@ -10,6 +10,8 @@ cmake_minimum_required(VERSION 3.8...3.15)
 # TODO: set proper version
 project(MILPSolver VERSION 1.0.0 LANGUAGES CXX)
 
+# TODO: Everything related to deeper deps was disabled to check if it works
+
 # ----- Requirements -------------------------------------------------------- #
 # find_package() is used to find libraries and automatically configure them.
 # It requires either a package configuration module (***Config.cmake) or a
@@ -24,7 +26,8 @@ endif ()
 # This is to use the find modules we provide
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-find_package(Boost 1.71.0 REQUIRED)
+# TODO Here
+#find_package(Boost 1.71.0 REQUIRED)
 find_package(SMSpp REQUIRED)
 find_package(CPLEX)
 
@@ -41,7 +44,8 @@ target_include_directories(
 
 target_link_libraries(MILPSolver PUBLIC
                       SMS++::SMSpp
-                      Boost::boost)
+#                      Boost::boost # TODO Here
+                      )
 
 if (CPLEX_FOUND)
     message(STATUS "CPLEX found: ${CPLEX_STUDIO_DIR}")
@@ -117,17 +121,16 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
                    ${CMAKE_CURRENT_BINARY_DIR}/FindCPLEX.cmake
                    COPYONLY)
 
-    configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/FindnetCDF.cmake
-                   ${CMAKE_CURRENT_BINARY_DIR}/FindnetCDF.cmake
-                   COPYONLY)
+    # TODO Here
+#    configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/FindnetCDF.cmake
+#                   ${CMAKE_CURRENT_BINARY_DIR}/FindnetCDF.cmake
+#                   COPYONLY)
 
     # Register package in user's package registry (~/.cmake/registry)
     export(PACKAGE MILPSolver)
 endif ()
 
 # ----- Subdirectories ------------------------------------------------------ #
-
-if (CPLEX_FOUND AND CMAKE_TESTING_ENABLED)
-    # All tests use CPLEX
-    add_subdirectory(test)
-endif ()
+#if (CPLEX_FOUND AND CMAKE_TESTING_ENABLED)
+#    add_subdirectory(test)
+#endif ()
