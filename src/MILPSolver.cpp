@@ -154,6 +154,11 @@ void MILPSolver::set_Block( Block * block ) {
  }
  Solver::set_Block( block );
  if( block) {
+
+  block->generate_abstract_variables( nullptr );
+  block->generate_abstract_constraints( nullptr );
+  block->generate_objective( nullptr );
+
   clear_problem();
   load_problem();
  }
