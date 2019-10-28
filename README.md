@@ -1,33 +1,32 @@
 # MILPSolver
-> A MILP Solver for SMS++ using IBM® ILOG® CPLEX® Optimization Studio
 
-## Requirements
+A MILP Solver for SMS++ using IBM® ILOG® CPLEX® Optimization Studio
 
-The project requires the [core SMS++](https://gitlab.com/frangio68/sms_plus_plus).
+## Getting started
 
-It has the same requirements of the core SMS++ project (Boost, Eigen3 and netCDF)
-and also IBM® ILOG® CPLEX® Optimization Studio.
+These instructions will let you build MILPSolver on your system.
 
-## Build and install
+### Requirements
 
-- Clone the project from the repository and navigate inside its main directory.
+- SMS++ core library
+- IBM® ILOG® CPLEX® Optimization Studio.
 
-- If you installed the requirements you should be fine. Configure the project with:
+### Build and install
+
+Configure and build the library with:
 ```sh
 mkdir build
 cd build
 cmake ..
-```
-
-- You can now build the library:
-```sh
 make
 ```
 
-- Optionally, you can install the library with:
+Optionally, install the library in the system with:
 ```sh
 sudo make install
 ```
+
+## Usage
 
 - After the library is configured and built, you can use it in your CMake project with:
 ```cmake
@@ -35,10 +34,34 @@ find_package(MILPSolver)
 target_link_libraries(<my_target> SMS++::MILPSolver)
 ```
 
-### Run Google Tests
+## Contributing
 
-Some simple Google Tests will be built with the library.
-You can run them with the following command from the `build` directory:
-```sh
-ctest
-```
+This section is not ready yet.
+
+## Authors
+
+### Current Lead Authors
+
+- **Antonio Frangioni**  
+  *Operations Research Group*  
+  Dipartimento di Informatica  
+  Università di Pisa
+
+- **Niccolò Iardella**  
+  *Operations Research Group*  
+  Dipartimento di Informatica  
+  Università di Pisa
+
+## License
+
+This section is not ready yet. See SMS++ library for details.
+
+## Disclaimer
+
+The code is currently provided free of charge for academic purposes only.
+As such, it is provided "*as is*", without any explicit or implicit warranty
+that it will properly behave or it will suit your needs. The Authors of
+the code cannot be considered liable, either directly or indirectly, for
+any damage or loss that anybody could suffer for having used it. More
+details about the non-warranty attached to this code are available in the
+license description file.
