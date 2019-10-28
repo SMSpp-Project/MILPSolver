@@ -1,6 +1,6 @@
 # MILPSolver
 
-A MILP Solver for SMS++ using IBM® ILOG® CPLEX® Optimization Studio
+A MILP Solver for SMS++ using IBM® ILOG® CPLEX® Optimization Studio.
 
 ## Getting started
 
@@ -8,8 +8,8 @@ These instructions will let you build MILPSolver on your system.
 
 ### Requirements
 
-- SMS++ core library
-- IBM® ILOG® CPLEX® Optimization Studio.
+- [SMS++ core library](https://gitlab.com/smspp/smspp)
+- IBM® ILOG® CPLEX® Optimization Studio
 
 ### Build and install
 
@@ -28,7 +28,7 @@ sudo make install
 
 ## Usage
 
-- After the library is configured and built, you can use it in your CMake project with:
+After the module is configured and built, you can use it in your CMake project with:
 ```cmake
 find_package(MILPSolver)
 target_link_libraries(<my_target> SMS++::MILPSolver)
