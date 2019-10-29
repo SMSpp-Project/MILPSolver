@@ -76,7 +76,7 @@ install(DIRECTORY include/
 install(EXPORT MILPSolver-targets
         FILE MILPSolverTargets.cmake
         NAMESPACE SMS++::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SMS++)
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MILPSolver)
 
 # Generate package version file
 include(CMakePackageConfigHelpers)
@@ -89,20 +89,20 @@ write_basic_package_version_file(
 configure_package_config_file(
         ${CMAKE_CURRENT_LIST_DIR}/cmake/MILPSolverConfig.cmake.in
         ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfig.cmake
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SMS++)
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MILPSolver)
 
 # Install package version and configuration files
 install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfig.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfigVersion.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SMS++)
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MILPSolver)
 
 # Shipping custom find modules should not be encouraged because third
 # party developers should provide them.
 # We ship FindCPLEX because CPLEX does not on its own.
 install(FILES
         ${CMAKE_CURRENT_LIST_DIR}/cmake/FindCPLEX.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SMS++)
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MILPSolver)
 
 
 # ----- Export from the build tree ------------------------------------------ #
