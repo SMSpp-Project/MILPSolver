@@ -23,7 +23,6 @@ list(APPEND CMAKE_MODULE_PATH ${MILPSolver_CMAKE_DIR})
 
 find_dependency(CPLEX)
 find_dependency(SMSpp REQUIRED)
-find_dependency(Boost REQUIRED)
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)
 
