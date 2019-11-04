@@ -395,7 +395,7 @@ void CPXMILPSolver::of_modification( ObjectiveMod * mod ) {
   * To change OF coefficents, a FunctionMod must be used.
   */
 
- switch( mod->f_type ) {
+ switch( mod->type() ) {
 
   case ObjectiveMod::eSetMin:
    CPXchgobjsen( env, milp, 1 );
