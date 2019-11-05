@@ -112,20 +112,22 @@ void CPXMILPSolver::load_problem() {
   }
  }
 
- CPXcopylp( env, milp,
-            numcols,
-            numrows,
-            objsense,
-            objective.data(),
-            rhs.data(),
-            sense.data(),
-            matbeg.data(),
-            matcnt.data(),
-            matind.data(),
-            matval.data(),
-            lb.data(),
-            ub.data(),
-            rngval.data() );
+ CPXcopylpwnames( env, milp,
+                  numcols,
+                  numrows,
+                  objsense,
+                  objective.data(),
+                  rhs.data(),
+                  sense.data(),
+                  matbeg.data(),
+                  matcnt.data(),
+                  matind.data(),
+                  matval.data(),
+                  lb.data(),
+                  ub.data(),
+                  rngval.data(),
+                  colname.data(),
+                  rowname.data() );
 
  const FRealObjective * p_obj;
  p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );

@@ -398,6 +398,18 @@ class MILPSolver : public CDASolver {
   */
  std::vector< char > xctype;
 
+ /**
+  * An array of length at least numcols containing pointers to character
+  * strings containing the names of the constraints.
+  */
+ std::vector< char* > colname;
+
+ /**
+  * An array of length at least numrows containing pointers to character
+  * strings containing the names of the variables.
+  */
+ std::vector< char* > rowname;
+
  int sol_status{};      ///< Solution status (OK, Infeasible, Unbounded, ...)
  int nodes{};           ///< Number of nodes used to solve the problem
  /// @}

@@ -185,6 +185,13 @@ void MILPSolver::clear_problem() {
  ub.clear();
  xctype.clear();
 
+ for( auto i: colname )
+  delete i;
+ for( auto i: rowname )
+  delete i;
+ colname.clear();
+ rowname.clear();
+
  v_s_var_int.clear();
  v_int_s_var.clear();
  v_s_const_int.clear();
@@ -304,6 +311,8 @@ void MILPSolver::load_problem() {
  lb.resize( numcols );
  ub.resize( numcols );
  xctype.resize( numcols );
+ colname.resize( numcols );
+ rowname.resize( numrows );
 
  // Second loop to scan the constraints
  Q.push( f_Block );
