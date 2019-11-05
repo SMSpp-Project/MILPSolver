@@ -12,7 +12,7 @@ project(MILPSolver VERSION 1.0.0 LANGUAGES CXX)
 
 # ----- Settings ------------------------------------------------------------ #
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    enable_testing()
+    add_compile_definitions(MILPSLVR_DEBUG)
 endif ()
 
 # ----- Requirements -------------------------------------------------------- #
@@ -97,8 +97,7 @@ install(FILES
 # This is needed so other projects can find the library in a local build.
 # It does not affect installation.
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
+if (CMAKE_EXPORT_PACKAGE_REGISTRY)
 
     export(EXPORT MILPSolver-targets
            FILE ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverTargets.cmake
@@ -112,8 +111,3 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     # Register package in user's package registry (~/.cmake/registry)
     export(PACKAGE MILPSolver)
 endif ()
-
-# ----- Subdirectories ------------------------------------------------------ #
-#if (CPLEX_FOUND AND CMAKE_TESTING_ENABLED)
-#    add_subdirectory(test)
-#endif ()

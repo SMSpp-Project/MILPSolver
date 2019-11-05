@@ -11,9 +11,7 @@ cmake_minimum_required(VERSION 3.11...3.15)
 project(MILPSolver_test_sys VERSION 1.0.0 LANGUAGES CXX)
 
 # ----- Settings ------------------------------------------------------------ #
-enable_testing()
-set(CMAKE_BUILD_TYPE "Debug")
-add_compile_options( "$<$<CONFIG:DEBUG>:-fno-inline>")
+include(CTest)
 add_compile_definitions(HAVE_RELAX)
 
 # ----- Requirements -------------------------------------------------------- #
