@@ -37,6 +37,19 @@
 #ifndef __MILPSolver
 #define __MILPSolver
 
+// TODO: Remove this and all the printouts when done
+#ifdef MILPSLVR_DEBUG
+#include <iomanip>
+#define LOG( stuff ) std::cout << stuff
+#define LOG_VEC( stuff ) std::cout << "[";      \
+                       for (auto i : stuff)    \
+                        std::cout << " " << i; \
+                       std::cout << "]\n"
+#else
+#define LOG(stuff)
+#define LOG_VEC(stuff)
+#endif
+
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
