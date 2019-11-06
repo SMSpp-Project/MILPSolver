@@ -223,6 +223,7 @@ void MILPSolver::load_problem() {
  // First loop on the queue to count variables and constraints
  Q.push( f_Block );
 
+ int cnt = 0;
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
@@ -268,7 +269,6 @@ void MILPSolver::load_problem() {
   }
 
   LOG( "[DEBUG] ========= MILPSolver::set_Block() nonzero elements\n" );
-  int cnt = 0;
   for( const auto & i : q_Block->get_static_variables() ) {
    auto f1 = std::bind( &MILPSolver::count_nzelements,
                         this,
@@ -397,9 +397,7 @@ void MILPSolver::load_problem() {
  std::sort( v_d_var_int.begin(), v_d_var_int.end() );
  std::sort( v_int_d_var.begin(), v_int_d_var.end() );
 
- const FRealObjective * p_obj;
- p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- switch( p_obj->get_sense() ) {
+ switch( f_Block->get_objective_sense() ) {
   case ( Objective::eMax ):
    objsense = -1;
    break;
@@ -421,8 +419,10 @@ void MILPSolver::load_problem() {
    Q.push( i );
   }
 
-  p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
-  scan_objective( p_obj );
+  auto p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  if(p_obj ) {
+   scan_objective( p_obj );
+  }
  } // End of while loop on Block queue
 
  LOG( "[DEBUG] ========= MILPSolver::set_Block() after objective scan\n" );

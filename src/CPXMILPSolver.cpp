@@ -128,10 +128,7 @@ void CPXMILPSolver::load_problem() {
                   colname.data(),
                   rowname.data() );
 
- const FRealObjective * p_obj;
- p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- auto p_dquad_fun = dynamic_cast<const DQuadFunction *> (p_obj->get_function());
- if( p_dquad_fun != nullptr ) {
+ if( !q_objective.empty() ) {
   // CPLEX evaluates the corresponding objective with a factor
   // of 0.5 in front of the quadratic objective term.
   std::vector<double> double_q_obj = q_objective;
@@ -328,7 +325,9 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  // After the Objective is computed (evaluated), the solution can be retrieved
  // directly from there.
  auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- p_obj->compute();
+ if(p_obj ) {
+  p_obj->compute();
+ }
 
  delete[]tmpx;
 }
