@@ -194,6 +194,10 @@ class MILPSolver : public CDASolver {
 
  const std::vector< char > & get_xctype() const;
 
+ const std::vector< char * > & get_rowname() const;
+
+ const std::vector< char * > & get_colname() const;
+
  int get_nodes() const;
  /// @}
 

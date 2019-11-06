@@ -127,6 +127,14 @@ const std::vector< char > & MILPSolver::get_xctype() const {
  return xctype;
 }
 
+const std::vector< char* > & MILPSolver::get_rowname() const {
+ return rowname;
+}
+
+const std::vector< char* > & MILPSolver::get_colname() const {
+ return colname;
+}
+
 int MILPSolver::get_nodes() const {
  return nodes;
 }
