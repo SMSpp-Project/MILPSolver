@@ -147,7 +147,7 @@ int CPXMILPSolver::compute( bool changedvars ) {
  process_modifications();
 
  if( !output_file.empty() ) {
-  CPXwriteprob( env, milp, output_file.c_str(), nullptr );
+  CPXwriteprob( env, milp, output_file.c_str(), "LP" );
  }
 
  CPXmipopt( env, milp );
@@ -957,10 +957,10 @@ void CPXMILPSolver::set_par( ThinComputeInterface::idx_type par, const double va
    CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, value );
    break;
   case dblRAccSol:
-   CPXsetdblparam( env, CPXPARAM_MIP_Pool_RelGap, value );
+   CPXsetdblparam( env, CPX_PARAM_EPGAP, value );
    break;
   case dblAAccSol:
-   CPXsetdblparam( env, CPXPARAM_MIP_Pool_AbsGap, value );
+   CPXsetdblparam( env, CPX_PARAM_EPAGAP, value );
    break;
   case dblFAccSol:
    CPXsetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, value );
