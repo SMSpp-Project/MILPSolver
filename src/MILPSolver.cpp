@@ -314,7 +314,9 @@ void MILPSolver::load_problem() {
  // Second loop to scan the constraints
  Q.push( f_Block );
 
- int col = 0;
+ int row = 0;
+ int set = 0;
+ int num_block = 0;
 
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
@@ -332,25 +334,53 @@ void MILPSolver::load_problem() {
    * and rows of the CPLEX coeff matrix where the static part is
    * being followed by the dynamic one
    */
-
+  set = 0;
   for( const auto & i : q_Block->get_static_constraints() ) {
+   auto base = q_Block->get_s_const_name()[ set ];
+   LOG( "[DEBUG] ========= MILPSolver::get_s_const_name()["<< set << "]: " << base << std::endl );
+
    // Variable used to locate the first element of each type of constraint
    int first = 0;
+   int start = row;
+
    auto f1 = std::bind( &MILPSolver::scan_static_constraint,
                         this,
                         std::placeholders::_1,
                         std::ref( first ),
-                        std::ref( col ) );
+                        std::ref( row ) );
    un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
+
+   // Write names
+   int end = row - start;
+   for( int n = 0; n < end; ++n ) {
+    auto name = base + "_" + std::to_string( n ) + "_" + std::to_string( num_block );
+    rowname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
+   }
+   set++;
   }
 
+  set = 0;
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
+   auto base = q_Block->get_d_const_name()[ set ];
+   LOG( "[DEBUG] ========= MILPSolver::get_d_const_name()["<< set << "]: " << base << std::endl );
+   int start = row;
+   
    auto f1 = std::bind( &MILPSolver::scan_dynamic_constraint,
                         this,
                         std::placeholders::_1,
-                        std::ref( col ) );
+                        std::ref( row ) );
    un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
+
+   // Write names
+   int end = row - start;
+   for( int n = 0; n < end; ++n ) {
+    auto name = base + "_" + std::to_string( n ) + "_" + std::to_string( num_block );
+    rowname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
+   }
+   set++;
   }
+
+  num_block++;
  } // End of while loop on Block queue
 
  std::sort( v_s_const_int.begin(), v_s_const_int.end() );
@@ -362,7 +392,9 @@ void MILPSolver::load_problem() {
  // Third loop to scan the variables
  Q.push( f_Block );
 
- int var = 0;
+ int col = 0;
+ num_block = 0;
+
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
@@ -371,23 +403,55 @@ void MILPSolver::load_problem() {
    Q.push( i );
   }
 
+  set = 0;
   for( const auto & i : q_Block->get_static_variables() ) {
+   auto base = q_Block->get_s_var_name()[ set ];
+   LOG( "[DEBUG] ========= MILPSolver::get_s_var_name()["<< set << "]: " << base << std::endl );
    int first = 0;
+   int start = col;
+
    auto f1 = std::bind( &MILPSolver::scan_static_variable,
                         this,
                         std::placeholders::_1,
                         std::ref( first ),
-                        std::ref( var ) );
+                        std::ref( col ) );
    un_any_const_static( i, f1, un_any_type< ColVariable >() );
+
+   // Write names
+   int end = col - start;
+   LOG( "[DEBUG] ========= end: " << end << std::endl );
+   for( int n = 0; n < end; ++n ) {
+    // auto name = base + std::to_string( n );
+    // colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
+    auto name = base + "_" + std::to_string( num_block );
+    colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
+   }
+   set++;
   }
 
+  set = 0;
   for( const auto & i : q_Block->get_dynamic_variables() ) {
+   auto base = q_Block->get_d_var_name()[ set ];
+   LOG( "[DEBUG] ========= MILPSolver::get_d_var_name()["<< set << "]: " << base << std::endl );
+   int start = col;
+
    auto f1 = std::bind( &MILPSolver::scan_dynamic_variable,
                         this,
                         std::placeholders::_1,
-                        std::ref( var ) );
+                        std::ref( col ) );
    un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
+
+   // Write names
+   int end = col - start;
+   for( int n = 0; n < end; ++n ) {
+    // auto name = base + std::to_string( n );
+    // colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
+    auto name = base + "_" + std::to_string( num_block );
+    colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
+   }
+   set++;
   }
+  num_block++;
  } // End of while loop on Block queue
 
  std::sort( v_s_var_int.begin(), v_s_var_int.end() );
