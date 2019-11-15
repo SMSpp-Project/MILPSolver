@@ -26,7 +26,7 @@ DIR = ./
 
 # here is where the specific MCFClass to be tested is decided
 # debug switches
-SW = -DHAVE_MFSMX -g -std=c++14 -ferror-limit=1
+SW = -DHAVE_MFSMX -g -std=c++17 -ferror-limit=1
 # production switches
 #SW = -DHAVE_MFSMX -O3 -std=c++11 -DNDEBUG
 
