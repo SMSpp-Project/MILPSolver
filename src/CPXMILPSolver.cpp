@@ -33,7 +33,6 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include <cstdlib>
 #include <functional>
 #include <queue>
 
@@ -129,10 +128,7 @@ void CPXMILPSolver::load_problem() {
                   colname.data(),
                   rowname.data() );
 
- const FRealObjective * p_obj;
- p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- auto p_dquad_fun = dynamic_cast<const DQuadFunction *> (p_obj->get_function());
- if( p_dquad_fun != nullptr ) {
+ if( !q_objective.empty() ) {
   // CPLEX evaluates the corresponding objective with a factor
   // of 0.5 in front of the quadratic objective term.
   std::vector<double> double_q_obj = q_objective;
@@ -151,7 +147,7 @@ int CPXMILPSolver::compute( bool changedvars ) {
  process_modifications();
 
  if( !output_file.empty() ) {
-  CPXwriteprob( env, milp, output_file.c_str(), nullptr );
+  CPXwriteprob( env, milp, output_file.c_str(), "LP" );
  }
 
  CPXmipopt( env, milp );
@@ -329,7 +325,9 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  // After the Objective is computed (evaluated), the solution can be retrieved
  // directly from there.
  auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- p_obj->compute();
+ if(p_obj ) {
+  p_obj->compute();
+ }
 
  delete[]tmpx;
 }
@@ -959,10 +957,10 @@ void CPXMILPSolver::set_par( ThinComputeInterface::idx_type par, const double va
    CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, value );
    break;
   case dblRAccSol:
-   CPXsetdblparam( env, CPXPARAM_MIP_Pool_RelGap, value );
+   CPXsetdblparam( env, CPX_PARAM_EPGAP, value );
    break;
   case dblAAccSol:
-   CPXsetdblparam( env, CPXPARAM_MIP_Pool_AbsGap, value );
+   CPXsetdblparam( env, CPX_PARAM_EPAGAP, value );
    break;
   case dblFAccSol:
    CPXsetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, value );
@@ -1029,9 +1027,9 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const ThinComputeInterface::
 
 void CPXMILPSolver::set_var_value( ColVariable & lvar, double * tmpx, int & i ) {
 #if MILPSLVR_DEBUG
- std::cout << "[DEBUG] ========= MILPSolver::set_var_value()" << std::endl;
- std::cout << "[DEBUG] i     = " << i << std::endl;
- std::cout << "[DEBUG] value = " << tmpx[i] << std::endl;
+ LOG("[DEBUG] ========= MILPSolver::set_var_value():"
+     << " index = " << std::setw(4) << i
+     << ", value = " << tmpx[i] << std::endl);
 #endif
  lvar.set_value( tmpx[ i ] );
  i++;
