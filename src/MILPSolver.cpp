@@ -337,7 +337,6 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_static_constraints() ) {
    auto base = q_Block->get_s_const_name()[ set ];
-   LOG( "[DEBUG] ========= MILPSolver::get_s_const_name()["<< set << "]: " << base << std::endl );
 
    // Variable used to locate the first element of each type of constraint
    int first = 0;
@@ -362,7 +361,6 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
    auto base = q_Block->get_d_const_name()[ set ];
-   LOG( "[DEBUG] ========= MILPSolver::get_d_const_name()["<< set << "]: " << base << std::endl );
    int start = row;
    
    auto f1 = std::bind( &MILPSolver::scan_dynamic_constraint,
@@ -406,7 +404,6 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_static_variables() ) {
    auto base = q_Block->get_s_var_name()[ set ];
-   LOG( "[DEBUG] ========= MILPSolver::get_s_var_name()["<< set << "]: " << base << std::endl );
    int first = 0;
    int start = col;
 
@@ -419,7 +416,6 @@ void MILPSolver::load_problem() {
 
    // Write names
    int end = col - start;
-   LOG( "[DEBUG] ========= end: " << end << std::endl );
    for( int n = 0; n < end; ++n ) {
     // auto name = base + std::to_string( n );
     // colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
@@ -432,7 +428,6 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_dynamic_variables() ) {
    auto base = q_Block->get_d_var_name()[ set ];
-   LOG( "[DEBUG] ========= MILPSolver::get_d_var_name()["<< set << "]: " << base << std::endl );
    int start = col;
 
    auto f1 = std::bind( &MILPSolver::scan_dynamic_variable,

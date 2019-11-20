@@ -144,7 +144,7 @@ class CPXMILPSolver : public MILPSolver {
 
  void get_var_solution( Configuration * solc ) override;
 
- void get_dual_solution( Configuration * solc ) override {}
+ void get_dual_solution( Configuration * solc ) override;
 
  void set_par( idx_type par, int value ) override;
 
@@ -247,15 +247,29 @@ class CPXMILPSolver : public MILPSolver {
  private:
 
  /**
-  * It sets the value of a Colvariable taking it from tmpx[i], then increments i.
+  * It sets the value of a Colvariable taking it from x[i], then increments i.
   * This method is meant to be used inside get_var_solution(), in conjunction
   * with un_any_const_static() or un_any_const_dynamic().
   *
   * @param lvar The ColVariable to set
-  * @param tmpx The array containing the values
+  * @param x The array containing the values
   * @param i The position in the array
   */
- void set_var_value( ColVariable & lvar, double * tmpx, int & i );
+ void set_var_value( ColVariable & lvar, double * x, int & i );
+
+ /**
+  * It sets the dual value of a FRowConstraint taking it from pi[i],
+  * then increments i.
+  * This method is meant to be used inside get_dual_solution(), in conjunction
+  * with un_any_const_static() or un_any_const_dynamic().
+  *
+  * @param lconst The FRowConstraint to set
+  * @param pi The array containing the values
+  * @param i The position in the array
+  */
+ void set_dual_value( FRowConstraint & lconst, double * pi, int & i );
+
+ // void fix_integer_vars();
 
  SMSpp_insert_in_factory_h;
 };

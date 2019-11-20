@@ -131,9 +131,9 @@ void CPXMILPSolver::load_problem() {
  if( !q_objective.empty() ) {
   // CPLEX evaluates the corresponding objective with a factor
   // of 0.5 in front of the quadratic objective term.
-  std::vector<double> double_q_obj = q_objective;
-  for (auto & i: double_q_obj) {
-   i = i*2;
+  std::vector< double > double_q_obj = q_objective;
+  for( auto & i: double_q_obj ) {
+   i = i * 2;
   }
   CPXcopyqpsep( env, milp, double_q_obj.data() );
  }
@@ -144,19 +144,19 @@ void CPXMILPSolver::load_problem() {
 
 int CPXMILPSolver::compute( bool changedvars ) {
 
+ int status;
  process_modifications();
 
- if( !output_file.empty() ) {
-  CPXwriteprob( env, milp, output_file.c_str(), "LP" );
- }
+ status = CPXmipopt( env, milp );
 
- CPXmipopt( env, milp );
+ if( status == 0 ) {
+  get_var_solution( nullptr );
+  get_dual_solution( nullptr );
+ }
 
  nodes = CPXgetnodecnt( env, milp );
 
- get_var_solution( nullptr );
-
- int status = CPXgetstat( env, milp );
+ status = CPXgetstat( env, milp );
 
  switch( status ) {
   case 101:
@@ -186,6 +186,11 @@ int CPXMILPSolver::compute( bool changedvars ) {
    sol_status = status;
    break;
  }
+
+ if( !output_file.empty() ) {
+  CPXwriteprob( env, milp, output_file.c_str(), "LP" );
+ }
+
  return sol_status;
 }
 
@@ -271,7 +276,7 @@ Solver::OFValue CPXMILPSolver::get_ub() {
  return upper_bound;
 }
 
-void CPXMILPSolver::write_lp(const std::string & filename ) {
+void CPXMILPSolver::write_lp( const std::string & filename ) {
  CPXwriteprob( env, milp, filename.c_str(), nullptr );
 }
 
@@ -281,13 +286,15 @@ void CPXMILPSolver::write_lp(const std::string & filename ) {
 
 void CPXMILPSolver::get_var_solution( Configuration * solc ) {
 
-#if DEBUG_COUT
+#if MILPSLVR_DEBUG
  std::cout << "[DEBUG] ========= MILPSolver::get_var_solution()" << std::endl;
 #endif
 
- auto * tmpx = new double[numcols];
-
- CPXgetmipx( env, milp, tmpx, 0, numcols - 1 );
+ auto * x = new double[numcols];
+ int status = CPXgetx( env, milp, x, 0, numcols - 1 );
+ if( status ) {
+  throw std::runtime_error( "Unable to get the solution values with CPXgetx()" );
+ }
 
  int col = 0;
 
@@ -306,7 +313,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
    auto f1 = std::bind( &CPXMILPSolver::set_var_value,
                         this,
                         std::placeholders::_1,
-                        std::ref( tmpx ),
+                        std::ref( x ),
                         std::ref( col ) );
    un_any_const_static( i, f1, un_any_type< ColVariable >() );
   }
@@ -315,21 +322,88 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
    auto f1 = std::bind( &CPXMILPSolver::set_var_value,
                         this,
                         std::placeholders::_1,
-                        std::ref( tmpx ),
+                        std::ref( x ),
                         std::ref( col ) );
    un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
   }
-
  }
 
  // After the Objective is computed (evaluated), the solution can be retrieved
  // directly from there.
  auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- if(p_obj ) {
+ if( p_obj ) {
   p_obj->compute();
  }
 
- delete[]tmpx;
+ delete[]x;
+}
+
+void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
+
+#if MILPSLVR_DEBUG
+ std::cout << "[DEBUG] ========= MILPSolver::get_dual_solution()" << std::endl;
+#endif
+
+ auto * pi = new double[numrows];
+
+ int status = CPXgetpi( env, milp, pi, 0, numrows - 1 );
+ if (status) {
+  return;
+ }
+ // TODO: Implement relaxation
+ // int status = -1;
+ // while( status ) {
+ //  status = CPXgetpi( env, milp, pi, 0, numrows - 1 );
+ //
+ //  switch( status ) {
+ //   case 0:
+ //    break;
+ //   case 1017:
+ //    // CPLEX Error: 1017 Not available for mixed-integer problems
+ //    fix_integer_vars();
+ //    break;
+ //   default:
+ //    throw std::runtime_error( "Unable to get the dual values with CPXgetpi()" );
+ //  }
+ // }
+
+ int row = 0;
+
+ std::queue< Block * > Q;
+ Q.push( f_Block );
+
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  for( const auto & i : q_Block->get_static_constraints() ) {
+   auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
+                        this,
+                        std::placeholders::_1,
+                        std::ref( pi ),
+                        std::ref( row ) );
+   un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
+  }
+
+  for( const auto & i : q_Block->get_dynamic_constraints() ) {
+   auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
+                        this,
+                        std::placeholders::_1,
+                        std::ref( pi ),
+                        std::ref( row ) );
+   un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
+  }
+ }
+
+ // Reduced costs for Variables
+ // auto * dj = new double[numcols];
+ // CPXgetdj( env, milp, dj, 0, numcols - 1 );
+
+ delete[]pi;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -661,34 +735,34 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
 
 void CPXMILPSolver::dynamic_modification( BlockModAD * mod ) {
 
- auto addcon_mod = dynamic_cast<BlockModAdd<FRowConstraint>*>(mod);
- if ( addcon_mod) {
+ auto addcon_mod = dynamic_cast<BlockModAdd< FRowConstraint > *>(mod);
+ if( addcon_mod ) {
   for( auto i : addcon_mod->added() ) {
-     add_dynamic_constraint( i );
-    }
+   add_dynamic_constraint( i );
+  }
   return;
  }
 
- auto rmvcon_mod = dynamic_cast<BlockModRmv<FRowConstraint>*>(mod);
- if ( rmvcon_mod) {
+ auto rmvcon_mod = dynamic_cast<BlockModRmv< FRowConstraint > *>(mod);
+ if( rmvcon_mod ) {
   for( auto i : rmvcon_mod->removed() ) {
-   remove_dynamic_constraint(&i);
+   remove_dynamic_constraint( &i );
   }
   return;
  }
 
- auto addvar_mod = dynamic_cast<BlockModAdd<ColVariable>*>(mod);
- if (addvar_mod ) {
-  for( auto i : addvar_mod->added()) {
-   add_dynamic_variable(i);
+ auto addvar_mod = dynamic_cast<BlockModAdd< ColVariable > *>(mod);
+ if( addvar_mod ) {
+  for( auto i : addvar_mod->added() ) {
+   add_dynamic_variable( i );
   }
   return;
  }
 
- auto rmvvar_mod = dynamic_cast<BlockModRmv<ColVariable>*>(mod);
- if (rmvvar_mod) {
+ auto rmvvar_mod = dynamic_cast<BlockModRmv< ColVariable > *>(mod);
+ if( rmvvar_mod ) {
   for( auto i : rmvvar_mod->removed() ) {
-   remove_dynamic_variable(&i);
+   remove_dynamic_variable( &i );
   }
   return;
  }
@@ -719,7 +793,7 @@ void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
 
  // Get the coefficients to fill the matrix
  for( int it = 0; it < nzcnt; ++it ) {
-  auto p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var(it));
+  auto p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( it ));
   rmatind[ i ] = index_of_variable( p_var );
   rmatval[ i ] = p_fun->get_coefficient( it );
   active_constraints[ rmatind[ i ] ].push_back( p_const );
@@ -806,7 +880,8 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  std::array< double, 1 > lb{};
  std::array< double, 1 > ub{};
 
- lb[ 0 ] = p_var->get_lb() == -Inf< double >() ? -CPX_INFBOUND : p_var->get_lb();
+ lb[ 0 ] =
+  p_var->get_lb() == -Inf< double >() ? -CPX_INFBOUND : p_var->get_lb();
  ub[ 0 ] = p_var->get_ub() == Inf< double >() ? CPX_INFBOUND : p_var->get_ub();
 
  for( auto bnd : var_bounds ) {
@@ -924,7 +999,8 @@ void CPXMILPSolver::remove_dynamic_variable( ColVariable * p_var ) {
 /*--------------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
-void CPXMILPSolver::set_par( const ThinComputeInterface::idx_type par, const int value ) {
+void CPXMILPSolver::set_par( const ThinComputeInterface::idx_type par,
+                             const int value ) {
  switch( par ) {
   case intMaxIter:
    CPXsetlongparam( env, CPXPARAM_MIP_Limits_Nodes, value );
@@ -941,7 +1017,8 @@ void CPXMILPSolver::set_par( const ThinComputeInterface::idx_type par, const int
  }
 }
 
-void CPXMILPSolver::set_par( ThinComputeInterface::idx_type par, const double value ) {
+void CPXMILPSolver::set_par( ThinComputeInterface::idx_type par,
+                             const double value ) {
  switch( par ) {
   case dblMaxTime:
    CPXsetdblparam( env, CPXPARAM_TimeLimit, value );
@@ -971,7 +1048,8 @@ void CPXMILPSolver::set_par( ThinComputeInterface::idx_type par, const double va
  }
 }
 
-void CPXMILPSolver::set_par( ThinComputeInterface::idx_type par, const std::string & value ) {
+void CPXMILPSolver::set_par( ThinComputeInterface::idx_type par,
+                             const std::string & value ) {
  switch( par ) {
   case strProblemName:
    prob_name = value;
@@ -989,7 +1067,8 @@ ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
  return MILPSolver::get_num_str_par() + strLastAlgParCPXS - strLastAlgParMILP;
 }
 
-const std::string & CPXMILPSolver::get_str_par( const ThinComputeInterface::idx_type par ) const {
+const std::string &
+CPXMILPSolver::get_str_par( const ThinComputeInterface::idx_type par ) const {
  switch( par ) {
   case strProblemName:
    return prob_name;
@@ -1000,7 +1079,8 @@ const std::string & CPXMILPSolver::get_str_par( const ThinComputeInterface::idx_
  }
 }
 
-ThinComputeInterface::idx_type CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
+ThinComputeInterface::idx_type
+CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
  if( name == "strProblemName" )
   return ( strProblemName );
  if( name == "strOutputFile" )
@@ -1008,7 +1088,8 @@ ThinComputeInterface::idx_type CPXMILPSolver::str_par_str2idx( const std::string
  return ( MILPSolver::str_par_str2idx( name ) );
 }
 
-const std::string & CPXMILPSolver::dbl_par_idx2str( const ThinComputeInterface::idx_type idx ) const {
+const std::string &
+CPXMILPSolver::dbl_par_idx2str( const ThinComputeInterface::idx_type idx ) const {
  static const std::vector< std::string > pars = { "strProblemName",
                                                   "strOutputFile" };
  switch( idx ) {
@@ -1025,16 +1106,48 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const ThinComputeInterface::
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_var_value( ColVariable & lvar, double * tmpx, int & i ) {
+void CPXMILPSolver::set_var_value( ColVariable & lvar, double * x, int & i ) {
 #if MILPSLVR_DEBUG
- LOG("[DEBUG] ========= MILPSolver::set_var_value():"
-     << " index = " << std::setw(4) << i
-     << ", value = " << tmpx[i] << std::endl);
+ LOG( "[DEBUG] ========= MILPSolver::set_var_value():"
+       << " index = " << std::setw( 4 ) << i
+       << ", value = " << x[ i ] << std::endl );
 #endif
- lvar.set_value( tmpx[ i ] );
- i++;
+ lvar.set_value( x[ i++ ] );
 }
 
+void CPXMILPSolver::set_dual_value( FRowConstraint & lconst,
+                                    double * pi,
+                                    int & i ) {
+#if MILPSLVR_DEBUG
+ LOG( "[DEBUG] ========= MILPSolver::set_dual_value():"
+       << " index = " << std::setw( 4 ) << i
+       << ", value = " << pi[ i ] << std::endl );
+#endif
+ lconst.set_dual( pi[ i++ ] );
+}
+
+// void CPXMILPSolver::fix_integer_vars() {
+//  int probtype = CPXgetprobtype( env, milp );
+//  switch( probtype ) {
+//   case CPXPROB_MILP:
+//    probtype = CPXPROB_FIXEDMILP;
+//    break;
+//   case CPXPROB_MIQP:
+//    probtype = CPXPROB_FIXEDMIQP;
+//    break;
+//   default:
+//    throw std::runtime_error( "Wrong problem type from CPXgetprobtype()" );
+//  }
+//  int status = CPXchgprobtype( env, milp, probtype );
+//  if( status ) {
+//   throw std::runtime_error( "Unable to change problem type with CPXchgprobtype()" );
+//  }
+//
+//  status = CPXprimopt( env, milp );
+//  if( status ) {
+//   throw std::runtime_error( "An error occurred in CPXprimopt()" );
+//  }
+// }
 /*--------------------------------------------------------------------------*/
 /*--------------------- End File CPXMILPSolver.cpp -------------------------*/
 /*--------------------------------------------------------------------------*/

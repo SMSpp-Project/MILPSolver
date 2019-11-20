@@ -219,8 +219,6 @@ class MILPSolver : public CDASolver {
 
  void get_var_solution( Configuration * solc ) override {}
 
- bool new_var_solution() override { return ( false ); }
-
  void get_dual_solution( Configuration * solc ) override {}
  /// @}
 
