@@ -324,6 +324,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  auto * x = new double[numcols];
  int status = CPXgetx( env, milp, x, 0, numcols - 1 );
  if( status ) {
+  delete[] x;
   throw std::runtime_error( "Unable to get the solution values with CPXgetx()" );
  }
 
@@ -390,6 +391,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
  auto * pi = new double[numrows];
  int status = CPXgetpi( env, milp, pi, 0, numrows - 1 );
  if (status) {
+  delete[] pi;
   return;
  }
  // TODO: Implement relaxation
@@ -405,6 +407,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
  //    fix_integer_vars();
  //    break;
  //   default:
+ //    delete[] pi;
  //    throw std::runtime_error( "Unable to get the dual values with CPXgetpi()" );
  //  }
  // }

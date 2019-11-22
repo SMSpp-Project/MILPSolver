@@ -57,7 +57,12 @@ SMSpp_insert_in_factory_cpp_0( MILPSolver );
 
 MILPSolver::MILPSolver() : CDASolver() {}
 
-MILPSolver::~MILPSolver() = default;
+MILPSolver::~MILPSolver() {
+ for( auto & i: colname )
+  delete i;
+ for( auto & i: rowname )
+  delete i;
+}
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------- GETTERS ----------------------------------*/
@@ -180,9 +185,9 @@ void MILPSolver::clear_problem() {
  ub.clear();
  xctype.clear();
 
- for( auto i: colname )
+ for( auto & i: colname )
   delete i;
- for( auto i: rowname )
+ for( auto & i: rowname )
   delete i;
  colname.clear();
  rowname.clear();
@@ -308,8 +313,8 @@ void MILPSolver::load_problem() {
  lb.resize( numcols );
  ub.resize( numcols );
  xctype.resize( numcols );
- colname.resize( numcols );
- rowname.resize( numrows );
+ colname.resize( numcols , nullptr );
+ rowname.resize( numrows , nullptr );
 
  // Second loop to scan the constraints
  Q.push( f_Block );
@@ -417,8 +422,6 @@ void MILPSolver::load_problem() {
    // Write names
    int end = col - start;
    for( int n = 0; n < end; ++n ) {
-    // auto name = base + std::to_string( n );
-    // colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
     auto name = base + "_" + std::to_string( num_block );
     colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
@@ -439,8 +442,6 @@ void MILPSolver::load_problem() {
    // Write names
    int end = col - start;
    for( int n = 0; n < end; ++n ) {
-    // auto name = base + std::to_string( n );
-    // colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
     auto name = base + "_" + std::to_string( num_block );
     colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
