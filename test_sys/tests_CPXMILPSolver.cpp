@@ -63,6 +63,7 @@ TEST_P( MILPSolverTest, SimpleSolve ) {
  ASSERT_EQ( status, Solver::kOK );
 
  // Check the variable values
+ solver->get_var_solution();
  const auto & opt_vars = std::get< 1 >( GetParam() );
  for( int i = 0; i < block->get_x().size(); ++i ) {
   auto x = block->get_x()[ i ].get_value();
@@ -71,6 +72,7 @@ TEST_P( MILPSolverTest, SimpleSolve ) {
 
  // Check the objective function value
  auto obj = dynamic_cast<FRealObjective *>(block->get_objective());
+ obj->get_function()->compute();
  auto of = obj->get_function()->get_value();
  ASSERT_EQ( of, std::get< 2 >( GetParam() ) );
 }

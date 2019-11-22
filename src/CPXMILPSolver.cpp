@@ -138,6 +138,10 @@ void CPXMILPSolver::load_problem() {
   CPXcopyqpsep( env, milp, double_q_obj.data() );
  }
  CPXcopyctype( env, milp, xctype.data() );
+
+ if( !output_file.empty() ) {
+  CPXwriteprob( env, milp, output_file.c_str(), "LP" );
+ }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -148,15 +152,13 @@ int CPXMILPSolver::compute( bool changedvars ) {
  process_modifications();
 
  status = CPXmipopt( env, milp );
-
- if( status == 0 ) {
-  get_var_solution( nullptr );
-  get_dual_solution( nullptr );
- }
-
+ status = CPXgetstat( env, milp );
  nodes = CPXgetnodecnt( env, milp );
 
- status = CPXgetstat( env, milp );
+ // if( status == 0 ) {
+ //  get_var_solution( nullptr );
+ //  get_dual_solution( nullptr );
+ // }
 
  switch( status ) {
   case 101:
@@ -185,10 +187,6 @@ int CPXMILPSolver::compute( bool changedvars ) {
   default:
    sol_status = status;
    break;
- }
-
- if( !output_file.empty() ) {
-  CPXwriteprob( env, milp, output_file.c_str(), "LP" );
  }
 
  return sol_status;
@@ -276,12 +274,45 @@ Solver::OFValue CPXMILPSolver::get_ub() {
  return upper_bound;
 }
 
-void CPXMILPSolver::write_lp( const std::string & filename ) {
- CPXwriteprob( env, milp, filename.c_str(), nullptr );
+/*--------------------------------------------------------------------------*/
+
+bool CPXMILPSolver::has_var_solution() {
+ switch( sol_status ) {
+  case ( kOK ):
+  case ( kInfeasible ):
+   return ( true );
+  default:
+   return ( false );
+ }
 }
 
 /*--------------------------------------------------------------------------*/
-/*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
+
+bool CPXMILPSolver::is_var_feasible() {
+ switch( sol_status ) {
+  case ( kInfeasible ):
+   return ( false );
+  default:
+   return ( true );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+Solver::OFValue CPXMILPSolver::get_var_value() {
+ switch( objsense ) {
+  case 1: // Minimization problem
+   return get_ub();
+   break;
+  case -1: // Maximization problem
+   return get_lb();
+   break;
+  default:
+   throw ( std::runtime_error( "Objective type not yet defined" ) );
+   break;
+ }
+}
+
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_var_solution( Configuration * solc ) {
@@ -330,13 +361,25 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
 
  // After the Objective is computed (evaluated), the solution can be retrieved
  // directly from there.
- auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- if( p_obj ) {
-  p_obj->compute();
- }
+ // auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
+ // if( p_obj ) {
+ //  p_obj->compute();
+ // }
 
  delete[]x;
 }
+
+/*--------------------------------------------------------------------------*/
+
+bool CPXMILPSolver::has_dual_solution() {
+ // FIXME: Use CPXsolninfo()
+ auto * pi = new double[numrows];
+ int status = CPXgetpi( env, milp, pi, 0, numrows - 1 );
+ delete[]pi;
+ return status == 0;
+}
+
+/*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 
@@ -345,7 +388,6 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 #endif
 
  auto * pi = new double[numrows];
-
  int status = CPXgetpi( env, milp, pi, 0, numrows - 1 );
  if (status) {
   return;
@@ -406,6 +448,14 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
  delete[]pi;
 }
 
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::write_lp( const std::string & filename ) {
+ CPXwriteprob( env, milp, filename.c_str(), nullptr );
+}
+
+/*--------------------------------------------------------------------------*/
+/*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::var_modification( VariableMod * mod ) {

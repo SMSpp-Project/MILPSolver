@@ -134,15 +134,25 @@ class CPXMILPSolver : public MILPSolver {
  * @{
  */
 
+ /// It sets the Block that the Solver has to solve and initializes CPLEX.
  void set_Block( Block * block ) override;
 
+ /// Optimizes the problem with CPLEX.
  int compute( bool changedvars ) override;
 
  OFValue get_lb() override;
 
  OFValue get_ub() override;
 
+ bool has_var_solution() override;
+
+ bool is_var_feasible() override;
+
+ OFValue get_var_value() override;
+
  void get_var_solution( Configuration * solc ) override;
+
+ bool has_dual_solution() override;
 
  void get_dual_solution( Configuration * solc ) override;
 

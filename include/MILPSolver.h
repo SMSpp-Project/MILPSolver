@@ -215,6 +215,7 @@ class MILPSolver : public CDASolver {
  /// It sets the Block that the Solver has to solve and build the LP vectors.
  void set_Block( Block * block ) override;
 
+ /// It does nothing as there is nothing to do.
  int compute( bool changedvars ) override { return 0; }
 
  void get_var_solution( Configuration * solc ) override {}

@@ -44,10 +44,14 @@ int main(int argc, char** argv) {
 
  // First solve
  int status = solver->compute();
+ if (solver->has_var_solution()) {
+  solver->get_var_solution();
+ }
 
  auto smilpblock = dynamic_cast<SimpleMILPBlock*>(block);
  auto obj = dynamic_cast<FRealObjective*>(smilpblock->get_objective());
  auto obj_f = obj->get_function();
+ obj_f->compute();
 
  std::cout << "Status = " << status << std::endl;
  auto vars = smilpblock->get_x();
