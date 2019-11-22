@@ -138,7 +138,7 @@ class CPXMILPSolver : public MILPSolver {
  void set_Block( Block * block ) override;
 
  /// Optimizes the problem with CPLEX.
- int compute( bool changedvars ) override;
+ int compute( bool changedvars = true ) override;
 
  OFValue get_lb() override;
 
@@ -150,11 +150,11 @@ class CPXMILPSolver : public MILPSolver {
 
  OFValue get_var_value() override;
 
- void get_var_solution( Configuration * solc ) override;
+ void get_var_solution( Configuration * solc = nullptr ) override;
 
  bool has_dual_solution() override;
 
- void get_dual_solution( Configuration * solc ) override;
+ void get_dual_solution( Configuration * solc = nullptr ) override;
 
  void set_par( idx_type par, int value ) override;
 
