@@ -189,7 +189,7 @@ class CPXMILPSolver : public MILPSolver {
  protected:
 
  CPXENVptr env; /// CPLEX environment
- CPXLPptr milp; /// CPLEX LP problem
+ CPXLPptr lp; /// CPLEX LP problem
 
  std::string prob_name;   /// CPLEX problem name
  std::string output_file; /// Output file for CPXwriteprob
