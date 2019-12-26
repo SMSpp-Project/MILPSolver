@@ -139,9 +139,6 @@ void CPXMILPSolver::load_problem() {
  }
  CPXcopyctype( env, milp, xctype.data() );
 
- if( !output_file.empty() ) {
-  CPXwriteprob( env, milp, output_file.c_str(), "LP" );
- }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -150,6 +147,9 @@ int CPXMILPSolver::compute( bool changedvars ) {
 
  int status;
  process_modifications();
+
+ if( ! output_file.empty() )
+  CPXwriteprob( env, milp, output_file.c_str(), "LP" );
 
  status = CPXmipopt( env, milp );
  status = CPXgetstat( env, milp );
