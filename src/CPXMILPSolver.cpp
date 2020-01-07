@@ -143,10 +143,6 @@ void CPXMILPSolver::load_problem() {
   // from continuous to mixed integer
   CPXcopyctype( env, lp, xctype.data() );
  }
-
- if( !output_file.empty() ) {
-  CPXwriteprob( env, lp, output_file.c_str(), "LP" );
- }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -155,6 +151,9 @@ int CPXMILPSolver::compute( bool changedvars ) {
 
  int status;
  process_modifications();
+
+ if( ! output_file.empty() )
+  CPXwriteprob( env, lp, output_file.c_str(), "LP" );
 
 #if MILPSLVR_DEBUG
  int probtype = CPXgetprobtype( env, lp );
