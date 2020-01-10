@@ -1144,6 +1144,8 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 
  } else {
   // The problem stays a MIP, update only the one variable
+  int numcols = CPXgetnumcols( env, lp );
+  std::array< int, 1 > indices = {numcols - 1};
   CPXchgctype( env, lp, 1, indices.data(), ctype.data() );
  }
 }
