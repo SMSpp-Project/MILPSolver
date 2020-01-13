@@ -416,13 +416,13 @@ class MILPSolver : public CDASolver {
 
  /**
   * An array of length at least numcols containing pointers to character
-  * strings containing the names of the constraints.
+  * strings containing the names of the variables.
   */
  std::vector< char* > colname;
 
  /**
   * An array of length at least numrows containing pointers to character
-  * strings containing the names of the variables.
+  * strings containing the names of the constraints.
   */
  std::vector< char* > rowname;
 

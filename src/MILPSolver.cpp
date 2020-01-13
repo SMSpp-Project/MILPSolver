@@ -225,10 +225,11 @@ void MILPSolver::load_problem() {
  Q.push( f_Block );
 
  int cnt = 0;
+ int num_block = 0;
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
-  LOG( "[DEBUG] ========= Processing Block [" << q_Block << "] =========\n" );
+  LOG( "[DEBUG] ========= Processing Block " << num_block << " [" << q_Block << "] =========\n" );
   LOG( *q_Block );
 
   for( auto i : q_Block->get_nested_Blocks() ) {
@@ -289,6 +290,7 @@ void MILPSolver::load_problem() {
                         std::ref( cnt ) );
    un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
   }
+  ++num_block;
  } // End of while loop on Block queue
 
  LOG( "[DEBUG] ========= MILPSolver::set_Block() after counting\n" );
@@ -321,7 +323,7 @@ void MILPSolver::load_problem() {
 
  int row = 0;
  int set = 0;
- int num_block = 0;
+ num_block = 0;
 
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
@@ -342,8 +344,6 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_static_constraints() ) {
    auto base = q_Block->get_s_const_name()[ set ];
-
-   // Variable used to locate the first element of each type of constraint
    int first = 0;
    int start = row;
 
@@ -357,7 +357,9 @@ void MILPSolver::load_problem() {
    // Write names
    int end = row - start;
    for( int n = 0; n < end; ++n ) {
-    auto name = base + "_" + std::to_string( n ) + "_" + std::to_string( num_block );
+    auto name = base
+                + "_" + std::to_string( num_block )
+                + "_" + std::to_string( n );
     rowname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
    set++;
@@ -377,12 +379,13 @@ void MILPSolver::load_problem() {
    // Write names
    int end = row - start;
    for( int n = 0; n < end; ++n ) {
-    auto name = base + "_" + std::to_string( n ) + "_" + std::to_string( num_block );
+    auto name = base
+                + "_" + std::to_string( num_block )
+                + "_" + std::to_string( n );
     rowname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
    set++;
   }
-
   num_block++;
  } // End of while loop on Block queue
 
@@ -422,7 +425,9 @@ void MILPSolver::load_problem() {
    // Write names
    int end = col - start;
    for( int n = 0; n < end; ++n ) {
-    auto name = base + "_" + std::to_string( num_block );
+    auto name = base
+                + "_" + std::to_string( num_block )
+                + "_" + std::to_string( n );
     colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
    set++;
@@ -442,7 +447,9 @@ void MILPSolver::load_problem() {
    // Write names
    int end = col - start;
    for( int n = 0; n < end; ++n ) {
-    auto name = base + "_" + std::to_string( num_block );
+    auto name = base
+                + "_" + std::to_string( num_block )
+                + "_" + std::to_string( n );
     colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
    set++;
