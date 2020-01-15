@@ -130,6 +130,15 @@ class MILPSolver : public CDASolver {
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+ /** Types of integer parameters.
+  * Public enum describing the different types of algorithmic parameters
+  * of "int" type that the MILPSolver might have. At the moment it has none,
+  * but since CPXMILPSolver has them, we add this as compatibility.
+  */
+ enum int_par_type_MILP {
+  intLastAlgParMILP = intLastAlgPar
+ };
+
  /** Types of string parameters.
   * Public enum describing the different types of algorithmic parameters
   * of "string" type that the MILPSolver might have. At the moment it has none,

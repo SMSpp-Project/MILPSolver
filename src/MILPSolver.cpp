@@ -344,6 +344,9 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_static_constraints() ) {
    auto base = q_Block->get_s_const_name()[ set ];
+   if (base.empty()) {
+    base = "cs";
+   }
    int first = 0;
    int start = row;
 
@@ -368,6 +371,9 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
    auto base = q_Block->get_d_const_name()[ set ];
+   if (base.empty()) {
+    base = "cd";
+   }
    int start = row;
    
    auto f1 = std::bind( &MILPSolver::scan_dynamic_constraint,
@@ -412,6 +418,10 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_static_variables() ) {
    auto base = q_Block->get_s_var_name()[ set ];
+   if (base.empty()) {
+    base = "xs";
+   }
+
    int first = 0;
    int start = col;
 
@@ -436,6 +446,9 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_dynamic_variables() ) {
    auto base = q_Block->get_d_var_name()[ set ];
+   if (base.empty()) {
+    base = "xv";
+   }
    int start = col;
 
    auto f1 = std::bind( &MILPSolver::scan_dynamic_variable,

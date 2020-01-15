@@ -111,22 +111,39 @@ void CPXMILPSolver::load_problem() {
   }
  }
 
- CPXcopylpwnames( env, lp,
-                  numcols,
-                  numrows,
-                  objsense,
-                  objective.data(),
-                  rhs.data(),
-                  sense.data(),
-                  matbeg.data(),
-                  matcnt.data(),
-                  matind.data(),
-                  matval.data(),
-                  lb.data(),
-                  ub.data(),
-                  rngval.data(),
-                  colname.data(),
-                  rowname.data() );
+ if( use_custom_names ) {
+  CPXcopylpwnames( env, lp,
+                   numcols,
+                   numrows,
+                   objsense,
+                   objective.data(),
+                   rhs.data(),
+                   sense.data(),
+                   matbeg.data(),
+                   matcnt.data(),
+                   matind.data(),
+                   matval.data(),
+                   lb.data(),
+                   ub.data(),
+                   rngval.data(),
+                   colname.data(),
+                   rowname.data() );
+ } else {
+  CPXcopylp( env, lp,
+             numcols,
+             numrows,
+             objsense,
+             objective.data(),
+             rhs.data(),
+             sense.data(),
+             matbeg.data(),
+             matcnt.data(),
+             matind.data(),
+             matval.data(),
+             lb.data(),
+             ub.data(),
+             rngval.data() );
+ }
 
  if( qp ) {
   // CPLEX evaluates the corresponding objective with a factor
@@ -1260,6 +1277,9 @@ void CPXMILPSolver::set_par( const ThinComputeInterface::idx_type par,
   case intLogVerb:
    CPXsetintparam( env, CPX_PARAM_SCRIND, value );
    break;
+  case intUseCustomNames:
+   use_custom_names = value; // use_custom_names is bool!
+   break;
   default:
    // We assume that the symbolic constant is defined in CPLEX instead of SMS++
    CPXsetintparam( env, par, value );
@@ -1273,8 +1293,10 @@ void CPXMILPSolver::set_par( ThinComputeInterface::idx_type par,
    CPXsetdblparam( env, CPXPARAM_TimeLimit, value );
    break;
   case dblRelAcc:
+   // TODO
    break;
   case dblAbsAcc:
+   // TODO
    break;
   case dblUpCutOff:
    CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_UpperCutoff, value );
@@ -1312,8 +1334,21 @@ void CPXMILPSolver::set_par( ThinComputeInterface::idx_type par,
  }
 }
 
+ThinComputeInterface::idx_type CPXMILPSolver::get_num_int_par() const {
+ return MILPSolver::get_num_int_par() + intLastAlgParCPXS - intLastAlgParMILP;
+}
+
 ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
  return MILPSolver::get_num_str_par() + strLastAlgParCPXS - strLastAlgParMILP;
+}
+
+int CPXMILPSolver::get_int_par(idx_type par) const {
+ switch( par ) {
+  case intUseCustomNames:
+   return use_custom_names;
+  default:
+   return MILPSolver::get_int_par( par );
+ }
 }
 
 const std::string &
@@ -1329,6 +1364,25 @@ CPXMILPSolver::get_str_par( const ThinComputeInterface::idx_type par ) const {
 }
 
 ThinComputeInterface::idx_type
+CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
+ if( name == "intUseCustomNames" )
+  return ( intUseCustomNames );
+ return ( MILPSolver::str_par_str2idx( name ) );
+}
+
+const std::string &
+CPXMILPSolver::int_par_idx2str( const ThinComputeInterface::idx_type idx ) const {
+ // It is convoluted for extendability
+ static const std::vector< std::string > pars = { "intUseCustomNames" };
+ switch( idx ) {
+  case intUseCustomNames:
+   return pars[ 0 ];
+  default:
+   return MILPSolver::str_par_idx2str( idx );
+ }
+}
+
+ThinComputeInterface::idx_type
 CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
  if( name == "strProblemName" )
   return ( strProblemName );
@@ -1338,7 +1392,7 @@ CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
 }
 
 const std::string &
-CPXMILPSolver::dbl_par_idx2str( const ThinComputeInterface::idx_type idx ) const {
+CPXMILPSolver::str_par_idx2str( const ThinComputeInterface::idx_type idx ) const {
  static const std::vector< std::string > pars = { "strProblemName",
                                                   "strOutputFile" };
  switch( idx ) {
@@ -1347,7 +1401,7 @@ CPXMILPSolver::dbl_par_idx2str( const ThinComputeInterface::idx_type idx ) const
   case strOutputFile:
    return pars[ 1 ];
   default:
-   return MILPSolver::dbl_par_idx2str( idx );
+   return MILPSolver::str_par_idx2str( idx );
  }
 }
 

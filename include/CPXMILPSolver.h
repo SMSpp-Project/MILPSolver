@@ -100,6 +100,14 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
+ /** Types of integer parameters.
+  * Public enum describing the different types of algorithmic parameters
+  * of "int" type that the CPXMILPSolver has.
+  */
+ enum int_par_type_CPXS {
+  intUseCustomNames = intLastAlgParMILP, ///< Use custom names for rows/columns
+  intLastAlgParCPXS
+ };
 
  /** Types of string parameters.
   * Public enum describing the different types of algorithmic parameters
@@ -173,13 +181,21 @@ class CPXMILPSolver : public MILPSolver {
  * @{
  */
 
+ idx_type get_num_int_par() const override;
+
  idx_type get_num_str_par() const override;
+
+ int get_int_par( idx_type par ) const override;
 
  const std::string & get_str_par( idx_type par ) const override;
 
+ idx_type int_par_str2idx( const std::string & name ) const override;
+
+ const std::string & int_par_idx2str( idx_type idx ) const override;
+
  idx_type str_par_str2idx( const std::string & name ) const override;
 
- const std::string & dbl_par_idx2str( idx_type idx ) const override;
+ const std::string & str_par_idx2str( idx_type idx ) const override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -188,11 +204,14 @@ class CPXMILPSolver : public MILPSolver {
 
  protected:
 
- CPXENVptr env; /// CPLEX environment
- CPXLPptr lp; /// CPLEX LP problem
+ CPXENVptr env; ///< CPLEX environment
+ CPXLPptr lp;   ///< CPLEX LP problem
 
- std::string prob_name;   /// CPLEX problem name
- std::string output_file; /// Output file for CPXwriteprob
+ std::string prob_name;   ///< CPLEX problem name
+ std::string output_file; ///< Output file for CPXwriteprob
+
+ /// If Variable/Constraint names should be used
+ bool use_custom_names = true;
 
  /** @name Clear and load the problem
   *
