@@ -471,29 +471,44 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
  std::cout << "[DEBUG] ========= MILPSolver::get_dual_solution()" << std::endl;
 #endif
 
- auto * pi = new double[numrows];
- int status = CPXgetpi( env, lp, pi, 0, numrows - 1 );
- if( status ) {
-  delete[] pi;
+ int method = CPXgetmethod( env, lp );
+ int status = CPXgetstat( env, lp );
+ // double * res = nullptr;
+ std::vector<double> res;
+
+ if (method == CPX_ALG_PRIMAL) {
+  // Primal simplex optimizer is used
+  if( status == CPX_STAT_UNBOUNDED) {
+   // The model is primal unbounded/dual infeasible
+
+   res.resize(numcols);
+   status = CPXgetray( env, lp, res.data() );
+  }
+  if( status == CPX_STAT_INFEASIBLE) {
+   // The model is primal infeasible/dual unbounded
+   res.resize(numrows);
+   status = CPXgetpi( env, lp, res.data(), 0, numrows - 1 );
+  }
+ }
+
+ if (method == CPX_ALG_DUAL) {
+  // Dual simplex optimizer is used
+  if( status == CPX_STAT_INFEASIBLE) {
+   // The model is dual infeasible/primal unbounded
+   res.resize(numcols);
+   status = CPXgetray( env, lp, res.data() );
+  }
+  if( status == CPX_STAT_UNBOUNDED) {
+   // The model is dual unbounded/primal infeasible
+   res.resize(numrows);
+   status = CPXdualfarkas( env, lp, res.data(), nullptr );
+  }
+ }
+
+ // TODO ?
+ if( status || res.size() != numrows ) {
   return;
  }
- // TODO: Implement relaxation
- // int status = -1;
- // while( status ) {
- //  status = CPXgetpi( env, milp, pi, 0, numrows - 1 );
- //
- //  switch( status ) {
- //   case 0:
- //    break;
- //   case 1017:
- //    // CPLEX Error: 1017 Not available for mixed-integer problems
- //    fix_integer_vars();
- //    break;
- //   default:
- //    delete[] pi;
- //    throw std::runtime_error( "Unable to get the dual values with CPXgetpi()" );
- //  }
- // }
 
  int row = 0;
 
@@ -512,7 +527,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
                         this,
                         std::placeholders::_1,
-                        std::ref( pi ),
+                        std::ref( res ),
                         std::ref( row ) );
    un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
   }
@@ -521,17 +536,11 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
                         this,
                         std::placeholders::_1,
-                        std::ref( pi ),
+                        std::ref( res ),
                         std::ref( row ) );
    un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
   }
  }
-
- // Reduced costs for Variables
- // auto * dj = new double[numcols];
- // CPXgetdj( env, milp, dj, 0, numcols - 1 );
-
- delete[]pi;
 }
 
 /*--------------------------------------------------------------------------*/
