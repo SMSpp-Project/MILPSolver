@@ -473,21 +473,21 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 
  int method = CPXgetmethod( env, lp );
  int status = CPXgetstat( env, lp );
- // double * res = nullptr;
- std::vector<double> res;
+ double * res = nullptr;
+ // std::vector<double> res;
 
  if (method == CPX_ALG_PRIMAL) {
   // Primal simplex optimizer is used
   if( status == CPX_STAT_UNBOUNDED) {
    // The model is primal unbounded/dual infeasible
 
-   res.resize(numcols);
-   status = CPXgetray( env, lp, res.data() );
+   res = new double[numcols];
+   status = CPXgetray( env, lp, res );
   }
   if( status == CPX_STAT_INFEASIBLE) {
    // The model is primal infeasible/dual unbounded
-   res.resize(numrows);
-   status = CPXgetpi( env, lp, res.data(), 0, numrows - 1 );
+   res = new double[numrows];
+   status = CPXgetpi( env, lp, res, 0, numrows - 1 );
   }
  }
 
@@ -495,20 +495,20 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
   // Dual simplex optimizer is used
   if( status == CPX_STAT_INFEASIBLE) {
    // The model is dual infeasible/primal unbounded
-   res.resize(numcols);
-   status = CPXgetray( env, lp, res.data() );
+   res = new double[numcols];
+   status = CPXgetray( env, lp, res );
   }
   if( status == CPX_STAT_UNBOUNDED) {
    // The model is dual unbounded/primal infeasible
-   res.resize(numrows);
-   status = CPXdualfarkas( env, lp, res.data(), nullptr );
+   res = new double[numrows];
+   status = CPXdualfarkas( env, lp, res, nullptr );
   }
  }
 
- // TODO ?
- if( status || res.size() != numrows ) {
-  return;
- }
+ // // TODO ?
+ // if( status || res.size() != numrows ) {
+ //  return;
+ // }
 
  int row = 0;
 
@@ -541,6 +541,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
   }
  }
+ delete[] res;
 }
 
 /*--------------------------------------------------------------------------*/
