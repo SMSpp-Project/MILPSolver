@@ -264,6 +264,7 @@ int CPXMILPSolver::compute( bool changedvars ) {
     sol_status = kStopTime;
     break;
    case CPX_STAT_UNBOUNDED :
+   case CPX_STAT_INForUNBD :
     sol_status = kUnbounded;
     break;
    default:

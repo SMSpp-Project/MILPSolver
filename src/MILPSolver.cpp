@@ -362,6 +362,7 @@ void MILPSolver::load_problem() {
    for( int n = 0; n < end; ++n ) {
     auto name = base
                 + "_" + std::to_string( num_block )
+                + "_" + std::to_string( set )
                 + "_" + std::to_string( n );
     rowname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
@@ -387,6 +388,7 @@ void MILPSolver::load_problem() {
    for( int n = 0; n < end; ++n ) {
     auto name = base
                 + "_" + std::to_string( num_block )
+                + "_" + std::to_string( set )
                 + "_" + std::to_string( n );
     rowname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
@@ -437,6 +439,7 @@ void MILPSolver::load_problem() {
    for( int n = 0; n < end; ++n ) {
     auto name = base
                 + "_" + std::to_string( num_block )
+                + "_" + std::to_string( set )
                 + "_" + std::to_string( n );
     colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
@@ -462,6 +465,7 @@ void MILPSolver::load_problem() {
    for( int n = 0; n < end; ++n ) {
     auto name = base
                 + "_" + std::to_string( num_block )
+                + "_" + std::to_string( set )
                 + "_" + std::to_string( n );
     colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
