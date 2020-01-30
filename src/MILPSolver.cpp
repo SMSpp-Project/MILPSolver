@@ -343,10 +343,6 @@ void MILPSolver::load_problem() {
    */
   set = 0;
   for( const auto & i : q_Block->get_static_constraints() ) {
-   auto base = q_Block->get_s_const_name()[ set ];
-   if (base.empty()) {
-    base = "cs";
-   }
    int first = 0;
    int start = row;
 
@@ -358,12 +354,19 @@ void MILPSolver::load_problem() {
    un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
 
    // Write names
+   auto base = q_Block->get_s_const_name()[ set ];
    int end = row - start;
    for( int n = 0; n < end; ++n ) {
-    auto name = base
-                + "_" + std::to_string( num_block )
-                + "_" + std::to_string( set )
-                + "_" + std::to_string( n );
+    std::string name;
+    if( base.empty() ) {
+     name = "cs_" + std::to_string( num_block )
+            + "_" + std::to_string( set )
+            + "_" + std::to_string( n );
+    } else {
+     name = base
+            + "_" + std::to_string( num_block )
+            + "_" + std::to_string( n );
+    }
     rowname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
    set++;
@@ -371,10 +374,6 @@ void MILPSolver::load_problem() {
 
   set = 0;
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   auto base = q_Block->get_d_const_name()[ set ];
-   if (base.empty()) {
-    base = "cd";
-   }
    int start = row;
    
    auto f1 = std::bind( &MILPSolver::scan_dynamic_constraint,
@@ -384,12 +383,19 @@ void MILPSolver::load_problem() {
    un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
 
    // Write names
+   auto base = q_Block->get_d_const_name()[ set ];
    int end = row - start;
    for( int n = 0; n < end; ++n ) {
-    auto name = base
-                + "_" + std::to_string( num_block )
-                + "_" + std::to_string( set )
-                + "_" + std::to_string( n );
+    std::string name;
+    if( base.empty() ) {
+     name = "cd_" + std::to_string( num_block )
+            + "_" + std::to_string( set )
+            + "_" + std::to_string( n );
+    } else {
+     name = base
+            + "_" + std::to_string( num_block )
+            + "_" + std::to_string( n );
+    }
     rowname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
    set++;
@@ -419,11 +425,6 @@ void MILPSolver::load_problem() {
 
   set = 0;
   for( const auto & i : q_Block->get_static_variables() ) {
-   auto base = q_Block->get_s_var_name()[ set ];
-   if (base.empty()) {
-    base = "xs";
-   }
-
    int first = 0;
    int start = col;
 
@@ -435,12 +436,19 @@ void MILPSolver::load_problem() {
    un_any_const_static( i, f1, un_any_type< ColVariable >() );
 
    // Write names
+   auto base = q_Block->get_s_var_name()[ set ];
    int end = col - start;
    for( int n = 0; n < end; ++n ) {
-    auto name = base
-                + "_" + std::to_string( num_block )
-                + "_" + std::to_string( set )
-                + "_" + std::to_string( n );
+    std::string name;
+    if( base.empty() ) {
+     name = "xs_" + std::to_string( num_block )
+            + "_" + std::to_string( set )
+            + "_" + std::to_string( n );
+    } else {
+     name = base
+            + "_" + std::to_string( num_block )
+            + "_" + std::to_string( n );
+    }
     colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
    set++;
@@ -448,10 +456,6 @@ void MILPSolver::load_problem() {
 
   set = 0;
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-   auto base = q_Block->get_d_var_name()[ set ];
-   if (base.empty()) {
-    base = "xv";
-   }
    int start = col;
 
    auto f1 = std::bind( &MILPSolver::scan_dynamic_variable,
@@ -461,12 +465,19 @@ void MILPSolver::load_problem() {
    un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
 
    // Write names
+   auto base = q_Block->get_d_var_name()[ set ];
    int end = col - start;
    for( int n = 0; n < end; ++n ) {
-    auto name = base
-                + "_" + std::to_string( num_block )
-                + "_" + std::to_string( set )
-                + "_" + std::to_string( n );
+    std::string name;
+    if( base.empty() ) {
+     name = "xv_" + std::to_string( num_block )
+            + "_" + std::to_string( set )
+            + "_" + std::to_string( n );
+    } else {
+     name = base
+            + "_" + std::to_string( num_block )
+            + "_" + std::to_string( n );
+    }
     colname[ start + n ] = strcpy( new char[name.length() + 1], name.c_str() );
    }
    set++;
