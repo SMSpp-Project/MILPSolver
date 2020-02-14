@@ -576,10 +576,10 @@ class MILPSolver : public CDASolver {
  virtual void add_dynamic_variable( ColVariable * p_var ) {}
 
  /// It removes a single dynamic constraint
- virtual void remove_dynamic_constraint( FRowConstraint * p_const ) {}
+ virtual void remove_dynamic_constraint( const FRowConstraint * p_const ) {}
 
  /// It removes a single dynamic variable
- virtual void remove_dynamic_variable( ColVariable * p_var ) {}
+ virtual void remove_dynamic_variable( const ColVariable * p_var ) {}
  /// @}
 
 /*--------------------------------------------------------------------------*/
