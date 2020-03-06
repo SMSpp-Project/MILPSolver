@@ -4,10 +4,6 @@
 /** @file
  * Implementation of the MILPSolver class.
  *
- * \version 0.90
- *
- * \date 14 - 06 - 2019
- *
  * \author Antonio Frangioni \n
  *         Operations Research Group \n
  *         Dipartimento di Informatica \n
