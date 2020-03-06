@@ -41,6 +41,14 @@ if (CPLEX_FOUND)
     target_link_libraries(MILPSolver PUBLIC CPLEX::Cplex)
 endif ()
 
+find_package(SCIP)
+
+if(SCIP_FOUND)
+    target_sources(MILPSolver PRIVATE src/SCIPMILPSolver.cpp)
+    target_link_libraries(MILPSolver PUBLIC ${SCIP_LIBRARIES})
+    target_include_directories(MILPSolver PRIVATE ${SCIP_INCLUDE_DIRS})
+endif()
+
 # Alias for testing
 add_library(SMS++::MILPSolver ALIAS MILPSolver)
 
