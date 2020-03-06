@@ -20,6 +20,7 @@ list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 find_package(SMSpp REQUIRED)
 find_package(CPLEX)
+find_package(SCIP)
 
 # ----- Library ------------------------------------------------------------- #
 add_library(MILPSolver)
@@ -40,8 +41,6 @@ if (CPLEX_FOUND)
     target_sources(MILPSolver PRIVATE src/CPXMILPSolver.cpp)
     target_link_libraries(MILPSolver PUBLIC CPLEX::Cplex)
 endif ()
-
-find_package(SCIP)
 
 if(SCIP_FOUND)
     target_sources(MILPSolver PRIVATE src/SCIPMILPSolver.cpp)

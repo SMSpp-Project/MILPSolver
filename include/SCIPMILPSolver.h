@@ -265,10 +265,10 @@ class SCIPMILPSolver : public MILPSolver {
  void add_dynamic_variable( ColVariable * p_var ) override;
 
  /// It removes a single dynamic constraint
- void remove_dynamic_constraint( FRowConstraint * p_const ) override;
+ void remove_dynamic_constraint( const FRowConstraint * p_const ) override;
 
  /// It removes a single dynamic variable
- void remove_dynamic_variable( ColVariable * p_var ) override;
+ void remove_dynamic_variable( const ColVariable * p_var ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/

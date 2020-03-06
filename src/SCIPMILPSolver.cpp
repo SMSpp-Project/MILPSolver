@@ -939,7 +939,7 @@ void SCIPMILPSolver::add_dynamic_variable(ColVariable *p_var)
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::remove_dynamic_constraint(FRowConstraint *p_const)
+void SCIPMILPSolver::remove_dynamic_constraint(const FRowConstraint *p_const)
 {
   if (SCIPisTransformed(scip))
     SCIP_CALL_ABORT(SCIPfreeTransform(scip));
@@ -1005,7 +1005,7 @@ void SCIPMILPSolver::remove_dynamic_constraint(FRowConstraint *p_const)
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::remove_dynamic_variable(ColVariable *p_var)
+void SCIPMILPSolver::remove_dynamic_variable(const ColVariable *p_var)
 {
   if (SCIPisTransformed(scip))
     SCIP_CALL_ABORT(SCIPfreeTransform(scip));
