@@ -979,7 +979,7 @@ void CPXMILPSolver::dynamic_modification( BlockModAD * mod ) {
 
  auto rmvcon_mod = dynamic_cast<BlockModRmv< FRowConstraint > *>(mod);
  if( rmvcon_mod ) {
-  for( auto i : rmvcon_mod->removed() ) {
+  for( auto & i : rmvcon_mod->removed() ) {
    remove_dynamic_constraint( &i );
   }
   return;
@@ -995,7 +995,7 @@ void CPXMILPSolver::dynamic_modification( BlockModAD * mod ) {
 
  auto rmvvar_mod = dynamic_cast<BlockModRmv< ColVariable > *>(mod);
  if( rmvvar_mod ) {
-  for( auto i : rmvvar_mod->removed() ) {
+  for( auto & i : rmvvar_mod->removed() ) {
    remove_dynamic_variable( &i );
   }
   return;
@@ -1180,7 +1180,8 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::remove_dynamic_constraint( FRowConstraint * p_const ) {
+void
+CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
 
  int index = 0;
  auto it1 = find_if( v_int_d_const.begin(),
@@ -1229,7 +1230,8 @@ void CPXMILPSolver::remove_dynamic_constraint( FRowConstraint * p_const ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::remove_dynamic_variable( ColVariable * p_var ) {
+void
+CPXMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 
  int index = 0;
  auto it1 = find_if( v_int_d_var.begin(),

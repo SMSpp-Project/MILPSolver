@@ -1,10 +1,10 @@
 /*--------------------------------------------------------------------------*/
-/*--------------------------- File CPXMILPSolver.h -------------------------*/
+/*--------------------------- File SCIPMILPSolver.h -------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
- * Header file for the CPXMILPSolver class.
+ * Header file for the SCIPMILPSolver class.
  *
- * CPXMILPSolver implements a general purpose solver that is able to tackle a
+ * SCIPMILPSolver implements a general purpose solver that is able to tackle a
  * MILP problem expressed by a Block using IBM CLPEX.
  *
  * \version 0.90
@@ -32,14 +32,14 @@
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#ifndef __CPXMILPSOLVER_H
-#define __CPXMILPSOLVER_H
+#ifndef __SCIPMILPSOLVER_H
+#define __SCIPMILPSOLVER_H
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include <ilcplex/cplex.h>
+#include <scip/scip.h>
 
 #include <SMSTypedefs.h>
 #include <Observer.h>
@@ -60,17 +60,17 @@
 namespace SMSpp_di_unipi_it {
 
 /*--------------------------------------------------------------------------*/
-/*----------------------- CLASS CPXMILPSolver ------------------------------*/
+/*----------------------- CLASS SCIPMILPSolver ------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 /// Class for solving MILP problems via CPLEX.
 /**
- * The CPXMILPSolver class derives from MILPSolver and extends the
+ * The SCIPMILPSolver class derives from MILPSolver and extends the
  * base class to solve MILP problems using CPLEX.
  *
- * The CPXMILPSolver can be registered to any kind of Block (9assuming that
+ * The SCIPMILPSolver can be registered to any kind of Block (9assuming that
  * it contains a MILP formulation) and it uses the base class functionalities
  * to build a matricial representation of a MILP problem, then it solves it
  * using CPLEX through its Callable Library. Moreover, it implements the
@@ -89,7 +89,7 @@ namespace SMSpp_di_unipi_it {
  * supported by CPXsetintparam(), CPXsetdblparam() and CPXsetstrparam().
  * (See the CPLEX Callable Library reference manual for all of them)
  */
-class CPXMILPSolver : public MILPSolver {
+class SCIPMILPSolver : public MILPSolver {
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
@@ -102,7 +102,7 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
  /** Types of integer parameters.
   * Public enum describing the different types of algorithmic parameters
-  * of "int" type that the CPXMILPSolver has.
+  * of "int" type that the SCIPMILPSolver has.
   */
  enum int_par_type_CPXS {
   intUseCustomNames = intLastAlgParMILP, ///< Use custom names for rows/columns
@@ -111,7 +111,7 @@ class CPXMILPSolver : public MILPSolver {
 
  /** Types of string parameters.
   * Public enum describing the different types of algorithmic parameters
-  * of "string" type that the CPXMILPSolver has.
+  * of "string" type that the SCIPMILPSolver has.
   */
  enum str_par_type_CPXS {
   strProblemName = strLastAlgParMILP, ///< Problem name
@@ -128,9 +128,9 @@ class CPXMILPSolver : public MILPSolver {
  * @{
  */
 
- CPXMILPSolver();
+ SCIPMILPSolver();
 
- ~CPXMILPSolver() override;
+ ~SCIPMILPSolver() override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -203,9 +203,10 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 
  protected:
+ SCIP* scip;
 
- CPXENVptr env; ///< CPLEX environment
- CPXLPptr lp;   ///< CPLEX LP problem
+ std::vector<SCIP_VAR*> vars;
+ std::vector<SCIP_CONS*> conss;
 
  std::string prob_name;   ///< CPLEX problem name
  std::string output_file; ///< Output file for CPXwriteprob

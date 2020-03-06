@@ -7,8 +7,7 @@
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 cmake_minimum_required(VERSION 3.8...3.15)
-# TODO: set proper version
-project(MILPSolver VERSION 1.0.0 LANGUAGES CXX)
+project(MILPSolver VERSION 0.2.0 LANGUAGES CXX)
 
 # ----- Settings ------------------------------------------------------------ #
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -21,6 +20,7 @@ list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 find_package(SMSpp REQUIRED)
 find_package(CPLEX)
+find_package(SCIP)
 
 # ----- Library ------------------------------------------------------------- #
 add_library(MILPSolver)
@@ -41,6 +41,12 @@ if (CPLEX_FOUND)
     target_sources(MILPSolver PRIVATE src/CPXMILPSolver.cpp)
     target_link_libraries(MILPSolver PUBLIC CPLEX::Cplex)
 endif ()
+
+if(SCIP_FOUND)
+    target_sources(MILPSolver PRIVATE src/SCIPMILPSolver.cpp)
+    target_link_libraries(MILPSolver PUBLIC ${SCIP_LIBRARIES})
+    target_include_directories(MILPSolver PRIVATE ${SCIP_INCLUDE_DIRS})
+endif()
 
 # Alias for testing
 add_library(SMS++::MILPSolver ALIAS MILPSolver)
