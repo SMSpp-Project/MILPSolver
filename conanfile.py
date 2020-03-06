@@ -7,7 +7,7 @@ class SmsppConan(ConanFile):
     description = "A MILP Solver for SMS++"
     topics = ("conan", "smspp", "milpsolver")
     url = "https://gitlab.com/smspp/milpsolver"
-    homepage = "https://gitlab.com/smspp/mcfblock"
+    homepage = "https://gitlab.com/smspp/milpsolver"
     license = "GPL-3.0-only"
     generators = "cmake"
 
