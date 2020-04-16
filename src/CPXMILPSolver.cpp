@@ -1207,7 +1207,7 @@ CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
   throw ( std::invalid_argument( "Cannot find the Constraint" ) );
  }
 
- CPXdelrows( env, lp, index, index + 1 );
+CPXdelrows( env, lp, index, index);
 
  for( auto it: v_d_const_int ) {
   if( it.second > index ) {
