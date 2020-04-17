@@ -232,7 +232,7 @@ void MILPSolver::load_problem() {
   LOG( "[DEBUG] ========= Processing Block " << num_block << " [" << q_Block << "] =========\n" );
   LOG( *q_Block );
 
-  for( auto i : q_Block->get_nested_Blocks() ) {
+  for( auto *i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
 
@@ -419,7 +419,7 @@ void MILPSolver::load_problem() {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto i : q_Block->get_nested_Blocks() ) {
+  for( auto *i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
 
@@ -508,11 +508,11 @@ void MILPSolver::load_problem() {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto i : q_Block->get_nested_Blocks() ) {
+  for( auto *i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
 
-  auto p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  auto *p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
   if(p_obj ) {
    scan_objective( p_obj );
   }
@@ -559,7 +559,7 @@ int MILPSolver::index_of_variable( ColVariable * p_var ) {
 
 int MILPSolver::index_of_static_variable( ColVariable * p_var ) {
 
- int i;
+ int i = 0;
  auto it = lower_bound( v_s_var_int.begin(),
                         v_s_var_int.end(),
                         p_var,
@@ -646,7 +646,7 @@ int MILPSolver::index_of_dynamic_constraint( FRowConstraint * p_const ) {
 
 ColVariable * MILPSolver::static_variable_with_index( int i ) {
 
- ColVariable * p_var;
+ ColVariable * p_var = nullptr;
  auto it = lower_bound( v_int_s_var.begin(),
                         v_int_s_var.end(),
                         i,
@@ -673,7 +673,7 @@ ColVariable * MILPSolver::static_variable_with_index( int i ) {
 
 FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
 
- FRowConstraint * p_const;
+ FRowConstraint * p_const = nullptr;
  auto it = lower_bound( v_int_s_const.begin(),
                         v_int_s_const.end(),
                         i,
@@ -702,7 +702,7 @@ FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
 
 void MILPSolver::count_constraints( FRowConstraint & constraint, int & n_rows ) {
  LOG( "[DEBUG] ========= MILPSolver::count_constraints(): row " << std::setw(4) << n_rows << " " << constraint );
- auto fun = dynamic_cast<const LinearFunction *>(constraint.get_function());
+ const auto *fun = dynamic_cast<const LinearFunction *>(constraint.get_function());
  if( fun != nullptr ) {
   ++n_rows;
  } else {
@@ -737,19 +737,19 @@ void MILPSolver::count_nzelements( ColVariable & variable,
   active_bounds.resize( static_cast<unsigned long>(numcols) );
  }
 
- for( auto i : variable.active_stuff() ) {
-  auto row = dynamic_cast<FRowConstraint *>(i);
+ for( auto *i : variable.active_stuff() ) {
+  auto *row = dynamic_cast<FRowConstraint *>(i);
   if( row != nullptr ) {
    // LOG( "[DEBUG] " << *row );
    active_constraints[ cnt ].push_back( row );
    ++nz_elements;
   }
-  auto box = dynamic_cast<OneVarConstraint *>(i);
+  auto *box = dynamic_cast<OneVarConstraint *>(i);
   if( box != nullptr ) {
    // LOG( "[DEBUG] " << *box );
    active_bounds[ cnt ].push_back( box );
   }
-  auto obj = dynamic_cast<Objective *>(i);
+  auto *obj = dynamic_cast<Objective *>(i);
   if( obj != nullptr ) {
    // LOG( "[DEBUG] " << *obj );
   }
@@ -779,7 +779,7 @@ void MILPSolver::scan_static_variable( ColVariable & var, int & first, int & i )
 
   int num_bounds = static_cast<int>(active_bounds[ i ].size());
   for( int j = 0; j < num_bounds; ++j ) {
-   auto bound = active_bounds[ i ][ j ];
+   auto *bound = active_bounds[ i ][ j ];
    lb[ i ] = lb[ i ] > bound->get_lhs() ? lb[ i ] : bound->get_lhs();
    ub[ i ] = ub[ i ] < bound->get_rhs() ? ub[ i ] : bound->get_rhs();
   }
@@ -820,8 +820,8 @@ void MILPSolver::scan_static_variable( ColVariable & var, int & first, int & i )
 
  for( int j = 0; j < nz_elements; ++j ) {
 
-  auto p_const = dynamic_cast<FRowConstraint *> (active_constraints[ i ][ j ]);
-  auto p_fun = dynamic_cast<const LinearFunction *> (p_const->get_function());
+  auto *p_const = dynamic_cast<FRowConstraint *> (active_constraints[ i ][ j ]);
+  const auto *p_fun = dynamic_cast<const LinearFunction *> (p_const->get_function());
 
   auto it = std::find_if( p_fun->get_v_var().begin(),
                           p_fun->get_v_var().end(),
@@ -859,7 +859,7 @@ void MILPSolver::scan_dynamic_variable( ColVariable & var, int & i ) {
 
   int num_bounds = static_cast<int>(active_bounds[ i ].size());
   for( int j = 0; j < num_bounds; ++j ) {
-   auto bound = active_bounds[ i ][ j ];
+   auto *bound = active_bounds[ i ][ j ];
    lb[ i ] = lb[ i ] > bound->get_lhs() ? lb[ i ] : bound->get_lhs();
    ub[ i ] = ub[ i ] < bound->get_rhs() ? ub[ i ] : bound->get_rhs();
   }
@@ -900,8 +900,8 @@ void MILPSolver::scan_dynamic_variable( ColVariable & var, int & i ) {
 
  for( int j = 0; j < nz_elements; ++j ) {
 
-  auto p_const = dynamic_cast<FRowConstraint *> (active_constraints[ i ][ j ]);
-  auto p_fun = dynamic_cast<const LinearFunction *> (p_const->get_function());
+  auto *p_const = dynamic_cast<FRowConstraint *> (active_constraints[ i ][ j ]);
+  const auto *p_fun = dynamic_cast<const LinearFunction *> (p_const->get_function());
 
   auto it = std::find_if( p_fun->get_v_var().begin(),
                           p_fun->get_v_var().end(),
@@ -925,7 +925,7 @@ void MILPSolver::scan_dynamic_variable( ColVariable & var, int & i ) {
 void MILPSolver::scan_static_constraint( FRowConstraint & p_const, int & first, int & i ) {
  LOG( "[DEBUG] ========= MILPSolver::scan_static_constraint(): first/i " << std::setw(4) << first << "/" << std::setw(4) << i << " " << p_const );
 
- auto lin_fun = dynamic_cast<const LinearFunction *>(p_const.get_function());
+ const auto *lin_fun = dynamic_cast<const LinearFunction *>(p_const.get_function());
  if( lin_fun == nullptr ) {
   throw ( std::invalid_argument( "The Constraint is not linear" ) );
  }
@@ -987,7 +987,7 @@ void MILPSolver::scan_static_constraint( FRowConstraint & p_const, int & first, 
 void MILPSolver::scan_dynamic_constraint( FRowConstraint & p_const, int & i ) {
  LOG( "[DEBUG] ========= MILPSolver::scan_dynamic_constraint() " << p_const );
 
- auto lin_fun = dynamic_cast<const LinearFunction *>(p_const.get_function());
+ const auto *lin_fun = dynamic_cast<const LinearFunction *>(p_const.get_function());
  if( lin_fun == nullptr ) {
   throw ( std::invalid_argument( "The Constraint is not linear" ) );
  }
@@ -1045,8 +1045,8 @@ void MILPSolver::scan_dynamic_constraint( FRowConstraint & p_const, int & i ) {
 void MILPSolver::scan_objective( const FRealObjective * obj ) {
  LOG( "[DEBUG] ========= MILPSolver::scan_objective() " << *obj );
 
- auto lin_fun = dynamic_cast<const LinearFunction *> (obj->get_function());
- int k;
+ const auto *lin_fun = dynamic_cast<const LinearFunction *> (obj->get_function());
+ int k = 0;
 
  if( lin_fun != nullptr ) {
   for( auto el : lin_fun->get_v_var() ) {
@@ -1054,7 +1054,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj ) {
    objective[ k ] = el.second;
   }
  } else {
-  auto dquad_fun = dynamic_cast<const DQuadFunction *> (obj->get_function());
+  const auto *dquad_fun = dynamic_cast<const DQuadFunction *> (obj->get_function());
   if( dquad_fun != nullptr ) {
    qp = true;
    for( auto el : dquad_fun->get_v_var() ) {
@@ -1084,7 +1084,7 @@ void MILPSolver::process_modifications() {
 
   // A function like this is needed to be called recursively with GroupModifications
   std::function< void( sp_Mod ) > f;
-  f = [ this, &f ]( sp_Mod mod ) {
+  f = [ this, &f ]( const sp_Mod& mod ) {
 
    {
     const auto tmod = std::dynamic_pointer_cast< GroupModification >( mod );
