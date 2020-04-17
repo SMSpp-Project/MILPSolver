@@ -1037,6 +1037,8 @@ void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  auto const_lhs = p_const->get_lhs();
  auto const_rhs = p_const->get_rhs();
 
+ int new_index = v_int_d_const.back().first + 1;
+
  if( const_lhs == const_rhs ) {
   sense[ 0 ] = 'E';
   rhs[ 0 ] = const_rhs;
@@ -1053,11 +1055,11 @@ void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
   sense[ 0 ] = 'R';
   rhs[ 0 ] = const_lhs;
   rngval[ 0 ] = const_rhs - const_lhs;
-  indices[ 0 ] = v_d_const_int.back().second + 1;
+  indices[ 0 ] = new_index;
  }
 
- v_d_const_int.emplace_back( p_const, v_d_const_int.back().second + 1 );
- v_int_d_const.emplace_back( v_int_d_const.back().first + 1, p_const );
+ v_d_const_int.emplace_back( p_const, new_index );
+ v_int_d_const.emplace_back( new_index, p_const );
  std::sort( v_d_const_int.begin(), v_d_const_int.end() );
  std::sort( v_int_d_const.begin(), v_int_d_const.end() );
 
@@ -1127,8 +1129,9 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  active_constraints.emplace_back( var_constraints );
  active_bounds.emplace_back( var_bounds );
 
- v_d_var_int.emplace_back( p_var, v_d_var_int.back().second + 1 );
- v_int_d_var.emplace_back( v_int_d_var.back().first + 1, p_var );
+ int new_index = v_int_d_var.back().first + 1;
+ v_d_var_int.emplace_back( p_var, new_index );
+ v_int_d_var.emplace_back( new_index, p_var );
  std::sort( v_d_var_int.begin(), v_d_var_int.end() );
  std::sort( v_int_d_var.begin(), v_int_d_var.end() );
 
@@ -1209,12 +1212,12 @@ CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
 
 CPXdelrows( env, lp, index, index);
 
- for( auto it: v_d_const_int ) {
+ for( auto & it: v_d_const_int ) {
   if( it.second > index ) {
    it.second--;
   }
  }
- for( auto it: v_int_d_const ) {
+ for( auto & it: v_int_d_const ) {
   if( it.first > index ) {
    it.first--;
   }
@@ -1258,14 +1261,14 @@ CPXMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
   throw ( std::invalid_argument( "Cannot find the Variable" ) );
  }
 
- CPXdelcols( env, lp, index, index + 1 );
+ CPXdelcols( env, lp, index, index );
 
- for( auto it: v_d_var_int ) {
+ for( auto & it: v_d_var_int ) {
   if( it.second > index ) {
    it.second--;
   }
  }
- for( auto it: v_int_d_var ) {
+ for( auto & it: v_int_d_var ) {
   if( it.first > index ) {
    it.first--;
   }
