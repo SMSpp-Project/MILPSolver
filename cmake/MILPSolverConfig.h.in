@@ -1,0 +1,20 @@
+/** @file
+ * Configuration header of the MILPSolver library.
+ *
+ * \author Niccolò Iardella \n
+ *         Operations Research Group \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; Niccolò Iardella
+ */
+
+#ifndef __MILPSOLVER_CONFIG_H
+#define __MILPSOLVER_CONFIG_H
+
+#define MILPSolver_VERSION       "@MILPSolver_VERSION@"
+#define MILPSolver_VERSION_MAJOR "@MILPSolver_VERSION_MAJOR@"
+#define MILPSolver_VERSION_MINOR "@MILPSolver_VERSION_MINOR@"
+#define MILPSolver_VERSION_PATCH "@MILPSolver_VERSION_PATCH@"
+
+#endif

@@ -22,6 +22,9 @@ find_package(SMSpp REQUIRED)
 find_package(CPLEX)
 find_package(SCIP)
 
+# ----- Configuration header ------------------------------------------------ #
+configure_file(cmake/MILPSolverConfig.h.in MILPSolverConfig.h)
+
 # ----- Library ------------------------------------------------------------- #
 add_library(MILPSolver)
 target_compile_features(MILPSolver PUBLIC cxx_std_17)
@@ -65,6 +68,9 @@ install(TARGETS MILPSolver
 
 # Install headers
 install(DIRECTORY include/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SMS++)
+
+install(FILES ${PROJECT_BINARY_DIR}/MILPSolverConfig.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SMS++)
 
 # Install target import file

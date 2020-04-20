@@ -9,10 +9,6 @@
  * problem with a series of vectors that can be used by other solvers like
  * CPLEX.
  *
- * \version 0.90
- *
- * \date 14 - 06 - 2019
- *
  * \author Antonio Frangioni \n
  *         Operations Research Group \n
  *         Dipartimento di Informatica \n
