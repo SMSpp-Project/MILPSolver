@@ -2,7 +2,7 @@
 /*------------------------- File CPXMILPSolver.cpp -------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
- * Implementation of the MILPSolver class.
+ * Implementation of the CPXMILPSolver class.
  *
  * \author Antonio Frangioni \n
  *         Operations Research Group \n

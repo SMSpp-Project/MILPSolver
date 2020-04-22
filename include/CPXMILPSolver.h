@@ -66,7 +66,7 @@ namespace SMSpp_di_unipi_it {
  * The CPXMILPSolver class derives from MILPSolver and extends the
  * base class to solve MILP problems using CPLEX.
  *
- * The CPXMILPSolver can be registered to any kind of Block (9assuming that
+ * The CPXMILPSolver can be registered to any kind of Block (assuming that
  * it contains a MILP formulation) and it uses the base class functionalities
  * to build a matricial representation of a MILP problem, then it solves it
  * using CPLEX through its Callable Library. Moreover, it implements the
