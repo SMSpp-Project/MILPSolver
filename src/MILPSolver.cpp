@@ -145,15 +145,17 @@ int MILPSolver::get_nodes() const {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::set_Block( Block * block ) {
- if( block == f_Block ) {
-  return;
- }
+
  Solver::set_Block( block );
+
  if( block) {
 
+  // Generate abstract representation
+  block->lock( this );
   block->generate_abstract_variables( nullptr );
   block->generate_abstract_constraints( nullptr );
   block->generate_objective( nullptr );
+  block->unlock( this );
 
   clear_problem();
   load_problem();
@@ -216,6 +218,7 @@ void MILPSolver::load_problem() {
   * the LP data.
   */
  std::queue< Block * > Q;
+ f_Block->read_lock();
 
  // First loop on the queue to count variables and constraints
  Q.push( f_Block );
@@ -539,6 +542,7 @@ void MILPSolver::load_problem() {
  LOG_VEC( ub );
  LOG( "[DEBUG] xctype      = " );
  LOG_VEC( xctype );
+ f_Block->read_unlock();
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1074,9 +1078,9 @@ void MILPSolver::process_modifications() {
   * e.g., OneVarConstraintMod before RowConstraintMod before ConstraintMod,
   * otherwise the generic case will intercept the more specialized Mods.
   */
-
- while( !v_mod.empty() ) {
-  auto mod = v_mod.front();
+ for( auto mod = front() ; mod ; mod = front() ) {
+ // while( !v_mod.empty() ) {
+  // auto mod = v_mod.front();
 
   // A function like this is needed to be called recursively with GroupModifications
   std::function< void( sp_Mod ) > f;
@@ -1159,7 +1163,8 @@ void MILPSolver::process_modifications() {
   };
 
   f( mod );
-  v_mod.pop_front();
+  // v_mod.pop_front();
+  pop_front();
  }
 }
 

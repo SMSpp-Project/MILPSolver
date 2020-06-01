@@ -411,6 +411,8 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  int col = 0;
 
  std::queue< Block * > Q;
+
+ f_Block->lock(this);
  Q.push( f_Block );
 
  while( !Q.empty() ) {
@@ -439,6 +441,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
    un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
   }
  }
+ f_Block->unlock(this);
 
  // After the Objective is computed (evaluated), the solution can be retrieved
  // directly from there.
