@@ -150,12 +150,19 @@ void MILPSolver::set_Block( Block * block ) {
 
  if( block) {
 
+  bool owned = block->is_owned_by( f_id );
+  if( !owned && !block->lock( f_id ) ) {
+   throw std::runtime_error( "Unable to lock the Block" );
+  }
+
   // Generate abstract representation
-  block->lock( this );
   block->generate_abstract_variables( nullptr );
   block->generate_abstract_constraints( nullptr );
   block->generate_objective( nullptr );
-  block->unlock( this );
+
+  if( !owned ) {
+   block->unlock( f_id );
+  }
 
   clear_problem();
   load_problem();
@@ -218,7 +225,9 @@ void MILPSolver::load_problem() {
   * the LP data.
   */
  std::queue< Block * > Q;
- f_Block->read_lock();
+ if( !f_Block->read_lock() ) {
+  throw std::runtime_error( "Unable to read lock the Block" );
+ }
 
  // First loop on the queue to count variables and constraints
  Q.push( f_Block );
