@@ -411,6 +411,12 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  int col = 0;
 
  std::queue< Block * > Q;
+
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->lock( f_id ) ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
+
  Q.push( f_Block );
 
  while( !Q.empty() ) {
@@ -438,6 +444,11 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
                         std::ref( col ) );
    un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
   }
+ }
+
+
+ if( !owned ) {
+  f_Block->unlock( f_id );
  }
 
  // After the Objective is computed (evaluated), the solution can be retrieved
