@@ -1154,6 +1154,14 @@ void MILPSolver::process_modifications() {
     }
    }
    {
+    const auto tmod = std::dynamic_pointer_cast< FunctionModVars >( mod );
+    if( tmod ) {
+     LOG(*mod);
+     function_vars_modification( tmod.get() );
+     return;
+    }
+   }
+   {
     const auto tmod = std::dynamic_pointer_cast< BlockModAD >( mod );
     if( tmod ) {
      LOG(*mod);

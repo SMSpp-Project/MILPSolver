@@ -562,6 +562,9 @@ class MILPSolver : public CDASolver {
  /// It handles a function modification
  virtual void function_modification( FunctionMod * mod ) {}
 
+ /// It handles a function vars modification
+ virtual void function_vars_modification( FunctionModVars * mod ) {}
+
  /// It handles a dynamic modification
  virtual void dynamic_modification( BlockModAD * mod ) {}
 
@@ -571,11 +574,17 @@ class MILPSolver : public CDASolver {
  /// It adds a single new dynamic variable
  virtual void add_dynamic_variable( ColVariable * p_var ) {}
 
+ /// It adds a single new dynamic bound
+ virtual void add_dynamic_bound( OneVarConstraint * p_bound ) {}
+
  /// It removes a single dynamic constraint
  virtual void remove_dynamic_constraint( const FRowConstraint * p_const ) {}
 
  /// It removes a single dynamic variable
  virtual void remove_dynamic_variable( const ColVariable * p_var ) {}
+
+ /// It removes a single dynamic bound
+ virtual void remove_dynamic_bound( const OneVarConstraint * p_bound ) {}
  /// @}
 
 /*--------------------------------------------------------------------------*/
