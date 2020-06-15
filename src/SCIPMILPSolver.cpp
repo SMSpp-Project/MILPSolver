@@ -163,18 +163,14 @@ void SCIPMILPSolver::load_problem() {
 
  for( int c = 0; c < numcols; ++c ) {
   for( int i = matbeg[ c ]; i < matbeg[ c + 1 ]; ++i )
-   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip, conss[ matind[ i ] ], vars[ c ], matval[ i ] ) );
+   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip,
+                                       conss[ matind[ i ] ],
+                                       vars[ c ],
+                                       matval[ i ] ) );
  }
 
  if( qp ) {
   SCIPABORT();
-  // CPLEX evaluates the corresponding objective with a factor
-  // of 0.5 in front of the quadratic objective term.
-  //std::vector< double > double_q_obj = q_objective;
-  //for( auto & i: double_q_obj ) {
-  // i = i * 2;
-  //}
-  //CPXcopyqpsep( env, lp, double_q_obj.data() );
  }
 }
 
@@ -252,7 +248,7 @@ Solver::OFValue SCIPMILPSolver::get_lb() {
    }
    break;
   default:
-   throw ( std::runtime_error( "Objective type not yet defined" ) );
+   throw std::runtime_error( "Objective type not yet defined" );
    break;
  }
 
@@ -293,7 +289,7 @@ Solver::OFValue SCIPMILPSolver::get_ub() {
    }
    break;
   default:
-   throw ( std::runtime_error( "Objective type not yet defined" ) );
+   throw std::runtime_error( "Objective type not yet defined" );
    break;
  }
 
@@ -334,7 +330,7 @@ Solver::OFValue SCIPMILPSolver::get_var_value() {
    return get_lb();
    break;
   default:
-   throw ( std::runtime_error( "Objective type not yet defined" ) );
+   throw std::runtime_error( "Objective type not yet defined" );
    break;
  }
 }
@@ -356,19 +352,25 @@ void SCIPMILPSolver::get_var_solution( Configuration * solc ) {
  SCIP_RETCODE status = SCIPgetSolVals( scip, sol, numcols, vars.data(), x );
  if( status != SCIP_OKAY ) {
   delete[] x;
-  throw std::runtime_error( "Unable to get the solution values with CPXgetx()" );
+  throw std::runtime_error( "Unable to get the solution values" );
  }
 
  int col = 0;
 
  std::queue< Block * > Q;
+
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->lock( f_id ) ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
+
  Q.push( f_Block );
 
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto *i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
 
@@ -391,14 +393,11 @@ void SCIPMILPSolver::get_var_solution( Configuration * solc ) {
   }
  }
 
- // After the Objective is computed (evaluated), the solution can be retrieved
- // directly from there.
- // auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- // if( p_obj ) {
- //  p_obj->compute();
- // }
+ if( !owned ) {
+  f_Block->unlock( f_id );
+ }
 
- delete[] x;
+ delete[]x;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -416,8 +415,9 @@ void SCIPMILPSolver::get_dual_solution( Configuration * solc ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::write_lp( const std::string & filename ) {
- SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip, filename
-  .c_str(), "mps", FALSE ) );
+ SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip,
+                                        filename.c_str(),
+                                        "mps", FALSE ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -493,7 +493,7 @@ void SCIPMILPSolver::of_modification( ObjectiveMod * mod ) {
    break;
 
   default:
-   throw ( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
+   throw std::invalid_argument( "Invalid type of ObjectiveMod" );
  }
 }
 
@@ -508,7 +508,7 @@ void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto *p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
+ auto * p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
 
  const int cnt = 1;
  std::array< int, cnt > indices{};
@@ -542,9 +542,9 @@ void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
 
    const_lhs =
     p_const->get_lhs() == -Inf< double >() ?
-     -SCIPinfinity( scip ) : p_const->get_lhs();
+    -SCIPinfinity( scip ) : p_const->get_lhs();
    const_rhs = p_const->get_rhs() == Inf< double >() ?
-    SCIPinfinity( scip ) : p_const->get_rhs();
+               SCIPinfinity( scip ) : p_const->get_rhs();
 
    SCIP_CALL_ABORT( SCIPchgLhsLinear( scip, cons, const_lhs ) );
    SCIP_CALL_ABORT( SCIPchgRhsLinear( scip, cons, const_rhs ) );
@@ -552,7 +552,7 @@ void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
    break;
 
   default:
-   throw ( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
+   throw std::invalid_argument( "Invalid type of ObjectiveMod" );
  }
 }
 
@@ -561,16 +561,16 @@ void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
 void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 
  /*
- * The same ColVariable can have more active OneVarConstraints,
- * so each time we modify one of them we have to check if LHS and RHS
- * of the Variable change.
- */
+  * The same ColVariable can have more active OneVarConstraints,
+  * so each time we modify one of them we have to check if LHS and RHS
+  * of the Variable change.
+  */
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto *p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
- auto *p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
+ auto * p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
+ auto * p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
 
  int vidx = index_of_variable( p_var );
  std::vector< int > indices( 2, index_of_variable( p_var ) );
@@ -583,7 +583,7 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 
  switch( mod->type() ) {
   case RowConstraintMod::eChgLHS:
-   for( auto *bnd : active_bounds[ indices[ 0 ] ] ) {
+   for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
     lb = lb > bnd->get_lhs() ? lb : bnd->get_lhs();
    }
 
@@ -591,7 +591,7 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    break;
 
   case RowConstraintMod::eChgRHS:
-   for( auto *bnd : active_bounds[ indices[ 0 ] ] ) {
+   for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
     ub = ub < bnd->get_rhs() ? ub : bnd->get_rhs();
    }
 
@@ -599,7 +599,7 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    break;
 
   case RowConstraintMod::eChgBTS:
-   for( auto *bnd : active_bounds[ indices[ 0 ] ] ) {
+   for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
     lb = lb > bnd->get_lhs() ? lb : bnd->get_lhs();
     ub = ub < bnd->get_rhs() ? ub : bnd->get_rhs();
    }
@@ -609,7 +609,7 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    break;
 
   default:
-   throw ( std::invalid_argument( "Invalid type of OneVarConstraintMod" ) );
+   throw std::invalid_argument( "Invalid type of OneVarConstraintMod" );
  }
 }
 
@@ -622,17 +622,17 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
  /*
  * This function is used when changing coefficents for OFs or constraints.
  */
- auto *mod_f = mod->function();
+ auto * mod_f = mod->function();
  Function * of = nullptr;
 
- auto *p_obj = dynamic_cast<FRealObjective *>(f_Block->get_objective());
+ auto * p_obj = dynamic_cast<FRealObjective *>(f_Block->get_objective());
  of = p_obj->get_function();
 
  if( of == mod_f ) {
   // Changing objective function
 
-  const auto *lf = dynamic_cast<const LinearFunction *>(mod_f);
-  const auto *qf = dynamic_cast<const DQuadFunction *>(mod_f);
+  const auto * lf = dynamic_cast<const LinearFunction *>(mod_f);
+  const auto * qf = dynamic_cast<const DQuadFunction *>(mod_f);
 
   if( lf != nullptr ) {
    // Linear objective function
@@ -646,15 +646,15 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
    // Quadratic objective function
    SCIPABORT();
   } else {
-   throw ( std::invalid_argument( "Unknown type of Objective Function" ) );
+   throw std::invalid_argument( "Unknown type of Objective Function" );
   }
+
  } else {
   // Changing a constraint function, so it can be only linear
-
-  const auto *lf = dynamic_cast<const LinearFunction *>(mod_f);
+  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
 
   if( lf != nullptr ) {
-   auto *p_const = ( FRowConstraint * ) lf->get_Observer();
+   auto * p_const = ( FRowConstraint * ) lf->get_Observer();
 
    SCIP_CONS * cons = conss[ index_of_constraint( p_const ) ];
 
@@ -663,57 +663,80 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
     SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, cons, var, el.second ) );
    }
   } else {
-   throw ( std::invalid_argument( "Unknown type of Function" ) );
+   throw std::invalid_argument( "Unknown type of Function" );
   }
  }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::function_vars_modification( FunctionModVars * mod ) {
+
 }
 
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::dynamic_modification( BlockModAD * mod ) {
 
- auto *addcon_mod = dynamic_cast<BlockModAdd< FRowConstraint > *>(mod);
+ auto * addcon_mod = dynamic_cast<BlockModAdd< FRowConstraint > *>(mod);
  if( addcon_mod ) {
-  for( auto *i : addcon_mod->added() ) {
+  for( auto * i : addcon_mod->added() ) {
    add_dynamic_constraint( i );
   }
   return;
  }
 
- auto *rmvcon_mod = dynamic_cast<BlockModRmv< FRowConstraint > *>(mod);
+ auto * rmvcon_mod = dynamic_cast<BlockModRmv< FRowConstraint > *>(mod);
  if( rmvcon_mod ) {
-  for( const auto& i : rmvcon_mod->removed() ) {
+  for( const auto & i : rmvcon_mod->removed() ) {
    remove_dynamic_constraint( &i );
   }
   return;
  }
 
- auto *addvar_mod = dynamic_cast<BlockModAdd< ColVariable > *>(mod);
+ auto * addvar_mod = dynamic_cast<BlockModAdd< ColVariable > *>(mod);
  if( addvar_mod ) {
-  for( auto *i : addvar_mod->added() ) {
+  for( auto * i : addvar_mod->added() ) {
    add_dynamic_variable( i );
   }
   return;
  }
 
- auto *rmvvar_mod = dynamic_cast<BlockModRmv< ColVariable > *>(mod);
+ auto * rmvvar_mod = dynamic_cast<BlockModRmv< ColVariable > *>(mod);
  if( rmvvar_mod ) {
-  for( const auto& i : rmvvar_mod->removed() ) {
+  for( const auto & i : rmvvar_mod->removed() ) {
    remove_dynamic_variable( &i );
   }
   return;
  }
 
- throw ( std::invalid_argument( "Unknown type of BlockAD" ) );
+ auto * addbnd_mod = dynamic_cast<BlockModAdd< LB0Constraint > *>(mod);
+ if( addbnd_mod ) {
+  for( auto * i : addbnd_mod->added() ) {
+   add_dynamic_bound( i );
+  }
+  return;
+ }
+
+ auto * rmvbnd_mod = dynamic_cast<BlockModRmv< LB0Constraint > *>(mod);
+ if( rmvbnd_mod ) {
+  for( const auto & i : rmvbnd_mod->removed() ) {
+   remove_dynamic_bound( &i );
+  }
+  return;
+ }
+
+ throw std::invalid_argument( "Unknown type of BlockAD" );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
 
- const auto *p_fun = dynamic_cast<const LinearFunction *>(p_const->get_function());
+ const auto * p_fun =
+  dynamic_cast<const LinearFunction *>(p_const->get_function());
  if( p_fun == nullptr ) {
-  throw ( std::invalid_argument( "The Constraint is not linear" ) );
+  throw std::invalid_argument( "The Constraint is not linear" );
  }
 
  if( SCIPisTransformed( scip ) )
@@ -745,7 +768,7 @@ void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
 
  // Get the coefficients to fill the matrix
  for( int it = 0; it < nzcnt; ++it ) {
-  auto *p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( it ));
+  auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( it ));
   SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
   SCIP_Real coef = p_fun->get_coefficient( it );
   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip, cons, var, coef ) );
@@ -759,7 +782,8 @@ void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  conss.push_back( cons );
  SCIP_CALL_ABORT( SCIPreleaseCons( scip, &cons ) );
 
- int new_index = v_int_d_const.back().first + 1;
+ int new_index = numrows++;
+
  v_d_const_int.emplace_back( p_const, new_index );
  v_int_d_const.emplace_back( new_index, p_const );
  std::sort( v_d_const_int.begin(), v_d_const_int.end() );
@@ -776,13 +800,13 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  std::vector< OneVarConstraint * > var_bounds;
 
  int nzcnt = 0;
- for( auto *stuff : p_var->active_stuff() ) {
-  auto *constraint = dynamic_cast<FRowConstraint *>(stuff);
+ for( auto * stuff : p_var->active_stuff() ) {
+  auto * constraint = dynamic_cast<FRowConstraint *>(stuff);
   if( constraint != nullptr ) {
    var_constraints.push_back( constraint );
    ++nzcnt;
   }
-  auto *bound = dynamic_cast<OneVarConstraint *>(stuff);
+  auto * bound = dynamic_cast<OneVarConstraint *>(stuff);
   if( bound != nullptr ) {
    var_bounds.push_back( bound );
   }
@@ -794,11 +818,11 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 
  lb =
   p_var->get_lb() == -Inf< double >() ?
-   -SCIPinfinity( scip ) : p_var->get_lb();
+  -SCIPinfinity( scip ) : p_var->get_lb();
  ub = p_var->get_ub() == Inf< double >() ?
-  SCIPinfinity( scip ) : p_var->get_ub();
+      SCIPinfinity( scip ) : p_var->get_ub();
 
- for( auto *bnd : var_bounds ) {
+ for( auto * bnd : var_bounds ) {
   lb = lb > bnd->get_lhs() ? lb : bnd->get_lhs();
   ub = ub < bnd->get_rhs() ? ub : bnd->get_rhs();
  }
@@ -806,12 +830,11 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  active_constraints.emplace_back( var_constraints );
  active_bounds.emplace_back( var_bounds );
 
- int new_index = v_int_d_var.back().first + 1;
- assert( vars.size() == new_index );
- v_d_var_int.emplace_back( p_var, new_index );
- v_int_d_var.emplace_back( new_index, p_var );
+ v_d_var_int.emplace_back( p_var, numcols );
+ v_int_d_var.emplace_back( numcols, p_var );
  std::sort( v_d_var_int.begin(), v_d_var_int.end() );
  std::sort( v_int_d_var.begin(), v_int_d_var.end() );
+ ++numcols;
 
  // Variable type
 
@@ -828,7 +851,8 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 
  SCIP_VAR * var = nullptr;
 
- SCIP_CALL_ABORT( SCIPcreateVarBasic( scip, &var, nullptr, lb, ub, 0.0, vartype ) );
+ SCIP_CALL_ABORT( SCIPcreateVarBasic( scip, &var, nullptr,
+                                      lb, ub, 0.0, vartype ) );
  vars.push_back( var );
  SCIP_CALL_ABORT( SCIPaddVar( scip, var ) );
 
@@ -837,7 +861,8 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  // We need the coefficients for this variable in each constraint
  for( auto * p_const : var_constraints ) {
 
-  const auto *p_fun = dynamic_cast<const LinearFunction *>(p_const->get_function());
+  const auto * p_fun =
+   dynamic_cast<const LinearFunction *>(p_const->get_function());
   if( p_fun == nullptr ) {
    throw ( std::invalid_argument( "The Constraint is not linear" ) );
   }
@@ -867,7 +892,7 @@ SCIPMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
   index = it1->first;
   v_int_d_const.erase( it1 );
  } else {
-  throw ( std::invalid_argument( "Cannot find the Constraint" ) );
+  throw std::invalid_argument( "Cannot find the Constraint" );
  }
 
  auto it2 = find_if( v_d_const_int.begin(),
@@ -878,26 +903,27 @@ SCIPMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
  if( it2 != v_d_const_int.end() ) {
   v_d_const_int.erase( it2 );
  } else {
-  throw ( std::invalid_argument( "Cannot find the Constraint" ) );
+  throw std::invalid_argument( "Cannot find the Constraint" );
  }
 
  auto it3 = conss.begin() + index;
  SCIP_CONS * cons = *it3;
  conss.erase( it3 );
  SCIP_CALL_ABORT( SCIPdelCons( scip, cons ) );
+ numrows--;
 
- for( auto & it : v_d_const_int ) {
+ for( auto & it: v_d_const_int ) {
   if( it.second > index ) {
    it.second--;
   }
  }
- for( auto & it : v_int_d_const ) {
+ for( auto & it: v_int_d_const ) {
   if( it.first > index ) {
    it.first--;
   }
  }
 
- for( auto & constraints : active_constraints ) {
+ for( auto & constraints: active_constraints ) {
   auto constraint = find( constraints.begin(), constraints.end(), p_const );
   if( constraint != constraints.end() ) {
    constraints.erase( constraint );
@@ -921,7 +947,7 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
   index = it1->first;
   v_int_d_var.erase( it1 );
  } else {
-  throw ( std::invalid_argument( "Cannot find the Variable" ) );
+  throw std::invalid_argument( "Cannot find the Variable" );
  }
 
  auto it2 = find_if( v_d_var_int.begin(),
@@ -933,23 +959,24 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
  if( it2 != v_d_var_int.end() ) {
   v_d_var_int.erase( it2 );
  } else {
-  throw ( std::invalid_argument( "Cannot find the Variable" ) );
+  throw std::invalid_argument( "Cannot find the Variable" );
  }
 
  auto it3 = vars.begin() + index;
  SCIP_VAR * var = *it3;
  vars.erase( it3 );
+ numcols--;
 
  SCIP_Bool deleted = 0;
  SCIP_CALL_ABORT( SCIPdelVar( scip, var, &deleted ) );
  assert( deleted );
 
- for( auto & it : v_d_var_int ) {
+ for( auto & it: v_d_var_int ) {
   if( it.second > index ) {
    it.second--;
   }
  }
- for( auto & it : v_int_d_var ) {
+ for( auto & it: v_int_d_var ) {
   if( it.first > index ) {
    it.first--;
   }

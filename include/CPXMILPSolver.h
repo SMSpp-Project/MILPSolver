@@ -166,7 +166,7 @@ class CPXMILPSolver : public MILPSolver {
 
  void set_par( idx_type par, const std::string & value ) override;
 
- void write_lp(const std::string & filename) override;
+ void write_lp( const std::string & filename ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
