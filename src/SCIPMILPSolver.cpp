@@ -26,6 +26,7 @@
 
 #include <functional>
 #include <queue>
+#include <cstdio>
 
 #include "math.h"
 
@@ -739,7 +740,10 @@ void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  SCIP_Real const_rhs =
   p_const->get_rhs() == Inf< double >() ?
   SCIPinfinity( scip ) : p_const->get_rhs();
- SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip, &cons, nullptr, 0,
+
+ char name[32];
+ std::snprintf(name, sizeof(name), "%p", (void*)p_const);
+ SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip, &cons, name, 0,
                                              nullptr, nullptr,
                                              const_lhs, const_rhs ) );
 
