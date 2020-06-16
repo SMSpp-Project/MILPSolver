@@ -450,7 +450,6 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
   }
  }
 
-
  if( !owned ) {
   f_Block->unlock( f_id );
  }
