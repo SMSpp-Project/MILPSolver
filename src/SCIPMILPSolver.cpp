@@ -478,10 +478,10 @@ void SCIPMILPSolver::of_modification( ObjectiveMod * mod ) {
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  /*
- * ObjectiveMod class does not include any modification types except
- * for eSetMin and eSetMax.
- * To change OF coefficents, a FunctionMod must be used.
- */
+  * ObjectiveMod class does not include any modification types except
+  * for eSetMin and eSetMax.
+  * To change OF coefficents, a FunctionMod must be used.
+  */
 
  switch( mod->type() ) {
 
@@ -503,8 +503,8 @@ void SCIPMILPSolver::of_modification( ObjectiveMod * mod ) {
 void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
 
  /*
- * To change the coefficents, a FunctionMod must be used.
- */
+  * To change the coefficents, a FunctionMod must be used.
+  */
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
@@ -583,6 +583,7 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
  SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
 
  switch( mod->type() ) {
+
   case RowConstraintMod::eChgLHS:
    for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
     lb = lb > bnd->get_lhs() ? lb : bnd->get_lhs();
@@ -621,8 +622,8 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
  /*
- * This function is used when changing coefficents for OFs or constraints.
- */
+  * This function is used when changing coefficents for OFs or constraints.
+  */
  auto * mod_f = mod->function();
  Function * of = nullptr;
 
@@ -882,6 +883,13 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 /*--------------------------------------------------------------------------*/
 
 void
+SCIPMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
+ // TODO
+}
+
+/*--------------------------------------------------------------------------*/
+
+void
 SCIPMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
@@ -988,6 +996,13 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 
  active_constraints.erase( active_constraints.begin() + index );
  active_bounds.erase( active_bounds.begin() + index );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void
+SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
+ // TODO
 }
 
 /*--------------------------------------------------------------------------*/
