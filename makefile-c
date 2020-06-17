@@ -45,6 +45,10 @@ include $(SMS++SDR)lib/makefile-inc
 libCPLEXDIR = $(MILPSSDR)../extlib/
 include $(libCPLEXDIR)makefile-libCPLEX
 
+# define input macros for libSCIP complete makefile, then include it
+libSCIPDIR = $(MILPSSDR)../extlib/
+include $(libSCIPDIR)makefile-libSCIP
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -52,10 +56,10 @@ include $(MILPSSDR)/makefile
 
 # append external -I directives to MILPSINC, MILPSOBJ and MILPSH as defined
 # by the makefile, thus the := assignment has to be used (use GNU make)
-MILPSOBJ := $(MILPSOBJ) $(libCPLEXOBJ) $(SMS++OBJ)
-MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC)
+MILPSOBJ := $(MILPSOBJ) $(SMS++OBJ)
+MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libSCIPINC)
 
 # external libreries for MILPSolver
-MILPSLIB = $(SMS++LIB) $(libCPLEXLIB)
+MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libSCIPLIB)
 
 ############################ End of makefile #################################
