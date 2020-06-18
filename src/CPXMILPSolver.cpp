@@ -986,20 +986,20 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
  auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
  if( add ) {
 
+  int num_vars = static_cast<int>(add->vars().size());
+  std::vector< int > indices( num_vars );
+  std::vector< double > values( num_vars );
+
   if( of == mod_f ) {
-   // Adding a coefficient to the objective function
+   // Adding the coefficients to the objective function
 
    const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
    const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
-   int num_vars = static_cast<int>(add->vars().size());
-   std::vector< int > indices( num_vars );
-   std::vector< double > values( num_vars );
-
    if( lf != nullptr ) {
     // Linear objective function
 
-    // Get objective coefficients
+    // Get indices and coefficients
     int i = 0;
     for( auto * it1 : add->vars() ) {
      for( auto it2: lf->get_v_var() ) {
@@ -1014,19 +1014,86 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
 
     // Update the coefficients
     CPXchgobj( env, lp, num_vars, indices.data(), values.data() );
+
    } else if( qf != nullptr ) {
+    // Quadratic objective function
     // TODO
    } else {
     throw std::invalid_argument( "Unknown type of Objective Function" );
    }
 
   } else {
-   // Adding a coefficient to a Constraint
+   // Adding coefficients to a Constraint
    // TODO: Now it works because they are already added with a var
   }
- } else {
-  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
- }
+  return;
+ } // add
+
+ auto * rmv = dynamic_cast<C05FunctionModVarsRngd *>( mod );
+ if( rmv ) {
+
+  int num_vars = static_cast<int>(rmv->vars().size());
+  std::vector< int > indices( num_vars );
+  std::vector< double > values( num_vars );
+
+  if( of == mod_f ) {
+   // Removing coefficients from the objective function
+
+   const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+   const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
+
+   if( lf != nullptr ) {
+    // Linear objective function
+
+    // Get indices and coefficients (all zeroes)
+    int i = 0;
+    for( auto * it1 : rmv->vars() ) {
+     for( auto it2: lf->get_v_var() ) {
+      if( it1 == it2.first ) {
+       indices[ i ] = index_of_variable( it2.first );
+       values[ i ] = 0;
+       break;
+      }
+     }
+     ++i;
+    }
+
+    // Update the coefficients (all zeroes)
+    CPXchgobj( env, lp, num_vars, indices.data(), values.data() );
+
+   } else if( qf != nullptr ) {
+    // TODO
+   } else {
+    throw std::invalid_argument( "Unknown type of Objective Function" );
+   }
+  } else {
+   // Removing coefficients from a constraint
+
+   const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+   auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+   std::vector< int > j( num_vars, index_of_constraint( p_const ) );
+
+   // Get indices and coefficients (all zeroes)
+   int i = 0;
+   for( auto * it1 : rmv->vars() ) {
+    for( auto it2: lf->get_v_var() ) {
+     if( it1 == it2.first ) {
+      indices[ i ] = index_of_variable( it2.first );
+      values[ i ] = 0;
+      break;
+     }
+    }
+    ++i;
+   }
+
+   // Update the coefficients (all zeroes)
+   CPXchgcoeflist( env, lp, num_vars, indices.data(), j.data(), values.data() );
+
+  }
+  return;
+ } // rmv
+
+ throw std::invalid_argument( "This type of FunctionModVars is not handled" );
 }
 
 /*--------------------------------------------------------------------------*/
