@@ -1043,23 +1043,25 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
    const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
    if( lf != nullptr ) {
-    // Linear objective function
-
-    // Get indices and coefficients (all zeroes)
-    int i = 0;
-    for( auto * it1 : rmv->vars() ) {
-     for( auto it2: lf->get_v_var() ) {
-      if( it1 == it2.first ) {
-       indices[ i ] = index_of_variable( it2.first );
-       values[ i ] = 0;
-       break;
-      }
-     }
-     ++i;
-    }
-
-    // Update the coefficients (all zeroes)
-    CPXchgobj( env, lp, num_vars, indices.data(), values.data() );
+    // TODO: The following doesn't find the vars in lf->get_v_var()?
+    //       It works because var is removed with remove_dynamic_variable
+    // // Linear objective function
+    //
+    // // Get indices and coefficients (all zeroes)
+    // int i = 0;
+    // for( auto * it1 : rmv->vars() ) {
+    //  for( auto it2: lf->get_v_var() ) {
+    //   if( it1 == it2.first ) {
+    //    indices[ i ] = index_of_variable( it2.first );
+    //    values[ i ] = 0;
+    //    break;
+    //   }
+    //  }
+    //  ++i;
+    // }
+    //
+    // // Update the coefficients (all zeroes)
+    // CPXchgobj( env, lp, num_vars, indices.data(), values.data() );
 
    } else if( qf != nullptr ) {
     // TODO
@@ -1069,26 +1071,33 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   } else {
    // Removing coefficients from a constraint
 
-   const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
-   auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
-   std::vector< int > j( num_vars, index_of_constraint( p_const ) );
-
-   // Get indices and coefficients (all zeroes)
-   int i = 0;
-   for( auto * it1 : rmv->vars() ) {
-    for( auto it2: lf->get_v_var() ) {
-     if( it1 == it2.first ) {
-      indices[ i ] = index_of_variable( it2.first );
-      values[ i ] = 0;
-      break;
-     }
-    }
-    ++i;
-   }
-
-   // Update the coefficients (all zeroes)
-   CPXchgcoeflist( env, lp, num_vars, indices.data(), j.data(), values.data() );
-
+   // const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+   // auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+   // std::vector< int > j( num_vars, index_of_constraint( p_const ) );
+   //
+   // // Get indices and coefficients (all zeroes)
+   // int i = 0;
+   // bool found = false;
+   // for( auto * it1 : rmv->vars() ) {
+   //  for( auto it2: lf->get_v_var() ) {
+   //   if( it1 == it2.first ) {
+   //    indices[ i ] = index_of_variable( it2.first );
+   //    values[ i ] = 0;
+   //    found = true;
+   //    break;
+   //   }
+   //  }
+   //  ++i;
+   // }
+   //
+   // // Update the coefficients (all zeroes)
+   // if (found)
+   // CPXchgcoeflist( env, lp, num_vars, indices.data(), j.data(), values.data() );
+   //
+   // std::stringstream lpname;
+   // lpname << std::setfill( '0' ) << std::setw( 3 ) << print_debug << "_function_vars_modification_RMV-CS.lp";
+   // write_lp(lpname.str());
+   // print_debug++;
   }
   return;
  } // rmv
