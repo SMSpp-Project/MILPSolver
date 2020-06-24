@@ -1267,7 +1267,12 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
    throw std::invalid_argument( "The Constraint is not linear" );
   }
   cmatind[ i ] = index_of_constraint( p_const );
-  cmatval[ i ] = p_fun->get_coefficient( i );
+  auto it = find_if( p_fun->get_v_var().begin(),
+                     p_fun->get_v_var().end(),
+                     [ & ]( LinearFunction::coeff_pair pair ) {
+                      return pair.first == p_var;
+                     } );
+  cmatval[ i ] = it->second;
   ++i;
  }
 
