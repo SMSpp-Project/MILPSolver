@@ -14,7 +14,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy by Antonio Frangioni, Niccolò Iardella
+ * \copyright &copy by Antonio Frangioni, Niccolò Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
@@ -432,19 +432,20 @@ void SCIPMILPSolver::var_modification( VariableMod * mod ) {
  }
 
  auto * var = dynamic_cast<ColVariable *>(mod->variable());
-
  int idx = index_of_variable( var );
-
  SCIP_VARTYPE oldtype = SCIPvarGetType( vars[ idx ] );
 
  SCIP_Bool infeas = FALSE;
+
  if( var->is_fixed() ) {
+  // Fix the variable
   SCIP_Bool fixed = 0;
   SCIP_CALL_ABORT( SCIPfixVar( scip, vars[ idx ],
                                var->get_value(), &infeas, &fixed ) );
   assert( fixed );
 
  } else if( var->is_integer() ) {
+  // Unfix or refresh the variable
   if( var->is_unitary() && var->is_positive() ) {
    if( oldtype != SCIP_VARTYPE_BINARY ) {
     SCIP_CALL_ABORT( SCIPchgVarType( scip, vars[ idx ],
@@ -625,16 +626,14 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
   * This function is used when changing coefficents for OFs or constraints.
   */
  auto * mod_f = mod->function();
- Function * of = nullptr;
-
- auto * p_obj = dynamic_cast<FRealObjective *>(f_Block->get_objective());
- of = p_obj->get_function();
+ auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
+ auto * of = p_obj->get_function();
 
  if( of == mod_f ) {
   // Changing objective function
 
-  const auto * lf = dynamic_cast<const LinearFunction *>(mod_f);
-  const auto * qf = dynamic_cast<const DQuadFunction *>(mod_f);
+  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
   if( lf != nullptr ) {
    // Linear objective function
@@ -674,6 +673,24 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
 
 void SCIPMILPSolver::function_vars_modification( FunctionModVars * mod ) {
 
+ /*
+ * This function is used when adding coefficents to OFs or constraints.
+ */
+ auto * mod_f = mod->function();
+ auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
+ auto * of = p_obj->get_function();
+
+ auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
+ if( add ) {
+
+ } // add
+
+ auto * rmv = dynamic_cast<C05FunctionModVarsRngd *>( mod );
+ if( rmv ) {
+
+ } // rmv
+
+ throw std::invalid_argument( "This type of FunctionModVars is not handled" );
 }
 
 /*--------------------------------------------------------------------------*/
