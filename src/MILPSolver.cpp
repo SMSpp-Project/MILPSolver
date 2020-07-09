@@ -225,8 +225,9 @@ void MILPSolver::load_problem() {
   * the LP data.
   */
  std::queue< Block * > Q;
- if( !f_Block->read_lock() ) {
-  throw std::runtime_error( "Unable to read lock the Block" );
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->read_lock() ) {
+  throw std::runtime_error( "Unable to lock the Block" );
  }
 
  // First loop on the queue to count variables and constraints
@@ -551,7 +552,10 @@ void MILPSolver::load_problem() {
  LOG_VEC( ub );
  LOG( "[DEBUG] xctype      = " );
  LOG_VEC( xctype );
- f_Block->read_unlock();
+
+ if( !owned ) {
+  f_Block->read_unlock();
+ }
 }
 
 /*--------------------------------------------------------------------------*/

@@ -19,7 +19,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy by Antonio Frangioni, Kostas Tavlaridis-Gyparakis, Niccolò Iardella
+ * \copyright &copy by Antonio Frangioni, Kostas Tavlaridis-Gyparakis, Niccolò Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
@@ -453,13 +453,6 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  if( !owned ) {
   f_Block->unlock( f_id );
  }
-
- // After the Objective is computed (evaluated), the solution can be retrieved
- // directly from there.
- // auto p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- // if( p_obj ) {
- //  p_obj->compute();
- // }
 
  delete[]x;
 }
