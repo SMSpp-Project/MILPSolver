@@ -1582,7 +1582,7 @@ ThinComputeInterface::idx_type
 CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
  if( name == "intUseCustomNames" )
   return ( intUseCustomNames );
- return ( MILPSolver::str_par_str2idx( name ) );
+ return ( MILPSolver::int_par_str2idx( name ) );
 }
 
 const std::string &
@@ -1593,7 +1593,7 @@ CPXMILPSolver::int_par_idx2str( const ThinComputeInterface::idx_type idx ) const
   case intUseCustomNames:
    return pars[ 0 ];
   default:
-   return MILPSolver::str_par_idx2str( idx );
+   return MILPSolver::int_par_idx2str( idx );
  }
 }
 
