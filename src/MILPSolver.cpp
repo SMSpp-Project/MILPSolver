@@ -1103,7 +1103,7 @@ void MILPSolver::process_modifications() {
     const auto tmod = std::dynamic_pointer_cast< GroupModification >( mod );
     if( tmod ) {
      LOG("GroupModification containing: " << std::endl);
-     for( const auto & submod : tmod->v_sub_Modifications ) {
+     for( const auto & submod : tmod->sub_Modifications() ) {
       f( submod );
      }
      return;
