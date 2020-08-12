@@ -960,7 +960,7 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
                 el.second );
    }
   } else {
-   throw std::invalid_argument( "Unknown type of Function" );
+   // throw std::invalid_argument( "Unknown type of Function" );
   }
  }
 }
