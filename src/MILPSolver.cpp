@@ -384,7 +384,7 @@ void MILPSolver::load_problem() {
   set = 0;
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
    int start = row;
-   
+
    auto f1 = std::bind( &MILPSolver::scan_dynamic_constraint,
                         this,
                         std::placeholders::_1,
@@ -521,8 +521,8 @@ void MILPSolver::load_problem() {
    Q.push( i );
   }
 
-  auto *p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
-  if(p_obj ) {
+  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  if( p_obj ) {
    scan_objective( p_obj );
   }
  } // End of while loop on Block queue

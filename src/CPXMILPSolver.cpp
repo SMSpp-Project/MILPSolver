@@ -850,12 +850,17 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
   * This function is used when changing coefficents for OFs or constraints.
   */
  auto * mod_f = mod->function();
+ bool changing_of = false;
+
  auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- auto * of = p_obj->get_function();
+ if( p_obj != nullptr ) {
+  auto * of = p_obj->get_function();
+  if( of == mod_f ) {
+   changing_of = true;
+  }
+ }
 
- if( of == mod_f ) {
-  // Changing objective function
-
+ if( changing_of ) {
   const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
   const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
@@ -973,8 +978,15 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   * This function is used when adding coefficents to OFs or constraints.
   */
  auto * mod_f = mod->function();
+ bool changing_of = false;
+
  auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- auto * of = p_obj->get_function();
+ if( p_obj != nullptr ) {
+  auto * of = p_obj->get_function();
+  if( of == mod_f ) {
+   changing_of = true;
+  }
+ }
 
  auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
  if( add ) {
@@ -983,7 +995,7 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   std::vector< int > indices( num_vars );
   std::vector< double > values( num_vars );
 
-  if( of == mod_f ) {
+  if( changing_of ) {
    // Adding the coefficients to the objective function
 
    const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
@@ -1029,7 +1041,7 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   std::vector< int > indices( num_vars );
   std::vector< double > values( num_vars );
 
-  if( of == mod_f ) {
+  if( changing_of ) {
    // Removing coefficients from the objective function
 
    const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
