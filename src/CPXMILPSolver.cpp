@@ -281,6 +281,7 @@ int CPXMILPSolver::compute( bool changedvars ) {
 Solver::OFValue CPXMILPSolver::get_lb() {
 
  OFValue lower_bound = 0;
+ int probtype = CPXgetprobtype( env, lp );
 
  switch( objsense ) {
   case 1: // Minimization problem
@@ -305,7 +306,15 @@ Solver::OFValue CPXMILPSolver::get_lb() {
      lower_bound = -Inf< OFValue >();
      break;
     default:
-     CPXgetbestobjval( env, lp, &lower_bound );
+     switch( probtype ) {
+      case CPXPROB_LP :
+      case CPXPROB_MILP :
+      case CPXPROB_FIXEDMILP :
+       CPXgetobjval( env, lp, &lower_bound );
+       break;
+      default:
+       CPXgetbestobjval( env, lp, &lower_bound );
+     }
      break;
    }
    break;
@@ -322,6 +331,7 @@ Solver::OFValue CPXMILPSolver::get_lb() {
 Solver::OFValue CPXMILPSolver::get_ub() {
 
  OFValue upper_bound = 0;
+ int probtype = CPXgetprobtype( env, lp );
 
  switch( objsense ) {
   case 1: // Minimization problem
@@ -333,7 +343,15 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      upper_bound = Inf< OFValue >();
      break;
     default:
-     CPXgetobjval( env, lp, &upper_bound );
+     switch( probtype ) {
+      case CPXPROB_LP :
+      case CPXPROB_MILP :
+      case CPXPROB_FIXEDMILP :
+       CPXgetobjval( env, lp, &upper_bound );
+       break;
+      default:
+       CPXgetbestobjval( env, lp, &upper_bound );
+     }
      break;
    }
    break;
