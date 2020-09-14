@@ -204,6 +204,9 @@ class MILPSolver : public CDASolver {
  const std::vector< char * > & get_colname() const;
 
  int get_nodes() const;
+
+ int get_num_integer_vars() const;
+
  /// @}
 
  virtual void write_lp(const std::string & filename) {}
