@@ -42,12 +42,14 @@
 # macroes to be exported- - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 MILPSOBJ = $(MILPSSDR)obj/MILPSolver.o \
-	$(MILPSSDR)obj/CPXMILPSolver.o
+	$(MILPSSDR)obj/CPXMILPSolver.o \
+	$(MILPSSDR)obj/SCIPMILPSolver.o
 
 MILPSINC = -I$(MILPSSDR)include/
 
 MILPSH = $(MILPSSDR)include/MILPSolver.h \
-	$(MILPSSDR)include/CPXMILPSolver.h
+	$(MILPSSDR)include/CPXMILPSolver.h \
+	$(MILPSSDR)include/SCIPMILPSolver.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -66,5 +68,11 @@ $(MILPSSDR)obj/CPXMILPSolver.o: $(MILPSSDR)src/CPXMILPSolver.cpp \
 	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)src/CPXMILPSolver.cpp -o $@ \
 	$(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(SW)
+
+$(MILPSSDR)obj/SCIPMILPSolver.o: $(MILPSSDR)src/SCIPMILPSolver.cpp \
+	$(MILPSSDR)include/SCIPMILPSolver.h \
+	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)src/SCIPMILPSolver.cpp -o $@ \
+	$(MILPSINC) $(SMS++INC) $(libSCIPINC) $(SW)
 
 ########################## End of makefile ###################################

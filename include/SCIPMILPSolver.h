@@ -5,11 +5,7 @@
  * Header file for the SCIPMILPSolver class.
  *
  * SCIPMILPSolver implements a general purpose solver that is able to tackle a
- * MILP problem expressed by a Block using IBM CLPEX.
- *
- * \version 0.90
- *
- * \date 14 - 06 - 2019
+ * MILP problem expressed by a Block using ZIB SCIP.
  *
  * \author Antonio Frangioni \n
  *         Operations Research Group \n
@@ -21,12 +17,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Kostas Tavlaridis-Gyparakis \n
- *         Operations Research Group \n
- *         Dipartimento di Informatica \n
- *         Università di Pisa \n
- *
- * \copyright &copy; Antonio Frangioni, Kostas Tavlaridis-Gyparakis, Niccolò Iardella
+ * \copyright &copy; Antonio Frangioni, Niccolò Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -65,29 +56,22 @@ namespace SMSpp_di_unipi_it {
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/// Class for solving MILP problems via CPLEX.
+/// Class for solving MILP problems via SCIP.
 /**
  * The SCIPMILPSolver class derives from MILPSolver and extends the
- * base class to solve MILP problems using CPLEX.
+ * base class to solve MILP problems using SCIP.
  *
- * The SCIPMILPSolver can be registered to any kind of Block (9assuming that
+ * The SCIPMILPSolver can be registered to any kind of Block (assuming that
  * it contains a MILP formulation) and it uses the base class functionalities
  * to build a matricial representation of a MILP problem, then it solves it
- * using CPLEX through its Callable Library. Moreover, it implements the
- * interface that MILPSolver provides for processing modifications.
+ * using SCIP. Moreover, it implements the interface that MILPSolver provides
+ * for processing modifications.
  *
  * The main logic is in compute(). This method copies the vectors that decribe
- * the LP problem into a CPLEX environment, it processes the modifications and
+ * the LP problem into a SCIP environment, it processes the modifications and
  * then solves the problem.
- * get_var_solution() retrieves the values of the variables from CPLEX, saves
+ * get_var_solution() retrieves the values of the variables from SCIP, saves
  * them into the Block variables and evaluates the objective function.
- *
- * Besides the configuration parameters already present in Solver, this class
- * adds two string parameters that allow to specify the CPLEX name of the
- * problem and an output file for CPLEX to write out the problem.
- * Moreover, the user can include in the configuration all the parameters
- * supported by CPXsetintparam(), CPXsetdblparam() and CPXsetstrparam().
- * (See the CPLEX Callable Library reference manual for all of them)
  */
 class SCIPMILPSolver : public MILPSolver {
 
@@ -104,19 +88,19 @@ class SCIPMILPSolver : public MILPSolver {
   * Public enum describing the different types of algorithmic parameters
   * of "int" type that the SCIPMILPSolver has.
   */
- enum int_par_type_CPXS {
+ enum int_par_type_SCPS {
   intUseCustomNames = intLastAlgParMILP, ///< Use custom names for rows/columns
-  intLastAlgParCPXS
+  intLastAlgParSCPS
  };
 
  /** Types of string parameters.
   * Public enum describing the different types of algorithmic parameters
   * of "string" type that the SCIPMILPSolver has.
   */
- enum str_par_type_CPXS {
+ enum str_par_type_SCPS {
   strProblemName = strLastAlgParMILP, ///< Problem name
   strOutputFile,                      ///< Output .lp file
-  strLastAlgParCPXS
+  strLastAlgParSCPS
  };
 
 /*--------------------------------------------------------------------------*/
@@ -170,7 +154,7 @@ class SCIPMILPSolver : public MILPSolver {
 
  void set_par( idx_type par, const std::string & value ) override;
 
- void write_lp(const std::string & filename) override;
+ void write_lp( const std::string & filename ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -203,13 +187,13 @@ class SCIPMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 
  protected:
- SCIP* scip;
+ SCIP * scip{};
 
- std::vector<SCIP_VAR*> vars;
- std::vector<SCIP_CONS*> conss;
+ std::vector< SCIP_VAR * > vars;
+ std::vector< SCIP_CONS * > conss;
 
- std::string prob_name;   ///< CPLEX problem name
- std::string output_file; ///< Output file for CPXwriteprob
+ std::string prob_name;   ///< SCIP problem name
+ std::string output_file; ///< Output file
 
  /// If Variable/Constraint names should be used
  bool use_custom_names = true;
@@ -236,7 +220,7 @@ class SCIPMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 
 /**
- * @name Methods for modifying the constructed CPLEX problem
+ * @name Methods for modifying the constructed SCIP problem
  * @{
  */
 
@@ -255,11 +239,17 @@ class SCIPMILPSolver : public MILPSolver {
  /// It handles a function modification
  void function_modification( FunctionMod * mod ) override;
 
+ /// It handles a function vars modification
+ void function_vars_modification( FunctionModVars * mod ) override;
+
  /// It handles a dynamic modification
  void dynamic_modification( BlockModAD * mod ) override;
 
  /// It adds a single new dynamic constraint
  void add_dynamic_constraint( FRowConstraint * p_const ) override;
+
+ /// It adds a single new dynamic bound
+ void add_dynamic_bound( OneVarConstraint * p_bound ) override;
 
  /// It adds a single new dynamic variable
  void add_dynamic_variable( ColVariable * p_var ) override;
@@ -269,6 +259,9 @@ class SCIPMILPSolver : public MILPSolver {
 
  /// It removes a single dynamic variable
  void remove_dynamic_variable( const ColVariable * p_var ) override;
+
+ /// It removes a single dynamic bound
+ void remove_dynamic_bound( const OneVarConstraint * p_bound ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/

@@ -7,10 +7,6 @@
  * CPXMILPSolver implements a general purpose solver that is able to tackle a
  * MILP problem expressed by a Block using IBM CLPEX.
  *
- * \version 0.90
- *
- * \date 14 - 06 - 2019
- *
  * \author Antonio Frangioni \n
  *         Operations Research Group \n
  *         Dipartimento di Informatica \n
@@ -70,7 +66,7 @@ namespace SMSpp_di_unipi_it {
  * The CPXMILPSolver class derives from MILPSolver and extends the
  * base class to solve MILP problems using CPLEX.
  *
- * The CPXMILPSolver can be registered to any kind of Block (9assuming that
+ * The CPXMILPSolver can be registered to any kind of Block (assuming that
  * it contains a MILP formulation) and it uses the base class functionalities
  * to build a matricial representation of a MILP problem, then it solves it
  * using CPLEX through its Callable Library. Moreover, it implements the
@@ -170,7 +166,7 @@ class CPXMILPSolver : public MILPSolver {
 
  void set_par( idx_type par, const std::string & value ) override;
 
- void write_lp(const std::string & filename) override;
+ void write_lp( const std::string & filename ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -254,11 +250,17 @@ class CPXMILPSolver : public MILPSolver {
  /// It handles a function modification
  void function_modification( FunctionMod * mod ) override;
 
+ /// It handles a function vars modification
+ void function_vars_modification( FunctionModVars * mod ) override;
+
  /// It handles a dynamic modification
  void dynamic_modification( BlockModAD * mod ) override;
 
  /// It adds a single new dynamic constraint
  void add_dynamic_constraint( FRowConstraint * p_const ) override;
+
+ /// It adds a single new dynamic bound
+ void add_dynamic_bound( OneVarConstraint * p_bound ) override;
 
  /// It adds a single new dynamic variable
  void add_dynamic_variable( ColVariable * p_var ) override;
@@ -268,6 +270,9 @@ class CPXMILPSolver : public MILPSolver {
 
  /// It removes a single dynamic variable
  void remove_dynamic_variable( const ColVariable * p_var ) override;
+
+ /// It removes a single dynamic bound
+ void remove_dynamic_bound( const OneVarConstraint * p_bound ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/

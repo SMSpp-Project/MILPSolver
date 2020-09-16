@@ -7,7 +7,7 @@
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 cmake_minimum_required(VERSION 3.8...3.15)
-project(MILPSolver VERSION 0.2.0 LANGUAGES CXX)
+project(MILPSolver VERSION 0.3.0 LANGUAGES CXX)
 
 # ----- Settings ------------------------------------------------------------ #
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -21,6 +21,9 @@ list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 find_package(SMSpp REQUIRED)
 find_package(CPLEX)
 find_package(SCIP)
+
+# ----- Configuration header ------------------------------------------------ #
+configure_file(cmake/MILPSolverConfig.h.in MILPSolverConfig.h)
 
 # ----- Library ------------------------------------------------------------- #
 add_library(MILPSolver)
@@ -65,6 +68,9 @@ install(TARGETS MILPSolver
 
 # Install headers
 install(DIRECTORY include/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SMS++)
+
+install(FILES ${PROJECT_BINARY_DIR}/MILPSolverConfig.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SMS++)
 
 # Install target import file
