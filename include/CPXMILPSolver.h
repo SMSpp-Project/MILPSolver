@@ -148,17 +148,23 @@ class CPXMILPSolver : public MILPSolver {
 
  OFValue get_ub() override;
 
+ OFValue get_var_value() override;
+
  bool has_var_solution() override;
 
  bool is_var_feasible() override;
-
- OFValue get_var_value() override;
 
  void get_var_solution( Configuration * solc = nullptr ) override;
 
  bool has_dual_solution() override;
 
+ bool is_dual_feasible() override;
+
  void get_dual_solution( Configuration * solc = nullptr ) override;
+
+ bool has_dual_direction() override;
+
+ void get_dual_direction( Configuration *dirc = nullptr ) override;
 
  void set_par( idx_type par, int value ) override;
 
