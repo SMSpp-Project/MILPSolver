@@ -381,7 +381,6 @@ Solver::OFValue CPXMILPSolver::get_ub() {
 bool CPXMILPSolver::has_var_solution() {
  switch( sol_status ) {
   case ( kOK ):
-  case ( kInfeasible ):
    return ( true );
   default:
    return ( false );
