@@ -116,11 +116,11 @@ const std::vector< double > & MILPSolver::get_matval() const {
  return matval;
 }
 
-const std::vector< double > & MILPSolver::get_lb() const {
+const std::vector< double > & MILPSolver::get_var_lb() const {
  return lb;
 }
 
-const std::vector< double > & MILPSolver::get_ub() const {
+const std::vector< double > & MILPSolver::get_var_ub() const {
  return ub;
 }
 

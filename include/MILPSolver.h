@@ -193,9 +193,11 @@ class MILPSolver : public CDASolver {
 
  const std::vector< double > & get_matval() const;
 
- const std::vector< double > & get_lb() const;
+ /// returns the lower bounds on the Variables
+ const std::vector< double > & get_var_lb() const;
 
- const std::vector< double > & get_ub() const;
+ /// returns the upper bounds on the Variables
+ const std::vector< double > & get_var_ub() const;
 
  const std::vector< char > & get_xctype() const;
 
