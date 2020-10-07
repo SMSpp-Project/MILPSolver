@@ -167,48 +167,176 @@ class MILPSolver : public CDASolver {
  * @{
  */
 
- int get_numcols() const;
+ [[nodiscard]] int get_numcols() const;
 
- int get_numrows() const;
+ [[nodiscard]] int get_numrows() const;
 
- int get_nzelements() const;
+ [[nodiscard]] int get_nzelements() const;
 
- int get_objsense() const;
+ [[nodiscard]] int get_objsense() const;
 
- const std::vector< double > & get_objective() const;
+ [[nodiscard]] const std::vector< double > & get_objective() const;
 
- const std::vector< double > & get_q_objective() const;
+ [[nodiscard]] const std::vector< double > & get_q_objective() const;
 
- const std::vector< double > & get_rhs() const;
+ [[nodiscard]] const std::vector< double > & get_rhs() const;
 
- const std::vector< double > & get_rngval() const;
+ [[nodiscard]] const std::vector< double > & get_rngval() const;
 
- const std::vector< char > & get_sense() const;
+ [[nodiscard]] const std::vector< char > & get_sense() const;
 
- const std::vector< int > & get_matbeg() const;
+ [[nodiscard]] const std::vector< int > & get_matbeg() const;
 
- const std::vector< int > & get_matcnt() const;
+ [[nodiscard]] const std::vector< int > & get_matcnt() const;
 
- const std::vector< int > & get_matind() const;
+ [[nodiscard]] const std::vector< int > & get_matind() const;
 
- const std::vector< double > & get_matval() const;
+ [[nodiscard]] const std::vector< double > & get_matval() const;
 
  /// returns the lower bounds on the Variables
- const std::vector< double > & get_var_lb() const;
+ [[nodiscard]] const std::vector< double > & get_var_lb() const;
 
  /// returns the upper bounds on the Variables
- const std::vector< double > & get_var_ub() const;
+ [[nodiscard]] const std::vector< double > & get_var_ub() const;
 
- const std::vector< char > & get_xctype() const;
+ [[nodiscard]] const std::vector< char > & get_xctype() const;
 
- const std::vector< char * > & get_rowname() const;
+ [[nodiscard]] const std::vector< char * > & get_rowname() const;
 
- const std::vector< char * > & get_colname() const;
+ [[nodiscard]] const std::vector< char * > & get_colname() const;
 
- int get_nodes() const;
+ [[nodiscard]] int get_nodes() const;
 
- int get_num_integer_vars() const;
+ [[nodiscard]] int get_num_integer_vars() const;
 
+ /// @}
+
+ /** @name Methods that use the correspondance vectors
+  *
+  * The following methods use the tracking vectors to get the indices of the
+  * Variables/Constraints from the pointers and viceversa.
+  *
+  * We provide separate methods for looking into static, dynamic or both parts
+  * of the problem, so we can reduce searching time when possible
+  *
+  * @{
+  */
+
+ /**
+  * It returns the matrix column index of a given variable.
+  *
+  * @param p_var a pointer to a ColVariable
+  * @return the corresponding matrix column index
+  * @throws std::invalid_argument if no indices are associated to that variable
+  */
+ int index_of_variable( ColVariable * p_var );
+
+ /**
+  * It returns the matrix column index of a given static variable.
+  *
+  * @param p_var a pointer to a ColVariable
+  * @return the corresponding matrix column index
+  * @throws std::invalid_argument if no indices are associated to the variable
+  */
+ int index_of_static_variable( ColVariable * p_var );
+
+ /**
+  * It returns the matrix column index of a given dynamic variable.
+  *
+  * @param p_var a pointer to a ColVariable
+  * @return the corresponding matrix column index
+  * @throws std::invalid_argument if no indices are associated to the variable
+  */
+ int index_of_dynamic_variable( ColVariable * p_var );
+
+ /**
+  * It returns the matrix row index of the given constraint.
+  *
+  * @param p_const a pointer to a FRowConstraint
+  * @return the corresponding matrix row index
+  */
+ int index_of_constraint( FRowConstraint * p_const );
+
+ /**
+  * It returns the matrix row index of the given static constraint.
+  *
+  * @param p_const a pointer to a FRowConstraint
+  * @return the corresponding matrix row index
+  * @throws std::invalid_argument if no indices are associated to the constraint
+  */
+ int index_of_static_constraint( FRowConstraint * p_const );
+
+ /**
+  * It returns the matrix row index of the given dynamic constraint.
+  *
+  * @param p_const a pointer to a FRowConstraint
+  * @return the corresponding matrix row index
+  * @throws std::invalid_argument if no indices are associated to the constraint
+  */
+ int index_of_dynamic_constraint( FRowConstraint * p_const );
+
+ /**
+  * It returns the variable corresponding to a variable matrix column index.
+  *
+  * @param i a constraint matrix column index
+  * @return a pointer to the corresponding ColVariable
+  * @throws std::invalid_argument if the index doesn't correspond to a variable
+  */
+ ColVariable * variable_with_index( int i );
+
+ /**
+  * It returns the static variable corresponding to the given variable
+  * matrix column index.
+  *
+  * @param i a constraint matrix column index
+  * @return a pointer to the corresponding static ColVariable
+  * @throws std::invalid_argument if the index doesn't correspond to
+  *                               a static variable
+  */
+ ColVariable * static_variable_with_index( int i );
+
+ /**
+  * It returns the dynamic variable corresponding to the given variable
+  * matrix column index.
+  *
+  * @param i a constraint matrix column index
+  * @return a pointer to the corresponding dynamic ColVariable
+  * @throws std::invalid_argument if the index doesn't correspond to
+  *                               a dynamic variable.
+  */
+ ColVariable * dynamic_variable_with_index( int i );
+
+ /**
+  * It returns the constraint corresponding to a constraint matrix row index.
+  *
+  * @param i a constraint matrix row index
+  * @return a pointer to the corresponding FRowConstraint
+  * @throws std::invalid_argument if the index doesn't correspond to
+  *                               a constraint
+  */
+ FRowConstraint * constraint_with_index( int i );
+
+ /**
+  * It returns the static constraint corresponding to the given constraint
+  * matrix row index.
+  *
+  * @param i a constraint matrix row index
+  * @return a pointer to the corresponding FRowConstraint
+  * @throws std::invalid_argument if the index doesn't correspond to
+  *                               a static constraint
+  */
+ FRowConstraint * static_constraint_with_index( int i );
+
+ /**
+ * It returns the dynamic constraint corresponding to the given constraint
+ * matrix row index.
+ *
+ * @param i a constraint matrix row index
+ * @return a pointer to the corresponding FRowConstraint
+ * @throws std::invalid_argument if the index doesn't correspond to
+ *                               a dynamic constraint
+ */
+ FRowConstraint * dynamic_constraint_with_index( int i );
  /// @}
 
  virtual void write_lp(const std::string & filename) {}
@@ -457,80 +585,6 @@ class MILPSolver : public CDASolver {
  virtual void clear_problem(); ///< It clears all the LP vectors
 
  virtual void load_problem();  ///< It loads all the LP vectors
- /// @}
-
- /** @name Methods that use the correspondance vectors
-  *
-  * The following methods use the tracking vectors to get the indices of the
-  * Variables/Constraints from the pointers and viceversa.
-  *
-  * We provide separate methods for looking into static, dynamic or both parts
-  * of the problem, so we can reduce searching time when possible
-  *
-  * @{
-  */
-
- /**
-  * It returns the constraint matrix column index of a given variable.
-  *
-  * @param p_var a pointer to a ColVariable
-  * @return the corresponding constraint matrix column index
-  */
- int index_of_variable( ColVariable * p_var );
-
- /**
-  * It returns the constraint matrix column index of a given static variable.
-  *
-  * @param p_var a pointer to a ColVariable
-  * @return the corresponding constraint matrix column index
-  */
- int index_of_static_variable( ColVariable * p_var );
-
- /**
-  * It returns the constraint matrix column index of a given dynamic variable.
-  *
-  * @param p_var a pointer to a ColVariable
-  * @return the corresponding constraint matrix column index
-  */
- int index_of_dynamic_variable( ColVariable * p_var );
-
- /**
-  * It returns the constraint matrix row index of the given constraint.
-  *
-  * @param p_const a pointer to a FRowConstraint
-  * @return the corresponding constraint matrix row index
-  */
- int index_of_constraint( FRowConstraint * p_const );
-
- /**
-  * It returns the constraint matrix row index of the given static constraint.
-  *
-  * @param p_const a pointer to a FRowConstraint
-  * @return the corresponding constraint matrix row index
-  */
- int index_of_static_constraint( FRowConstraint * p_const );
-
- /**
-  * It returns the constraint matrix row index of the given dynamic constraint.
-  *
-  * @param p_const a pointer to a FRowConstraint
-  * @return the corresponding constraint matrix row index
-  */
- int index_of_dynamic_constraint( FRowConstraint * p_const );
-
- /**
-  * It returns the variable corresponding to the given constraint matrix index.
-  * @param i a constraint matrix column index
-  * @return a pointer to the corresponding ColVariable
-  */
- ColVariable * static_variable_with_index( int i );
-
- /**
-  * It returns the constraint corresponding to the given constraint matrix index.
-  * @param i a constraint matrix row index
-  * @return a pointer to the corresponding FRowConstraint
-  */
- FRowConstraint * static_constraint_with_index( int i );
  /// @}
 
 /*--------------------------------------------------------------------------*/

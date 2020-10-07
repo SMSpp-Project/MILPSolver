@@ -570,6 +570,8 @@ int MILPSolver::index_of_variable( ColVariable * p_var ) {
  }
 }
 
+/*--------------------------------------------------------------------------*/
+
 int MILPSolver::index_of_static_variable( ColVariable * p_var ) {
 
  int i = 0;
@@ -594,6 +596,8 @@ int MILPSolver::index_of_static_variable( ColVariable * p_var ) {
  return i;
 }
 
+/*--------------------------------------------------------------------------*/
+
 int MILPSolver::index_of_dynamic_variable( ColVariable * p_var ) {
  auto it = find_if( v_d_var_int.begin(),
                     v_d_var_int.end(),
@@ -608,6 +612,7 @@ int MILPSolver::index_of_dynamic_variable( ColVariable * p_var ) {
 }
 
 /*--------------------------------------------------------------------------*/
+
 int MILPSolver::index_of_constraint( FRowConstraint * p_const ) {
  try {
   return index_of_dynamic_constraint( p_const );
@@ -615,6 +620,8 @@ int MILPSolver::index_of_constraint( FRowConstraint * p_const ) {
   return index_of_static_constraint( p_const );
  }
 }
+
+/*--------------------------------------------------------------------------*/
 
 int MILPSolver::index_of_static_constraint( FRowConstraint * p_const ) {
 
@@ -642,6 +649,8 @@ int MILPSolver::index_of_static_constraint( FRowConstraint * p_const ) {
  return i;
 }
 
+/*--------------------------------------------------------------------------*/
+
 int MILPSolver::index_of_dynamic_constraint( FRowConstraint * p_const ) {
  auto it = find_if( v_d_const_int.begin(),
                     v_d_const_int.end(),
@@ -652,6 +661,16 @@ int MILPSolver::index_of_dynamic_constraint( FRowConstraint * p_const ) {
   return it->second;
  } else {
   throw ( std::invalid_argument( "Constraint not found" ) );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+ColVariable * MILPSolver::variable_with_index( int i ) {
+ try {
+  return dynamic_variable_with_index( i );
+ } catch( ... ) {
+  return static_variable_with_index( i );
  }
 }
 
@@ -684,6 +703,31 @@ ColVariable * MILPSolver::static_variable_with_index( int i ) {
 
 /*--------------------------------------------------------------------------*/
 
+ColVariable * MILPSolver::dynamic_variable_with_index( int i ) {
+ auto it = find_if( v_int_d_var.begin(),
+                    v_int_d_var.end(),
+                    [ & ]( int_var pair ) {
+                     return pair.first == i;
+                    } );
+ if( it != v_int_d_var.end() ) {
+  return it->second;
+ } else {
+  throw ( std::invalid_argument( "Index not found" ) );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+FRowConstraint * MILPSolver::constraint_with_index( int i ) {
+ try {
+  return dynamic_constraint_with_index( i );
+ } catch( ... ) {
+  return static_constraint_with_index( i );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
 FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
 
  FRowConstraint * p_const = nullptr;
@@ -707,6 +751,21 @@ FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
  }
 
  return p_const;
+}
+
+/*--------------------------------------------------------------------------*/
+
+FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
+ auto it = find_if( v_int_d_const.begin(),
+                    v_int_d_const.end(),
+                    [ & ]( int_const pair ) {
+                     return pair.first == i;
+                    } );
+ if( it != v_int_d_const.end() ) {
+  return it->second;
+ } else {
+  throw ( std::invalid_argument( "Index not found" ) );
+ }
 }
 
 /*--------------------------------------------------------------------------*/
