@@ -692,7 +692,8 @@ ColVariable * MILPSolver::static_variable_with_index( int i ) {
  }
 
  if( it != v_int_s_var.end() ) {
-  return it->second;
+  int distance = i - it->first;
+  return (it->second + distance);
  } else {
   return nullptr;
  }
@@ -743,7 +744,8 @@ FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
  }
 
  if( it != v_int_s_const.end() ) {
-  return it->second;
+  int distance = i - it->first;
+  return (it->second + distance);
  } else {
   return nullptr;
  }
