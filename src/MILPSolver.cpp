@@ -116,11 +116,11 @@ const std::vector< double > & MILPSolver::get_matval() const {
  return matval;
 }
 
-const std::vector< double > & MILPSolver::get_lb() const {
+const std::vector< double > & MILPSolver::get_var_lb() const {
  return lb;
 }
 
-const std::vector< double > & MILPSolver::get_ub() const {
+const std::vector< double > & MILPSolver::get_var_ub() const {
  return ub;
 }
 
@@ -563,12 +563,15 @@ void MILPSolver::load_problem() {
 /*--------------------------------------------------------------------------*/
 
 int MILPSolver::index_of_variable( ColVariable * p_var ) {
- try {
-  return index_of_dynamic_variable( p_var );
- } catch( ... ) {
+ auto i = index_of_dynamic_variable( p_var );
+ if( i < Inf< int >() ) {
+  return i;
+ } else {
   return index_of_static_variable( p_var );
  }
 }
+
+/*--------------------------------------------------------------------------*/
 
 int MILPSolver::index_of_static_variable( ColVariable * p_var ) {
 
@@ -587,14 +590,16 @@ int MILPSolver::index_of_static_variable( ColVariable * p_var ) {
  }
 
  if( it != v_s_var_int.end() ) {
-  i = static_cast<int>(it->second + std::distance( it->first, p_var ));
+  return static_cast<int>(it->second + std::distance( it->first, p_var ));
  } else {
-  throw ( std::invalid_argument( "Variable not found" ) );
+  return Inf< int >();
  }
- return i;
 }
 
+/*--------------------------------------------------------------------------*/
+
 int MILPSolver::index_of_dynamic_variable( ColVariable * p_var ) {
+
  auto it = find_if( v_d_var_int.begin(),
                     v_d_var_int.end(),
                     [ & ]( var_int pair ) {
@@ -603,22 +608,24 @@ int MILPSolver::index_of_dynamic_variable( ColVariable * p_var ) {
  if( it != v_d_var_int.end() ) {
   return it->second;
  } else {
-  throw ( std::invalid_argument( "Variable not found" ) );
+  return Inf< int >();
  }
 }
 
 /*--------------------------------------------------------------------------*/
+
 int MILPSolver::index_of_constraint( FRowConstraint * p_const ) {
- try {
-  return index_of_dynamic_constraint( p_const );
- } catch( ... ) {
+ auto i = index_of_dynamic_constraint( p_const );
+ if( i < Inf< int >() ) {
+  return i;
+ } else {
   return index_of_static_constraint( p_const );
  }
 }
 
-int MILPSolver::index_of_static_constraint( FRowConstraint * p_const ) {
+/*--------------------------------------------------------------------------*/
 
- int i = 0;
+int MILPSolver::index_of_static_constraint( FRowConstraint * p_const ) {
 
  auto it = lower_bound( v_s_const_int.begin(),
                         v_s_const_int.end(),
@@ -634,15 +641,16 @@ int MILPSolver::index_of_static_constraint( FRowConstraint * p_const ) {
  }
 
  if( it != v_s_const_int.end() ) {
-  i = static_cast<int>(it->second + std::distance( it->first, p_const ));
+  return static_cast<int>(it->second + std::distance( it->first, p_const ));
  } else {
-  throw ( std::invalid_argument( "Constraint not found" ) );
+  return Inf< int >();
  }
-
- return i;
 }
 
+/*--------------------------------------------------------------------------*/
+
 int MILPSolver::index_of_dynamic_constraint( FRowConstraint * p_const ) {
+
  auto it = find_if( v_d_const_int.begin(),
                     v_d_const_int.end(),
                     [ & ]( const_int pair ) {
@@ -651,7 +659,18 @@ int MILPSolver::index_of_dynamic_constraint( FRowConstraint * p_const ) {
  if( it != v_d_const_int.end() ) {
   return it->second;
  } else {
-  throw ( std::invalid_argument( "Constraint not found" ) );
+  return Inf< int >();
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+ColVariable * MILPSolver::variable_with_index( int i ) {
+ auto p_var = static_variable_with_index( i );
+ if( p_var ) {
+  return p_var;
+ } else {
+  return dynamic_variable_with_index( i );
  }
 }
 
@@ -659,7 +678,6 @@ int MILPSolver::index_of_dynamic_constraint( FRowConstraint * p_const ) {
 
 ColVariable * MILPSolver::static_variable_with_index( int i ) {
 
- ColVariable * p_var = nullptr;
  auto it = lower_bound( v_int_s_var.begin(),
                         v_int_s_var.end(),
                         i,
@@ -674,19 +692,44 @@ ColVariable * MILPSolver::static_variable_with_index( int i ) {
  }
 
  if( it != v_int_s_var.end() ) {
-  p_var = it->second;
+  int distance = i - it->first;
+  return (it->second + distance);
  } else {
-  throw ( std::invalid_argument( "Index not found" ) );
+  return nullptr;
  }
+}
 
- return p_var;
+/*--------------------------------------------------------------------------*/
+
+ColVariable * MILPSolver::dynamic_variable_with_index( int i ) {
+
+ auto it = find_if( v_int_d_var.begin(),
+                    v_int_d_var.end(),
+                    [ & ]( int_var pair ) {
+                     return pair.first == i;
+                    } );
+ if( it != v_int_d_var.end() ) {
+  return it->second;
+ } else {
+  return nullptr;
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+FRowConstraint * MILPSolver::constraint_with_index( int i ) {
+ auto p_const = static_constraint_with_index( i );
+ if( p_const ) {
+  return p_const;
+ } else {
+  return dynamic_constraint_with_index( i );
+ }
 }
 
 /*--------------------------------------------------------------------------*/
 
 FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
 
- FRowConstraint * p_const = nullptr;
  auto it = lower_bound( v_int_s_const.begin(),
                         v_int_s_const.end(),
                         i,
@@ -701,12 +744,27 @@ FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
  }
 
  if( it != v_int_s_const.end() ) {
-  p_const = it->second;
+  int distance = i - it->first;
+  return (it->second + distance);
  } else {
-  throw ( std::invalid_argument( "Index not found" ) );
+  return nullptr;
  }
+}
 
- return p_const;
+/*--------------------------------------------------------------------------*/
+
+FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
+
+ auto it = find_if( v_int_d_const.begin(),
+                    v_int_d_const.end(),
+                    [ & ]( int_const pair ) {
+                     return pair.first == i;
+                    } );
+ if( it != v_int_d_const.end() ) {
+  return it->second;
+ } else {
+  return nullptr;
+ }
 }
 
 /*--------------------------------------------------------------------------*/

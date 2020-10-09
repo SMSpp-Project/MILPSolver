@@ -400,12 +400,6 @@ bool CPXMILPSolver::has_var_solution() {
 /*--------------------------------------------------------------------------*/
 
 bool CPXMILPSolver::is_var_feasible() {
- // switch( sol_status ) {
- //  case ( kInfeasible ):
- //   return ( false );
- //  default:
- //   return ( true );
- // }
  int solnmethod, solntype, pfeasind, dfeasind;
  int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
                            &pfeasind, &dfeasind );
@@ -1247,6 +1241,29 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   return;
  } // rmv
 
+ auto * rmv_sbst = dynamic_cast<C05FunctionModVarsSbst *>( mod );
+ if( rmv_sbst ) {
+
+  if( changing_of ) {
+   // Removing coefficients from the objective function
+
+   const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+   const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
+
+   if( lf != nullptr ) {
+    // TODO
+   } else if( qf != nullptr ) {
+    // TODO
+   } else {
+    throw std::invalid_argument( "Unknown type of Objective Function" );
+   }
+  } else {
+   // Removing coefficients from a constraint
+   // TODO
+  }
+
+  return;
+ }
  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
 }
 
