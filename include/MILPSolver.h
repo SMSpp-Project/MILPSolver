@@ -439,6 +439,9 @@ class MILPSolver : public CDASolver {
 
  /// Active bounds for each Variable
  std::vector< std::vector< OneVarConstraint * > > active_bounds;
+
+ /// Actually used bounds for each Variable, each pair being lower and upper
+ std::vector< std::pair< OneVarConstraint *, OneVarConstraint * > > used_bounds;
  /// @}
 
 /*--------------------------------------------------------------------------*/

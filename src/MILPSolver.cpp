@@ -212,6 +212,7 @@ void MILPSolver::clear_problem() {
  for( auto i: active_bounds )
   i.clear();
  active_bounds.clear();
+ used_bounds.clear();
 }
 
 /*--------------------------------------------------------------------------*/
@@ -806,6 +807,7 @@ void MILPSolver::count_nzelements( ColVariable & variable,
  if( active_constraints.size() < numcols ) {
   active_constraints.resize( static_cast<unsigned long>(numcols) );
   active_bounds.resize( static_cast<unsigned long>(numcols) );
+  used_bounds.resize( static_cast<unsigned long>(numcols) );
  }
 
  for( auto *i : variable.active_stuff() ) {
@@ -851,8 +853,18 @@ void MILPSolver::scan_static_variable( ColVariable & var, int & first, int & i )
   int num_bounds = static_cast<int>(active_bounds[ i ].size());
   for( int j = 0; j < num_bounds; ++j ) {
    auto *bound = active_bounds[ i ][ j ];
-   lb[ i ] = lb[ i ] > bound->get_lhs() ? lb[ i ] : bound->get_lhs();
-   ub[ i ] = ub[ i ] < bound->get_rhs() ? ub[ i ] : bound->get_rhs();
+
+   if( lb[ i ] <= bound->get_lhs() ) {
+    // Update used lower bound
+    used_bounds[ i ].first = bound;
+    lb[ i ] = bound->get_lhs();
+   }
+
+   if( bound->get_rhs() <= ub[ i ] ) {
+    // Update used upper bound
+    used_bounds[ i ].second = bound;
+    ub[ i ] = bound->get_rhs();
+   }
   }
  }
 
@@ -931,8 +943,18 @@ void MILPSolver::scan_dynamic_variable( ColVariable & var, int & i ) {
   int num_bounds = static_cast<int>(active_bounds[ i ].size());
   for( int j = 0; j < num_bounds; ++j ) {
    auto *bound = active_bounds[ i ][ j ];
-   lb[ i ] = lb[ i ] > bound->get_lhs() ? lb[ i ] : bound->get_lhs();
-   ub[ i ] = ub[ i ] < bound->get_rhs() ? ub[ i ] : bound->get_rhs();
+
+   if( lb[ i ] <= bound->get_lhs() ) {
+    // Update used lower bound
+    used_bounds[ i ].first = bound;
+    lb[ i ] = bound->get_lhs();
+   }
+
+   if( bound->get_rhs() <= ub[ i ] ) {
+    // Update used upper bound
+    used_bounds[ i ].second = bound;
+    ub[ i ] = bound->get_rhs();
+   }
   }
  }
 
