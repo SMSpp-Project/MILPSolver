@@ -672,6 +672,11 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   }
  }
 
+ for (int i = 0; i < numcols; ++i) {
+  used_bounds[i].first->set_dual(v[i]);
+  used_bounds[i].second->set_dual(w[i]);
+ }
+
  if( !owned ) {
   f_Block->unlock( f_id );
  }
