@@ -582,8 +582,12 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 /*--------------------------------------------------------------------------*/
 
 bool CPXMILPSolver::has_dual_direction() {
- return CDASolver::has_dual_direction();
-}
+ auto * y = new double[numrows];
+ double proof = 0;
+ int status = CPXdualfarkas( env, lp, y, &proof );
+
+ return !bool(status);
+ }
 
 /*--------------------------------------------------------------------------*/
 
