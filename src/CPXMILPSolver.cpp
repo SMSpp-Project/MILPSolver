@@ -585,7 +585,7 @@ bool CPXMILPSolver::has_dual_direction() {
  auto * y = new double[numrows];
  double proof = 0;
  int status = CPXdualfarkas( env, lp, y, &proof );
-
+ delete[] y;
  return !bool(status);
  }
 
@@ -610,7 +610,7 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   delete[]y;
   delete[]v;
   delete[]dj;
-  delete[]y;
+  delete[]w;
   throw std::runtime_error( "An error occurred in CPXdualfarkas()" );
  }
 
@@ -622,7 +622,7 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   delete[]y;
   delete[]v;
   delete[]dj;
-  delete[]y;
+  delete[]w;
   throw std::runtime_error( "An error occurred in CPXdjfrompi()" );
  }
 
@@ -688,7 +688,7 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
  delete[]y;
  delete[]v;
  delete[]dj;
- delete[]y;
+ delete[]w;
 }
 
 /*--------------------------------------------------------------------------*/
