@@ -284,6 +284,7 @@ Solver::OFValue CPXMILPSolver::get_lb() {
  int probtype = CPXgetprobtype( env, lp );
 
  switch( objsense ) {
+
   case 1: // Minimization problem
    switch( sol_status ) {
     case kUnbounded:
@@ -293,10 +294,21 @@ Solver::OFValue CPXMILPSolver::get_lb() {
      lower_bound = Inf< OFValue >();
      break;
     default:
-     CPXgetbestobjval( env, lp, &lower_bound );
+     switch( probtype ) {
+      case CPXPROB_MILP :
+      case CPXPROB_MIQP :
+      case CPXPROB_FIXEDMILP :
+      case CPXPROB_FIXEDMIQP :
+       CPXgetbestobjval( env, lp, &lower_bound );
+       break;
+      default:
+       // FIXME: It's unclear how to get a lb for a continuous problem here
+       CPXgetobjval( env, lp, &lower_bound );
+     }
      break;
    }
    break;
+
   case -1: // Maximization problem
    switch( sol_status ) {
     case kUnbounded:
@@ -306,18 +318,10 @@ Solver::OFValue CPXMILPSolver::get_lb() {
      lower_bound = -Inf< OFValue >();
      break;
     default:
-     switch( probtype ) {
-      case CPXPROB_LP :
-      case CPXPROB_MILP :
-      case CPXPROB_FIXEDMILP :
-       CPXgetobjval( env, lp, &lower_bound );
-       break;
-      default:
-       CPXgetbestobjval( env, lp, &lower_bound );
-     }
-     break;
+     CPXgetobjval( env, lp, &lower_bound );
    }
    break;
+
   default:
    throw std::runtime_error( "Objective type not yet defined" );
    break;
@@ -334,6 +338,7 @@ Solver::OFValue CPXMILPSolver::get_ub() {
  int probtype = CPXgetprobtype( env, lp );
 
  switch( objsense ) {
+
   case 1: // Minimization problem
    switch( sol_status ) {
     case kUnbounded:
@@ -343,18 +348,11 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      upper_bound = Inf< OFValue >();
      break;
     default:
-     switch( probtype ) {
-      case CPXPROB_LP :
-      case CPXPROB_MILP :
-      case CPXPROB_FIXEDMILP :
-       CPXgetobjval( env, lp, &upper_bound );
-       break;
-      default:
-       CPXgetbestobjval( env, lp, &upper_bound );
-     }
+     CPXgetobjval( env, lp, &upper_bound );
      break;
    }
    break;
+
   case -1: // Maximization problem
    switch( sol_status ) {
     case kUnbounded:
@@ -364,10 +362,21 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      upper_bound = -Inf< OFValue >();
      break;
     default:
-     CPXgetobjval( env, lp, &upper_bound );
+     switch( probtype ) {
+      case CPXPROB_MILP :
+      case CPXPROB_MIQP :
+      case CPXPROB_FIXEDMILP :
+      case CPXPROB_FIXEDMIQP :
+       CPXgetbestobjval( env, lp, &upper_bound );
+       break;
+      default:
+       // FIXME: It's unclear how to get a ub for a continuous problem here
+       CPXgetobjval( env, lp, &upper_bound );
+     }
      break;
    }
    break;
+
   default:
    throw std::runtime_error( "Objective type not yet defined" );
    break;
