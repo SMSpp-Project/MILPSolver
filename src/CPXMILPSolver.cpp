@@ -303,6 +303,16 @@ Solver::OFValue CPXMILPSolver::get_lb() {
        break;
       default:
        // FIXME: It's unclear how to get a lb for a continuous problem here
+
+       // TODO In this case, Cplex seems not to be able to provide a lower
+       // bound. So, what has to be done here is the following. If Cplex
+       // claims to have found an optimal solution, then we consider the
+       // optimal value given by Cplex to be a lower bound. If Cplex does not
+       // state that an optimal solution has been found then we do not have
+       // enough information to provide a "good" lower bound (the problem may
+       // be unbounded and Cplex has not detected it yet). Therefore, in this
+       // case, the lower bound should be -Inf.
+
        CPXgetobjval( env, lp, &lower_bound );
      }
      break;
@@ -318,6 +328,8 @@ Solver::OFValue CPXMILPSolver::get_lb() {
      lower_bound = -Inf< OFValue >();
      break;
     default:
+     // TODO check if a feasible solution has been found. If no feasible
+     // solution has been found, then the lower bound should be -Inf.
      CPXgetobjval( env, lp, &lower_bound );
    }
    break;
@@ -348,6 +360,8 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      upper_bound = Inf< OFValue >();
      break;
     default:
+     // TODO check if a feasible solution has been found. If no feasible
+     // solution has been found, then the upper bound should be +Inf.
      CPXgetobjval( env, lp, &upper_bound );
      break;
    }
@@ -371,6 +385,11 @@ Solver::OFValue CPXMILPSolver::get_ub() {
        break;
       default:
        // FIXME: It's unclear how to get a ub for a continuous problem here
+
+       // TODO This is analogous to get_lb() for the case of a minimization
+       // problem. That is, if Cplex does not state that an optimal solution
+       // has been found, then the upper bound should be +Inf.
+
        CPXgetobjval( env, lp, &upper_bound );
      }
      break;
