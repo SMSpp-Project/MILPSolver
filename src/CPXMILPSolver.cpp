@@ -285,52 +285,64 @@ Solver::OFValue CPXMILPSolver::get_lb() {
 
  switch( objsense ) {
 
-  case 1: // Minimization problem
+  // Minimization problem
+  case CPX_MIN:
+
    switch( sol_status ) {
+
     case kUnbounded:
      lower_bound = -Inf< OFValue >();
      break;
+
     case kInfeasible:
      lower_bound = Inf< OFValue >();
      break;
-    default:
+
+    case kOK:
      switch( probtype ) {
-      case CPXPROB_MILP :
-      case CPXPROB_MIQP :
-      case CPXPROB_FIXEDMILP :
-      case CPXPROB_FIXEDMIQP :
+      case CPXPROB_MILP:
+      case CPXPROB_MIQP:
+      case CPXPROB_FIXEDMILP:
+      case CPXPROB_FIXEDMIQP:
        CPXgetbestobjval( env, lp, &lower_bound );
        break;
       default:
        // FIXME: It's unclear how to get a lb for a continuous problem here
-
-       // TODO In this case, Cplex seems not to be able to provide a lower
-       // bound. So, what has to be done here is the following. If Cplex
-       // claims to have found an optimal solution, then we consider the
-       // optimal value given by Cplex to be a lower bound. If Cplex does not
-       // state that an optimal solution has been found then we do not have
-       // enough information to provide a "good" lower bound (the problem may
-       // be unbounded and Cplex has not detected it yet). Therefore, in this
-       // case, the lower bound should be -Inf.
-
        CPXgetobjval( env, lp, &lower_bound );
      }
+     break;
+
+    default:
+     // If Cplex does not state that an optimal solution has been found
+     // then we do not have enough information to provide a "good" lower bound
+     // (the problem may be unbounded and Cplex has not detected it yet).
+     // Therefore, in this case, the lower bound should be -Inf.
+     lower_bound = -Inf< OFValue >();
      break;
    }
    break;
 
-  case -1: // Maximization problem
+  // Maximization problem
+  case CPX_MAX:
+
    switch( sol_status ) {
+
     case kUnbounded:
      lower_bound = Inf< OFValue >();
      break;
+
     case kInfeasible:
      lower_bound = -Inf< OFValue >();
      break;
-    default:
-     // TODO check if a feasible solution has been found. If no feasible
-     // solution has been found, then the lower bound should be -Inf.
+
+    case kOK:
      CPXgetobjval( env, lp, &lower_bound );
+     break;
+
+    default:
+     // Same as above
+     lower_bound = -Inf< OFValue >();
+     break;
    }
    break;
 
@@ -351,51 +363,68 @@ Solver::OFValue CPXMILPSolver::get_ub() {
 
  switch( objsense ) {
 
-  case 1: // Minimization problem
+  // Minimization problem
+  case CPX_MIN:
+
    switch( sol_status ) {
+
     case kUnbounded:
      upper_bound = -Inf< OFValue >();
      break;
+
     case kInfeasible:
      upper_bound = Inf< OFValue >();
      break;
-    default:
-     // TODO check if a feasible solution has been found. If no feasible
-     // solution has been found, then the upper bound should be +Inf.
+
+    case kOK:
      CPXgetobjval( env, lp, &upper_bound );
+     break;
+
+    default:
+     // If Cplex does not state that an optimal solution has been found
+     // then we do not have enough information to provide a "good" upper bound
+     // (the problem may be unbounded and Cplex has not detected it yet).
+     // Therefore, in this case, the upper bound should be +Inf.
+     upper_bound = Inf< OFValue >();
      break;
    }
    break;
 
-  case -1: // Maximization problem
+  // Maximization problem
+  case CPX_MAX:
+
    switch( sol_status ) {
+
     case kUnbounded:
      upper_bound = Inf< OFValue >();
      break;
+
     case kInfeasible:
      upper_bound = -Inf< OFValue >();
      break;
-    default:
+
+    case kOK:
      switch( probtype ) {
-      case CPXPROB_MILP :
-      case CPXPROB_MIQP :
-      case CPXPROB_FIXEDMILP :
-      case CPXPROB_FIXEDMIQP :
+      case CPXPROB_MILP:
+      case CPXPROB_MIQP:
+      case CPXPROB_FIXEDMILP:
+      case CPXPROB_FIXEDMIQP:
        CPXgetbestobjval( env, lp, &upper_bound );
        break;
       default:
        // FIXME: It's unclear how to get a ub for a continuous problem here
-
-       // TODO This is analogous to get_lb() for the case of a minimization
-       // problem. That is, if Cplex does not state that an optimal solution
-       // has been found, then the upper bound should be +Inf.
-
        CPXgetobjval( env, lp, &upper_bound );
      }
+     break;
+
+    default:
+     // Same as above
+     upper_bound = Inf< OFValue >();
      break;
    }
    break;
 
+  // Sense not defined
   default:
    throw std::runtime_error( "Objective type not yet defined" );
    break;
