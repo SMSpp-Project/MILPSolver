@@ -102,6 +102,7 @@ class CPXMILPSolver : public MILPSolver {
   */
  enum int_par_type_CPXS {
   intUseCustomNames = intLastAlgParMILP, ///< Use custom names for rows/columns
+  intPresolve,                           ///< Apply CPLEX presolve
   intLastAlgParCPXS
  };
 
