@@ -1596,7 +1596,7 @@ void CPXMILPSolver::set_par( const ThinComputeInterface::idx_type par,
    CPXsetlongparam( env, CPXPARAM_MIP_Limits_Nodes, value );
    break;
   case intMaxSol:
-   CPXsetintparam( env, CPXPARAM_MIP_Limits_Solutions, value );
+   CPXsetintparam( env, CPXPARAM_MIP_Pool_Capacity, value );
    break;
   case intLogVerb:
    CPXsetintparam( env, CPX_PARAM_SCRIND, value );
