@@ -48,6 +48,22 @@
 
 #include "MILPSolver.h"
 
+#if CPX_VERSION == 12080000
+#define CPX_NUM_INT_PARS 135
+#define CPX_NUM_DBL_PARS 44
+#define CPX_NUM_STR_PARS 5
+
+#elif CPX_VERSION == 12090000
+#define CPX_NUM_INT_PARS 137
+#define CPX_NUM_DBL_PARS 44
+#define CPX_NUM_STR_PARS 5
+
+#elif CPX_VERSION >= 12100000
+#define CPX_NUM_INT_PARS 137
+#define CPX_NUM_DBL_PARS 43
+#define CPX_NUM_STR_PARS 5
+#endif
+
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -102,8 +118,21 @@ class CPXMILPSolver : public MILPSolver {
   */
  enum int_par_type_CPXS {
   intUseCustomNames = intLastAlgParMILP, ///< Use custom names for rows/columns
-  intPresolve,                           ///< Apply CPLEX presolve
-  intLastAlgParCPXS
+  intFirstCPLEXPar,                      ///< First CPLEX int/long parameter
+
+  /// First allowed new int parameter for derived classes
+  intLastAlgParCPXS = intFirstCPLEXPar + CPX_NUM_INT_PARS
+ };
+
+ /** Types of double parameters.
+* Public enum describing the different types of algorithmic parameters
+* of "double" type that the CPXMILPSolver has.
+*/
+ enum dbl_par_type_CPXS {
+  dblFirstCPLEXPar = dblLastAlgParMILP, ///< First CPLEX double parameter
+
+  /// First allowed new double parameter for derived classes
+  dblLastAlgParCPXS = dblFirstCPLEXPar + CPX_NUM_DBL_PARS
  };
 
  /** Types of string parameters.
@@ -113,7 +142,10 @@ class CPXMILPSolver : public MILPSolver {
  enum str_par_type_CPXS {
   strProblemName = strLastAlgParMILP, ///< Problem name
   strOutputFile,                      ///< Output .lp file
-  strLastAlgParCPXS
+  strFirstCPLEXPar,                   ///< First CPLEX string parameter
+
+  /// First allowed new string parameter for derived classes
+  strLastAlgParCPXS = strFirstCPLEXPar + CPX_NUM_STR_PARS
  };
 
 /*--------------------------------------------------------------------------*/
@@ -161,12 +193,6 @@ class CPXMILPSolver : public MILPSolver {
 
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
- void set_par( idx_type par, int value ) override;
-
- void set_par( idx_type par, double value ) override;
-
- void set_par( idx_type par, const std::string & value ) override;
-
  void write_lp( const std::string & filename ) override;
  /// @}
 
@@ -178,21 +204,66 @@ class CPXMILPSolver : public MILPSolver {
  * @{
  */
 
- idx_type get_num_int_par() const override;
+ /// Sets an integer parameter with the given value
+ void set_par( idx_type par, int value ) override;
 
- idx_type get_num_str_par() const override;
+ /// Sets a double parameter with the given value
+ void set_par( idx_type par, double value ) override;
 
- int get_int_par( idx_type par ) const override;
+ /// Sets a string parameter with the given value
+ void set_par( idx_type par, const std::string & value ) override;
 
- const std::string & get_str_par( idx_type par ) const override;
+ /// Gets the number of CPXMILPSolver integer parameters
+ [[nodiscard]] idx_type get_num_int_par() const override;
 
- idx_type int_par_str2idx( const std::string & name ) const override;
+ /// Gets the number of CPXMILPSolver string parameters
+ [[nodiscard]] idx_type get_num_str_par() const override;
 
- const std::string & int_par_idx2str( idx_type idx ) const override;
+ /// Gets the number of CPXMILPSolver double parameters
+ [[nodiscard]] idx_type get_num_dbl_par() const override;
 
- idx_type str_par_str2idx( const std::string & name ) const override;
+ /// Gets the default value of the specified integer parameter
+ [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- const std::string & str_par_idx2str( idx_type idx ) const override;
+ /// Gets the default value of the specified integer parameter
+ [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
+
+ /// Gets the default value of the specified integer parameter
+ [[nodiscard]] const std::string &
+ get_dflt_str_par( idx_type par ) const override;
+
+ /// Gets the value of the specified integer parameter
+ [[nodiscard]] int get_int_par( idx_type par ) const override;
+
+ /// Gets the value of the specified double parameter
+ [[nodiscard]] double get_dbl_par( idx_type par ) const override;
+
+ /// Gets the value of the specified string parameter
+ [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
+
+ /// Returns the index of the int parameter with the specified name
+ [[nodiscard]] idx_type
+ int_par_str2idx( const std::string & name ) const override;
+
+ /// Returns the name of the int parameter with the specified index
+ [[nodiscard]] const std::string &
+ int_par_idx2str( idx_type idx ) const override;
+
+ /// Returns the index of the double parameter with the specified name
+ [[nodiscard]] idx_type
+ dbl_par_str2idx( const std::string & name ) const override;
+
+ /// Returns the name of the double parameter with the specified index
+ [[nodiscard]] const std::string &
+ dbl_par_idx2str( idx_type idx ) const override;
+
+ /// Returns the index of the string parameter with the specified name
+ [[nodiscard]] idx_type
+ str_par_str2idx( const std::string & name ) const override;
+
+ /// Returns the name of the string parameter with the specified index
+ [[nodiscard]] const std::string &
+ str_par_idx2str( idx_type idx ) const override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -225,6 +296,29 @@ class CPXMILPSolver : public MILPSolver {
  void clear_problem() override; ///< It clears all the LP vectors
 
  void load_problem() override;  ///< It loads all the LP vectors
+ /// @}
+
+ /** @name Handling of CPLEX parameters
+  *
+  * The following maps are used to keep a relationship between SMS++ parameter
+  * system and CPLEX parameters. This allows us to use CPLEX parameters
+  * (See CPLEX Parameters Reference Manual from IBM) as they were SMS++
+  * parameters with the same names, for example in configuration files.
+  *
+  * Note: since SMS++ does not support long parameters, both int and
+  * long CPLEX parameters are handled as SMS++ int parameters.
+  *
+  * @{
+  */
+
+ const static std::map <int, int > SMSpp_to_CPLEX_int_pars;
+ const static std::map <int, int > SMSpp_to_CPLEX_dbl_pars;
+ const static std::map <int, int > SMSpp_to_CPLEX_str_pars;
+
+ const static std::map <int, int > CPLEX_to_SMSpp_int_pars;
+ const static std::map <int, int > CPLEX_to_SMSpp_dbl_pars;
+ const static std::map <int, int > CPLEX_to_SMSpp_str_pars;
+
  /// @}
 
 /*--------------------------------------------------------------------------*/

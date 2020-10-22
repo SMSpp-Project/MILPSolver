@@ -41,7 +41,9 @@ target_link_libraries(MILPSolver PUBLIC
 
 if (CPLEX_FOUND)
     message(STATUS "CPLEX found: ${CPLEX_STUDIO_DIR}")
-    target_sources(MILPSolver PRIVATE src/CPXMILPSolver.cpp)
+    target_sources(MILPSolver PRIVATE
+                   src/CPXMILPSolver.cpp
+                   src/CPXMILPSolver_pars.cpp)
     target_link_libraries(MILPSolver PUBLIC CPLEX::Cplex)
 endif ()
 
@@ -123,3 +125,6 @@ if (CMAKE_EXPORT_PACKAGE_REGISTRY)
     # Register package in user's package registry (~/.cmake/registry)
     export(PACKAGE MILPSolver)
 endif ()
+
+# ----- Subdirectories ------------------------------------------------------ #
+add_subdirectory(tools)
