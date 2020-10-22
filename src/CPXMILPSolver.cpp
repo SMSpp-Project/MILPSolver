@@ -1604,9 +1604,6 @@ void CPXMILPSolver::set_par( const ThinComputeInterface::idx_type par,
   case intUseCustomNames:
    use_custom_names = bool( value );
    break;
-  case intPresolve:
-   CPXsetintparam( env, CPXPARAM_Preprocessing_Presolve, value );
-   break;
   default:
    // We assume that the symbolic constant is defined in CPLEX instead of SMS++
    CPXsetintparam( env, par, value );
@@ -1670,13 +1667,9 @@ ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
 }
 
 int CPXMILPSolver::get_int_par( idx_type par ) const {
- int value = 0;
  switch( par ) {
   case intUseCustomNames:
    return use_custom_names;
-  case intPresolve:
-   CPXgetintparam( env, CPXPARAM_Preprocessing_Presolve, &value );
-   return value;
   default:
    return MILPSolver::get_int_par( par );
  }
@@ -1698,20 +1691,16 @@ ThinComputeInterface::idx_type
 CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
  if( name == "intUseCustomNames" )
   return ( intUseCustomNames );
- if( name == "intPresolve" )
-  return ( intPresolve );
  return ( MILPSolver::int_par_str2idx( name ) );
 }
 
 const std::string &
 CPXMILPSolver::int_par_idx2str( const ThinComputeInterface::idx_type idx ) const {
- static const std::vector< std::string > pars = { "intUseCustomNames",
-                                                  "intPresolve" };
+ // It is convoluted for extendability
+ static const std::vector< std::string > pars = { "intUseCustomNames" };
  switch( idx ) {
   case intUseCustomNames:
    return pars[ 0 ];
-  case intPresolve:
-   return pars[ 1 ];
   default:
    return MILPSolver::int_par_idx2str( idx );
  }
