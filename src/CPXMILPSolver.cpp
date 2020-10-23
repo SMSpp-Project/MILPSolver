@@ -2014,7 +2014,11 @@ CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
  if( idx >= intFirstCPLEXPar && idx < intLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_int_pars.at( idx );
   char par_name[CPX_STR_PARAM_MAX];
+#if CPX_VERSION < 12090000
+  int status = CPXgetparamname( env, cplex_par, par_name );
+#else
   int status = CPXgetparamhiername( env, cplex_par, par_name );
+#endif
 
   return std::move( std::string( par_name ) );
  }
@@ -2044,7 +2048,11 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
  if( idx >= dblFirstCPLEXPar && idx < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars.at( idx );
   char par_name[CPX_STR_PARAM_MAX];
+#if CPX_VERSION < 12090000
+  int status = CPXgetparamname( env, cplex_par, par_name );
+#else
   int status = CPXgetparamhiername( env, cplex_par, par_name );
+#endif
 
   return std::move( std::string( par_name ) );
  }
@@ -2089,7 +2097,11 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
  if( idx >= strFirstCPLEXPar && idx < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars.at( idx );
   char par_name[CPX_STR_PARAM_MAX];
+#if CPX_VERSION < 12090000
+  int status = CPXgetparamname( env, cplex_par, par_name );
+#else
   int status = CPXgetparamhiername( env, cplex_par, par_name );
+#endif
 
   return std::move( std::string( par_name ) );
  }

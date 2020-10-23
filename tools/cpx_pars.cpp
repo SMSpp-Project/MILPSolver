@@ -2,15 +2,15 @@
 /*---------------------------- File cpx_pars.cpp ---------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
- * Small tool for parsing the standard std::maps that add the support for
- * plain CPLEX parameters to CPXMILPSolver.
+ * Small tool for parsing the macros and the standard std::maps that enable
+ * the support for plain CPLEX parameters into CPXMILPSolver.
  *
  * The output of the tool is some C++ code that must be copied and pasted
- * in CPXMILPSolver_pars.cpp and CPXMILPSolver.h.
+ * in CPXMILPSolver_pars.h and CPXMILPSolver_pars.cpp.
  * The output depends on CPLEX version.
  *
  * In theory, users shouldn't need to do this, as we developers plan to
- * update those files when needed (that is, at each new CPLEX version.
+ * update those files when needed (that is, at each new CPLEX version).
  * This tool is provided just in case.
  *
  * \author Niccolò Iardella \n

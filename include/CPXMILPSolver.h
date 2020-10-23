@@ -47,22 +47,7 @@
 #include <OneVarConstraint.h>
 
 #include "MILPSolver.h"
-
-#if CPX_VERSION == 12080000
-#define CPX_NUM_INT_PARS 135
-#define CPX_NUM_DBL_PARS 44
-#define CPX_NUM_STR_PARS 5
-
-#elif CPX_VERSION == 12090000
-#define CPX_NUM_INT_PARS 137
-#define CPX_NUM_DBL_PARS 44
-#define CPX_NUM_STR_PARS 5
-
-#elif CPX_VERSION >= 12100000
-#define CPX_NUM_INT_PARS 137
-#define CPX_NUM_DBL_PARS 43
-#define CPX_NUM_STR_PARS 5
-#endif
+#include "CPXMILPSolver_pars.h"
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/

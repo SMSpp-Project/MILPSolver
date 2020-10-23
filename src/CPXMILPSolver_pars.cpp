@@ -1,13 +1,50 @@
+/*--------------------------------------------------------------------------*/
+/*----------------------- File CPXMILPSolver_pars.h ------------------------*/
+/*--------------------------------------------------------------------------*/
+/** @file
+ * Source file for the CPLEX parameter maps.
+ *
+ * This file contains the definition of  std::maps that enable CPXMILPSolver
+ * support to plain CPLEX parameters.
+ * For each new CPLEX version, the proper std::maps  must be added,
+ * using the cpx_pars tool for convenience.
+ *
+ * \author Antonio Frangioni \n
+ *         Operations Research Group \n
+ *         Dipartimento di Informatica \n
+ *         Università di Pisa \n
+ *
+ * \author Niccolò Iardella \n
+ *         Operations Research Group \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; Antonio Frangioni, Niccolò Iardella
+ */
+
+/*--------------------------------------------------------------------------*/
+
 #include <ilcplex/cplex.h>
 #include "CPXMILPSolver.h"
 
 using namespace SMSpp_di_unipi_it;
 
 #if CPX_VERSION == 12080000
+/*--------------------------------------------------------------------------*/
+/*------------------------------- CPLEX 12.8 -------------------------------*/
+/*--------------------------------------------------------------------------*/
 // TODO
+
 #elif CPX_VERSION == 12090000
+/*--------------------------------------------------------------------------*/
+/*------------------------------- CPLEX 12.9 -------------------------------*/
+/*--------------------------------------------------------------------------*/
 // TODO
+
 #elif CPX_VERSION >= 12100000
+/*--------------------------------------------------------------------------*/
+/*------------------------------ CPLEX 12.10 -------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 const std::map< int, int > CPXMILPSolver::SMSpp_to_CPLEX_int_pars{
  { intFirstCPLEXPar + 0,   CPXPARAM_Advance },
