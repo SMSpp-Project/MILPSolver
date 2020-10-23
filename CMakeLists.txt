@@ -19,7 +19,7 @@ endif ()
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 find_package(SMSpp REQUIRED)
-find_package(CPLEX)
+find_package(CPLEX 12.8)
 find_package(SCIP)
 
 # ----- Configuration header ------------------------------------------------ #
@@ -40,7 +40,6 @@ target_link_libraries(MILPSolver PUBLIC
                       SMS++::SMSpp)
 
 if (CPLEX_FOUND)
-    message(STATUS "CPLEX found: ${CPLEX_STUDIO_DIR}")
     target_sources(MILPSolver PRIVATE
                    src/CPXMILPSolver.cpp
                    src/CPXMILPSolver_pars.cpp)
