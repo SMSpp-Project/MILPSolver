@@ -39,6 +39,7 @@
 #include <DQuadFunction.h>
 
 #include "CPXMILPSolver.h"
+#include "CPX12100000_maps.h"
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/

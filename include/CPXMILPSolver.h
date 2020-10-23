@@ -47,7 +47,7 @@
 #include <OneVarConstraint.h>
 
 #include "MILPSolver.h"
-#include "CPXMILPSolver_pars.h"
+#include "CPX12100000_defs.h"
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/

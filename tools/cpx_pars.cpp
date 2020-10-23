@@ -5,13 +5,9 @@
  * Small tool for parsing the macros and the standard std::maps that enable
  * the support for plain CPLEX parameters into CPXMILPSolver.
  *
- * The output of the tool is some C++ code that must be copied and pasted
- * in CPXMILPSolver_pars.h and CPXMILPSolver_pars.cpp.
- * The output depends on CPLEX version.
- *
- * In theory, users shouldn't need to do this, as we developers plan to
- * update those files when needed (that is, at each new CPLEX version).
- * This tool is provided just in case.
+ * The tool generates two files, CPX<CPX_VERSION>_defs.h and
+ * CPX<CPX_VERSION>_maps.h. These files must be placed (manually or
+ * automatically) in the include directory of the MILPSolver project.
  *
  * \author Niccolò Iardella \n
  *         Operations Research Group \n
@@ -25,11 +21,18 @@
 /*--------------------------------------------------------------------------*/
 
 #include <iostream>
+#include <fstream>
 #include <cstring>
 #include <ilcplex/cplex.h>
 #include <map>
 
-int main() {
+int main( int argc, char ** argv ) {
+
+ std::string defs_file_name("CPX" + std::to_string(CPX_VERSION) + "_defs.h");
+ std::string maps_file_name("CPX" + std::to_string(CPX_VERSION) + "_maps.h");
+
+ std::ofstream defs_file;
+ std::ofstream maps_file;
 
  CPXENVptr env;
  int status;
@@ -97,84 +100,96 @@ int main() {
    return 1;
   }
  }
- std::cout
-  << "-------------------- COPY THE FOLLOWING IN THE HEADER --------------------"
-  << std::endl
-  << "#if CPX_VERSION == " << CPX_VERSION << std::endl
-  << "#define CPX_NUM_INT_PARS " << int_counter << std::endl
-  << "#define CPX_NUM_DBL_PARS " << dbl_counter << std::endl
-  << "#define CPX_NUM_STR_PARS " << str_counter << std::endl
-  << "#endif" << std::endl
-  << "--------------------------------------------------------------------------"
-  << std::endl
-  << std::endl
-  << "--------------------- COPY THE FOLLOWING IN THE BODY ---------------------"
-  << std::endl
-  << "#if CPX_VERSION == " << CPX_VERSION << std::endl;
+
+ // Generate defs file
+ defs_file.open( defs_file_name );
+ 
+ defs_file << "/* FILE GENERATED AUTOMATICALLY, DO NOT EDIT */" << std::endl
+           << std::endl
+           << "#ifndef __CPX12100000_DEFS" << std::endl
+           << "#define __CPX12100000_DEFS" << std::endl
+           << std::endl
+           << "#define CPX_NUM_INT_PARS " << int_counter << std::endl
+           << "#define CPX_NUM_DBL_PARS " << dbl_counter << std::endl
+           << "#define CPX_NUM_STR_PARS " << str_counter << std::endl
+           << std::endl
+           << "#endif //__CPX12100000_DEFS" << std::endl;
+
+ defs_file.close();
+ std::cout << "Defs file written on " << defs_file_name << std::endl;
+
+ // Generate maps file
+ maps_file.open( maps_file_name );
+ maps_file << "/* FILE GENERATED AUTOMATICALLY, DO NOT EDIT */" << std::endl
+           << std::endl
+           << "#include <ilcplex/cplex.h>" << std::endl
+           << "#include \"CPXMILPSolver.h\"" << std::endl
+           << std::endl
+           << "using namespace SMSpp_di_unipi_it;" << std::endl
+           << std::endl;
 
  // SMSpp_to_CPLEX_***_pars maps
- std::cout
+ maps_file
   << "const std::map< int, int > CPXMILPSolver::SMSpp_to_CPLEX_int_pars{"
   << std::endl;
  for( const auto & i: int_parameters ) {
-  std::cout << "{ intFirstCPLEXPar + " << i.first << ", " << i.second << " },"
+  maps_file << "{ intFirstCPLEXPar + " << i.first << ", " << i.second << " },"
             << std::endl;
  }
- std::cout << "};" << std::endl;
- std::cout << std::endl;
+ maps_file << "};" << std::endl;
+ maps_file << std::endl;
 
- std::cout
+ maps_file
   << "const std::map< int, int > CPXMILPSolver::SMSpp_to_CPLEX_dbl_pars{"
   << std::endl;
  for( const auto & i: dbl_parameters ) {
-  std::cout << "{ dblFirstCPLEXPar + " << i.first << ", " << i.second << " },"
+  maps_file << "{ dblFirstCPLEXPar + " << i.first << ", " << i.second << " },"
             << std::endl;
  }
- std::cout << "};" << std::endl;
- std::cout << std::endl;
+ maps_file << "};" << std::endl;
+ maps_file << std::endl;
 
- std::cout
+ maps_file
   << "const std::map< int, int > CPXMILPSolver::SMSpp_to_CPLEX_str_pars{"
   << std::endl;
  for( const auto & i: str_parameters ) {
-  std::cout << "{ strFirstCPLEXPar + " << i.first << ", " << i.second << " },"
+  maps_file << "{ strFirstCPLEXPar + " << i.first << ", " << i.second << " },"
             << std::endl;
  }
- std::cout << "};" << std::endl;
- std::cout << std::endl;
+ maps_file << "};" << std::endl;
+ maps_file << std::endl;
 
  // Reverse CPLEX_to_SMSpp_***_pars maps
- std::cout
+ maps_file
   << "const std::map< int, int > CPXMILPSolver::CPLEX_to_SMSpp_int_pars{"
   << std::endl;
  for( const auto & i: int_parameters ) {
-  std::cout << "{ " << i.second << ", intFirstCPLEXPar + " << i.first << " },"
+  maps_file << "{ " << i.second << ", intFirstCPLEXPar + " << i.first << " },"
             << std::endl;
  }
- std::cout << "};" << std::endl;
- std::cout << std::endl;
+ maps_file << "};" << std::endl;
+ maps_file << std::endl;
 
- std::cout
+ maps_file
   << "const std::map< int, int > CPXMILPSolver::CPLEX_to_SMSpp_dbl_pars{"
   << std::endl;
  for( const auto & i: dbl_parameters ) {
-  std::cout << "{ " << i.second << ", dblFirstCPLEXPar + " << i.first << " },"
+  maps_file << "{ " << i.second << ", dblFirstCPLEXPar + " << i.first << " },"
             << std::endl;
  }
- std::cout << "};" << std::endl;
- std::cout << std::endl;
+ maps_file << "};" << std::endl;
+ maps_file << std::endl;
 
- std::cout
+ maps_file
   << "const std::map< int, int > CPXMILPSolver::CPLEX_to_SMSpp_str_pars{"
   << std::endl;
  for( const auto & i: str_parameters ) {
-  std::cout << "{ " << i.second << ", strFirstCPLEXPar + " << i.first << " },"
+  maps_file << "{ " << i.second << ", strFirstCPLEXPar + " << i.first << " },"
             << std::endl;
  }
- std::cout << "};" << std::endl;
- std::cout
-  << "--------------------------------------------------------------------------"
-  << std::endl
-  << "#endif" << std::endl;
+ maps_file << "};" << std::endl;
+ maps_file.close();
+ std::cout << "Maps file written on " << maps_file_name << std::endl;
+
  return 0;
 }

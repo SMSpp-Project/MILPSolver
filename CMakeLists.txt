@@ -41,8 +41,7 @@ target_link_libraries(MILPSolver PUBLIC
 
 if (CPLEX_FOUND)
     target_sources(MILPSolver PRIVATE
-                   src/CPXMILPSolver.cpp
-                   src/CPXMILPSolver_pars.cpp)
+                   src/CPXMILPSolver.cpp)
     target_link_libraries(MILPSolver PUBLIC CPLEX::Cplex)
 endif ()
 
