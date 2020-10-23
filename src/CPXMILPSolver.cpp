@@ -39,7 +39,14 @@
 #include <DQuadFunction.h>
 
 #include "CPXMILPSolver.h"
+
+#if CPX_VERSION == 12080000
+#include "CPX12080000_maps.h"
+#elif CPX_VERSION == 12090000
+#include "CPX12090000_maps.h"
+#elif CPX_VERSION == 12100000
 #include "CPX12100000_maps.h"
+#endif
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/

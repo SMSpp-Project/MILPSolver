@@ -47,7 +47,14 @@
 #include <OneVarConstraint.h>
 
 #include "MILPSolver.h"
+
+#if CPX_VERSION == 12080000
+#include "CPX12080000_defs.h"
+#elif CPX_VERSION == 12090000
+#include "CPX12090000_defs.h"
+#elif CPX_VERSION == 12100000
 #include "CPX12100000_defs.h"
+#endif
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
