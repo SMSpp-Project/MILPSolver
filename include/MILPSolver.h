@@ -144,6 +144,15 @@ class MILPSolver : public CDASolver {
   strLastAlgParMILP = strLastAlgPar
  };
 
+ /** Types of string parameters.
+  * Public enum describing the different types of algorithmic parameters
+  * of "double" type that the MILPSolver might have. At the moment it has none,
+  * but since CPXMILPSolver has them, we add this as compatibility.
+ */
+ enum dbl_par_type_MILP {
+  dblLastAlgParMILP = strLastAlgPar
+ };
+
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/

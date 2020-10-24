@@ -6,7 +6,7 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.8...3.15)
+cmake_minimum_required(VERSION 3.11)
 project(MILPSolver VERSION 0.3.0 LANGUAGES CXX)
 
 # ----- Settings ------------------------------------------------------------ #
@@ -19,7 +19,7 @@ endif ()
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 find_package(SMSpp REQUIRED)
-find_package(CPLEX)
+find_package(CPLEX 12.8)
 find_package(SCIP)
 
 # ----- Configuration header ------------------------------------------------ #
@@ -40,8 +40,8 @@ target_link_libraries(MILPSolver PUBLIC
                       SMS++::SMSpp)
 
 if (CPLEX_FOUND)
-    message(STATUS "CPLEX found: ${CPLEX_STUDIO_DIR}")
-    target_sources(MILPSolver PRIVATE src/CPXMILPSolver.cpp)
+    target_sources(MILPSolver PRIVATE
+                   src/CPXMILPSolver.cpp)
     target_link_libraries(MILPSolver PUBLIC CPLEX::Cplex)
 endif ()
 
@@ -123,3 +123,6 @@ if (CMAKE_EXPORT_PACKAGE_REGISTRY)
     # Register package in user's package registry (~/.cmake/registry)
     export(PACKAGE MILPSolver)
 endif ()
+
+# ----- Subdirectories ------------------------------------------------------ #
+add_subdirectory(tools)
