@@ -28,8 +28,10 @@
 
 int main( int argc, char ** argv ) {
 
- std::string defs_file_name("CPX" + std::to_string(CPX_VERSION) + "_defs.h");
- std::string maps_file_name("CPX" + std::to_string(CPX_VERSION) + "_maps.h");
+ std::string defs_file_name(
+  "CPX" + std::to_string( CPX_VERSION ) + "_defs.h" );
+ std::string maps_file_name(
+  "CPX" + std::to_string( CPX_VERSION ) + "_maps.h" );
 
  std::ofstream defs_file;
  std::ofstream maps_file;
@@ -103,7 +105,7 @@ int main( int argc, char ** argv ) {
 
  // Generate defs file
  defs_file.open( defs_file_name );
- 
+
  defs_file << "/* FILE GENERATED AUTOMATICALLY, DO NOT EDIT */" << std::endl
            << std::endl
            << "#ifndef __CPX12100000_DEFS" << std::endl
@@ -130,64 +132,73 @@ int main( int argc, char ** argv ) {
 
  // SMSpp_to_CPLEX_***_pars maps
  maps_file
-  << "const std::map< int, int > CPXMILPSolver::SMSpp_to_CPLEX_int_pars{"
+  << "const std::array< int, CPX_NUM_INT_PARS >"
+  << " CPXMILPSolver::SMSpp_to_CPLEX_int_pars{"
   << std::endl;
  for( const auto & i: int_parameters ) {
-  maps_file << "{ intFirstCPLEXPar + " << i.first << ", " << i.second << " },"
-            << std::endl;
+  maps_file << " " << i.second << "," << std::endl;
  }
  maps_file << "};" << std::endl;
  maps_file << std::endl;
 
  maps_file
-  << "const std::map< int, int > CPXMILPSolver::SMSpp_to_CPLEX_dbl_pars{"
+  << "const std::array< int, CPX_NUM_DBL_PARS >"
+  << " CPXMILPSolver::SMSpp_to_CPLEX_dbl_pars{"
   << std::endl;
  for( const auto & i: dbl_parameters ) {
-  maps_file << "{ dblFirstCPLEXPar + " << i.first << ", " << i.second << " },"
-            << std::endl;
+  maps_file << " " << i.second << "," << std::endl;
  }
  maps_file << "};" << std::endl;
  maps_file << std::endl;
 
  maps_file
-  << "const std::map< int, int > CPXMILPSolver::SMSpp_to_CPLEX_str_pars{"
+  << "const std::array< int, CPX_NUM_STR_PARS >"
+  << " CPXMILPSolver::SMSpp_to_CPLEX_str_pars{"
   << std::endl;
  for( const auto & i: str_parameters ) {
-  maps_file << "{ strFirstCPLEXPar + " << i.first << ", " << i.second << " },"
-            << std::endl;
+  maps_file << " " << i.second << "," << std::endl;
  }
  maps_file << "};" << std::endl;
  maps_file << std::endl;
 
  // Reverse CPLEX_to_SMSpp_***_pars maps
  maps_file
-  << "const std::map< int, int > CPXMILPSolver::CPLEX_to_SMSpp_int_pars{"
-  << std::endl;
+  << "const std::array< std::pair< int, int >, CPX_NUM_INT_PARS >" << std::endl
+  << " CPXMILPSolver::CPLEX_to_SMSpp_int_pars{" << std::endl
+  << " {" << std::endl;
  for( const auto & i: int_parameters ) {
-  maps_file << "{ " << i.second << ", intFirstCPLEXPar + " << i.first << " },"
+  maps_file << "  { " << i.second << ", intFirstCPLEXPar + " << i.first << " },"
             << std::endl;
  }
- maps_file << "};" << std::endl;
- maps_file << std::endl;
+ maps_file
+  << " }" << std::endl
+  << "};" << std::endl
+  << std::endl;
 
  maps_file
-  << "const std::map< int, int > CPXMILPSolver::CPLEX_to_SMSpp_dbl_pars{"
-  << std::endl;
+  << "const std::array< std::pair< int, int >, CPX_NUM_DBL_PARS >" << std::endl
+  << " CPXMILPSolver::CPLEX_to_SMSpp_dbl_pars{" << std::endl
+  << " {" << std::endl;
  for( const auto & i: dbl_parameters ) {
-  maps_file << "{ " << i.second << ", dblFirstCPLEXPar + " << i.first << " },"
+  maps_file << "  { " << i.second << ", dblFirstCPLEXPar + " << i.first << " },"
             << std::endl;
  }
- maps_file << "};" << std::endl;
- maps_file << std::endl;
+ maps_file
+  << " }" << std::endl
+  << "};" << std::endl
+  << std::endl;
 
  maps_file
-  << "const std::map< int, int > CPXMILPSolver::CPLEX_to_SMSpp_str_pars{"
-  << std::endl;
+  << "const std::array< std::pair< int, int >, CPX_NUM_STR_PARS >" << std::endl
+  << " CPXMILPSolver::CPLEX_to_SMSpp_str_pars{" << std::endl
+  << " {" << std::endl;
  for( const auto & i: str_parameters ) {
-  maps_file << "{ " << i.second << ", strFirstCPLEXPar + " << i.first << " },"
+  maps_file << "  { " << i.second << ", strFirstCPLEXPar + " << i.first << " },"
             << std::endl;
  }
- maps_file << "};" << std::endl;
+ maps_file
+  << " }" << std::endl
+  << "};" << std::endl;
  maps_file.close();
  std::cout << "Maps file written on " << maps_file_name << std::endl;
 

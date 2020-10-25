@@ -48,13 +48,10 @@
 
 #include "MILPSolver.h"
 
-#if CPX_VERSION == 12080000
-#include "CPX12080000_defs.h"
-#elif CPX_VERSION == 12090000
-#include "CPX12090000_defs.h"
-#elif CPX_VERSION == 12100000
-#include "CPX12100000_defs.h"
-#endif
+// Include the proper CPLEX parameter mapping
+#include <boost/preprocessor/cat.hpp>
+#include <boost/preprocessor/stringize.hpp>
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX, CPX_VERSION ), _defs.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -303,13 +300,13 @@ class CPXMILPSolver : public MILPSolver {
   * @{
   */
 
- const static std::map <int, int > SMSpp_to_CPLEX_int_pars;
- const static std::map <int, int > SMSpp_to_CPLEX_dbl_pars;
- const static std::map <int, int > SMSpp_to_CPLEX_str_pars;
+ const static std::array< int, CPX_NUM_INT_PARS > SMSpp_to_CPLEX_int_pars;
+ const static std::array< int, CPX_NUM_DBL_PARS > SMSpp_to_CPLEX_dbl_pars;
+ const static std::array< int, CPX_NUM_STR_PARS > SMSpp_to_CPLEX_str_pars;
 
- const static std::map <int, int > CPLEX_to_SMSpp_int_pars;
- const static std::map <int, int > CPLEX_to_SMSpp_dbl_pars;
- const static std::map <int, int > CPLEX_to_SMSpp_str_pars;
+ const static std::array< std::pair< int, int >, CPX_NUM_INT_PARS > CPLEX_to_SMSpp_int_pars;
+ const static std::array< std::pair< int, int >, CPX_NUM_DBL_PARS > CPLEX_to_SMSpp_dbl_pars;
+ const static std::array< std::pair< int, int >, CPX_NUM_STR_PARS > CPLEX_to_SMSpp_str_pars;
 
  /// @}
 

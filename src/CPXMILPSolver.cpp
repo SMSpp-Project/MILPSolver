@@ -40,13 +40,10 @@
 
 #include "CPXMILPSolver.h"
 
-#if CPX_VERSION == 12080000
-#include "CPX12080000_maps.h"
-#elif CPX_VERSION == 12090000
-#include "CPX12090000_maps.h"
-#elif CPX_VERSION == 12100000
-#include "CPX12100000_maps.h"
-#endif
+// Include the proper CPLEX parameter mapping
+#include <boost/preprocessor/cat.hpp>
+#include <boost/preprocessor/stringize.hpp>
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX, CPX_VERSION ), _maps.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -1636,7 +1633,7 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
 
  // Direct CPLEX parameter
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars.at( par );
+  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar];
 
   // Both int and long CPLEX parameters are handled as SMS++ int parameters
   int type;
@@ -1695,7 +1692,7 @@ void CPXMILPSolver::set_par( idx_type par, const double value ) {
 
  // Direct CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_dbl_pars.at( par );
+  int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
   CPXsetdblparam( env, cplex_par, value );
   return;
  }
@@ -1720,7 +1717,7 @@ void CPXMILPSolver::set_par( idx_type par, const std::string & value ) {
 
  // Direct CPLEX parameter
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_str_pars.at( par );
+  int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   CPXsetstrparam( env, cplex_par, value.c_str() );
   return;
  }
@@ -1769,7 +1766,7 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
 
  // Direct CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars.at( par );
+  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar];
 
   // Both int and long CPLEX parameters are handled as SMS++ int parameters
   int type;
@@ -1831,7 +1828,7 @@ double CPXMILPSolver::get_dbl_par( idx_type par ) const {
 
  // Direct CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_dbl_pars.at( par );
+  int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
   CPXgetdblparam( env, cplex_par, &value );
  }
 
@@ -1853,7 +1850,7 @@ const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const {
 
  // Direct CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_str_pars.at( par );
+  int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   char value[CPX_STR_PARAM_MAX];
   CPXgetstrparam( env, cplex_par, value );
 
@@ -1891,7 +1888,7 @@ int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const {
 
  // Direct CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars.at( par );
+  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar];
 
   // Both int and long CPLEX parameters are handled as SMS++ int parameters
   int type;
@@ -1959,7 +1956,7 @@ double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
 
  // Direct CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_dbl_pars.at( par );
+  int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
   CPXinfodblparam( env, cplex_par, &value, nullptr, nullptr );
   return value;
  }
@@ -1982,7 +1979,7 @@ const std::string &
 
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
   // CPLEX parameter
-  int cplex_par = SMSpp_to_CPLEX_str_pars.at( par );
+  int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   char value[CPX_STR_PARAM_MAX];
   CPXinfostrparam( env, cplex_par, value );
 
@@ -2004,7 +2001,10 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
  int cplex_par;
  int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
  if( status == 0 ) {
-  return CPLEX_to_SMSpp_int_pars.at( cplex_par );
+  auto it = lower_bound( CPLEX_to_SMSpp_int_pars.begin(),
+                         CPLEX_to_SMSpp_int_pars.end(),
+                         std::make_pair( cplex_par, 0 ) );
+  return it->second;
  }
 
  return ( MILPSolver::int_par_str2idx( name ) );
@@ -2020,7 +2020,7 @@ CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
 
  // CPLEX parameters
  if( idx >= intFirstCPLEXPar && idx < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars.at( idx );
+  int cplex_par = SMSpp_to_CPLEX_int_pars[ idx - intFirstCPLEXPar];
   char par_name[CPX_STR_PARAM_MAX];
 #if CPX_VERSION < 12090000
   int status = CPXgetparamname( env, cplex_par, par_name );
@@ -2043,7 +2043,10 @@ CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const {
  int cplex_par;
  int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
  if( status == 0 ) {
-  return CPLEX_to_SMSpp_dbl_pars.at( cplex_par );
+  auto it = lower_bound( CPLEX_to_SMSpp_dbl_pars.begin(),
+                         CPLEX_to_SMSpp_dbl_pars.end(),
+                         std::make_pair( cplex_par, 0 ) );
+  return it->second;
  }
 
  return ( MILPSolver::dbl_par_str2idx( name ) );
@@ -2054,7 +2057,7 @@ CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const {
 const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
  // CPLEX parameters
  if( idx >= dblFirstCPLEXPar && idx < dblLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_dbl_pars.at( idx );
+  int cplex_par = SMSpp_to_CPLEX_dbl_pars[ idx - dblFirstCPLEXPar ];
   char par_name[CPX_STR_PARAM_MAX];
 #if CPX_VERSION < 12090000
   int status = CPXgetparamname( env, cplex_par, par_name );
@@ -2081,7 +2084,10 @@ CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
  int cplex_par;
  int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
  if( status == 0 ) {
-  return CPLEX_to_SMSpp_str_pars.at( cplex_par );
+  auto it = lower_bound( CPLEX_to_SMSpp_str_pars.begin(),
+                         CPLEX_to_SMSpp_str_pars.end(),
+                         std::make_pair( cplex_par, 0 ) );
+  return it->second;
  }
 
  return ( MILPSolver::str_par_str2idx( name ) );
@@ -2103,7 +2109,7 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 
  // CPLEX parameters
  if( idx >= strFirstCPLEXPar && idx < strLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_str_pars.at( idx );
+  int cplex_par = SMSpp_to_CPLEX_str_pars[ idx - strFirstCPLEXPar ];
   char par_name[CPX_STR_PARAM_MAX];
 #if CPX_VERSION < 12090000
   int status = CPXgetparamname( env, cplex_par, par_name );
