@@ -6,15 +6,15 @@
  * the support for plain CPLEX parameters into CPXMILPSolver.
  *
  * The tool generates two files, CPX<CPX_VERSION>_defs.h and
- * CPX<CPX_VERSION>_maps.h. These files must be placed (manually or
- * automatically) in the include directory of the MILPSolver project.
+ * CPX<CPX_VERSION>_maps.h. These are automatically placed in the include
+ * directory of the MILPSolver project (assumed to be ../include).
  *
- * \author Niccolò Iardella \n
+ * \author Niccolo' Iardella \n
  *         Operations Research Group \n
  *         Dipartimento di Informatica \n
- *         Università di Pisa \n
+ *         Universita' di Pisa \n
  *
- * Copyright &copy; Niccolò Iardella
+ * Copyright &copy; Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
@@ -29,9 +29,9 @@
 int main( int argc, char ** argv ) {
 
  std::string defs_file_name(
-  "CPX" + std::to_string( CPX_VERSION ) + "_defs.h" );
+  "../include/CPX" + std::to_string( CPX_VERSION ) + "_defs.h" );
  std::string maps_file_name(
-  "CPX" + std::to_string( CPX_VERSION ) + "_maps.h" );
+  "../include/CPX" + std::to_string( CPX_VERSION ) + "_maps.h" );
 
  std::ofstream defs_file;
  std::ofstream maps_file;
