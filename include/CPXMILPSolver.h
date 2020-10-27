@@ -387,9 +387,18 @@ class CPXMILPSolver : public MILPSolver {
   */
  void set_dual_value( FRowConstraint & lconst, double * pi, int & i );
 
- // void fix_integer_vars();
+/**
+ * Gets the number of CPLEX integer vars.
+ * Optionally, the read CPLEX variable types can be saved in a vector.
+ * Such vector is automatically resized and filled.
+ *
+ * @param ctype A vector where CPLEX variable types are saved
+ */
+int CPXgetintvars(std::vector<char> *ctype = nullptr);
 
- SMSpp_insert_in_factory_h;
+// void fix_integer_vars();
+
+SMSpp_insert_in_factory_h;
 };
 
 }

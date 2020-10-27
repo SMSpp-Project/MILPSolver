@@ -861,7 +861,6 @@ void MILPSolver::scan_static_variable( ColVariable & var, int & first, int & i )
  }
 
  if( var.is_integer() ) {
-  ++mip;
   if( var.is_unitary() && var.is_positive() ) {
    xctype[ i ] = 'B'; // Binary
   } else {
@@ -940,7 +939,6 @@ void MILPSolver::scan_dynamic_variable( ColVariable & var, int & i ) {
  }
 
  if( var.is_integer() ) {
-  ++mip;
   if( var.is_unitary() && var.is_positive() ) {
    xctype[ i ] = 'B'; // Binary
   } else {
@@ -1130,7 +1128,6 @@ void MILPSolver::scan_objective( const FRealObjective * obj ) {
  } else {
   const auto *dquad_fun = dynamic_cast<const DQuadFunction *> (obj->get_function());
   if( dquad_fun != nullptr ) {
-   qp = true;
    for( auto el : dquad_fun->get_v_var() ) {
     // DQuadFunction::get_v_var() returns std::tuples of 3 elements
     k = index_of_variable( std::get< 0 >( el ) );
@@ -1248,10 +1245,6 @@ void MILPSolver::process_modifications() {
   // v_mod.pop_front();
   pop_front();
  }
-}
-
-int MILPSolver::get_num_integer_vars() const {
- return mip;
 }
 
 template< typename T >

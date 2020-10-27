@@ -93,6 +93,10 @@ void SCIPMILPSolver::load_problem() {
  SCIP_CALL_ABORT( SCIPsetObjsense( scip, ( SCIP_OBJSENSE ) objsense ) );
  vars.resize( numcols );
 
+ bool is_mip = std::any_of( xctype.begin(),
+                            xctype.end(),
+                            []( char c ) { return c != 'C'; } );
+
  for( int i = 0; i < numcols; ++i ) {
   char * name = use_custom_names ? colname[ i ] : nullptr;
   SCIP_Real collb = ( lb[ i ] == -Inf< double >() ) ?
@@ -101,7 +105,8 @@ void SCIPMILPSolver::load_problem() {
                     SCIPinfinity( scip ) : ub[ i ];
 
   SCIP_VARTYPE vartype = SCIP_VARTYPE_CONTINUOUS;
-  if( mip ) {
+
+  if( is_mip ) {
    switch( xctype[ i ] ) {
     default:
     case 'C':
@@ -174,7 +179,10 @@ void SCIPMILPSolver::load_problem() {
                                        matval[ i ] ) );
  }
 
- if( qp ) {
+ bool is_qp = std::any_of( q_objective.begin(),
+                           q_objective.end(),
+                           []( double d ) { return d != 0; } );
+ if( is_qp ) {
   SCIPABORT();
  }
 }
@@ -876,7 +884,7 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  // Variable type
 
  if( p_var->is_integer() ) {
-  ++mip;
+  // ++mip;
   if( p_var->is_unitary() && p_var->is_positive() ) {
    vartype = SCIP_VARTYPE_BINARY;
   } else {
