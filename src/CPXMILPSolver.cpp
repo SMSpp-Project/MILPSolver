@@ -31,6 +31,7 @@
 
 #include <functional>
 #include <queue>
+#include <iomanip>
 
 #include <Block.h>
 #include <MILPSolver.h>
@@ -44,6 +45,11 @@
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX, CPX_VERSION ), _maps.h ) )
+
+// Logging
+#include <boost/log/core.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/expressions.hpp>
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -177,39 +183,35 @@ int CPXMILPSolver::compute( bool changedvars ) {
  if( !output_file.empty() )
   CPXwriteprob( env, lp, output_file.c_str(), "LP" );
 
-#if MILPSLVR_DEBUG
  int probtype = CPXgetprobtype( env, lp );
- LOG( "[DEBUG] ========= Problem type:" );
  switch( probtype ) {
   case CPXPROB_LP :
-   LOG( "CPXPROB_LP" );
+   BOOST_LOG_TRIVIAL( debug ) << "CPLEX problem type: LP";
    break;
   case CPXPROB_MILP :
-   LOG( "CPXPROB_MILP" );
+   BOOST_LOG_TRIVIAL( debug ) << "CPLEX problem type: MILP";
    break;
   case CPXPROB_FIXEDMILP :
-   LOG( "CPXPROB_FIXEDMILP" );
+   BOOST_LOG_TRIVIAL( debug ) << "CPLEX problem type: FIXEDMILP";
    break;
   case CPXPROB_QP :
-   LOG( "CPXPROB_QP" );
+   BOOST_LOG_TRIVIAL( debug ) << "CPLEX problem type: QP";
    break;
   case CPXPROB_MIQP :
-   LOG( "CPXPROB_MIQP" );
+   BOOST_LOG_TRIVIAL( debug ) << "CPLEX problem type: MIQP";
    break;
   case CPXPROB_FIXEDMIQP :
-   LOG( "CPXPROB_FIXEDMIQP" );
+   BOOST_LOG_TRIVIAL( debug ) << "CPLEX problem type: FIXEDMIQP";
    break;
   case CPXPROB_QCP :
-   LOG( "CPXPROB_QCP" );
+   BOOST_LOG_TRIVIAL( debug ) << "CPLEX problem type: QCP";
    break;
   case CPXPROB_MIQCP :
-   LOG( "CPXPROB_MIQCP" );
+   BOOST_LOG_TRIVIAL( debug ) << "CPLEX problem type: MIQCP";
    break;
   default:
    throw std::runtime_error( "Undefined CPLEX problem type" );
  }
- LOG( std::endl );
-#endif
 
  // Solve MIP problems
  if( mip ) {
@@ -492,11 +494,6 @@ Solver::OFValue CPXMILPSolver::get_var_value() {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_var_solution( Configuration * solc ) {
-
-#if MILPSLVR_DEBUG
- std::cout << "[DEBUG] ========= MILPSolver::get_var_solution()" << std::endl;
-#endif
-
  auto * x = new double[numcols];
  int status = CPXgetx( env, lp, x, 0, numcols - 1 );
  if( status ) {
@@ -562,11 +559,6 @@ bool CPXMILPSolver::has_dual_solution() {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
-
-#if MILPSLVR_DEBUG
- std::cout << "[DEBUG] ========= MILPSolver::get_dual_solution()" << std::endl;
-#endif
-
  int method = CPXgetmethod( env, lp );
  int status = CPXgetstat( env, lp );
  double * res = nullptr;
@@ -2128,22 +2120,14 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::set_var_value( ColVariable & lvar, double * x, int & i ) {
-#if MILPSLVR_DEBUG
- LOG( "[DEBUG] ========= MILPSolver::set_var_value():"
-       << " index = " << std::setw( 4 ) << i
-       << ", value = " << x[ i ] << std::endl );
-#endif
+ BOOST_LOG_TRIVIAL(trace) << "MILPSolver::set_var_value(): index = " << std::setw( 4 ) << i << ", value = " << x[ i ];
  lvar.set_value( x[ i++ ] );
 }
 
 void CPXMILPSolver::set_dual_value( FRowConstraint & lconst,
                                     double * pi,
                                     int & i ) {
-#if MILPSLVR_DEBUG
- LOG( "[DEBUG] ========= MILPSolver::set_dual_value():"
-       << " index = " << std::setw( 4 ) << i
-       << ", value = " << pi[ i ] << std::endl );
-#endif
+ BOOST_LOG_TRIVIAL(trace) << "MILPSolver::set_dual_value(): index = " << std::setw( 4 ) << i << ", value = " << pi[ i ];
  lconst.set_dual( pi[ i++ ] );
 }
 

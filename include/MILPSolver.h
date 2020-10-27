@@ -33,19 +33,6 @@
 #ifndef __MILPSolver
 #define __MILPSolver
 
-// TODO: Remove this and all the printouts when done
-#ifdef MILPSLVR_DEBUG
-#include <iomanip>
-#define LOG( stuff ) std::cout << stuff
-#define LOG_VEC( stuff ) std::cout << "[";      \
-                       for (auto i : stuff)    \
-                        std::cout << " " << i; \
-                       std::cout << "]\n"
-#else
-#define LOG(stuff)
-#define LOG_VEC(stuff)
-#endif
-
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -751,6 +738,9 @@ class MILPSolver : public CDASolver {
   */
  void scan_objective( const FRealObjective * obj );
  /// @}
+
+ /// Returns a loggable representation of a vector
+ template<typename T> std::string log_vector(std::vector<T> v);
 
  SMSpp_insert_in_factory_h;
 };   // end( class MILPSolver )

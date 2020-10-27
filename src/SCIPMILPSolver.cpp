@@ -27,8 +27,7 @@
 #include <functional>
 #include <queue>
 #include <cstdio>
-
-#include "math.h"
+#include <cmath>
 
 #include <Block.h>
 #include <MILPSolver.h>
@@ -39,6 +38,11 @@
 #include "SCIPMILPSolver.h"
 #include <scip/scipdefplugins.h>
 #include <scip/cons_linear.h>
+
+// Logging
+#include <boost/log/core.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/expressions.hpp>
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -340,9 +344,6 @@ Solver::OFValue SCIPMILPSolver::get_var_value() {
 
 void SCIPMILPSolver::get_var_solution( Configuration * solc ) {
 
-#if MILPSLVR_DEBUG
- std::cout << "[DEBUG] ========= MILPSolver::get_var_solution()" << std::endl;
-#endif
  SCIP_SOL * sol = SCIPgetBestSol( scip );
 
  if( sol == nullptr ) {
@@ -1196,22 +1197,14 @@ SCIPMILPSolver::str_par_idx2str( const ThinComputeInterface::idx_type idx ) cons
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::set_var_value( ColVariable & lvar, double * x, int & i ) {
-#if MILPSLVR_DEBUG
- LOG( "[DEBUG] ========= MILPSolver::set_var_value():"
-       << " index = " << std::setw( 4 ) << i
-       << ", value = " << x[ i ] << std::endl );
-#endif
+
  lvar.set_value( x[ i++ ] );
 }
 
 void SCIPMILPSolver::set_dual_value( FRowConstraint & lconst,
                                      double * pi,
                                      int & i ) {
-#if MILPSLVR_DEBUG
- LOG( "[DEBUG] ========= MILPSolver::set_dual_value():"
-       << " index = " << std::setw( 4 ) << i
-       << ", value = " << pi[ i ] << std::endl );
-#endif
+
  lconst.set_dual( pi[ i++ ] );
 }
 

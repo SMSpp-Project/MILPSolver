@@ -31,6 +31,11 @@
 
 #include <functional>
 #include <queue>
+#include <iomanip>
+
+#include <boost/log/core.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/expressions.hpp>
 
 #include <Block.h>
 #include <OneVarConstraint.h>
@@ -51,7 +56,17 @@ SMSpp_insert_in_factory_cpp_0( MILPSolver );
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-MILPSolver::MILPSolver() : CDASolver() {}
+MILPSolver::MILPSolver() : CDASolver() {
+#ifdef MILPSLVR_DEBUG
+ boost::log::core::get()->set_filter(
+  boost::log::trivial::severity >= boost::log::trivial::debug
+ );
+#else
+ boost::log::core::get()->set_filter(
+  boost::log::trivial::severity >= boost::log::trivial::info
+ );
+#endif
+}
 
 MILPSolver::~MILPSolver() {
  for( auto & i: colname )
@@ -225,6 +240,8 @@ void MILPSolver::load_problem() {
   * the LP data.
   */
  std::queue< Block * > Q;
+
+ // Locking the Block
  bool owned = f_Block->is_owned_by( f_id );
  if( !owned && !f_Block->read_lock() ) {
   throw std::runtime_error( "Unable to lock the Block" );
@@ -238,14 +255,16 @@ void MILPSolver::load_problem() {
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
-  LOG( "[DEBUG] ========= Processing Block " << num_block << " [" << q_Block << "] =========\n" );
-  LOG( *q_Block );
+  BOOST_LOG_TRIVIAL( debug ) << "Processing Block " << num_block << " ["
+                             << q_Block << "]";
+  BOOST_LOG_TRIVIAL( trace ) << *q_Block;
 
-  for( auto *i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
 
-  LOG( "[DEBUG] ========= MILPSolver::set_Block() counting static constraints\n" );
+  BOOST_LOG_TRIVIAL( trace )
+   << "MILPSolver::set_Block() counting static constraints";
   for( const auto & i : q_Block->get_static_constraints() ) {
    auto f1 = std::bind( &MILPSolver::count_constraints,
                         this,
@@ -254,7 +273,8 @@ void MILPSolver::load_problem() {
    un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
   }
 
-  LOG( "[DEBUG] ========= MILPSolver::set_Block() counting dynamic constraints\n" );
+  BOOST_LOG_TRIVIAL( trace )
+   << "MILPSolver::set_Block() counting dynamic constraints";
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
    auto f1 = std::bind( &MILPSolver::count_constraints,
                         this,
@@ -263,7 +283,8 @@ void MILPSolver::load_problem() {
    un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
   }
 
-  LOG( "[DEBUG] ========= MILPSolver::set_Block() counting static variables\n" );
+  BOOST_LOG_TRIVIAL( trace )
+   << "MILPSolver::set_Block() counting static variables";
   for( const auto & i : q_Block->get_static_variables() ) {
    auto f1 = std::bind( &MILPSolver::count_variables,
                         this,
@@ -272,7 +293,8 @@ void MILPSolver::load_problem() {
    un_any_const_static( i, f1, un_any_type< ColVariable >() );
   }
 
-  LOG( "[DEBUG] ========= MILPSolver::set_Block() counting dynamic variables\n" );
+  BOOST_LOG_TRIVIAL( trace )
+   << "MILPSolver::set_Block() counting dynamic variables";
   for( const auto & i : q_Block->get_dynamic_variables() ) {
    auto f1 = std::bind( &MILPSolver::count_variables,
                         this,
@@ -281,7 +303,7 @@ void MILPSolver::load_problem() {
    un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
   }
 
-  LOG( "[DEBUG] ========= MILPSolver::set_Block() nonzero elements\n" );
+  BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::set_Block() nonzero elements";
   for( const auto & i : q_Block->get_static_variables() ) {
    auto f1 = std::bind( &MILPSolver::count_nzelements,
                         this,
@@ -302,30 +324,27 @@ void MILPSolver::load_problem() {
   ++num_block;
  } // End of while loop on Block queue
 
- LOG( "[DEBUG] ========= MILPSolver::set_Block() after counting\n" );
- LOG( "constraints/numrows = " << numrows << std::endl );
- LOG( "variables/numcols =   " << numcols << std::endl );
- LOG( "nzelements =          " << nzelements << std::endl );
+ BOOST_LOG_TRIVIAL( debug ) << "numrows (constraints) = " << numrows;
+ BOOST_LOG_TRIVIAL( debug ) << "numcols (variables)   = " << numcols;
+ BOOST_LOG_TRIVIAL( debug ) << "nzelements            = " << nzelements;
 
  // The +1 is needed by generic interface
- matbeg.resize( numcols + 1 );
+ matbeg.resize( numcols + 1, 0 );
  matbeg[ numcols ] = nzelements;
 
- matcnt.resize( numcols );
- matind.resize( nzelements );
- matval.resize( nzelements );
- rhs.resize( numrows );
- rngval.resize( numrows );
- sense.resize( numrows );
- objective.resize( numcols );
- q_objective.resize( numcols );
- std::fill( objective.begin(), objective.end(), 0 );
- std::fill( objective.begin(), objective.end(), 0 );
- lb.resize( numcols );
- ub.resize( numcols );
- xctype.resize( numcols );
- colname.resize( numcols , nullptr );
- rowname.resize( numrows , nullptr );
+ matcnt.resize( numcols, 0 );
+ matind.resize( nzelements, 0 );
+ matval.resize( nzelements, 0 );
+ rhs.resize( numrows, 0 );
+ rngval.resize( numrows, 0 );
+ sense.resize( numrows, 0 );
+ objective.resize( numcols, 0 );
+ q_objective.resize( numcols, 0 );
+ lb.resize( numcols, 0 );
+ ub.resize( numcols, 0 );
+ xctype.resize( numcols, 0 );
+ colname.resize( numcols, nullptr );
+ rowname.resize( numrows, nullptr );
 
  // Second loop to scan the constraints
  Q.push( f_Block );
@@ -417,7 +436,6 @@ void MILPSolver::load_problem() {
  std::sort( v_d_const_int.begin(), v_d_const_int.end() );
  std::sort( v_int_d_const.begin(), v_int_d_const.end() );
 
- LOG( "[DEBUG] ========= MILPSolver::set_Block() after constraint scan\n" );
  // Third loop to scan the variables
  Q.push( f_Block );
 
@@ -527,32 +545,20 @@ void MILPSolver::load_problem() {
   }
  } // End of while loop on Block queue
 
- LOG( "[DEBUG] ========= MILPSolver::set_Block() after objective scan\n" );
- LOG( "[DEBUG] objective   = " );
- LOG_VEC( objective );
- LOG( "[DEBUG] q_objective = " );
- LOG_VEC( q_objective );
- LOG( "[DEBUG] rhs         = " );
- LOG_VEC( rhs );
- LOG( "[DEBUG] rngval      = " );
- LOG_VEC( rngval );
- LOG( "[DEBUG] sense       = " );
- LOG_VEC( sense );
- LOG( "[DEBUG] matbeg      = " );
- LOG_VEC( matbeg );
- LOG( "[DEBUG] matcnt      = " );
- LOG_VEC( matcnt );
- LOG( "[DEBUG] matind      = " );
- LOG_VEC( matind );
- LOG( "[DEBUG] matval      = " );
- LOG_VEC( matval );
- LOG( "[DEBUG] lb          = " );
- LOG_VEC( lb );
- LOG( "[DEBUG] ub          = " );
- LOG_VEC( ub );
- LOG( "[DEBUG] xctype      = " );
- LOG_VEC( xctype );
+ BOOST_LOG_TRIVIAL(debug) << "objective   = " << log_vector(objective);
+ BOOST_LOG_TRIVIAL(debug) << "q_objective = " << log_vector(q_objective );
+ BOOST_LOG_TRIVIAL(debug) << "rhs         = " << log_vector(rhs );
+ BOOST_LOG_TRIVIAL(debug) << "rngval      = " << log_vector(rngval );
+ BOOST_LOG_TRIVIAL(debug) << "sense       = " << log_vector(sense );
+ BOOST_LOG_TRIVIAL(debug) << "matbeg      = " << log_vector(matbeg );
+ BOOST_LOG_TRIVIAL(debug) << "matcnt      = " << log_vector(matcnt );
+ BOOST_LOG_TRIVIAL(debug) << "matind      = " << log_vector(matind );
+ BOOST_LOG_TRIVIAL(debug) << "matval      = " << log_vector(matval );
+ BOOST_LOG_TRIVIAL(debug) << "lb          = " << log_vector(lb );
+ BOOST_LOG_TRIVIAL(debug) << "ub          = " << log_vector(ub );
+ BOOST_LOG_TRIVIAL(debug) << "xctype      = " << log_vector(xctype );
 
+ // Unlock the Block
  if( !owned ) {
   f_Block->read_unlock();
  }
@@ -772,7 +778,7 @@ FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::count_constraints( FRowConstraint & constraint, int & n_rows ) {
- LOG( "[DEBUG] ========= MILPSolver::count_constraints(): row " << std::setw(4) << n_rows << " " << constraint );
+ BOOST_LOG_TRIVIAL(trace) << "MILPSolver::count_constraints(): row " << std::setw(4) << n_rows << " " << constraint;
  const auto *fun = dynamic_cast<const LinearFunction *>(constraint.get_function());
  if( fun != nullptr ) {
   ++n_rows;
@@ -784,7 +790,7 @@ void MILPSolver::count_constraints( FRowConstraint & constraint, int & n_rows ) 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::count_variables( ColVariable & variable, int & n_cols ) {
- LOG( "[DEBUG] ========= MILPSolver::count_variables(): col " << std::setw(4) << n_cols << " " << variable );
+ BOOST_LOG_TRIVIAL(trace) << "MILPSolver::count_variables(): col " << std::setw(4) << n_cols << " " << variable;
  ++n_cols;
 }
 
@@ -793,7 +799,7 @@ void MILPSolver::count_variables( ColVariable & variable, int & n_cols ) {
 void MILPSolver::count_nzelements( ColVariable & variable,
                                    int & nz_elements,
                                    int & cnt ) {
- LOG( "[DEBUG] ========= MILPSolver::count_nzelements(): nz/cnt " << std::setw(4) << nz_elements << "/" << std::setw(4) << cnt << " " << variable );
+ BOOST_LOG_TRIVIAL(trace) << "MILPSolver::count_nzelements(): nz/cnt " << std::setw(4) << nz_elements << "/" << std::setw(4) << cnt << " " << variable;
  // LOG( "[DEBUG] The active stuff is:\n" );
 
  /*
@@ -831,9 +837,7 @@ void MILPSolver::count_nzelements( ColVariable & variable,
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_static_variable( ColVariable & var, int & first, int & i ) {
- LOG( "[DEBUG] ========= MILPSolver::scan_static_variable()" );
- LOG( ": first/i " << std::setw(4) << first << "/" << std::setw(4) << i << " " << var );
-
+ BOOST_LOG_TRIVIAL(trace) << "MILPSolver::scan_static_variable(): first/i " << std::setw(4) << first << "/" << std::setw(4) << i << " " << var;
 
  if( first == 0 ) {
   v_s_var_int.emplace_back( &var, i );
@@ -915,8 +919,7 @@ void MILPSolver::scan_static_variable( ColVariable & var, int & first, int & i )
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_dynamic_variable( ColVariable & var, int & i ) {
- LOG( "[DEBUG] ========= MILPSolver::scan_dynamic_variable() " );
- LOG( i << " " << var );
+ BOOST_LOG_TRIVIAL(trace) << "MILPSolver::scan_dynamic_variable() " << i << " " << var;
 
  v_d_var_int.emplace_back( &var, i );
  v_int_d_var.emplace_back( i, &var );
@@ -994,7 +997,7 @@ void MILPSolver::scan_dynamic_variable( ColVariable & var, int & i ) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_static_constraint( FRowConstraint & p_const, int & first, int & i ) {
- LOG( "[DEBUG] ========= MILPSolver::scan_static_constraint(): first/i " << std::setw(4) << first << "/" << std::setw(4) << i << " " << p_const );
+ BOOST_LOG_TRIVIAL(trace) << "MILPSolver::scan_static_constraint(): first/i " << std::setw(4) << first << "/" << std::setw(4) << i << " " << p_const;
 
  const auto *lin_fun = dynamic_cast<const LinearFunction *>(p_const.get_function());
  if( lin_fun == nullptr ) {
@@ -1056,7 +1059,7 @@ void MILPSolver::scan_static_constraint( FRowConstraint & p_const, int & first, 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_dynamic_constraint( FRowConstraint & p_const, int & i ) {
- LOG( "[DEBUG] ========= MILPSolver::scan_dynamic_constraint() " << p_const );
+ BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::scan_dynamic_constraint() " << p_const;
 
  const auto *lin_fun = dynamic_cast<const LinearFunction *>(p_const.get_function());
  if( lin_fun == nullptr ) {
@@ -1114,7 +1117,7 @@ void MILPSolver::scan_dynamic_constraint( FRowConstraint & p_const, int & i ) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_objective( const FRealObjective * obj ) {
- LOG( "[DEBUG] ========= MILPSolver::scan_objective() " << *obj );
+ BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::scan_objective() " << *obj;
 
  const auto *lin_fun = dynamic_cast<const LinearFunction *> (obj->get_function());
  int k = 0;
@@ -1160,7 +1163,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< GroupModification >( mod );
     if( tmod ) {
-     LOG("GroupModification containing: " << std::endl);
+     BOOST_LOG_TRIVIAL( trace ) << "GroupModification containing:";
      for( const auto & submod : tmod->sub_Modifications() ) {
       f( submod );
      }
@@ -1170,7 +1173,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< VariableMod >( mod );
     if( tmod ) {
-     LOG(*mod);
+     BOOST_LOG_TRIVIAL( trace ) << *mod;
      var_modification( tmod.get() );
      return;
     }
@@ -1178,7 +1181,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< ObjectiveMod >( mod );
     if( tmod ) {
-     LOG(*mod);
+     BOOST_LOG_TRIVIAL( trace ) << *mod;
      of_modification( tmod.get() );
      return;
     }
@@ -1186,7 +1189,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< OneVarConstraintMod >( mod );
     if( tmod ) {
-     LOG(*mod);
+     BOOST_LOG_TRIVIAL( trace ) << *mod;
      bound_modification( tmod.get() );
      return;
     }
@@ -1194,7 +1197,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< RowConstraintMod >( mod );
     if( tmod ) {
-     LOG(*mod);
+     BOOST_LOG_TRIVIAL( trace ) << *mod;
      const_modification( tmod.get() );
      return;
     }
@@ -1202,7 +1205,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< ConstraintMod >( mod );
     if( tmod ) {
-     LOG(*mod);
+     BOOST_LOG_TRIVIAL( trace ) << *mod;
      const_modification( tmod.get() );
      return;
     }
@@ -1210,7 +1213,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< FunctionMod >( mod );
     if( tmod ) {
-     LOG(*mod);
+     BOOST_LOG_TRIVIAL( trace ) << *mod;
      function_modification( tmod.get() );
      return;
     }
@@ -1218,7 +1221,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< FunctionModVars >( mod );
     if( tmod ) {
-     LOG(*mod);
+     BOOST_LOG_TRIVIAL( trace ) << *mod;
      function_vars_modification( tmod.get() );
      return;
     }
@@ -1226,7 +1229,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< BlockModAD >( mod );
     if( tmod ) {
-     LOG(*mod);
+     BOOST_LOG_TRIVIAL( trace ) << *mod;
      dynamic_modification( tmod.get() );
      return;
     }
@@ -1234,7 +1237,7 @@ void MILPSolver::process_modifications() {
    {
     const auto tmod = std::dynamic_pointer_cast< NBModification >( mod );
     if( tmod ) {
-     LOG("\033[1;33m" << *mod << "\033[0m");
+     BOOST_LOG_TRIVIAL( trace ) << "\033[1;33m" << *mod << "\033[0m";
      clear_problem();
      load_problem();
     }
@@ -1249,6 +1252,16 @@ void MILPSolver::process_modifications() {
 
 int MILPSolver::get_num_integer_vars() const {
  return mip;
+}
+
+template< typename T >
+std::string MILPSolver::log_vector( std::vector< T > v ) {
+ std::string temp_log = "[";
+ for( auto i : v ) {
+  temp_log += " " + std::to_string(i);
+ }
+ temp_log += "]";
+ return temp_log;
 }
 
 /*--------------------------------------------------------------------------*/
