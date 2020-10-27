@@ -203,6 +203,8 @@ class MILPSolver : public CDASolver {
 
  [[nodiscard]] int get_nodes() const;
 
+ [[nodiscard]] int get_num_integer_vars() const;
+
  /// @}
 
  /** @name Methods that use the correspondance vectors
@@ -560,6 +562,7 @@ class MILPSolver : public CDASolver {
 
  int sol_status{};      ///< Solution status (OK, Infeasible, Unbounded, ...)
  int nodes{};           ///< Number of nodes used to solve the problem
+ int int_vars = 0;      ///< Number of integer variables
  /// @}
 
  /** @name Clear and load the problem

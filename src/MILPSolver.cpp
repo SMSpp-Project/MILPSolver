@@ -861,6 +861,7 @@ void MILPSolver::scan_static_variable( ColVariable & var, int & first, int & i )
  }
 
  if( var.is_integer() ) {
+  ++int_vars;
   if( var.is_unitary() && var.is_positive() ) {
    xctype[ i ] = 'B'; // Binary
   } else {
@@ -939,6 +940,7 @@ void MILPSolver::scan_dynamic_variable( ColVariable & var, int & i ) {
  }
 
  if( var.is_integer() ) {
+  ++int_vars;
   if( var.is_unitary() && var.is_positive() ) {
    xctype[ i ] = 'B'; // Binary
   } else {
@@ -1246,6 +1248,14 @@ void MILPSolver::process_modifications() {
   pop_front();
  }
 }
+
+/*--------------------------------------------------------------------------*/
+
+int MILPSolver::get_num_integer_vars() const {
+ return int_vars;
+}
+
+/*--------------------------------------------------------------------------*/
 
 template< typename T >
 std::string MILPSolver::log_vector( std::vector< T > v ) {
