@@ -666,6 +666,7 @@ void CPXMILPSolver::write_lp( const std::string & filename ) {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::var_modification( VariableMod * mod ) {
+ MILPSolver::var_modification( mod );
 
  /*
   * VariableMod class does not include any modification types, so we "refresh"
@@ -680,14 +681,13 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   */
 
  auto * var = dynamic_cast<ColVariable *>(mod->variable());
-
  int idx = index_of_variable( var );
  std::vector< int > indices( 2, idx );
 
  // Read old variable types
  std::vector< char > ctype;
+ // TODO: Maybe use int_vars, that now should contain the new value
  int is_mip = CPXgetintvars( &ctype );
- assert( is_mip == int_vars ); // TODO: remove is_mip
 
  if( is_mip > 0 ) {
   if( ctype[ idx ] == 'B' || ctype[ idx ] == 'I' ) {
@@ -777,12 +777,13 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
  }
 
- int_vars = is_mip;
+ int_vars = is_mip; // TODO: Remove this when MILPSolver method is ready
 }
 
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::of_modification( ObjectiveMod * mod ) {
+ MILPSolver::of_modification( mod );
 
  /*
   * ObjectiveMod class does not include any modification types except
@@ -808,6 +809,7 @@ void CPXMILPSolver::of_modification( ObjectiveMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
+ MILPSolver::const_modification( mod );
 
  /*
   * To change the coefficents, a FunctionMod must be used.
@@ -881,6 +883,7 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
+ MILPSolver::bound_modification( mod );
 
  /*
   * The same ColVariable can have more active OneVarConstraints,
@@ -947,10 +950,14 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::function_modification( FunctionMod * mod ) {
- // TODO: Change only involved variables, see function_vars_modification() below
+ // TODO: Change only involved variables, see function_vars_modification()
+ MILPSolver::function_modification( mod );
+
  /*
   * This function is used when changing coefficents for OFs or constraints.
   */
+
+ // Check if OF or a Constraint is involved
  auto * mod_f = mod->function();
  bool changing_of = false;
 
@@ -974,10 +981,6 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
   if( lf != nullptr ) {
    // Linear objective function
 
-   num_vars = static_cast<int>(lf->get_v_var().size());
-   indices.resize( num_vars );
-   values.resize( num_vars );
-
    // Update problem type
    switch( probtype ) {
     case CPXPROB_LP :
@@ -998,6 +1001,10 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
    }
 
    // Update objective coefficients
+   num_vars = static_cast<int>(lf->get_v_var().size());
+   indices.resize( num_vars );
+   values.resize( num_vars );
+
    int i = 0;
    for( auto el : lf->get_v_var() ) {
     indices[ i ] = index_of_variable( el.first );
@@ -1009,41 +1016,49 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
   } else if( qf != nullptr ) {
    // Quadratic objective function
 
+   // Update problem type
+   // switch( probtype ) {
+   //  case CPXPROB_LP :
+   //   CPXchgprobtype( env, lp, CPXPROB_QP );
+   //   break;
+   //  case CPXPROB_MILP :
+   //   CPXchgprobtype( env, lp, CPXPROB_MIQP );
+   //   break;
+   //  case CPXPROB_FIXEDMILP :
+   //   CPXchgprobtype( env, lp, CPXPROB_FIXEDMIQP );
+   //   break;
+   //  case CPXPROB_QP :
+   //  case CPXPROB_MIQP :
+   //  case CPXPROB_FIXEDMIQP :
+   //   break;
+   //  default:
+   //   throw std::runtime_error( "Wrong CPLEX problem type" );
+   // }
+
+   // Update objective coefficients
    num_vars = static_cast<int>(qf->get_v_var().size());
    indices.resize( num_vars );
    values.resize( num_vars );
-
-   // Update problem type
-   switch( probtype ) {
-    case CPXPROB_LP :
-     CPXchgprobtype( env, lp, CPXPROB_QP );
-     break;
-    case CPXPROB_MILP :
-     CPXchgprobtype( env, lp, CPXPROB_MIQP );
-     break;
-    case CPXPROB_FIXEDMILP :
-     CPXchgprobtype( env, lp, CPXPROB_FIXEDMIQP );
-     break;
-    case CPXPROB_QP :
-    case CPXPROB_MIQP :
-    case CPXPROB_FIXEDMIQP :
-     break;
-    default:
-     throw std::runtime_error( "Wrong CPLEX problem type" );
-   }
+   std::vector< double > q_values( num_vars );
 
    int i = 0;
    for( auto el : qf->get_v_var() ) {
     // Linear coefficients can be changed all at once with CPXchgobj
     indices[ i ] = index_of_variable( std::get< 0 >( el ) );
     values[ i ] = std::get< 1 >( el );
+    q_values[ i ] = std::get< 2 >( el );
 
     // Quadratic coefficients can be changed one at a time
-    CPXchgqpcoef( env, lp, indices[ i ], indices[ i ], std::get< 2 >( el ) );
+    // CPXchgqpcoef( env, lp, indices[ i ], indices[ i ], q_values[ i ] );
     ++i;
    }
 
    CPXchgobj( env, lp, num_vars, indices.data(), values.data() );
+
+   // Adding q_objective information automatically changes the problem type
+   // from linear to quadratic
+   // TODO: not sure if CPXchgqpcoef() should be used, instead
+   CPXcopyqpsep( env, lp, q_values.data() );
 
   } else {
    throw std::invalid_argument( "Unknown type of Objective Function" );
@@ -1067,7 +1082,7 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
                 el.second );
    }
   } else {
-   // throw std::invalid_argument( "Unknown type of Function" );
+   throw std::invalid_argument( "Unknown type of Function" );
   }
  }
 }
@@ -1075,12 +1090,18 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
+ MILPSolver::function_vars_modification( mod );
 
  /*
-  * This function is used when adding coefficents to OFs or constraints.
+  * This function is used when adding or removing coefficents
+  * to or from OFs or constraints.
   */
+
+ // Check if OF or a Constraint is involved
  auto * mod_f = mod->function();
  bool changing_of = false;
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+ const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
  auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
  if( p_obj != nullptr ) {
@@ -1090,146 +1111,274 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   }
  }
 
+ std::vector< int > indices;
+ std::vector< double > values;
+ std::vector< double > q_values;
+
+ // C05FunctionModVarsAddd (Add coefficients)
+ // --------------------------------------------------------
  auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
  if( add ) {
-
-  int num_vars = static_cast<int>(add->vars().size());
-  std::vector< int > indices( num_vars );
-  std::vector< double > values( num_vars );
 
   if( changing_of ) {
    // Adding the coefficients to the objective function
 
-   const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
-   const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
+   // TODO: We should also check if new cols must be added,
+   //       but at this point it's already done by a dynamic modification.
 
    if( lf != nullptr ) {
     // Linear objective function
 
-    // Get indices and coefficients
-    int i = 0;
     for( auto * it1 : add->vars() ) {
      for( auto it2: lf->get_v_var() ) {
       if( it1 == it2.first ) {
-       indices[ i ] = index_of_variable( it2.first );
-       values[ i ] = it2.second;
+       indices.push_back( index_of_variable( it2.first ) );
+       values.push_back( it2.second );
        break;
       }
      }
-     ++i;
     }
 
-    // Update the coefficients
-    CPXchgobj( env, lp, num_vars, indices.data(), values.data() );
+    if (!indices.empty()) {
+     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+    }
 
    } else if( qf != nullptr ) {
     // Quadratic objective function
-    // TODO
+
+    for( auto * it1 : add->vars() ) {
+     for( auto it2: qf->get_v_var() ) {
+      if( it1 == std::get< 0 >( it2 ) ) {
+       indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
+       values.push_back( std::get< 1 >( it2 ) );
+       q_values.push_back( std::get< 2 >( it2 ) );
+       break;
+      }
+     }
+     CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
+    }
+
+    if( !indices.empty() ) {
+     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+    }
+
    } else {
+    // This should never happen
     throw std::invalid_argument( "Unknown type of Objective Function" );
    }
 
   } else {
    // Adding coefficients to a Constraint
-   // TODO: Now it works because they are already added with a var
+
+   auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+   std::vector< int > rows;
+
+   // Get indices and coefficients
+   for( auto * it1 : add->vars() ) {
+    for( auto it2: lf->get_v_var() ) {
+     if( it1 == it2.first ) {
+      indices.push_back( index_of_variable( it2.first ) );
+      rows.push_back( index_of_constraint( p_const ) );
+      values.push_back( it2.second );
+      break;
+     }
+    }
+   }
+
+   // If no vars are found in lf->get_v_var(), it's usually because they
+   // have already been removed with a dynamic variable modification, so
+   // no further action is needed.
+
+   // Update the coefficients (all zeroes)
+   if( !indices.empty() ) {
+    CPXchgcoeflist( env, lp, indices.size(), rows.data(),
+                    indices.data(), values.data() );
+   }
   }
   return;
- } // add
+ }
 
- auto * rmv = dynamic_cast<C05FunctionModVarsRngd *>( mod );
- if( rmv ) {
 
-  int num_vars = static_cast<int>(rmv->vars().size());
-  std::vector< int > indices( num_vars );
-  std::vector< double > values( num_vars );
+ // C05FunctionModVarsRngd (Remove coefficients in a range)
+ // ---------------------------------------------------------
+ auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
+ if( rmvr ) {
 
   if( changing_of ) {
    // Removing coefficients from the objective function
 
-   const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
-   const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
+   // TODO: We should also check if cols must be removed,
+   //       but at this point it's already done by a dynamic modification
 
    if( lf != nullptr ) {
-    // TODO: The following doesn't find the vars in lf->get_v_var()?
-    //       It works because var is removed with remove_dynamic_variable
-    // // Linear objective function
-    //
-    // // Get indices and coefficients (all zeroes)
-    // int i = 0;
-    // for( auto * it1 : rmv->vars() ) {
-    //  for( auto it2: lf->get_v_var() ) {
-    //   if( it1 == it2.first ) {
-    //    indices[ i ] = index_of_variable( it2.first );
-    //    values[ i ] = 0;
-    //    break;
-    //   }
-    //  }
-    //  ++i;
-    // }
-    //
-    // // Update the coefficients (all zeroes)
-    // CPXchgobj( env, lp, num_vars, indices.data(), values.data() );
+    // Linear objective function
+
+    for( auto * it1 : rmvr->vars() ) {
+     for( auto it2: lf->get_v_var() ) {
+      if( it1 == it2.first ) {
+       indices.push_back( index_of_variable( it2.first ) );
+       values.push_back( 0 );
+       break;
+      }
+     }
+    }
+
+    // If no vars are found in lf->get_v_var(), it's usually because they
+    // have already been removed with a dynamic variable modification, so
+    // no further action is needed.
+    if( !indices.empty() ) {
+     // Update the coefficients (all zeroes)
+     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+    }
 
    } else if( qf != nullptr ) {
-    // TODO
+    // Quadratic objective function
+
+    for( auto * it1 : rmvr->vars() ) {
+     for( auto it2: qf->get_v_var() ) {
+      if( it1 == std::get< 0 >( it2 ) ) {
+       indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
+       values.push_back( 0 );
+       q_values.push_back( 0 );
+       break;
+      }
+     }
+     CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
+    }
+
+    // If no vars are found in lf->get_v_var(), it's usually because they
+    // have already been removed with a dynamic variable modification, so
+    // no further action is needed.
+    if( !indices.empty() ) {
+     // Update the coefficients (all zeroes)
+     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+    }
+
    } else {
+    // This should never happen
     throw std::invalid_argument( "Unknown type of Objective Function" );
    }
+
   } else {
    // Removing coefficients from a constraint
 
-   // const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
-   // auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
-   // std::vector< int > j( num_vars, index_of_constraint( p_const ) );
-   //
-   // // Get indices and coefficients (all zeroes)
-   // int i = 0;
-   // bool found = false;
-   // for( auto * it1 : rmv->vars() ) {
-   //  for( auto it2: lf->get_v_var() ) {
-   //   if( it1 == it2.first ) {
-   //    indices[ i ] = index_of_variable( it2.first );
-   //    values[ i ] = 0;
-   //    found = true;
-   //    break;
-   //   }
-   //  }
-   //  ++i;
-   // }
-   //
-   // // Update the coefficients (all zeroes)
-   // if (found)
-   // CPXchgcoeflist( env, lp, num_vars, indices.data(), j.data(), values.data() );
-   //
-   // std::stringstream lpname;
-   // lpname << std::setfill( '0' ) << std::setw( 3 ) << print_debug << "_function_vars_modification_RMV-CS.lp";
-   // write_lp(lpname.str());
-   // print_debug++;
+   auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+   std::vector< int > rows;
+
+   // Get indices and coefficients (all zeroes)
+   for( auto * it1 : rmvr->vars() ) {
+    for( auto it2: lf->get_v_var() ) {
+     if( it1 == it2.first ) {
+      indices.push_back( index_of_variable( it2.first ) );
+      rows.push_back( index_of_constraint( p_const ) );
+      values.push_back( 0 );
+      break;
+     }
+    }
+   }
+
+   // If no vars are found in lf->get_v_var(), it's usually because they
+   // have already been removed with a dynamic variable modification, so
+   // no further action is needed.
+
+   // Update the coefficients (all zeroes)
+   if( !indices.empty() ) {
+    CPXchgcoeflist( env, lp, indices.size(), rows.data(),
+                    indices.data(), values.data() );
+   }
   }
   return;
- } // rmv
+ }
 
- auto * rmv_sbst = dynamic_cast<C05FunctionModVarsSbst *>( mod );
- if( rmv_sbst ) {
+
+ // C05FunctionModVarsRngd (Remove coefficients in a subset)
+ // ---------------------------------------------------------
+ auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
+ if( rmvs ) {
 
   if( changing_of ) {
    // Removing coefficients from the objective function
 
-   const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
-   const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
+   // TODO: We should also check if cols must be removed,
+   //       but at this point it's already done by a dynamic modification
 
    if( lf != nullptr ) {
-    // TODO
+    // Linear objective function
+
+    for( auto * it1 : rmvs->vars() ) {
+     for( auto it2: lf->get_v_var() ) {
+      if( it1 == it2.first ) {
+       indices.push_back( index_of_variable( it2.first ) );
+       values.push_back( 0 );
+       break;
+      }
+     }
+    }
+
+    // If no vars are found in lf->get_v_var(), it's usually because they
+    // have already been removed with a dynamic variable modification, so
+    // no further action is needed.
+    if( !indices.empty() ) {
+     // Update the coefficients (all zeroes)
+     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+    }
+
    } else if( qf != nullptr ) {
-    // TODO
+    // Quadratic objective function
+
+    for( auto * it1 : rmvs->vars() ) {
+     for( auto it2: qf->get_v_var() ) {
+      if( it1 == std::get< 0 >( it2 ) ) {
+       indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
+       values.push_back( 0 );
+       q_values.push_back( 0 );
+       break;
+      }
+     }
+     CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
+    }
+
+    // If no vars are found in lf->get_v_var(), it's usually because they
+    // have already been removed with a dynamic variable modification, so
+    // no further action is needed.
+    if( !indices.empty() ) {
+     // Update the coefficients (all zeroes)
+     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+    }
+
    } else {
+    // This should never happen
     throw std::invalid_argument( "Unknown type of Objective Function" );
    }
+
   } else {
    // Removing coefficients from a constraint
-   // TODO
-  }
 
+   auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+   std::vector< int > rows;
+
+   // Get indices and coefficients (all zeroes)
+   for( auto * it1 : rmvs->vars() ) {
+    for( auto it2: lf->get_v_var() ) {
+     if( it1 == it2.first ) {
+      indices.push_back( index_of_variable( it2.first ) );
+      rows.push_back( index_of_constraint( p_const ) );
+      values.push_back( 0 );
+      break;
+     }
+    }
+   }
+
+   // If no vars are found in lf->get_v_var(), it's usually because they
+   // have already been removed with a dynamic variable modification, so
+   // no further action is needed.
+
+   // Update the coefficients (all zeroes)
+   if( !indices.empty() ) {
+    CPXchgcoeflist( env, lp, indices.size(), rows.data(),
+                    indices.data(), values.data() );
+   }
+  }
   return;
  }
  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
@@ -1485,6 +1634,7 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 void
 CPXMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
 
+ // TODO: Move this to a MILPSolver method
  auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
  auto active_bnds = active_bounds[ index_of_variable( p_var ) ];
 
@@ -1497,9 +1647,13 @@ CPXMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
  // Add the bound
  active_bnds.emplace_back( p_bound );
 
- // Change CPLEX
+ // TODO: The following stays on CPXMILPSolver, rename the vars
+ // When a new bound is added, we must all scan them again
 
- std::vector< int > indices( 2, index_of_variable( p_var ) );
+ auto * p_var1 = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
+ auto active_bnds1 = active_bounds[ index_of_variable( p_var1 ) ];
+
+ std::vector< int > indices( 2, index_of_variable( p_var1 ) );
  std::vector< char > lu( 2 );
  std::vector< double > bd( 2 );
 
@@ -1510,7 +1664,7 @@ CPXMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
  bd[ 0 ] = -CPX_INFBOUND;
  bd[ 1 ] = CPX_INFBOUND;
 
- for( auto * bnd : active_bnds ) {
+ for( auto * bnd : active_bnds1 ) {
   bd[ 0 ] = bd[ 0 ] > bnd->get_lhs() ? bd[ 0 ] : bnd->get_lhs();
   bd[ 1 ] = bd[ 1 ] < bnd->get_rhs() ? bd[ 1 ] : bnd->get_rhs();
  }

@@ -602,43 +602,43 @@ class MILPSolver : public CDASolver {
  void process_modifications();
 
  /// It handles a variable modification
- virtual void var_modification( VariableMod * mod ) {}
+ virtual void var_modification( VariableMod * mod );
 
  /// It handles an objective modification
- virtual void of_modification( ObjectiveMod * mod ) {}
+ virtual void of_modification( ObjectiveMod * mod );
 
  /// It handles a constraint modification
- virtual void const_modification( ConstraintMod * mod ) {}
+ virtual void const_modification( ConstraintMod * mod );
 
  /// It handles a bound modification
- virtual void bound_modification( OneVarConstraintMod * mod ) {}
+ virtual void bound_modification( OneVarConstraintMod * mod );
 
  /// It handles a function modification
- virtual void function_modification( FunctionMod * mod ) {}
+ virtual void function_modification( FunctionMod * mod );
 
  /// It handles a function vars modification
- virtual void function_vars_modification( FunctionModVars * mod ) {}
+ virtual void function_vars_modification( FunctionModVars * mod );
 
  /// It handles a dynamic modification
- virtual void dynamic_modification( BlockModAD * mod ) {}
+ virtual void dynamic_modification( BlockModAD * mod );
 
  /// It adds a single new dynamic constraint
- virtual void add_dynamic_constraint( FRowConstraint * p_const ) {}
+ virtual void add_dynamic_constraint( FRowConstraint * p_const );
 
  /// It adds a single new dynamic variable
- virtual void add_dynamic_variable( ColVariable * p_var ) {}
+ virtual void add_dynamic_variable( ColVariable * p_var );
 
  /// It adds a single new dynamic bound
- virtual void add_dynamic_bound( OneVarConstraint * p_bound ) {}
+ virtual void add_dynamic_bound( OneVarConstraint * p_bound );
 
  /// It removes a single dynamic constraint
- virtual void remove_dynamic_constraint( const FRowConstraint * p_const ) {}
+ virtual void remove_dynamic_constraint( const FRowConstraint * p_const );
 
  /// It removes a single dynamic variable
- virtual void remove_dynamic_variable( const ColVariable * p_var ) {}
+ virtual void remove_dynamic_variable( const ColVariable * p_var );
 
  /// It removes a single dynamic bound
- virtual void remove_dynamic_bound( const OneVarConstraint * p_bound ) {}
+ virtual void remove_dynamic_bound( const OneVarConstraint * p_bound );
  /// @}
 
 /*--------------------------------------------------------------------------*/

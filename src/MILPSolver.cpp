@@ -155,6 +155,10 @@ int MILPSolver::get_nodes() const {
  return nodes;
 }
 
+int MILPSolver::get_num_integer_vars() const {
+ return int_vars;
+}
+
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- SET_BLOCK -------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1139,6 +1143,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj ) {
 }
 
 /*--------------------------------------------------------------------------*/
+
 void MILPSolver::process_modifications() {
  /*
   * This function processes one modification after another, without
@@ -1247,8 +1252,92 @@ void MILPSolver::process_modifications() {
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::get_num_integer_vars() const {
- return int_vars;
+void MILPSolver::var_modification( VariableMod * mod ){
+ auto * var = dynamic_cast<ColVariable *>(mod->variable());
+ int idx = index_of_variable( var );
+
+ // TODO: Update MILPSolver int_vars
+ // TODO: Update MILPSolver bounds
+ // TODO: Update MILPSolver ctypes?
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::of_modification( ObjectiveMod * mod ){
+ // TODO: Update MILPSolver objsense
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::const_modification( ConstraintMod * mod ){
+ auto * p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
+
+ // TODO: Update MILPSolver rhs
+ // TODO: Update MILPSolver sense
+ // TODO: Update MILPSolver rngval
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::bound_modification( OneVarConstraintMod * mod ){
+ auto * p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
+ auto * p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
+
+ // TODO: Update MILPSolver bounds
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::function_modification( FunctionMod * mod ){
+ // TODO: update objective [and q_objective], or constraint coefficient
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::function_vars_modification( FunctionModVars * mod ){
+ // TODO: update objective [and q_objective], or constraint coefficient
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::dynamic_modification( BlockModAD * mod ){
+
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ){
+
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::add_dynamic_variable( ColVariable * p_var ){
+
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ){
+
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
+
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
+
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ){
+
 }
 
 /*--------------------------------------------------------------------------*/
