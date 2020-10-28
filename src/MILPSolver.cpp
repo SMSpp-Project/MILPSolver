@@ -800,7 +800,6 @@ void MILPSolver::count_nzelements( ColVariable & variable,
                                    int & nz_elements,
                                    int & cnt ) {
  BOOST_LOG_TRIVIAL(trace) << "MILPSolver::count_nzelements(): nz/cnt " << std::setw(4) << nz_elements << "/" << std::setw(4) << cnt << " " << variable;
- // LOG( "[DEBUG] The active stuff is:\n" );
 
  /*
   * Since counting non-zero elements requires checking if each active thing
@@ -817,19 +816,16 @@ void MILPSolver::count_nzelements( ColVariable & variable,
  for( auto *i : variable.active_stuff() ) {
   auto *row = dynamic_cast<FRowConstraint *>(i);
   if( row != nullptr ) {
-   // LOG( "[DEBUG] " << *row );
    active_constraints[ cnt ].push_back( row );
    ++nz_elements;
   }
   auto *box = dynamic_cast<OneVarConstraint *>(i);
   if( box != nullptr ) {
-   // LOG( "[DEBUG] " << *box );
    active_bounds[ cnt ].push_back( box );
   }
-  auto *obj = dynamic_cast<Objective *>(i);
-  if( obj != nullptr ) {
-   // LOG( "[DEBUG] " << *obj );
-  }
+  // auto *obj = dynamic_cast<Objective *>(i);
+  // if( obj != nullptr ) {
+  // }
  }
  ++cnt;
 }
