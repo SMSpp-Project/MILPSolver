@@ -823,16 +823,16 @@ void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  }
 
  SCIP_CALL_ABORT( SCIPaddCons( scip, cons ) );
- assert( conss.size() == v_d_const_int.back().second + 1 );
+ assert( conss.size() == dcon_to_idx.back().second + 1 );
  conss.push_back( cons );
  SCIP_CALL_ABORT( SCIPreleaseCons( scip, &cons ) );
 
  int new_index = numrows++;
 
- v_d_const_int.emplace_back( p_const, new_index );
- v_int_d_const.emplace_back( new_index, p_const );
- std::sort( v_d_const_int.begin(), v_d_const_int.end() );
- std::sort( v_int_d_const.begin(), v_int_d_const.end() );
+ dcon_to_idx.emplace_back( p_const, new_index );
+ idx_to_dcon.emplace_back( new_index, p_const );
+ std::sort( dcon_to_idx.begin(), dcon_to_idx.end() );
+ std::sort( idx_to_dcon.begin(), idx_to_dcon.end() );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -875,10 +875,10 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  active_constraints.emplace_back( var_constraints );
  active_bounds.emplace_back( var_bounds );
 
- v_d_var_int.emplace_back( p_var, numcols );
- v_int_d_var.emplace_back( numcols, p_var );
- std::sort( v_d_var_int.begin(), v_d_var_int.end() );
- std::sort( v_int_d_var.begin(), v_int_d_var.end() );
+ dvar_to_idx.emplace_back( p_var, numcols );
+ idx_to_dvar.emplace_back( numcols, p_var );
+ std::sort( dvar_to_idx.begin(), dvar_to_idx.end() );
+ std::sort( idx_to_dvar.begin(), idx_to_dvar.end() );
  ++numcols;
 
  // Variable type
@@ -935,25 +935,25 @@ SCIPMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
  int index = 0;
- auto it1 = find_if( v_int_d_const.begin(),
-                     v_int_d_const.end(),
+ auto it1 = find_if( idx_to_dcon.begin(),
+                     idx_to_dcon.end(),
                      [ & ]( MILPSolver::int_const pair ) {
                       return pair.second == p_const;
                      } );
- if( it1 != v_int_d_const.end() ) {
+ if( it1 != idx_to_dcon.end() ) {
   index = it1->first;
-  v_int_d_const.erase( it1 );
+  idx_to_dcon.erase( it1 );
  } else {
   throw std::invalid_argument( "Cannot find the Constraint" );
  }
 
- auto it2 = find_if( v_d_const_int.begin(),
-                     v_d_const_int.end(),
+ auto it2 = find_if( dcon_to_idx.begin(),
+                     dcon_to_idx.end(),
                      [ & ]( MILPSolver::const_int pair ) {
                       return pair.first == p_const;
                      } );
- if( it2 != v_d_const_int.end() ) {
-  v_d_const_int.erase( it2 );
+ if( it2 != dcon_to_idx.end() ) {
+  dcon_to_idx.erase( it2 );
  } else {
   throw std::invalid_argument( "Cannot find the Constraint" );
  }
@@ -964,12 +964,12 @@ SCIPMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
  SCIP_CALL_ABORT( SCIPdelCons( scip, cons ) );
  numrows--;
 
- for( auto & it: v_d_const_int ) {
+ for( auto & it: dcon_to_idx ) {
   if( it.second > index ) {
    it.second--;
   }
  }
- for( auto & it: v_int_d_const ) {
+ for( auto & it: idx_to_dcon ) {
   if( it.first > index ) {
    it.first--;
   }
@@ -990,26 +990,26 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
  int index = 0;
- auto it1 = find_if( v_int_d_var.begin(),
-                     v_int_d_var.end(),
+ auto it1 = find_if( idx_to_dvar.begin(),
+                     idx_to_dvar.end(),
                      [ & ]( MILPSolver::int_var pair ) {
                       return pair.second == p_var;
                      } );
- if( it1 != v_int_d_var.end() ) {
+ if( it1 != idx_to_dvar.end() ) {
   index = it1->first;
-  v_int_d_var.erase( it1 );
+  idx_to_dvar.erase( it1 );
  } else {
   throw std::invalid_argument( "Cannot find the Variable" );
  }
 
- auto it2 = find_if( v_d_var_int.begin(),
-                     v_d_var_int.end(),
+ auto it2 = find_if( dvar_to_idx.begin(),
+                     dvar_to_idx.end(),
                      [ & ]( MILPSolver::var_int pair ) {
                       return pair.first == p_var;
                      } );
 
- if( it2 != v_d_var_int.end() ) {
-  v_d_var_int.erase( it2 );
+ if( it2 != dvar_to_idx.end() ) {
+  dvar_to_idx.erase( it2 );
  } else {
   throw std::invalid_argument( "Cannot find the Variable" );
  }
@@ -1023,12 +1023,12 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
  SCIP_CALL_ABORT( SCIPdelVar( scip, var, &deleted ) );
  assert( deleted );
 
- for( auto & it: v_d_var_int ) {
+ for( auto & it: dvar_to_idx ) {
   if( it.second > index ) {
    it.second--;
   }
  }
- for( auto & it: v_int_d_var ) {
+ for( auto & it: idx_to_dvar ) {
   if( it.first > index ) {
    it.first--;
   }
