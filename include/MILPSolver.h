@@ -225,7 +225,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix column index
   * @throws std::invalid_argument if no indices are associated to that variable
   */
- int index_of_variable( ColVariable * p_var );
+ int index_of_variable( const ColVariable * p_var );
 
  /**
   * It returns the matrix column index of a given static variable.
@@ -234,7 +234,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix column index
   * @throws std::invalid_argument if no indices are associated to the variable
   */
- int index_of_static_variable( ColVariable * p_var );
+ int index_of_static_variable( const ColVariable * p_var );
 
  /**
   * It returns the matrix column index of a given dynamic variable.
@@ -243,7 +243,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix column index
   * @throws std::invalid_argument if no indices are associated to the variable
   */
- int index_of_dynamic_variable( ColVariable * p_var );
+ int index_of_dynamic_variable( const ColVariable * p_var );
 
  /**
   * It returns the matrix row index of the given constraint.
@@ -251,7 +251,7 @@ class MILPSolver : public CDASolver {
   * @param p_const a pointer to a FRowConstraint
   * @return the corresponding matrix row index
   */
- int index_of_constraint( FRowConstraint * p_const );
+ int index_of_constraint( const FRowConstraint * p_const );
 
  /**
   * It returns the matrix row index of the given static constraint.
@@ -260,7 +260,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix row index
   * @throws std::invalid_argument if no indices are associated to the constraint
   */
- int index_of_static_constraint( FRowConstraint * p_const );
+ int index_of_static_constraint( const FRowConstraint * p_const );
 
  /**
   * It returns the matrix row index of the given dynamic constraint.
@@ -269,7 +269,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix row index
   * @throws std::invalid_argument if no indices are associated to the constraint
   */
- int index_of_dynamic_constraint( FRowConstraint * p_const );
+ int index_of_dynamic_constraint( const FRowConstraint * p_const );
 
  /**
   * It returns the variable corresponding to a variable matrix column index.

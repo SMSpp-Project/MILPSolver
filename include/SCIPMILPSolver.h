@@ -189,8 +189,8 @@ class SCIPMILPSolver : public MILPSolver {
  protected:
  SCIP * scip{};
 
- std::vector< SCIP_VAR * > vars;
- std::vector< SCIP_CONS * > conss;
+ std::vector< SCIP_VAR * > vars;   ///< SCIP variables
+ std::vector< SCIP_CONS * > conss; ///< SCIP constraints
 
  std::string prob_name;   ///< SCIP problem name
  std::string output_file; ///< Output file

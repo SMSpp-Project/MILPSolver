@@ -572,7 +572,7 @@ void MILPSolver::load_problem() {
 /*-------------------- METHODS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_variable( ColVariable * p_var ) {
+int MILPSolver::index_of_variable( const ColVariable * p_var ) {
  auto i = index_of_dynamic_variable( p_var );
  if( i < Inf< int >() ) {
   return i;
@@ -583,13 +583,13 @@ int MILPSolver::index_of_variable( ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_static_variable( ColVariable * p_var ) {
+int MILPSolver::index_of_static_variable( const ColVariable * p_var ) {
 
  int i = 0;
  auto it = lower_bound( v_s_var_int.begin(),
                         v_s_var_int.end(),
                         p_var,
-                        [ & ]( var_int pair, ColVariable * pvar ) {
+                        [ & ]( var_int pair, const ColVariable * pvar ) {
                          return pair.first < pvar;
                         } );
 
@@ -600,7 +600,8 @@ int MILPSolver::index_of_static_variable( ColVariable * p_var ) {
  }
 
  if( it != v_s_var_int.end() ) {
-  return static_cast<int>(it->second + std::distance( it->first, p_var ));
+  auto first = const_cast<const ColVariable *>(it->first);
+  return static_cast<int>(it->second + std::distance( first, p_var ));
  } else {
   return Inf< int >();
  }
@@ -608,7 +609,7 @@ int MILPSolver::index_of_static_variable( ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_dynamic_variable( ColVariable * p_var ) {
+int MILPSolver::index_of_dynamic_variable( const ColVariable * p_var ) {
 
  auto it = find_if( v_d_var_int.begin(),
                     v_d_var_int.end(),
@@ -624,7 +625,7 @@ int MILPSolver::index_of_dynamic_variable( ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_constraint( FRowConstraint * p_const ) {
+int MILPSolver::index_of_constraint( const FRowConstraint * p_const ) {
  auto i = index_of_dynamic_constraint( p_const );
  if( i < Inf< int >() ) {
   return i;
@@ -635,12 +636,12 @@ int MILPSolver::index_of_constraint( FRowConstraint * p_const ) {
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_static_constraint( FRowConstraint * p_const ) {
+int MILPSolver::index_of_static_constraint( const FRowConstraint * p_const ) {
 
  auto it = lower_bound( v_s_const_int.begin(),
                         v_s_const_int.end(),
                         p_const,
-                        [ & ]( const_int pair, FRowConstraint * pconst ) {
+                        [ & ]( const_int pair, const FRowConstraint * pconst ) {
                          return pair.first < pconst;
                         } );
 
@@ -651,7 +652,8 @@ int MILPSolver::index_of_static_constraint( FRowConstraint * p_const ) {
  }
 
  if( it != v_s_const_int.end() ) {
-  return static_cast<int>(it->second + std::distance( it->first, p_const ));
+  auto first = dynamic_cast<const FRowConstraint *>(it->first);
+  return static_cast<int>(it->second + std::distance( first, p_const ));
  } else {
   return Inf< int >();
  }
@@ -659,7 +661,7 @@ int MILPSolver::index_of_static_constraint( FRowConstraint * p_const ) {
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_dynamic_constraint( FRowConstraint * p_const ) {
+int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * p_const ) {
 
  auto it = find_if( v_d_const_int.begin(),
                     v_d_const_int.end(),
@@ -1253,10 +1255,18 @@ void MILPSolver::process_modifications() {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::var_modification( VariableMod * mod ){
- auto * var = dynamic_cast<ColVariable *>(mod->variable());
- int idx = index_of_variable( var );
+ const auto var = dynamic_cast< const ColVariable * >( mod->variable() );
+ // int idx = index_of_variable( var );
 
- // TODO: Update MILPSolver int_vars
+ // Update the number of integer variables
+ if( var->is_integer( mod->old_state() ) ) {
+  --int_vars;
+ }
+
+ if( var->is_integer() ) {
+  ++int_vars;
+ }
+
  // TODO: Update MILPSolver bounds
  // TODO: Update MILPSolver ctypes?
 }
@@ -1300,44 +1310,255 @@ void MILPSolver::function_vars_modification( FunctionModVars * mod ){
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::dynamic_modification( BlockModAD * mod ){
+void MILPSolver::dynamic_modification( BlockModAD * mod ) {
+ auto * addcon_mod = dynamic_cast<BlockModAdd< FRowConstraint > *>(mod);
+ if( addcon_mod ) {
+  for( auto * i : addcon_mod->added() ) {
+   add_dynamic_constraint( i );
+  }
+  return;
+ }
 
+ auto * rmvcon_mod = dynamic_cast<BlockModRmv< FRowConstraint > *>(mod);
+ if( rmvcon_mod ) {
+  for( const auto & i : rmvcon_mod->removed() ) {
+   remove_dynamic_constraint( &i );
+  }
+  return;
+ }
+
+ auto * addvar_mod = dynamic_cast<BlockModAdd< ColVariable > *>(mod);
+ if( addvar_mod ) {
+  for( auto * i : addvar_mod->added() ) {
+   add_dynamic_variable( i );
+  }
+  return;
+ }
+
+ auto * rmvvar_mod = dynamic_cast<BlockModRmv< ColVariable > *>(mod);
+ if( rmvvar_mod ) {
+  for( const auto & i : rmvvar_mod->removed() ) {
+   remove_dynamic_variable( &i );
+  }
+  return;
+ }
+
+ auto * addbnd_mod = dynamic_cast<BlockModAdd< LB0Constraint > *>(mod);
+ if( addbnd_mod ) {
+  for( auto * i : addbnd_mod->added() ) {
+   add_dynamic_bound( i );
+  }
+  return;
+ }
+
+ auto * rmvbnd_mod = dynamic_cast<BlockModRmv< LB0Constraint > *>(mod);
+ if( rmvbnd_mod ) {
+  for( const auto & i : rmvbnd_mod->removed() ) {
+   remove_dynamic_bound( &i );
+  }
+  return;
+ }
+
+ throw std::invalid_argument( "Unknown type of BlockAD" );
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ){
+void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
 
+ const auto * p_fun =
+  dynamic_cast<const LinearFunction *>(p_const->get_function());
+ if( p_fun == nullptr ) {
+  throw std::invalid_argument( "The Constraint is not linear" );
+ }
+
+ // Set the constraint as active for all its variables
+ int nzcnt = p_const->get_num_active_var();
+ for( int it = 0; it < nzcnt; ++it ) {
+  auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( it ));
+  active_constraints[ index_of_variable( p_var ) ].push_back( p_const );
+ }
+
+ // Update the correspondence vectors
+ // TODO: Avoid sorting by adding in the right place
+ v_d_const_int.emplace_back( p_const, numrows );
+ v_int_d_const.emplace_back( numrows, p_const );
+ std::sort( v_d_const_int.begin(), v_d_const_int.end() );
+ std::sort( v_int_d_const.begin(), v_int_d_const.end() );
+ ++numrows;
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::add_dynamic_variable( ColVariable * p_var ){
+void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
+ // Get the constraints and bounds of the new variable
+ std::vector< FRowConstraint * > var_constraints;
+ std::vector< OneVarConstraint * > var_bounds;
 
+
+ for( auto * stuff : p_var->active_stuff() ) {
+  auto * constraint = dynamic_cast<FRowConstraint *>(stuff);
+  if( constraint != nullptr ) {
+   var_constraints.push_back( constraint );
+  }
+  auto * bound = dynamic_cast<OneVarConstraint *>(stuff);
+  if( bound != nullptr ) {
+   var_bounds.push_back( bound );
+  }
+ }
+
+ active_constraints.emplace_back( var_constraints );
+ active_bounds.emplace_back( var_bounds );
+
+ // Update the correspondence vectors
+ // TODO: Avoid sorting by adding in the right place
+ v_d_var_int.emplace_back( p_var, numcols );
+ v_int_d_var.emplace_back( numcols, p_var );
+ std::sort( v_d_var_int.begin(), v_d_var_int.end() );
+ std::sort( v_int_d_var.begin(), v_int_d_var.end() );
+ ++numcols;
+
+
+ // Update the number of integer vars
+ if ( p_var->is_integer() ) {
+  ++int_vars;
+ }
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ){
+void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
+ auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
+ auto active_bnds = active_bounds[ index_of_variable( p_var ) ];
 
+ // Look if the bound is already there (say, added with the Variable)
+ auto it = std::find( active_bnds.begin(), active_bnds.end(), p_bound );
+ if( it < active_bnds.end() ) {
+  return;
+ }
+
+ // Add the bound
+ active_bnds.emplace_back( p_bound );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
 
+ // Remove the constraint from the correspondence vectors
+ // TODO: Use lower_bound
+ int index = 0;
+ auto it1 = find_if( v_int_d_const.begin(),
+                     v_int_d_const.end(),
+                     [ & ]( MILPSolver::int_const pair ) {
+                      return pair.second == p_const;
+                     } );
+ if( it1 != v_int_d_const.end() ) {
+  index = it1->first;
+  v_int_d_const.erase( it1 );
+ } else {
+  throw std::invalid_argument( "Cannot find the Constraint" );
+ }
+
+ auto it2 = find_if( v_d_const_int.begin(),
+                     v_d_const_int.end(),
+                     [ & ]( MILPSolver::const_int pair ) {
+                      return pair.first == p_const;
+                     } );
+ if( it2 != v_d_const_int.end() ) {
+  v_d_const_int.erase( it2 );
+ } else {
+  throw std::invalid_argument( "Cannot find the Constraint" );
+ }
+
+ // Update the other indices
+ for( auto & it: v_d_const_int ) {
+  if( it.second > index ) {
+   it.second--;
+  }
+ }
+ for( auto & it: v_int_d_const ) {
+  if( it.first > index ) {
+   it.first--;
+  }
+ }
+
+ // Remove the constraint from the active contraints
+ for( auto & constraints: active_constraints ) {
+  auto constraint = find( constraints.begin(), constraints.end(), p_const );
+  if( constraint != constraints.end() ) {
+   constraints.erase( constraint );
+  }
+ }
+
+ --numrows;
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
 
+ // Remove the variable from the correspondence vectors
+ // TODO: Use lower_bound
+ int index = 0;
+ auto it1 = find_if( v_int_d_var.begin(),
+                     v_int_d_var.end(),
+                     [ & ]( MILPSolver::int_var pair ) {
+                      return pair.second == p_var;
+                     } );
+ if( it1 != v_int_d_var.end() ) {
+  index = it1->first;
+  v_int_d_var.erase( it1 );
+ } else {
+  throw std::invalid_argument( "Cannot find the Variable" );
+ }
+
+ auto it2 = find_if( v_d_var_int.begin(),
+                     v_d_var_int.end(),
+                     [ & ]( MILPSolver::var_int pair ) {
+                      return pair.first == p_var;
+                     } );
+
+ if( it2 != v_d_var_int.end() ) {
+  v_d_var_int.erase( it2 );
+ } else {
+  throw std::invalid_argument( "Cannot find the Variable" );
+ }
+
+ // Update the other indices
+ for( auto & it: v_d_var_int ) {
+  if( it.second > index ) {
+   it.second--;
+  }
+ }
+ for( auto & it: v_int_d_var ) {
+  if( it.first > index ) {
+   it.first--;
+  }
+ }
+
+ // Remove the variable's active contraints
+ active_constraints.erase( active_constraints.begin() + index );
+ active_bounds.erase( active_bounds.begin() + index );
+
+ --numcols;
+
+ // Update the number of integer vars
+ if( p_var->is_integer() ) {
+  --int_vars;
+ }
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ){
-
+void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
+ // Remove the bound from the active bounds
+ for( auto & bounds: active_bounds ) {
+  auto bound = find( bounds.begin(), bounds.end(), p_bound );
+  if( bound != bounds.end() ) {
+   bounds.erase( bound );
+  }
+ }
 }
 
 /*--------------------------------------------------------------------------*/
