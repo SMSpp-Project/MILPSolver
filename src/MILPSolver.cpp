@@ -623,6 +623,12 @@ int MILPSolver::index_of_dynamic_variable( const ColVariable * p_var ) {
                     [ & ]( var_int pair ) {
                      return pair.first == p_var;
                     } );
+
+ // auto it = lower_bound( dvar_to_idx.begin(), dvar_to_idx.end(), p_var,
+ //                        [ & ]( var_int pair, const ColVariable * v ) {
+ //                         return pair.first < p_var;
+ //                        } );
+
  if( it != dvar_to_idx.end() ) {
   return it->second;
  } else {
@@ -675,6 +681,10 @@ int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * p_const ) {
                     [ & ]( const_int pair ) {
                      return pair.first == p_const;
                     } );
+ // auto it = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(), p_const,
+ //                        [ & ]( const_int pair, const FRowConstraint * c ) {
+ //                         return pair.first < c;
+ //                        } );
 
  if( it != dcon_to_idx.end() ) {
   return it->second;

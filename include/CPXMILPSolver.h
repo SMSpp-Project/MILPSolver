@@ -202,13 +202,13 @@ class CPXMILPSolver : public MILPSolver {
  /// Sets a string parameter with the given value
  void set_par( idx_type par, const std::string & value ) override;
 
- /// Gets the number of CPXMILPSolver integer parameters
+ /// Gets the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par() const override;
 
- /// Gets the number of CPXMILPSolver string parameters
+ /// Gets the number of string parameters
  [[nodiscard]] idx_type get_num_str_par() const override;
 
- /// Gets the number of CPXMILPSolver double parameters
+ /// Gets the number of double parameters
  [[nodiscard]] idx_type get_num_dbl_par() const override;
 
  /// Gets the default value of the specified integer parameter
@@ -388,17 +388,17 @@ class CPXMILPSolver : public MILPSolver {
  void set_dual_value( FRowConstraint & lconst, double * pi, int & i );
 
 /**
- * Gets the number of CPLEX integer vars.
- * Optionally, the read CPLEX variable types can be saved in a vector.
- * Such vector is automatically resized and filled.
- *
- * @param ctype A vector where CPLEX variable types are saved
- */
-int CPXgetintvars(std::vector<char> *ctype = nullptr);
+  * Gets the number of CPLEX integer vars.
+  * Optionally, the read CPLEX variable types can be saved in a vector.
+  * Such vector is automatically resized and filled.
+  *
+  * @param ctype A vector where CPLEX variable types are saved
+  */
+ int CPXgetintvars( std::vector< char > * ctype = nullptr );
 
 // void fix_integer_vars();
 
-SMSpp_insert_in_factory_h;
+ SMSpp_insert_in_factory_h;
 };
 
 }

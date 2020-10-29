@@ -1393,12 +1393,10 @@ void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  std::array< char, 1 > sense{};
 
  // Get the coefficients to fill the matrix
- int i = 0;
- for( int it = 0; it < nzcnt; ++it ) {
-  auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( it ));
+ for( int i = 0; i < nzcnt; ++i ) {
+  auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( i ));
   rmatind[ i ] = index_of_variable( p_var );
-  rmatval[ i ] = p_fun->get_coefficient( it );
-  ++i;
+  rmatval[ i ] = p_fun->get_coefficient( i );
  }
 
  // Get the bounds
@@ -1746,7 +1744,7 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
  // Solver parameters explicitly mapped in CPLEX
  if( par == intMaxIter ) {
   CPXgetlongparam( env, CPXPARAM_MIP_Limits_Nodes, &long_value );
-  return (int)long_value;
+  return ( int ) long_value;
  }
  if( par == intMaxSol ) {
   CPXgetintparam( env, CPXPARAM_MIP_Pool_Capacity, &value );
@@ -1965,13 +1963,13 @@ double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
 /*--------------------------------------------------------------------------*/
 
 const std::string &
- CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
+CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
 
  if( par == strProblemName ) {
-  return std::move( std::string( "CPXMILPSolver" ) );
+  return std::move( std::string( "CPXMILPSolver_prob" ) );
  }
 
- if( par == strProblemName ) {
+ if( par == strOutputFile ) {
   return std::move( std::string( "output.lp" ) );
  }
 
@@ -1992,7 +1990,7 @@ const std::string &
 ThinComputeInterface::idx_type
 CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
  if( name == "intUseCustomNames" ) {
-  return ( intUseCustomNames );
+  return intUseCustomNames;
  }
 
  // Try CPLEX parameters
@@ -2005,7 +2003,7 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
   return it->second;
  }
 
- return ( MILPSolver::int_par_str2idx( name ) );
+ return MILPSolver::int_par_str2idx( name );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2047,7 +2045,7 @@ CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const {
   return it->second;
  }
 
- return ( MILPSolver::dbl_par_str2idx( name ) );
+ return MILPSolver::dbl_par_str2idx( name );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2074,9 +2072,9 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
 ThinComputeInterface::idx_type
 CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
  if( name == "strProblemName" )
-  return ( strProblemName );
+  return strProblemName;
  if( name == "strOutputFile" )
-  return ( strOutputFile );
+  return strOutputFile;
 
  // Try CPLEX parameters
  int cplex_par;
@@ -2088,7 +2086,7 @@ CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
   return it->second;
  }
 
- return ( MILPSolver::str_par_str2idx( name ) );
+ return MILPSolver::str_par_str2idx( name );
 }
 
 /*--------------------------------------------------------------------------*/

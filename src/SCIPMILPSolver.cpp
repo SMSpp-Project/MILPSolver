@@ -435,6 +435,7 @@ void SCIPMILPSolver::write_lp( const std::string & filename ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::var_modification( VariableMod * mod ) {
+ MILPSolver::var_modification( mod );
 
  if( SCIPisTransformed( scip ) ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
@@ -485,6 +486,8 @@ void SCIPMILPSolver::var_modification( VariableMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::of_modification( ObjectiveMod * mod ) {
+ MILPSolver::of_modification( mod );
+
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  /*
@@ -511,6 +514,7 @@ void SCIPMILPSolver::of_modification( ObjectiveMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
+ MILPSolver::const_modification( mod );
 
  /*
   * To change the coefficents, a FunctionMod must be used.
@@ -520,12 +524,6 @@ void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
  auto * p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
-
- const int cnt = 1;
- std::array< int, cnt > indices{};
- std::array< double, cnt > values{};
- std::array< char, cnt > sense{};
- std::array< double, cnt > rngval{};
 
  RowConstraint::RHSValue const_lhs = NAN;
  RowConstraint::RHSValue const_rhs = NAN;
@@ -570,6 +568,7 @@ void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
+ MILPSolver::bound_modification( mod );
 
  /*
   * The same ColVariable can have more active OneVarConstraints,
@@ -628,14 +627,20 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
+ MILPSolver::function_modification( mod );
+
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
  /*
   * This function is used when changing coefficents for OFs or constraints.
   */
+
+ // Check if OF or a Constraint is involved
  auto * mod_f = mod->function();
  bool changing_of = false;
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+ const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
  auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
  if( p_obj != nullptr ) {
@@ -648,13 +653,9 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
  if( changing_of ) {
   // Changing objective function
 
-  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
-  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
-
   if( lf != nullptr ) {
    // Linear objective function
 
-   // Update objective coefficients
    for( auto el : lf->get_v_var() ) {
     SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
     SCIP_CALL_ABORT( SCIPchgVarObj( scip, var, el.second ) );
@@ -662,14 +663,14 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
   } else if( qf != nullptr ) {
    // Quadratic objective function
    SCIPABORT();
+
   } else {
+   // This should never happen
    throw std::invalid_argument( "Unknown type of Objective Function" );
   }
 
  } else {
-  // Changing a constraint function, so it can be only linear
-  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
-
+// Changing coefficients of a constraint
   if( lf != nullptr ) {
    auto * p_const = ( FRowConstraint * ) lf->get_Observer();
 
@@ -679,8 +680,6 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
     SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
     SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, cons, var, el.second ) );
    }
-  } else {
-   throw std::invalid_argument( "Unknown type of Function" );
   }
  }
 }
@@ -688,12 +687,17 @@ void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::function_vars_modification( FunctionModVars * mod ) {
+ MILPSolver::function_vars_modification( mod );
 
  /*
  * This function is used when adding coefficents to OFs or constraints.
  */
+
+ // Check if OF or a Constraint is involved
  auto * mod_f = mod->function();
  bool changing_of = false;
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+ const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
  auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
  if( p_obj != nullptr ) {
@@ -703,15 +707,29 @@ void SCIPMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   }
  }
 
+ // C05FunctionModVarsAddd (Add coefficients)
+ // --------------------------------------------------------
  auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
  if( add ) {
 
- } // add
+ }
 
- auto * rmv = dynamic_cast<C05FunctionModVarsRngd *>( mod );
- if( rmv ) {
 
- } // rmv
+ // C05FunctionModVarsRngd (Remove coefficients in a range)
+ // ---------------------------------------------------------
+ auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
+ if( rmvr ) {
+
+ }
+
+
+ // C05FunctionModVarsRngd (Remove coefficients in a subset)
+ // ---------------------------------------------------------
+ auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
+ if( rmvs ) {
+
+ }
+
 
  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
 }
@@ -719,61 +737,13 @@ void SCIPMILPSolver::function_vars_modification( FunctionModVars * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::dynamic_modification( BlockModAD * mod ) {
-
- auto * addcon_mod = dynamic_cast<BlockModAdd< FRowConstraint > *>(mod);
- if( addcon_mod ) {
-  for( auto * i : addcon_mod->added() ) {
-   add_dynamic_constraint( i );
-  }
-  return;
- }
-
- auto * rmvcon_mod = dynamic_cast<BlockModRmv< FRowConstraint > *>(mod);
- if( rmvcon_mod ) {
-  for( const auto & i : rmvcon_mod->removed() ) {
-   remove_dynamic_constraint( &i );
-  }
-  return;
- }
-
- auto * addvar_mod = dynamic_cast<BlockModAdd< ColVariable > *>(mod);
- if( addvar_mod ) {
-  for( auto * i : addvar_mod->added() ) {
-   add_dynamic_variable( i );
-  }
-  return;
- }
-
- auto * rmvvar_mod = dynamic_cast<BlockModRmv< ColVariable > *>(mod);
- if( rmvvar_mod ) {
-  for( const auto & i : rmvvar_mod->removed() ) {
-   remove_dynamic_variable( &i );
-  }
-  return;
- }
-
- auto * addbnd_mod = dynamic_cast<BlockModAdd< LB0Constraint > *>(mod);
- if( addbnd_mod ) {
-  for( auto * i : addbnd_mod->added() ) {
-   add_dynamic_bound( i );
-  }
-  return;
- }
-
- auto * rmvbnd_mod = dynamic_cast<BlockModRmv< LB0Constraint > *>(mod);
- if( rmvbnd_mod ) {
-  for( const auto & i : rmvbnd_mod->removed() ) {
-   remove_dynamic_bound( &i );
-  }
-  return;
- }
-
- throw std::invalid_argument( "Unknown type of BlockAD" );
+ MILPSolver::dynamic_modification( mod );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
+ MILPSolver::add_dynamic_constraint( p_const );
 
  const auto * p_fun =
   dynamic_cast<const LinearFunction *>(p_const->get_function());
@@ -785,16 +755,6 @@ void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
  int nzcnt = p_const->get_num_active_var();
- std::array< int, 2 > rmatbeg = { 0, nzcnt };
- std::vector< int > rmatind( nzcnt );
- std::vector< double > rmatval( nzcnt );
-
- std::array< double, 1 > rhs{};
- std::array< double, 1 > rngval{};
- std::array< int, 1 > indices{};
- std::array< char, 1 > sense{};
-
- int i = 0;
 
  SCIP_CONS * cons = nullptr;
 
@@ -812,50 +772,26 @@ void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
                                              const_lhs, const_rhs ) );
 
  // Get the coefficients to fill the matrix
- for( int it = 0; it < nzcnt; ++it ) {
-  auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( it ));
+ for( int i = 0; i < nzcnt; ++i ) {
+  auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( i ));
   SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
-  SCIP_Real coef = p_fun->get_coefficient( it );
+  SCIP_Real coef = p_fun->get_coefficient( i );
   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip, cons, var, coef ) );
-
-  active_constraints[ rmatind[ i ] ].push_back( p_const );
-  ++i;
  }
 
  SCIP_CALL_ABORT( SCIPaddCons( scip, cons ) );
  assert( conss.size() == dcon_to_idx.back().second + 1 );
  conss.push_back( cons );
  SCIP_CALL_ABORT( SCIPreleaseCons( scip, &cons ) );
-
- int new_index = numrows++;
-
- dcon_to_idx.emplace_back( p_const, new_index );
- idx_to_dcon.emplace_back( new_index, p_const );
- std::sort( dcon_to_idx.begin(), dcon_to_idx.end() );
- std::sort( idx_to_dcon.begin(), idx_to_dcon.end() );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
+ MILPSolver::add_dynamic_variable( p_var );
+
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
-
- std::vector< FRowConstraint * > var_constraints;
- std::vector< OneVarConstraint * > var_bounds;
-
- int nzcnt = 0;
- for( auto * stuff : p_var->active_stuff() ) {
-  auto * constraint = dynamic_cast<FRowConstraint *>(stuff);
-  if( constraint != nullptr ) {
-   var_constraints.push_back( constraint );
-   ++nzcnt;
-  }
-  auto * bound = dynamic_cast<OneVarConstraint *>(stuff);
-  if( bound != nullptr ) {
-   var_bounds.push_back( bound );
-  }
- }
 
  SCIP_Real lb = NAN;
  SCIP_Real ub = NAN;
@@ -866,20 +802,6 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
   -SCIPinfinity( scip ) : p_var->get_lb();
  ub = p_var->get_ub() == Inf< double >() ?
       SCIPinfinity( scip ) : p_var->get_ub();
-
- for( auto * bnd : var_bounds ) {
-  lb = lb > bnd->get_lhs() ? lb : bnd->get_lhs();
-  ub = ub < bnd->get_rhs() ? ub : bnd->get_rhs();
- }
-
- active_constraints.emplace_back( var_constraints );
- active_bounds.emplace_back( var_bounds );
-
- dvar_to_idx.emplace_back( p_var, numcols );
- idx_to_dvar.emplace_back( numcols, p_var );
- std::sort( dvar_to_idx.begin(), dvar_to_idx.end() );
- std::sort( idx_to_dvar.begin(), idx_to_dvar.end() );
- ++numcols;
 
  // Variable type
 
@@ -904,7 +826,7 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  int i = 0;
 
  // We need the coefficients for this variable in each constraint
- for( auto * p_const : var_constraints ) {
+ for( auto * p_const : active_constraints.back() ) {
 
   const auto * p_fun =
    dynamic_cast<const LinearFunction *>(p_const->get_function());
@@ -924,6 +846,7 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 
 void
 SCIPMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
+ MILPSolver::add_dynamic_bound( p_bound );
  // TODO
 }
 
@@ -934,53 +857,14 @@ SCIPMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- int index = 0;
- auto it1 = find_if( idx_to_dcon.begin(),
-                     idx_to_dcon.end(),
-                     [ & ]( MILPSolver::int_const pair ) {
-                      return pair.second == p_const;
-                     } );
- if( it1 != idx_to_dcon.end() ) {
-  index = it1->first;
-  idx_to_dcon.erase( it1 );
- } else {
-  throw std::invalid_argument( "Cannot find the Constraint" );
- }
+ int index = index_of_dynamic_constraint( p_const );
 
- auto it2 = find_if( dcon_to_idx.begin(),
-                     dcon_to_idx.end(),
-                     [ & ]( MILPSolver::const_int pair ) {
-                      return pair.first == p_const;
-                     } );
- if( it2 != dcon_to_idx.end() ) {
-  dcon_to_idx.erase( it2 );
- } else {
-  throw std::invalid_argument( "Cannot find the Constraint" );
- }
-
- auto it3 = conss.begin() + index;
- SCIP_CONS * cons = *it3;
- conss.erase( it3 );
+ auto it = conss.begin() + index;
+ SCIP_CONS * cons = *it;
+ conss.erase( it );
  SCIP_CALL_ABORT( SCIPdelCons( scip, cons ) );
- numrows--;
 
- for( auto & it: dcon_to_idx ) {
-  if( it.second > index ) {
-   it.second--;
-  }
- }
- for( auto & it: idx_to_dcon ) {
-  if( it.first > index ) {
-   it.first--;
-  }
- }
-
- for( auto & constraints: active_constraints ) {
-  auto constraint = find( constraints.begin(), constraints.end(), p_const );
-  if( constraint != constraints.end() ) {
-   constraints.erase( constraint );
-  }
- }
+ MILPSolver::remove_dynamic_constraint( p_const );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -989,132 +873,86 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- int index = 0;
- auto it1 = find_if( idx_to_dvar.begin(),
-                     idx_to_dvar.end(),
-                     [ & ]( MILPSolver::int_var pair ) {
-                      return pair.second == p_var;
-                     } );
- if( it1 != idx_to_dvar.end() ) {
-  index = it1->first;
-  idx_to_dvar.erase( it1 );
- } else {
-  throw std::invalid_argument( "Cannot find the Variable" );
- }
+ int index = index_of_dynamic_variable( p_var );
 
- auto it2 = find_if( dvar_to_idx.begin(),
-                     dvar_to_idx.end(),
-                     [ & ]( MILPSolver::var_int pair ) {
-                      return pair.first == p_var;
-                     } );
-
- if( it2 != dvar_to_idx.end() ) {
-  dvar_to_idx.erase( it2 );
- } else {
-  throw std::invalid_argument( "Cannot find the Variable" );
- }
-
- auto it3 = vars.begin() + index;
- SCIP_VAR * var = *it3;
- vars.erase( it3 );
- numcols--;
+ auto it = vars.begin() + index;
+ SCIP_VAR * var = *it;
+ vars.erase( it );
 
  SCIP_Bool deleted = 0;
  SCIP_CALL_ABORT( SCIPdelVar( scip, var, &deleted ) );
  assert( deleted );
 
- for( auto & it: dvar_to_idx ) {
-  if( it.second > index ) {
-   it.second--;
-  }
- }
- for( auto & it: idx_to_dvar ) {
-  if( it.first > index ) {
-   it.first--;
-  }
- }
-
- active_constraints.erase( active_constraints.begin() + index );
- active_bounds.erase( active_bounds.begin() + index );
+ MILPSolver::remove_dynamic_variable( p_var );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void
 SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
+ MILPSolver::remove_dynamic_bound( p_bound );
  // TODO
 }
 
 /*--------------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
-void SCIPMILPSolver::set_par( const ThinComputeInterface::idx_type par,
-                              const int value ) {
+
+void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
  switch( par ) {
-  case intMaxIter:
-   SCIP_CALL_ABORT( SCIPsetLongintParam( scip, "limits/nodes", value ) );
-   //CPXsetlongparam(env, CPXPARAM_MIP_Limits_Nodes, value);
-   break;
-  case intMaxSol:
-   SCIP_CALL_ABORT( SCIPsetIntParam( scip, "limits/solutions", value ) );
-   break;
-  case intLogVerb:
-   if( value )
-    SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", 4 ) );
-   else
-    SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", 0 ) );
-   break;
+  // case intMaxIter:
+  //  SCIP_CALL_ABORT( SCIPsetLongintParam( scip, "limits/nodes", value ) );
+  //  break;
+  // case intMaxSol:
+  //  SCIP_CALL_ABORT( SCIPsetIntParam( scip, "limits/solutions", value ) );
+  //  break;
+  // case intLogVerb:
+  //  SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", value ) );
+  //  break;
   case intUseCustomNames:
-   use_custom_names = value; // use_custom_names is bool!
+   use_custom_names = bool( value );
    break;
   default:
-   // We assume that the symbolic constant is defined in CPLEX instead of SMS++
-   SCIPABORT();
-   //CPXsetintparam(env, par, value);
+   MILPSolver::set_par( par, value );
  }
 }
 
-void SCIPMILPSolver::set_par( ThinComputeInterface::idx_type par,
-                              const double value ) {
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::set_par( idx_type par, const double value ) {
  switch( par ) {
-  case dblMaxTime:
-   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/time", value ) );
-   break;
-  case dblRelAcc:
-   // TODO
-   break;
-  case dblAbsAcc:
-   // TODO
-   break;
-  case dblUpCutOff:
-   if( objsense == 1 )
-    SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
-   break;
-  case dblLwCutOff:
-   if( objsense == -1 )
-    SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
-   break;
-  case dblRAccSol:
-   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/gap", value ) );
-   //CPXsetdblparam(env, CPX_PARAM_EPGAP, value);
-   break;
-  case dblAAccSol:
-   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/absgap", value ) );
-   //CPXsetdblparam(env, CPX_PARAM_EPAGAP, value);
-   break;
-  case dblFAccSol:
-   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "numerics/feastol", value ) );
-   //CPXsetdblparam(env, CPXPARAM_Simplex_Tolerances_Feasibility, value);
-   break;
+  // case dblMaxTime:
+  //  SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/time", value ) );
+  //  break;
+  // case dblRelAcc: // TODO
+  //  break;
+  // case dblAbsAcc: // TODO
+  //  break;
+  // case dblUpCutOff:
+  //  if( objsense == 1 )
+  //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
+  //  break;
+  // case dblLwCutOff:
+  //  if( objsense == -1 )
+  //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
+  //  break;
+  // case dblRAccSol:
+  //  SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/gap", value ) );
+  //  break;
+  // case dblAAccSol:
+  //  SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/absgap", value ) );
+  //  break;
+  // case dblFAccSol:
+  //  SCIP_CALL_ABORT( SCIPsetRealParam( scip, "numerics/feastol", value ) );
+  //  break;
   default:
-   SCIPABORT();
-   // We assume that the symbolic constant is defined in CPLEX instead of SMS++
-   //CPXsetdblparam(env, par, value);
+   MILPSolver::set_par( par, value );
  }
 }
 
-void SCIPMILPSolver::set_par( ThinComputeInterface::idx_type par,
-                              const std::string & value ) {
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::set_par( idx_type par, const std::string & value ) {
  switch( par ) {
   case strProblemName:
    prob_name = value;
@@ -1123,11 +961,11 @@ void SCIPMILPSolver::set_par( ThinComputeInterface::idx_type par,
    output_file = value;
    break;
   default:
-   SCIPABORT();
-   // We assume that the symbolic constant is defined in CPLEX instead of SMS++
-   //CPXsetstrparam(env, par, value.c_str());
+   MILPSolver::set_par( par, value );
  }
 }
+
+/*--------------------------------------------------------------------------*/
 
 ThinComputeInterface::idx_type SCIPMILPSolver::get_num_int_par() const {
  return MILPSolver::get_num_int_par() + intLastAlgParSCPS - intLastAlgParMILP;
@@ -1137,8 +975,26 @@ ThinComputeInterface::idx_type SCIPMILPSolver::get_num_str_par() const {
  return MILPSolver::get_num_str_par() + strLastAlgParSCPS - strLastAlgParMILP;
 }
 
+ThinComputeInterface::idx_type SCIPMILPSolver::get_num_dbl_par() const {
+ return MILPSolver::get_num_dbl_par() + dblLastAlgParSCPS - dblLastAlgParMILP;
+}
+
+/*--------------------------------------------------------------------------*/
+
 int SCIPMILPSolver::get_int_par( idx_type par ) const {
+ int value;
+ SCIP_Longint long_value;
+
  switch( par ) {
+  // case intMaxIter:
+  //  SCIP_CALL_ABORT( SCIPgetLongintParam( scip, "limits/nodes", &long_value ) );
+  //  return ( int ) long_value;
+  // case intMaxSol:
+  //  SCIP_CALL_ABORT( SCIPgetIntParam( scip, "limits/solutions", &value ) );
+  //  return value;
+  // case intLogVerb:
+  //  SCIP_CALL_ABORT( SCIPgetIntParam( scip, "display/verblevel", &value ) );
+  //  return value;
   case intUseCustomNames:
    return use_custom_names;
   default:
@@ -1146,8 +1002,45 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const {
  }
 }
 
+/*--------------------------------------------------------------------------*/
+
+double SCIPMILPSolver::get_dbl_par( idx_type par ) const {
+ double value;
+
+ switch( par ) {
+  // case dblMaxTime:
+  //  SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/time", &value ) );
+  //  return value;
+  // case dblRelAcc:   // TODO
+  //  return 1e-6;
+  // case dblAbsAcc:   // TODO
+  //  return Inf< OFValue >();
+  // case dblUpCutOff: // TODO
+  //  if( objsense == 1 )
+  //   return SCIPgetObjlimit( scip );
+  //  return Inf< OFValue >();
+  // case dblLwCutOff: // TODO
+  //  if( objsense == -1 )
+  //   return SCIPgetObjlimit( scip );
+  //  return -Inf< OFValue >();
+  // case dblRAccSol:
+  //  SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/gap", &value ) );
+  //  return value;
+  // case dblAAccSol:
+  //  SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/absgap", &value ) );
+  //  return value;
+  // case dblFAccSol:
+  //  SCIP_CALL_ABORT( SCIPgetRealParam( scip, "numerics/feastol", &value ) );
+  //  return value;
+  default:
+   return MILPSolver::get_dbl_par( par );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
 const std::string &
-SCIPMILPSolver::get_str_par( const ThinComputeInterface::idx_type par ) const {
+SCIPMILPSolver::get_str_par( const idx_type par ) const {
  switch( par ) {
   case strProblemName:
    return prob_name;
@@ -1158,36 +1051,123 @@ SCIPMILPSolver::get_str_par( const ThinComputeInterface::idx_type par ) const {
  }
 }
 
+/*--------------------------------------------------------------------------*/
+
+int SCIPMILPSolver::get_dflt_int_par( const idx_type par ) const {
+ int value;
+ SCIP_Longint long_value;
+
+ switch( par ) {
+  // case intMaxIter:
+  //  return ( int ) long_value;
+  // case intMaxSol:
+  //  return value;
+  // case intLogVerb:
+  //  return value;
+  case intUseCustomNames:
+   return 1;
+  default:
+   return MILPSolver::get_dflt_int_par( par );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+double SCIPMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
+ double value;
+
+ switch( par ) {
+  // case dblMaxTime:
+  //  return value;
+  // case dblRelAcc:   // TODO
+  //  return 1e-6;
+  // case dblAbsAcc:   // TODO
+  //  return Inf< OFValue >();
+  // case dblUpCutOff: // TODO
+  //  if( objsense == 1 )
+  //   return SCIPgetObjlimit( scip );
+  //  return Inf< OFValue >();
+  // case dblLwCutOff: // TODO
+  //  if( objsense == -1 )
+  //   return SCIPgetObjlimit( scip );
+  //  return -Inf< OFValue >();
+  // case dblRAccSol:
+  //  return value;
+  // case dblAAccSol:
+  //  return value;
+  // case dblFAccSol:
+  //  return value;
+  default:
+   return MILPSolver::get_dflt_dbl_par( par );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+const std::string &
+SCIPMILPSolver::get_dflt_str_par( const idx_type par ) const {
+
+ if( par == strProblemName ) {
+  return std::move( std::string( "SCIPMILPSolver_prob" ) );
+ }
+
+ if( par == strOutputFile ) {
+  return std::move( std::string( "output.lp" ) );
+ }
+
+ return MILPSolver::get_dflt_str_par( par );
+}
+
+/*--------------------------------------------------------------------------*/
+
 ThinComputeInterface::idx_type
 SCIPMILPSolver::int_par_str2idx( const std::string & name ) const {
  if( name == "intUseCustomNames" )
-  return ( intUseCustomNames );
- return ( MILPSolver::str_par_str2idx( name ) );
+  return intUseCustomNames;
+ return MILPSolver::int_par_str2idx( name );
 }
 
+/*--------------------------------------------------------------------------*/
+
 const std::string &
-SCIPMILPSolver::int_par_idx2str( const ThinComputeInterface::idx_type idx ) const {
- // It is convoluted for extendability
- static const std::vector< std::string > pars = { "intUseCustomNames" };
- switch( idx ) {
-  case intUseCustomNames:
-   return pars[ 0 ];
-  default:
-   return MILPSolver::str_par_idx2str( idx );
+SCIPMILPSolver::int_par_idx2str( const idx_type idx ) const {
+ if( idx == intUseCustomNames ) {
+  return std::move( std::string( "intUseCustomNames" ) );
  }
+
+ return MILPSolver::int_par_idx2str( idx );
 }
+
+/*--------------------------------------------------------------------------*/
+
+ThinComputeInterface::idx_type
+SCIPMILPSolver::dbl_par_str2idx( const std::string & name ) const {
+ return MILPSolver::dbl_par_str2idx( name );
+}
+
+/*--------------------------------------------------------------------------*/
+
+const std::string &
+SCIPMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
+ return MILPSolver::dbl_par_idx2str( idx );
+}
+
+/*--------------------------------------------------------------------------*/
+
 
 ThinComputeInterface::idx_type
 SCIPMILPSolver::str_par_str2idx( const std::string & name ) const {
  if( name == "strProblemName" )
-  return ( strProblemName );
+  return strProblemName;
  if( name == "strOutputFile" )
-  return ( strOutputFile );
- return ( MILPSolver::str_par_str2idx( name ) );
+  return strOutputFile;
+ return MILPSolver::str_par_str2idx( name );
 }
 
+/*--------------------------------------------------------------------------*/
+
 const std::string &
-SCIPMILPSolver::str_par_idx2str( const ThinComputeInterface::idx_type idx ) const {
+SCIPMILPSolver::str_par_idx2str( const idx_type idx ) const {
  static const std::vector< std::string > pars = { "strProblemName",
                                                   "strOutputFile" };
  switch( idx ) {
@@ -1209,12 +1189,16 @@ void SCIPMILPSolver::set_var_value( ColVariable & lvar, double * x, int & i ) {
  lvar.set_value( x[ i++ ] );
 }
 
+/*--------------------------------------------------------------------------*/
+
 void SCIPMILPSolver::set_dual_value( FRowConstraint & lconst,
                                      double * pi,
                                      int & i ) {
 
  lconst.set_dual( pi[ i++ ] );
 }
+
+/*--------------------------------------------------------------------------*/
 
 // void SCIPMILPSolver::fix_integer_vars() {
 //  int probtype = CPXgetprobtype( env, milp );
