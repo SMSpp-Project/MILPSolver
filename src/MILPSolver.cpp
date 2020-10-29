@@ -58,7 +58,7 @@ SMSpp_insert_in_factory_cpp_0( MILPSolver );
 MILPSolver::MILPSolver() : CDASolver() {
 #ifdef MILPSLVR_DEBUG
  boost::log::core::get()->set_filter(
-  boost::log::trivial::severity >= boost::log::trivial::trace
+  boost::log::trivial::severity >= boost::log::trivial::debug
  );
 #else
  boost::log::core::get()->set_filter(
@@ -580,6 +580,7 @@ void MILPSolver::load_problem() {
 /*--------------------------------------------------------------------------*/
 
 int MILPSolver::index_of_variable( const ColVariable * p_var ) {
+ // TODO: Flip dynamic/static checks
  auto i = index_of_dynamic_variable( p_var );
  if( i < Inf< int >() ) {
   return i;
@@ -592,7 +593,7 @@ int MILPSolver::index_of_variable( const ColVariable * p_var ) {
 
 int MILPSolver::index_of_static_variable( const ColVariable * p_var ) {
 
- int i = 0;
+ assert( std::is_sorted( svar_to_idx.begin(), svar_to_idx.end() ) );
  auto it = lower_bound( svar_to_idx.begin(), svar_to_idx.end(), p_var,
                         [ & ]( var_int pair, const ColVariable * v ) {
                          return pair.first < v;
@@ -616,6 +617,8 @@ int MILPSolver::index_of_static_variable( const ColVariable * p_var ) {
 
 int MILPSolver::index_of_dynamic_variable( const ColVariable * p_var ) {
 
+ assert( std::is_sorted( dvar_to_idx.begin(), dvar_to_idx.end() ) );
+ // TODO: Use lower_bound()
  auto it = find_if( dvar_to_idx.begin(), dvar_to_idx.end(),
                     [ & ]( var_int pair ) {
                      return pair.first == p_var;
@@ -642,6 +645,7 @@ int MILPSolver::index_of_constraint( const FRowConstraint * p_const ) {
 
 int MILPSolver::index_of_static_constraint( const FRowConstraint * p_const ) {
 
+ assert( std::is_sorted( scon_to_idx.begin(), scon_to_idx.end() ) );
  auto it = lower_bound( scon_to_idx.begin(), scon_to_idx.end(), p_const,
                         [ & ]( const_int pair, const FRowConstraint * c ) {
                          return pair.first < c;
@@ -665,10 +669,13 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * p_const ) {
 
 int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * p_const ) {
 
+ assert( std::is_sorted( dcon_to_idx.begin(), dcon_to_idx.end() ) );
+ // TODO: Use lower_bound()
  auto it = find_if( dcon_to_idx.begin(), dcon_to_idx.end(),
                     [ & ]( const_int pair ) {
                      return pair.first == p_const;
                     } );
+
  if( it != dcon_to_idx.end() ) {
   return it->second;
  } else {
@@ -691,6 +698,7 @@ ColVariable * MILPSolver::variable_with_index( int i ) {
 
 ColVariable * MILPSolver::static_variable_with_index( int i ) {
 
+ assert( std::is_sorted( idx_to_svar.begin(), idx_to_svar.end() ) );
  auto it = lower_bound( idx_to_svar.begin(), idx_to_svar.end(), i,
                         [ & ]( int_var pair, int i ) {
                          return pair.first < i;
@@ -714,10 +722,14 @@ ColVariable * MILPSolver::static_variable_with_index( int i ) {
 
 ColVariable * MILPSolver::dynamic_variable_with_index( int i ) {
 
+ assert( std::is_sorted( idx_to_dvar.begin(), idx_to_dvar.end() ) );
+ // TODO: Use lower_bound()
  auto it = find_if( idx_to_dvar.begin(), idx_to_dvar.end(),
                     [ & ]( int_var pair ) {
                      return pair.first == i;
                     } );
+
+
  if( it != idx_to_dvar.end() ) {
   return it->second;
  } else {
@@ -740,6 +752,7 @@ FRowConstraint * MILPSolver::constraint_with_index( int i ) {
 
 FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
 
+ assert( std::is_sorted( idx_to_scon.begin(), idx_to_scon.end() ) );
  auto it = lower_bound( idx_to_scon.begin(), idx_to_scon.end(), i,
                         [ & ]( int_const pair, int i ) {
                          return pair.first < i;
@@ -763,10 +776,12 @@ FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
 
 FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
 
+ assert( std::is_sorted( idx_to_dcon.begin(), idx_to_dcon.end() ) );
  auto it = find_if( idx_to_dcon.begin(), idx_to_dcon.end(),
                     [ & ]( int_const pair ) {
                      return pair.first == i;
                     } );
+
  if( it != idx_to_dcon.end() ) {
   return it->second;
  } else {
@@ -1324,31 +1339,30 @@ void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
 
 void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
 
- // Remove the constraint from the correspondence vectors
- // TODO: Use lower_bound
+ // Remove the constraint from the dictionaries
  int index = 0;
- auto it1 = find_if( idx_to_dcon.begin(),
-                     idx_to_dcon.end(),
-                     [ & ]( MILPSolver::int_const pair ) {
-                      return pair.second == p_const;
-                     } );
+ assert( std::is_sorted( dcon_to_idx.begin(), dcon_to_idx.end() ) );
+ assert( std::is_sorted( idx_to_dcon.begin(), idx_to_dcon.end() ) );
 
+ auto it1 = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(), p_const,
+                         [ & ]( const_int pair, const FRowConstraint * p ) {
+                          return pair.first < p;
+                         } );
 
-
- if( it1 != idx_to_dcon.end() ) {
-  index = it1->first;
-  idx_to_dcon.erase( it1 );
+ if( it1 != dcon_to_idx.end() ) {
+  index = it1->second;
+  dcon_to_idx.erase( it1 );
  } else {
   throw std::invalid_argument( "Cannot find the Constraint" );
  }
 
- auto it2 = find_if( dcon_to_idx.begin(),
-                     dcon_to_idx.end(),
-                     [ & ]( MILPSolver::const_int pair ) {
-                      return pair.first == p_const;
-                     } );
- if( it2 != dcon_to_idx.end() ) {
-  dcon_to_idx.erase( it2 );
+ auto it2 = lower_bound( idx_to_dcon.begin(), idx_to_dcon.end(), index,
+                         [ & ]( int_const pair, int i ) {
+                          return pair.first < i;
+                         } );
+
+ if( it2 != idx_to_dcon.end() ) {
+  idx_to_dcon.erase( it2 );
  } else {
   throw std::invalid_argument( "Cannot find the Constraint" );
  }
@@ -1380,29 +1394,30 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
 
 void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
 
- // Remove the variable from the correspondence vectors
- // TODO: Use lower_bound
+ // Remove the constraint from the dictionaries
  int index = 0;
- auto it1 = find_if( idx_to_dvar.begin(),
-                     idx_to_dvar.end(),
-                     [ & ]( MILPSolver::int_var pair ) {
-                      return pair.second == p_var;
-                     } );
- if( it1 != idx_to_dvar.end() ) {
-  index = it1->first;
-  idx_to_dvar.erase( it1 );
+ assert( std::is_sorted( dvar_to_idx.begin(), dvar_to_idx.end() ) );
+ assert( std::is_sorted( idx_to_dvar.begin(), idx_to_dvar.end() ) );
+
+ auto it1 = lower_bound( dvar_to_idx.begin(), dvar_to_idx.end(), p_var,
+                         [ & ]( var_int pair, const ColVariable * v ) {
+                          return pair.first < v;
+                         } );
+
+ if( it1 != dvar_to_idx.end() ) {
+  index = it1->second;
+  dvar_to_idx.erase( it1 );
  } else {
   throw std::invalid_argument( "Cannot find the Variable" );
  }
 
- auto it2 = find_if( dvar_to_idx.begin(),
-                     dvar_to_idx.end(),
-                     [ & ]( MILPSolver::var_int pair ) {
-                      return pair.first == p_var;
-                     } );
+ auto it2 = lower_bound( idx_to_dvar.begin(), idx_to_dvar.end(), index,
+                         [ & ]( int_var pair, int i ) {
+                          return pair.first < i;
+                         } );
 
- if( it2 != dvar_to_idx.end() ) {
-  dvar_to_idx.erase( it2 );
+ if( it2 != idx_to_dvar.end() ) {
+  idx_to_dvar.erase( it2 );
  } else {
   throw std::invalid_argument( "Cannot find the Variable" );
  }
