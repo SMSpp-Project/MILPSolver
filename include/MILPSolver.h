@@ -371,16 +371,19 @@ class MILPSolver : public CDASolver {
  typedef std::pair< int, ColVariable * > int_var;
  typedef std::pair< FRowConstraint *, int > const_int;
  typedef std::pair< int, FRowConstraint * > int_const;
+ typedef std::tuple< ColVariable *, int, int > var_int_int;
+ typedef std::tuple< FRowConstraint *, int, int > con_int_int;
 
  /** @name Variable and Constraint dictionaries
   *
   * The following vectors are used in order to keep track between the
   * Variables and Constraints of the Block and the constraint matrix.
   *
-  *  - svar_to_idx, scon_to_idx : vectors of pairs that store the address
-  *    of the first element of each different type of static variable and
-  *    constraint, respectively, and the corresponding index in constraint
-  *    matrix. Vectors are kept sorted in ascending order by address.
+  *  - svar_to_idx, scon_to_idx : vectors of tuples that store 1) the address
+  *    of the first element of each group of static variables and
+  *    constraints, respectively, 2) the corresponding index in constraint
+  *    matrix (column or row), and 3) the number of elements in the group.
+  *    Vectors are kept sorted in ascending order by address.
   *
   *  - dvar_to_idx, dcon_to_idx : vectors of pairs that store the addresses
   *    of all the dynamic variables and constraints respectively and the
@@ -406,17 +409,17 @@ class MILPSolver : public CDASolver {
   *
   * @{
   */
- std::vector< var_int > svar_to_idx; ///< From static variable to index
- std::vector< int_var > idx_to_svar; ///< From index to static variable
+ std::vector< var_int_int > svar_to_idx; ///< From static variable to index
+ std::vector< int_var >     idx_to_svar; ///< From index to static variable
 
- std::vector< const_int > scon_to_idx; ///< From static constraint to index
- std::vector< int_const > idx_to_scon; ///< From index to static constraint
+ std::vector< con_int_int > scon_to_idx; ///< From static constraint to index
+ std::vector< int_const >   idx_to_scon; ///< From index to static constraint
 
- std::vector< var_int > dvar_to_idx; ///< From dynamic variable to index
- std::vector< int_var > idx_to_dvar; ///< From index to dynamic variable
+ std::vector< var_int >     dvar_to_idx; ///< From dynamic variable to index
+ std::vector< int_var >     idx_to_dvar; ///< From index to dynamic variable
 
- std::vector< const_int > dcon_to_idx; ///< From dynamic constraint to index
- std::vector< int_const > idx_to_dcon; ///< From index to dynamic constraint
+ std::vector< const_int >   dcon_to_idx; ///< From dynamic constraint to index
+ std::vector< int_const >   idx_to_dcon; ///< From index to dynamic constraint
  /// @}
 
  /**
@@ -562,6 +565,8 @@ class MILPSolver : public CDASolver {
  int sol_status{};      ///< Solution status (OK, Infeasible, Unbounded, ...)
  int nodes{};           ///< Number of nodes used to solve the problem
  int int_vars = 0;      ///< Number of integer variables
+ int static_vars = 0;   ///< Number of static variables
+ int static_cons = 0;   ///< Number of static constraints
  /// @}
 
  /** @name Clear and load the problem
@@ -689,30 +694,30 @@ class MILPSolver : public CDASolver {
   *
   * @param variable ColVariable to be checked for active constraints
   * @param nz_elements accumulator for nonzero elements
-  * @param cnt counter that keeps track of variable index
+  * @param var counter that keeps track of variable index
   */
- void count_nzelements( ColVariable & variable, int & nz_elements, int & cnt );
+ void count_nzelements( ColVariable & variable, int & nz_elements, int & var );
 
  /**
   * It scans a ColVariable and fills the vectors of the LP accordingly.
   *
   * @param var a reference to a ColVariable
-  * @param first an counter that should be 0 when var is the first
+  * @param n   an counter that should be 0 when var is the first
   *              element of a vector of static ColVariables,
   *              and -1 when it's a dynamic ColVariable
-  * @param i a counter for variables/columns
+  * @param col a counter for variables/columns
   */
- void scan_variable( ColVariable & var, int & first, int & i );
+ void scan_variable( ColVariable & var, int & n, int & col );
 
  /**
   * It scans a FRowConstraint and fills the vectors of the LP accordingly.
   * @param con a reference to a FRowConstraint
-  * @param first an counter that should be 0 when lconst is the first
+  * @param n   an counter that should be 0 when lconst is the first
   *              element of a vector of static FRowConstraints,
   *              and -1 when it's a dynamic FRowConstraint
-  * @param i a counter for constraints/rows
+  * @param row a counter for constraints/rows
   */
- void scan_constraint( FRowConstraint & con, int & first, int & i );
+ void scan_constraint( FRowConstraint & con, int & n, int & row );
 
 
  /**
