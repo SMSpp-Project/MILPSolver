@@ -33,19 +33,6 @@
 #ifndef __MILPSolver
 #define __MILPSolver
 
-// TODO: Remove this and all the printouts when done
-#ifdef MILPSLVR_DEBUG
-#include <iomanip>
-#define LOG( stuff ) std::cout << stuff
-#define LOG_VEC( stuff ) std::cout << "[";      \
-                       for (auto i : stuff)    \
-                        std::cout << " " << i; \
-                       std::cout << "]\n"
-#else
-#define LOG(stuff)
-#define LOG_VEC(stuff)
-#endif
-
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -238,7 +225,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix column index
   * @throws std::invalid_argument if no indices are associated to that variable
   */
- int index_of_variable( ColVariable * p_var );
+ int index_of_variable( const ColVariable * p_var );
 
  /**
   * It returns the matrix column index of a given static variable.
@@ -247,7 +234,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix column index
   * @throws std::invalid_argument if no indices are associated to the variable
   */
- int index_of_static_variable( ColVariable * p_var );
+ int index_of_static_variable( const ColVariable * p_var );
 
  /**
   * It returns the matrix column index of a given dynamic variable.
@@ -256,7 +243,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix column index
   * @throws std::invalid_argument if no indices are associated to the variable
   */
- int index_of_dynamic_variable( ColVariable * p_var );
+ int index_of_dynamic_variable( const ColVariable * p_var );
 
  /**
   * It returns the matrix row index of the given constraint.
@@ -264,7 +251,7 @@ class MILPSolver : public CDASolver {
   * @param p_const a pointer to a FRowConstraint
   * @return the corresponding matrix row index
   */
- int index_of_constraint( FRowConstraint * p_const );
+ int index_of_constraint( const FRowConstraint * p_const );
 
  /**
   * It returns the matrix row index of the given static constraint.
@@ -273,7 +260,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix row index
   * @throws std::invalid_argument if no indices are associated to the constraint
   */
- int index_of_static_constraint( FRowConstraint * p_const );
+ int index_of_static_constraint( const FRowConstraint * p_const );
 
  /**
   * It returns the matrix row index of the given dynamic constraint.
@@ -282,7 +269,7 @@ class MILPSolver : public CDASolver {
   * @return the corresponding matrix row index
   * @throws std::invalid_argument if no indices are associated to the constraint
   */
- int index_of_dynamic_constraint( FRowConstraint * p_const );
+ int index_of_dynamic_constraint( const FRowConstraint * p_const );
 
  /**
   * It returns the variable corresponding to a variable matrix column index.
@@ -385,27 +372,27 @@ class MILPSolver : public CDASolver {
  typedef std::pair< FRowConstraint *, int > const_int;
  typedef std::pair< int, FRowConstraint * > int_const;
 
- /** @name Correspondance vectors
+ /** @name Variable and Constraint dictionaries
   *
   * The following vectors are used in order to keep track between the
   * Variables and Constraints of the Block and the constraint matrix.
   *
-  *  - #v_s_var_int, #v_s_const_int : vectors of pairs that store the address
+  *  - svar_to_idx, scon_to_idx : vectors of pairs that store the address
   *    of the first element of each different type of static variable and
   *    constraint, respectively, and the corresponding index in constraint
   *    matrix. Vectors are kept sorted in ascending order by address.
   *
-  *  - #v_d_var_int, #v_d_const_int : vectors of pairs that store the addresses
+  *  - dvar_to_idx, dcon_to_idx : vectors of pairs that store the addresses
   *    of all the dynamic variables and constraints respectively and the
   *    corresponding index in constraint matrix. and are stored in an ascending
   *    Vectors are kept sorted in ascending order by address.
   *
-  *  - #v_int_s_var, #v_int_s_const : vectors of pairs that store the indices of
+  *  - idx_to_svar, idx_to_scon : vectors of pairs that store the indices of
   *    columns and rows, respectively, of the constraint matrix and the
   *    address of the corresponding (group of) static variables and constraints.
   *    Vectors are kept sorted in ascending order by index.
   *
-  *  - #v_int_d_var, #v_int_d_const : vectors of pairs that store the indices of
+  *  - idx_to_dvar, idx_to_dcon : vectors of pairs that store the indices of
   *    columns and rows, respectively, of the constraint matrix and the
   *    address of the corresponding dynamic variables and constraints.
   *    Vectors are kept sorted in ascending order by index.
@@ -413,24 +400,23 @@ class MILPSolver : public CDASolver {
   * Using these vectors of pair we can at any time locate the index
   * of each constraint and variable within the constraint matrix, and viceversa.
   * Note that the Block stores static variables and constraints grouped, so
-  * the vectors that store addresses of static elements (#v_s_var_int,
-  * #v_int_s_var, #v_s_const_int, #v_int_s_const) contain the address of the first
-  * element of each group.
+  * the vectors that store addresses of static elements contain the address
+  * of the first element of each group.
   * The methods that use these vectors need to be aware of that.
   *
   * @{
   */
- std::vector< var_int > v_s_var_int; ///< From static variable to index
- std::vector< int_var > v_int_s_var; ///< From index to static variable
+ std::vector< var_int > svar_to_idx; ///< From static variable to index
+ std::vector< int_var > idx_to_svar; ///< From index to static variable
 
- std::vector< const_int > v_s_const_int; ///< From static constraint to index
- std::vector< int_const > v_int_s_const; ///< From index to static constraint
+ std::vector< const_int > scon_to_idx; ///< From static constraint to index
+ std::vector< int_const > idx_to_scon; ///< From index to static constraint
 
- std::vector< var_int > v_d_var_int; ///< From dynamic variable to index
- std::vector< int_var > v_int_d_var; ///< From index to dynamic variable
+ std::vector< var_int > dvar_to_idx; ///< From dynamic variable to index
+ std::vector< int_var > idx_to_dvar; ///< From index to dynamic variable
 
- std::vector< const_int > v_d_const_int; ///< From dynamic constraint to index
- std::vector< int_const > v_int_d_const; ///< From index to dynamic constraint
+ std::vector< const_int > dcon_to_idx; ///< From dynamic constraint to index
+ std::vector< int_const > idx_to_dcon; ///< From index to dynamic constraint
  /// @}
 
  /**
@@ -450,6 +436,7 @@ class MILPSolver : public CDASolver {
  std::vector< std::vector< OneVarConstraint * > > active_bounds;
 
  /// Actually used bounds for each Variable, each pair being lower and upper
+ // TODO: Check this
  std::vector< std::pair< OneVarConstraint *, OneVarConstraint * > > used_bounds;
  /// @}
 
@@ -578,8 +565,7 @@ class MILPSolver : public CDASolver {
 
  int sol_status{};      ///< Solution status (OK, Infeasible, Unbounded, ...)
  int nodes{};           ///< Number of nodes used to solve the problem
- int mip = 0;           ///< Number of integer variables
- bool qp = false;       ///< True if the objective function is quadratic
+ int int_vars = 0;      ///< Number of integer variables
  /// @}
 
  /** @name Clear and load the problem
@@ -619,43 +605,43 @@ class MILPSolver : public CDASolver {
  void process_modifications();
 
  /// It handles a variable modification
- virtual void var_modification( VariableMod * mod ) {}
+ virtual void var_modification( VariableMod * mod );
 
  /// It handles an objective modification
- virtual void of_modification( ObjectiveMod * mod ) {}
+ virtual void of_modification( ObjectiveMod * mod );
 
  /// It handles a constraint modification
- virtual void const_modification( ConstraintMod * mod ) {}
+ virtual void const_modification( ConstraintMod * mod );
 
  /// It handles a bound modification
- virtual void bound_modification( OneVarConstraintMod * mod ) {}
+ virtual void bound_modification( OneVarConstraintMod * mod );
 
  /// It handles a function modification
- virtual void function_modification( FunctionMod * mod ) {}
+ virtual void function_modification( FunctionMod * mod );
 
  /// It handles a function vars modification
- virtual void function_vars_modification( FunctionModVars * mod ) {}
+ virtual void function_vars_modification( FunctionModVars * mod );
 
  /// It handles a dynamic modification
- virtual void dynamic_modification( BlockModAD * mod ) {}
+ virtual void dynamic_modification( BlockModAD * mod );
 
  /// It adds a single new dynamic constraint
- virtual void add_dynamic_constraint( FRowConstraint * p_const ) {}
+ virtual void add_dynamic_constraint( FRowConstraint * p_const );
 
  /// It adds a single new dynamic variable
- virtual void add_dynamic_variable( ColVariable * p_var ) {}
+ virtual void add_dynamic_variable( ColVariable * p_var );
 
  /// It adds a single new dynamic bound
- virtual void add_dynamic_bound( OneVarConstraint * p_bound ) {}
+ virtual void add_dynamic_bound( OneVarConstraint * p_bound );
 
  /// It removes a single dynamic constraint
- virtual void remove_dynamic_constraint( const FRowConstraint * p_const ) {}
+ virtual void remove_dynamic_constraint( const FRowConstraint * p_const );
 
  /// It removes a single dynamic variable
- virtual void remove_dynamic_variable( const ColVariable * p_var ) {}
+ virtual void remove_dynamic_variable( const ColVariable * p_var );
 
  /// It removes a single dynamic bound
- virtual void remove_dynamic_bound( const OneVarConstraint * p_bound ) {}
+ virtual void remove_dynamic_bound( const OneVarConstraint * p_bound );
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -712,41 +698,26 @@ class MILPSolver : public CDASolver {
  void count_nzelements( ColVariable & variable, int & nz_elements, int & cnt );
 
  /**
-  * It scans a static ColVariable or a group of static ColVariables and fills
-  * the vectors of the LP accordingly.
+  * It scans a ColVariable and fills the vectors of the LP accordingly.
   *
-  * @param var a reference to a [vector of] static ColVariable[s]
+  * @param var a reference to a ColVariable
   * @param first an counter that should be 0 when var is the first
-  *              element of a vector of ColVariables.
-  * @param i a counter for variables/columns shared w/ scan_dynamic_variable()
+  *              element of a vector of static ColVariables,
+  *              and -1 when it's a dynamic ColVariable
+  * @param i a counter for variables/columns
   */
- void scan_static_variable( ColVariable & var, int & first, int & i );
+ void scan_variable( ColVariable & var, int & first, int & i );
 
  /**
-  * It scans a dynamic ColVariable and fills the vectors of the LP accordingly.
-  *
-  * @param var a reference to a dynamic ColVariable
-  * @param i a counter for variables/columns shared with scan_static_variable()
-  */
- void scan_dynamic_variable( ColVariable & lvar, int & i );
-
- /**
-  * It scans a static FRowConstraint or a group of static FRowConstraints and
-  * fills the vectors of the LP accordingly.
-  * @param p_const a reference to a [vector of] static FRowConstraint[s]
+  * It scans a FRowConstraint and fills the vectors of the LP accordingly.
+  * @param con a reference to a FRowConstraint
   * @param first an counter that should be 0 when lconst is the first
-  *              element of a vector of FRowConstraints.
-  * @param i a counter for constraints/rows shared w/ scan_dynamic_constraint()
+  *              element of a vector of static FRowConstraints,
+  *              and -1 when it's a dynamic FRowConstraint
+  * @param i a counter for constraints/rows
   */
- void scan_static_constraint( FRowConstraint & p_const, int & first, int & i );
+ void scan_constraint( FRowConstraint & con, int & first, int & i );
 
- /**
-  * It scans a dyn FRowConstraint and fills the vectors of the LP accordingly.
-  *
-  * @param p_const a reference to a dynamic FRowConstraint
-  * @param i a counter for constraints/rows shared w/ scan_static_constraint()
-  */
- void scan_dynamic_constraint( FRowConstraint & p_const, int & i );
 
  /**
   * It scans a FRealObjective and fills the vectors of the LP accordingly.
@@ -754,6 +725,9 @@ class MILPSolver : public CDASolver {
   */
  void scan_objective( const FRealObjective * obj );
  /// @}
+
+ /// Returns a loggable representation of a vector
+ template<typename T> std::string log_vector(std::vector<T> v);
 
  SMSpp_insert_in_factory_h;
 };   // end( class MILPSolver )

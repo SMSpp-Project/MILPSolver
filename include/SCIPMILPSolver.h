@@ -93,6 +93,15 @@ class SCIPMILPSolver : public MILPSolver {
   intLastAlgParSCPS
  };
 
+ /** Types of double parameters.
+* Public enum describing the different types of algorithmic parameters
+* of "double" type that the SCIPMILPSolver has.
+*/
+ enum dbl_par_type_CPXS {
+  dblFirstCPLEXPar = dblLastAlgParMILP, ///< First double parameter
+  dblLastAlgParSCPS
+ };
+
  /** Types of string parameters.
   * Public enum describing the different types of algorithmic parameters
   * of "string" type that the SCIPMILPSolver has.
@@ -148,12 +157,6 @@ class SCIPMILPSolver : public MILPSolver {
 
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
- void set_par( idx_type par, int value ) override;
-
- void set_par( idx_type par, double value ) override;
-
- void set_par( idx_type par, const std::string & value ) override;
-
  void write_lp( const std::string & filename ) override;
  /// @}
 
@@ -165,21 +168,66 @@ class SCIPMILPSolver : public MILPSolver {
  * @{
  */
 
- idx_type get_num_int_par() const override;
+ /// Sets an integer parameter with the given value
+ void set_par( idx_type par, int value ) override;
 
- idx_type get_num_str_par() const override;
+ /// Sets a double parameter with the given value
+ void set_par( idx_type par, double value ) override;
 
- int get_int_par( idx_type par ) const override;
+ /// Sets a string parameter with the given value
+ void set_par( idx_type par, const std::string & value ) override;
 
- const std::string & get_str_par( idx_type par ) const override;
+ /// Gets the number of integer parameters
+ [[nodiscard]] idx_type get_num_int_par() const override;
 
- idx_type int_par_str2idx( const std::string & name ) const override;
+ /// Gets the number of string parameters
+ [[nodiscard]] idx_type get_num_str_par() const override;
 
- const std::string & int_par_idx2str( idx_type idx ) const override;
+ /// Gets the number of double parameters
+ [[nodiscard]] idx_type get_num_dbl_par() const override;
 
- idx_type str_par_str2idx( const std::string & name ) const override;
+ /// Gets the default value of the specified integer parameter
+ [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- const std::string & str_par_idx2str( idx_type idx ) const override;
+ /// Gets the default value of the specified integer parameter
+ [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
+
+ /// Gets the default value of the specified integer parameter
+ [[nodiscard]] const std::string &
+ get_dflt_str_par( idx_type par ) const override;
+
+ /// Gets the value of the specified integer parameter
+ [[nodiscard]] int get_int_par( idx_type par ) const override;
+
+ /// Gets the value of the specified double parameter
+ [[nodiscard]] double get_dbl_par( idx_type par ) const override;
+
+ /// Gets the value of the specified string parameter
+ [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
+
+ /// Returns the index of the int parameter with the specified name
+ [[nodiscard]] idx_type
+ int_par_str2idx( const std::string & name ) const override;
+
+ /// Returns the name of the int parameter with the specified index
+ [[nodiscard]] const std::string &
+ int_par_idx2str( idx_type idx ) const override;
+
+ /// Returns the index of the double parameter with the specified name
+ [[nodiscard]] idx_type
+ dbl_par_str2idx( const std::string & name ) const override;
+
+ /// Returns the name of the double parameter with the specified index
+ [[nodiscard]] const std::string &
+ dbl_par_idx2str( idx_type idx ) const override;
+
+ /// Returns the index of the string parameter with the specified name
+ [[nodiscard]] idx_type
+ str_par_str2idx( const std::string & name ) const override;
+
+ /// Returns the name of the string parameter with the specified index
+ [[nodiscard]] const std::string &
+ str_par_idx2str( idx_type idx ) const override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -189,8 +237,8 @@ class SCIPMILPSolver : public MILPSolver {
  protected:
  SCIP * scip{};
 
- std::vector< SCIP_VAR * > vars;
- std::vector< SCIP_CONS * > conss;
+ std::vector< SCIP_VAR * > vars;   ///< SCIP variables
+ std::vector< SCIP_CONS * > conss; ///< SCIP constraints
 
  std::string prob_name;   ///< SCIP problem name
  std::string output_file; ///< Output file
