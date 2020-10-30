@@ -1031,7 +1031,7 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    bd[ 0 ] = -CPX_INFBOUND;
 
    for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
-    if( bd[ 0 ] <= bnd->get_lhs() ) {
+    if( bd[ 0 ] < bnd->get_lhs() ) {
      // Update used lower bound // TODO Move into MILPSolver
      used_bounds[ indices[ 0 ] ].first = bnd;
      bd[ 0 ] = bnd->get_lhs();
@@ -1048,7 +1048,7 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    bd[ 0 ] = CPX_INFBOUND;
 
    for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
-    if( bd[ 0 ] >= bnd->get_rhs() ) {
+    if( bd[ 0 ] > bnd->get_rhs() ) {
      // Update used upper bound // TODO Move into MILPSolver
      used_bounds[ indices[ 0 ] ].second = bnd;
      bd[ 0 ] = bnd->get_rhs();
@@ -1067,14 +1067,13 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    bd[ 1 ] = CPX_INFBOUND;
 
    for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
-
-    if( bd[ 0 ] <= bnd->get_lhs() ) {
+    if( bd[ 0 ] < bnd->get_lhs() ) {
      // Update used lower bound // TODO Move into MILPSolver
      used_bounds[ indices[ 0 ] ].first = bnd;
      bd[ 0 ] = bnd->get_lhs();
     }
 
-    if( bd[ 1 ] >= bnd->get_rhs() ) {
+    if( bd[ 1 ] > bnd->get_rhs() ) {
      // Update used upper bound // TODO Move into MILPSolver
      used_bounds[ indices[ 0 ] ].second = bnd;
      bd[ 1 ] = bnd->get_rhs();
@@ -1616,12 +1615,12 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  //TODO Move valid_bnds into MILPSolver
  std::pair< OneVarConstraint *, OneVarConstraint * > valid_bnds;
  for( auto * bnd : active_bounds.back() ) {
-  if( lb <= bnd->get_lhs() ) {
+  if( lb < bnd->get_lhs() ) {
    valid_bnds.first = bnd;
    lb = bnd->get_lhs();
   }
 
-  if( ub >= bnd->get_rhs() ) {
+  if( ub > bnd->get_rhs() ) {
    valid_bnds.second = bnd;
    ub = bnd->get_rhs();
   }
@@ -1695,13 +1694,13 @@ CPXMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
  bd[ 1 ] = CPX_INFBOUND;
 
  for( auto * bnd : active_bnds ) {
-  if( bd[ 0 ] <= bnd->get_lhs() ) {
+  if( bd[ 0 ] < bnd->get_lhs() ) {
    // Update used lower bound // TODO Move to MILPSolver
    used_bounds[ indices[ 0 ] ].first = bnd;
    bd[ 0 ] = bnd->get_lhs();
   }
 
-  if( bd[ 1 ] >= bnd->get_rhs() ) {
+  if( bd[ 1 ] > bnd->get_rhs() ) {
    // Update used upper bound // TODO Move to MILPSolver
    used_bounds[ indices[ 0 ] ].second = bnd;
    bd[ 1 ] = bnd->get_rhs();
@@ -1756,8 +1755,12 @@ CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
   bd[ 1 ] = CPX_INFBOUND;
 
   for( auto * bnd : active_bnds ) {
-   bd[ 0 ] = bd[ 0 ] > bnd->get_lhs() ? bd[ 0 ] : bnd->get_lhs();
-   bd[ 1 ] = bd[ 1 ] < bnd->get_rhs() ? bd[ 1 ] : bnd->get_rhs();
+   if( bd[ 0 ] < bnd->get_lhs() ) {
+    bd[ 0 ] = bnd->get_lhs();
+   }
+   if( bd[ 1 ] > bnd->get_rhs() ) {
+    bd[ 1 ] = bnd->get_rhs();
+   }
   }
 
   CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );

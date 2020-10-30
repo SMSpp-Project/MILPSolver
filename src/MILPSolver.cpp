@@ -888,13 +888,13 @@ void MILPSolver::scan_variable( ColVariable & var, int & first, int & i ) {
   int num_bounds = static_cast<int>(active_bounds[ i ].size());
   for( int j = 0; j < num_bounds; ++j ) {
    auto *bound = active_bounds[ i ][ j ];
-   if( lb[ i ] <= bound->get_lhs() ) {
+   if( lb[ i ] < bound->get_lhs() ) {
     // Update used lower bound
     used_bounds[ i ].first = bound;
     lb[ i ] = bound->get_lhs();
    }
 
-   if( bound->get_rhs() <= ub[ i ] ) {
+   if( ub[ i ] > bound->get_rhs() ) {
     // Update used upper bound
     used_bounds[ i ].second = bound;
     ub[ i ] = bound->get_rhs();
