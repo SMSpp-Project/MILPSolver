@@ -1383,27 +1383,27 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
  assert( std::is_sorted( dcon_to_idx.begin(), dcon_to_idx.end() ) );
  assert( std::is_sorted( idx_to_dcon.begin(), idx_to_dcon.end() ) );
 
- auto it1 = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(), p_const,
-                         [ & ]( const_int pair, const FRowConstraint * p ) {
-                          return pair.first < p;
+ auto it1 = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(),
+                         std::make_pair( p_const, 0 ),
+                         [ & ]( auto & p1, auto & p2 ) {
+                          return p1.first < p2.first;
                          } );
 
- if( it1 != dcon_to_idx.end() ) {
+ if( it1 != dcon_to_idx.end() && it1->first == p_const ) {
   index = it1->second;
   dcon_to_idx.erase( it1 );
  } else {
-  throw std::invalid_argument( "Cannot find the Constraint" );
+  return; // TODO Not sure if it's ok
  }
 
- auto it2 = lower_bound( idx_to_dcon.begin(), idx_to_dcon.end(), index,
-                         [ & ]( int_const pair, int i ) {
-                          return pair.first < i;
+ auto it2 = lower_bound( idx_to_dcon.begin(), idx_to_dcon.end(),
+                         std::make_pair( index, 0 ),
+                         [ & ]( auto & p1, auto & p2 ) {
+                          return p1.first < p2.first;
                          } );
 
- if( it2 != idx_to_dcon.end() ) {
+ if( it2 != idx_to_dcon.end() && it2->second == p_const ) {
   idx_to_dcon.erase( it2 );
- } else {
-  throw std::invalid_argument( "Cannot find the Constraint" );
  }
 
  // Update the other indices
@@ -1438,27 +1438,27 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
  assert( std::is_sorted( dvar_to_idx.begin(), dvar_to_idx.end() ) );
  assert( std::is_sorted( idx_to_dvar.begin(), idx_to_dvar.end() ) );
 
- auto it1 = lower_bound( dvar_to_idx.begin(), dvar_to_idx.end(), p_var,
-                         [ & ]( var_int pair, const ColVariable * v ) {
-                          return pair.first < v;
+ auto it1 = lower_bound( dvar_to_idx.begin(), dvar_to_idx.end(),
+                         std::make_pair( p_var, 0 ),
+                         [ & ]( auto & p1, auto & p2 ) {
+                          return p1.first < p2.first;
                          } );
 
- if( it1 != dvar_to_idx.end() ) {
+ if( it1 != dvar_to_idx.end() && it1->first == p_var ) {
   index = it1->second;
   dvar_to_idx.erase( it1 );
  } else {
-  throw std::invalid_argument( "Cannot find the Variable" );
+  return; // TODO Not sure if it's ok
  }
 
- auto it2 = lower_bound( idx_to_dvar.begin(), idx_to_dvar.end(), index,
-                         [ & ]( int_var pair, int i ) {
-                          return pair.first < i;
+ auto it2 = lower_bound( idx_to_dvar.begin(), idx_to_dvar.end(),
+                         std::make_pair( index, 0 ),
+                         [ & ]( auto & p1, auto & p2 ) {
+                          return p1.first < p2.first;
                          } );
 
- if( it2 != idx_to_dvar.end() ) {
+ if( it2 != idx_to_dvar.end() && it2->second == p_var ) {
   idx_to_dvar.erase( it2 );
- } else {
-  throw std::invalid_argument( "Cannot find the Variable" );
  }
 
  // Update the other indices
