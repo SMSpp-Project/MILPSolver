@@ -733,7 +733,7 @@ ColVariable * MILPSolver::static_variable_with_index( int i ) {
  }
 
  assert( std::is_sorted( idx_to_svar.begin(), idx_to_svar.end() ) );
- auto it = lower_bound( idx_to_svar.begin(), idx_to_svar.end(),
+ auto it = upper_bound( idx_to_svar.begin(), idx_to_svar.end(),
                         std::make_pair( i, nullptr ),
                         [ & ]( auto & p1, auto & p2 ) {
                          return p1.first < p2.first;
@@ -786,7 +786,7 @@ FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
  }
 
  assert( std::is_sorted( idx_to_scon.begin(), idx_to_scon.end() ) );
- auto it = lower_bound( idx_to_scon.begin(), idx_to_scon.end(),
+ auto it = upper_bound( idx_to_scon.begin(), idx_to_scon.end(),
                         std::make_pair( i, nullptr ),
                         [ & ]( auto & p1, auto & p2 ) {
                          return p1.first < p2.first;
