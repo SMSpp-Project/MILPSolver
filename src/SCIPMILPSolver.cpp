@@ -491,10 +491,8 @@ void SCIPMILPSolver::var_modification( VariableMod * mod ) {
  }
  assert( !infeas );
 
- SCIP_Real lb = var->get_lb() == -Inf< double >() ?
-                -SCIPinfinity( scip ) : var->get_lb();
- SCIP_Real ub = var->get_ub() == Inf< double >() ?
-                SCIPinfinity( scip ) : var->get_ub();
+ SCIP_Real lb = get_problem_lb( *var );
+ SCIP_Real ub = get_problem_ub( *var );
 
  if( SCIPvarGetLbOriginal( vars[ idx ] ) != lb )
   SCIP_CALL_ABORT( SCIPchgVarLb( scip, vars[ idx ], lb ) );
@@ -804,15 +802,9 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- SCIP_Real lb = NAN;
- SCIP_Real ub = NAN;
+ SCIP_Real lb = get_problem_lb( *p_var );
+ SCIP_Real ub = get_problem_ub( *p_var );
  SCIP_VARTYPE vartype = SCIP_VARTYPE_BINARY;
-
- lb =
-  p_var->get_lb() == -Inf< double >() ?
-  -SCIPinfinity( scip ) : p_var->get_lb();
- ub = p_var->get_ub() == Inf< double >() ?
-      SCIPinfinity( scip ) : p_var->get_ub();
 
  // Variable type
 
@@ -837,7 +829,8 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  int i = 0;
 
  // We need the coefficients for this variable in each constraint
- for( auto * p_const : active_constraints.back() ) {
+ auto active_constraints = get_active_constraints( *p_var );
+ for( auto * p_const : active_constraints ) {
 
   const auto * p_fun =
    dynamic_cast<const LinearFunction *>(p_const->get_function());

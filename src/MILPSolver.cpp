@@ -223,10 +223,6 @@ void MILPSolver::clear_problem() {
  idx_to_dvar.clear();
  dcon_to_idx.clear();
  idx_to_dcon.clear();
-
- for( auto i: active_constraints )
-  i.clear();
- active_constraints.clear();
 }
 
 /*--------------------------------------------------------------------------*/
@@ -658,6 +654,20 @@ double MILPSolver::get_problem_ub(const ColVariable & var) {
 }
 
 /*--------------------------------------------------------------------------*/
+
+std::vector< FRowConstraint * >
+MILPSolver::get_active_constraints( const ColVariable & var ) {
+ std::vector< FRowConstraint * > active_constraints;
+ for( auto * i : var.active_stuff() ) {
+  auto * row = dynamic_cast<FRowConstraint *>(i);
+  if( row != nullptr ) {
+   active_constraints.push_back( row );
+  }
+ }
+ return active_constraints;
+}
+
+/*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -901,14 +911,9 @@ void MILPSolver::count_nzelements( ColVariable & variable,
  BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::count_nzelements(): nz/cnt "
                             << nz_elements << "/" << var << " " << variable;
 
- if( active_constraints.size() < numcols ) {
-  active_constraints.resize( static_cast<unsigned long>(numcols) );
- }
-
  for( auto * i : variable.active_stuff() ) {
   auto * row = dynamic_cast<FRowConstraint *>(i);
   if( row != nullptr ) {
-   active_constraints[ var ].push_back( row );
    ++nz_elements;
   }
  }
@@ -967,7 +972,8 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
   * corresponding coefficient, matval[k].
   */
 
- int nz_elements = static_cast<int>(active_constraints[ col ].size());
+ auto active_constraints = get_active_constraints( var );
+ int nz_elements = active_constraints.size();
  matcnt[ col ] = nz_elements;
 
  if( col == 0 ) {
@@ -977,8 +983,7 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
  }
 
  for( int j = 0; j < nz_elements; ++j ) {
-
-  auto * p_const = dynamic_cast<FRowConstraint *> (active_constraints[ col ][ j ]);
+  auto * p_const = active_constraints[ j ];
   const auto * p_fun = dynamic_cast<const LinearFunction *> (p_const
    ->get_function());
 
@@ -1325,14 +1330,6 @@ void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
   throw std::invalid_argument( "The Constraint is not linear" );
  }
 
- // Set the constraint as active for all its variables
- for( int i = 0; i < p_const->get_num_active_var(); ++i ) {
-  auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( i ));
-  if( p_var ) {
-   active_constraints[ index_of_variable( p_var ) ].push_back( p_const );
-  }
- }
-
  // Update the dictionaries
  auto it = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(), p_const,
                         [ & ]( const_int pair, FRowConstraint * c ) {
@@ -1361,8 +1358,6 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
    var_bounds.push_back( bound );
   }
  }
-
- active_constraints.emplace_back( var_constraints );
 
  // Update the number of integer vars
  if ( p_var->is_integer() ) {
@@ -1429,14 +1424,6 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
   throw std::runtime_error( "Dynamic constraint not found" );
  }
 
- // Remove the constraint from the active contraints
- for( auto & constraints: active_constraints ) {
-  auto constraint = find( constraints.begin(), constraints.end(), p_const );
-  if( constraint != constraints.end() ) {
-   constraints.erase( constraint );
-  }
- }
-
  --numrows;
 }
 
@@ -1483,9 +1470,6 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
  } else {
   throw std::runtime_error( "Dynamic constraint not found" );
  }
-
- // Remove the variable's active contraints
- active_constraints.erase( active_constraints.begin() + index );
 
  --numcols;
 

@@ -422,20 +422,6 @@ class MILPSolver : public CDASolver {
  std::vector< int_const >   idx_to_dcon; ///< From index to dynamic constraint
  /// @}
 
- /**
-  * @name Active stuff vectors
-  *
-  * The following two vectors exist because when building and updating
-  * the problem we need to treat differently actual constraints and bounds of
-  * the variables so it is useful to keep track of their addresses.
-  *
-  * @{
-  */
-
- /// Active constraints for each Variable
- std::vector< std::vector< FRowConstraint * > > active_constraints;
- /// @}
-
 /*--------------------------------------------------------------------------*/
 /*--------------------- FIELDS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/
@@ -591,11 +577,15 @@ class MILPSolver : public CDASolver {
   */
 
  /// Gets the LB fot the given variable in the problem
- virtual double get_problem_lb(const ColVariable & var);
+ virtual double get_problem_lb( const ColVariable & var );
 
  /// Gets the UB fot the given variable in the problem
- virtual double get_problem_ub(const ColVariable & var);
+ virtual double get_problem_ub( const ColVariable & var );
  /// @}
+
+ // TODO: This should be temporary
+ static std::vector< FRowConstraint * >
+ get_active_constraints( const ColVariable & var );
 
 /*--------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */

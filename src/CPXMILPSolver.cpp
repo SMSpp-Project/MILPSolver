@@ -1288,11 +1288,12 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  std::vector< int > cmatind;
  std::vector< double > cmatval;
 
- cmatind.reserve(active_constraints.back().size());
- cmatval.reserve(active_constraints.back().size());
+ auto active_constraints = get_active_constraints( *p_var );
+ cmatind.reserve( active_constraints.size() );
+ cmatval.reserve( active_constraints.size() );
 
  // Get the coefficients for this variable for each active constraint
- for( auto * p_const : active_constraints.back() ) {
+ for( auto * p_const : active_constraints ) {
 
   const auto * p_fun =
    dynamic_cast<const LinearFunction *>(p_const->get_function());
