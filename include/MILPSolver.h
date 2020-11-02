@@ -434,9 +434,6 @@ class MILPSolver : public CDASolver {
 
  /// Active constraints for each Variable
  std::vector< std::vector< FRowConstraint * > > active_constraints;
-
- /// Active bounds for each Variable
- std::vector< std::vector< OneVarConstraint * > > active_bounds;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -584,6 +581,20 @@ class MILPSolver : public CDASolver {
  virtual void clear_problem(); ///< It clears all the LP vectors
 
  virtual void load_problem();  ///< It loads all the LP vectors
+ /// @}
+
+ /** @name Get variable bounds for the problem
+  *
+  * The following two methods retrieve the upper and lower bound for the
+  * given variable considering both the Variable bounds and all the active
+  * OneVarConstraints active for that Variable.
+  */
+
+ /// Gets the LB fot the given variable in the problem
+ virtual double get_problem_lb(const ColVariable & var);
+
+ /// Gets the UB fot the given variable in the problem
+ virtual double get_problem_ub(const ColVariable & var);
  /// @}
 
 /*--------------------------------------------------------------------------*/

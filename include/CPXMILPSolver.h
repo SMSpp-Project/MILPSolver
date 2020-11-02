@@ -287,6 +287,20 @@ class CPXMILPSolver : public MILPSolver {
  void load_problem() override;  ///< It loads all the LP vectors
  /// @}
 
+ /** @name Get variable bounds for the problem
+  *
+  * The following two methods retrieve the upper and lower bound for the
+  * given variable considering both the Variable bounds and all the active
+  * OneVarConstraints active for that Variable.
+  */
+
+ /// Gets the LB fot the given variable in the problem
+ double get_problem_lb(const ColVariable & var) override;
+
+ /// Gets the UB fot the given variable in the problem
+ double get_problem_ub(const ColVariable & var) override;
+ /// @}
+
  /** @name Handling of CPLEX parameters
   *
   * The following maps are used to keep a relationship between SMS++ parameter

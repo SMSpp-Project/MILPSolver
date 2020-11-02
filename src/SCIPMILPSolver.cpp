@@ -189,6 +189,26 @@ void SCIPMILPSolver::load_problem() {
 
 /*--------------------------------------------------------------------------*/
 
+double SCIPMILPSolver::get_problem_lb( const ColVariable & var ) {
+ double b = MILPSolver::get_problem_lb( var );
+ if( b == -Inf< double >() ) {
+  b = -SCIPinfinity( scip );
+ }
+ return b;
+}
+
+/*--------------------------------------------------------------------------*/
+
+double SCIPMILPSolver::get_problem_ub( const ColVariable & var ) {
+ double b = MILPSolver::get_problem_ub( var );
+ if( b == Inf< double >() ) {
+  b = SCIPinfinity( scip );;
+ }
+ return b;
+}
+
+/*--------------------------------------------------------------------------*/
+
 int SCIPMILPSolver::compute( bool changedvars ) {
  process_modifications();
 
@@ -587,34 +607,25 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
  std::vector< char > lu;
  std::vector< double > bd;
 
- SCIP_Real lb = -SCIPinfinity( scip );
- SCIP_Real ub = SCIPinfinity( scip );
+ SCIP_Real lb;
+ SCIP_Real ub;
  SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
 
  switch( mod->type() ) {
 
   case RowConstraintMod::eChgLHS:
-   for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
-    lb = lb > bnd->get_lhs() ? lb : bnd->get_lhs();
-   }
-
+   lb = get_problem_lb( *p_var );
    SCIP_CALL_ABORT( SCIPchgVarLb( scip, var, lb ) );
    break;
 
   case RowConstraintMod::eChgRHS:
-   for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
-    ub = ub < bnd->get_rhs() ? ub : bnd->get_rhs();
-   }
-
+   ub = get_problem_ub( *p_var );
    SCIP_CALL_ABORT( SCIPchgVarUb( scip, var, ub ) );
    break;
 
   case RowConstraintMod::eChgBTS:
-   for( auto * bnd : active_bounds[ indices[ 0 ] ] ) {
-    lb = lb > bnd->get_lhs() ? lb : bnd->get_lhs();
-    ub = ub < bnd->get_rhs() ? ub : bnd->get_rhs();
-   }
-
+   lb = get_problem_lb( *p_var );
+   ub = get_problem_ub( *p_var );
    SCIP_CALL_ABORT( SCIPchgVarLb( scip, var, lb ) );
    SCIP_CALL_ABORT( SCIPchgVarUb( scip, var, ub ) );
    break;

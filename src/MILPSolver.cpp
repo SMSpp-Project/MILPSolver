@@ -227,9 +227,6 @@ void MILPSolver::clear_problem() {
  for( auto i: active_constraints )
   i.clear();
  active_constraints.clear();
- for( auto i: active_bounds )
-  i.clear();
- active_bounds.clear();
 }
 
 /*--------------------------------------------------------------------------*/
@@ -631,6 +628,36 @@ void MILPSolver::load_problem() {
 }
 
 /*--------------------------------------------------------------------------*/
+
+double MILPSolver::get_problem_lb(const ColVariable & var) {
+ double b = var.get_lb();
+
+ for( auto * i : var.active_stuff() ) {
+  auto * box = dynamic_cast<OneVarConstraint *>(i);
+  if( box != nullptr ) {
+   b = b < box->get_lhs() ? box->get_lhs() : b;
+  }
+ }
+
+ return b;
+}
+
+/*--------------------------------------------------------------------------*/
+
+double MILPSolver::get_problem_ub(const ColVariable & var) {
+ double b = var.get_ub();
+
+ for( auto * i : var.active_stuff() ) {
+  auto * box = dynamic_cast<OneVarConstraint *>(i);
+  if( box != nullptr ) {
+   b = b > box->get_rhs() ? box->get_rhs() : b;
+  }
+ }
+
+ return b;
+}
+
+/*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -874,16 +901,8 @@ void MILPSolver::count_nzelements( ColVariable & variable,
  BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::count_nzelements(): nz/cnt "
                             << nz_elements << "/" << var << " " << variable;
 
- /*
-  * Since counting non-zero elements requires checking if each active thing
-  * is a FRowConstraint, we populate active_constraints and
-  * active_bounds here so we don't have to loop over active stuff
-  * once again later.
-  */
-
  if( active_constraints.size() < numcols ) {
   active_constraints.resize( static_cast<unsigned long>(numcols) );
-  active_bounds.resize( static_cast<unsigned long>(numcols) );
  }
 
  for( auto * i : variable.active_stuff() ) {
@@ -891,10 +910,6 @@ void MILPSolver::count_nzelements( ColVariable & variable,
   if( row != nullptr ) {
    active_constraints[ var ].push_back( row );
    ++nz_elements;
-  }
-  auto * box = dynamic_cast<OneVarConstraint *>(i);
-  if( box != nullptr ) {
-   active_bounds[ var ].push_back( box );
   }
  }
  ++var;
@@ -924,20 +939,8 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
   lb[ col ] = var.get_value();
   ub[ col ] = var.get_value();
  } else {
-
-  lb[ col ] = var.get_lb();
-  ub[ col ] = var.get_ub();
-
-  int num_bounds = static_cast<int>(active_bounds[ col ].size());
-  for( int j = 0; j < num_bounds; ++j ) {
-   auto * bound = active_bounds[ col ][ j ];
-   if( lb[ col ] < bound->get_lhs() ) {
-    lb[ col ] = bound->get_lhs();
-   }
-   if( ub[ col ] > bound->get_rhs() ) {
-    ub[ col ] = bound->get_rhs();
-   }
-  }
+  lb[ col ] = get_problem_lb( var );
+  ub[ col ] = get_problem_ub( var );
  }
 
  if( var.is_integer() ) {
@@ -1360,7 +1363,6 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  }
 
  active_constraints.emplace_back( var_constraints );
- active_bounds.emplace_back( var_bounds );
 
  // Update the number of integer vars
  if ( p_var->is_integer() ) {
@@ -1381,19 +1383,7 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
- auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
- auto active_bnds = active_bounds[ index_of_variable( p_var ) ];
-
- // Look if the bound is already there (say, added with the Variable)
- auto it = std::find( active_bnds.begin(), active_bnds.end(), p_bound );
- if( it < active_bnds.end() ) {
-  return;
- }
-
- // Add the bound
- active_bnds.emplace_back( p_bound );
-}
+void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {}
 
 /*--------------------------------------------------------------------------*/
 
@@ -1496,7 +1486,6 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
 
  // Remove the variable's active contraints
  active_constraints.erase( active_constraints.begin() + index );
- active_bounds.erase( active_bounds.begin() + index );
 
  --numcols;
 
@@ -1508,15 +1497,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
- // Remove the bound from the active bounds
- for( auto & bounds: active_bounds ) {
-  auto bound = find( bounds.begin(), bounds.end(), p_bound );
-  if( bound != bounds.end() ) {
-   bounds.erase( bound );
-  }
- }
-}
+void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {}
 
 /*--------------------------------------------------------------------------*/
 
