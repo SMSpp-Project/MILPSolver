@@ -669,23 +669,6 @@ class MILPSolver : public CDASolver {
  */
 
  /**
-  * Accumulating procedure that helps getting the total number of rows.
-  * If the constraint is linear, n_rows is incremented.
-  *
-  * @param constraint FRowConstraint to be counted
-  * @param n_rows accumulator for rows
-  */
- void count_constraints( FRowConstraint & constraint, int & n_rows );
-
- /**
-  * Accumulating procedure that helps getting the total number of columns.
-  *
-  * @param variable ColVariable to be counted
-  * @param n_cols accumulator for columns
-  */
- void count_variables( ColVariable & variable, int & n_cols );
-
- /**
   * Accumulating procedure that helps getting the total number of nonzero
   * elements (that is, the coefficients of the matrix).
   * Since it requires getting all the active stuff for each ColVariable and

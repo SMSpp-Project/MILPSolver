@@ -270,43 +270,78 @@ void MILPSolver::load_problem() {
   BOOST_LOG_TRIVIAL( trace )
    << "MILPSolver::set_Block() counting static constraints";
   for( const auto & i : q_Block->get_static_constraints() ) {
-   auto f1 = std::bind( &MILPSolver::count_constraints,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( numrows ) );
-   un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
+   if( un_any_thing_0( FRowConstraint, i, ++numrows ) ) {
+    continue;
+   }
+   if( un_any_thing_1( FRowConstraint, i, numrows += var.size() ) ) {
+    continue;
+   }
+   if( un_any_thing_K( FRowConstraint, i, numrows += var.size() ) ) {
+    continue;
+   }
   }
   static_cons = numrows;
 
   BOOST_LOG_TRIVIAL( trace )
    << "MILPSolver::set_Block() counting dynamic constraints";
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   auto f1 = std::bind( &MILPSolver::count_constraints,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( numrows ) );
-   un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
+   if( un_any_thing_0( std::list< FRowConstraint >,
+                       i, numrows += var.size() ) ) {
+    continue;
+   }
+   if( un_any_thing_1( std::list< FRowConstraint >, i,
+                       for( auto & el: var ) {
+                        numrows += el.size();
+                       } ) ) {
+    continue;
+   }
+   if( un_any_thing_K( std::list< FRowConstraint >, i,
+                       {
+                        auto it = var.data();
+                        for( auto i = var.num_elements(); i--; ++it ) {
+                         numrows += it->size();
+                        }
+                       } ) ) {
+    continue;
+   }
   }
 
   BOOST_LOG_TRIVIAL( trace )
    << "MILPSolver::set_Block() counting static variables";
   for( const auto & i : q_Block->get_static_variables() ) {
-   auto f1 = std::bind( &MILPSolver::count_variables,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( numcols ) );
-   un_any_const_static( i, f1, un_any_type< ColVariable >() );
+   if( un_any_thing_0( ColVariable, i, ++numcols ) ) {
+    continue;
+   }
+   if( un_any_thing_1( ColVariable, i, numcols += var.size() ) ) {
+    continue;
+   }
+   if( un_any_thing_K( ColVariable, i, numcols += var.size() ) ) {
+    continue;
+   }
   }
   static_vars = numcols;
 
   BOOST_LOG_TRIVIAL( trace )
    << "MILPSolver::set_Block() counting dynamic variables";
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-   auto f1 = std::bind( &MILPSolver::count_variables,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( numcols ) );
-   un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
+   if( un_any_thing_0( std::list< ColVariable >, i, numcols += var.size() ) ) {
+    continue;
+   }
+   if( un_any_thing_1( std::list< ColVariable >, i,
+                       for( auto & el: var ) {
+                        numcols += el.size();
+                       } ) ) {
+    continue;
+   }
+   if( un_any_thing_K( std::list< ColVariable >, i,
+                       {
+                        auto it = var.data();
+                        for( auto i = var.num_elements(); i--; ++it ) {
+                         numcols += it->size();
+                        }
+                       } ) ) {
+    continue;
+   }
   }
 
   BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::set_Block() nonzero elements";
@@ -824,25 +859,6 @@ FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
 /*------------- AUXILIARY METHODS FOR POPULATING THE PROBLEM  --------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::count_constraints( FRowConstraint & constraint, int & n_rows ) {
- BOOST_LOG_TRIVIAL(trace) << "MILPSolver::count_constraints(): row " << n_rows << " " << constraint;
- const auto *fun = dynamic_cast<const LinearFunction *>(constraint.get_function());
- if( fun != nullptr ) {
-  ++n_rows;
- } else {
-  throw ( std::invalid_argument( "The Constraint is not linear" ) );
- }
-}
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::count_variables( ColVariable & variable, int & n_cols ) {
- BOOST_LOG_TRIVIAL(trace) << "MILPSolver::count_variables(): col " << n_cols << " " << variable;
- ++n_cols;
-}
-
-/*--------------------------------------------------------------------------*/
-
 void MILPSolver::count_nzelements( ColVariable & variable,
                                    int & nz_elements,
                                    int & var ) {
@@ -871,9 +887,6 @@ void MILPSolver::count_nzelements( ColVariable & variable,
   if( box != nullptr ) {
    active_bounds[ var ].push_back( box );
   }
-  // auto *obj = dynamic_cast<Objective *>(i);
-  // if( obj != nullptr ) {
-  // }
  }
  ++var;
 }
@@ -1301,16 +1314,15 @@ void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  }
 
  // Set the constraint as active for all its variables
- int nzcnt = p_const->get_num_active_var();
- for( int i = 0; i < nzcnt; ++i ) {
+ for( int i = 0; i < p_const->get_num_active_var(); ++i ) {
   auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( i ));
-  active_constraints[ index_of_variable( p_var ) ].push_back( p_const );
+  if( p_var ) {
+   active_constraints[ index_of_variable( p_var ) ].push_back( p_const );
+  }
  }
 
  // Update the dictionaries
- auto it = lower_bound( dcon_to_idx.begin(),
-                        dcon_to_idx.end(),
-                        p_const,
+ auto it = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(), p_const,
                         [ & ]( const_int pair, FRowConstraint * c ) {
                          return pair.first < c;
                         } );
@@ -1377,6 +1389,7 @@ void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
+ // TODO: Implement remove_dynamic_with_index(i)
 
  // Remove the constraint from the dictionaries
  int index = 0;
@@ -1393,7 +1406,13 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
   index = it1->second;
   dcon_to_idx.erase( it1 );
  } else {
-  return; // TODO Not sure if it's ok
+  throw std::runtime_error( "Dynamic constraint not found" );
+ }
+
+ for( auto & it: dcon_to_idx ) {
+  if( it.second > index ) {
+   it.second--;
+  }
  }
 
  auto it2 = lower_bound( idx_to_dcon.begin(), idx_to_dcon.end(),
@@ -1403,19 +1422,12 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
                          } );
 
  if( it2 != idx_to_dcon.end() && it2->second == p_const ) {
+  for( auto it = it2; it != idx_to_dcon.end(); ++it ) {
+   it->first--;
+  }
   idx_to_dcon.erase( it2 );
- }
-
- // Update the other indices
- for( auto & it: dcon_to_idx ) {
-  if( it.second > index ) {
-   it.second--;
-  }
- }
- for( auto & it: idx_to_dcon ) {
-  if( it.first > index ) {
-   it.first--;
-  }
+ } else {
+  throw std::runtime_error( "Dynamic constraint not found" );
  }
 
  // Remove the constraint from the active contraints
@@ -1432,6 +1444,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
+ // TODO: Implement remove_dynamic_with_index(i)
 
  // Remove the constraint from the dictionaries
  int index = 0;
@@ -1448,7 +1461,13 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
   index = it1->second;
   dvar_to_idx.erase( it1 );
  } else {
-  return; // TODO Not sure if it's ok
+  throw std::runtime_error( "Dynamic variable not found" );
+ }
+
+ for( auto & it: dvar_to_idx ) {
+  if( it.second > index ) {
+   it.second--;
+  }
  }
 
  auto it2 = lower_bound( idx_to_dvar.begin(), idx_to_dvar.end(),
@@ -1458,19 +1477,12 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
                          } );
 
  if( it2 != idx_to_dvar.end() && it2->second == p_var ) {
+  for( auto it = it2; it != idx_to_dvar.end(); ++it ) {
+   it->first--;
+  }
   idx_to_dvar.erase( it2 );
- }
-
- // Update the other indices
- for( auto & it: dvar_to_idx ) {
-  if( it.second > index ) {
-   it.second--;
-  }
- }
- for( auto & it: idx_to_dvar ) {
-  if( it.first > index ) {
-   it.first--;
-  }
+ } else {
+  throw std::runtime_error( "Dynamic constraint not found" );
  }
 
  // Remove the variable's active contraints

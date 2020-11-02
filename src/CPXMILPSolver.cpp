@@ -1574,9 +1574,13 @@ void
 CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
 
  int index = index_of_dynamic_constraint( p_const );
- CPXdelrows( env, lp, index, index );
+ if( index < Inf< int >() ) {
+  CPXdelrows( env, lp, index, index );
 
- MILPSolver::remove_dynamic_constraint( p_const );
+  MILPSolver::remove_dynamic_constraint( p_const );
+ } else {
+  throw std::runtime_error("Dynamic constraint not found");
+ }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1585,9 +1589,13 @@ void
 CPXMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 
  int index = index_of_dynamic_variable( p_var );
- CPXdelcols( env, lp, index, index );
+ if( index < Inf< int >() ) {
+  CPXdelcols( env, lp, index, index );
 
- MILPSolver::remove_dynamic_variable( p_var );
+  MILPSolver::remove_dynamic_variable( p_var );
+ } else {
+  throw std::runtime_error("Dynamic variable not found");
+ }
 }
 
 /*--------------------------------------------------------------------------*/
