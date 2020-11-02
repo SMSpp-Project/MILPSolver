@@ -389,6 +389,15 @@ void MILPSolver::load_problem() {
  colname.resize( numcols, nullptr );
  rowname.resize( numrows, nullptr );
 
+ svar_to_idx.reserve(numcols);
+ idx_to_svar.reserve(numcols);
+ dvar_to_idx.reserve(numcols);
+ idx_to_dvar.reserve(numcols);
+ scon_to_idx.reserve(numrows);
+ idx_to_scon.reserve(numrows);
+ dcon_to_idx.reserve(numrows);
+ idx_to_dcon.reserve(numrows);
+
  // Second loop to scan the constraints
  Q.push( f_Block );
  num_block = 0; // Counter for the blocks
