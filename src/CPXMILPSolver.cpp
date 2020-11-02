@@ -1222,8 +1222,8 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
 
    if( lf != nullptr ) {
     // Linear objective function
-    indices.reserve(add->vars().size());
-    values.reserve(add->vars().size());
+    indices.reserve(rmvr->vars().size());
+    values.reserve(rmvr->vars().size());
 
     for( auto * it1 : rmvr->vars() ) {
      for( auto it2: lf->get_v_var() ) {
@@ -1245,9 +1245,9 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
 
    } else if( qf != nullptr ) {
     // Quadratic objective function
-    indices.reserve(add->vars().size());
-    values.reserve(add->vars().size());
-    q_values.reserve(add->vars().size());
+    indices.reserve(rmvr->vars().size());
+    values.reserve(rmvr->vars().size());
+    q_values.reserve(rmvr->vars().size());
 
     for( auto * it1 : rmvr->vars() ) {
      for( auto it2: qf->get_v_var() ) {
@@ -1280,9 +1280,9 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
    auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
    std::vector< int > rows;
 
-   indices.reserve(add->vars().size());
-   values.reserve(add->vars().size());
-   rows.reserve(add->vars().size());
+   indices.reserve(rmvr->vars().size());
+   values.reserve(rmvr->vars().size());
+   rows.reserve(rmvr->vars().size());
 
    // Get indices and coefficients (all zeroes)
    for( auto * it1 : rmvr->vars() ) {
@@ -1323,8 +1323,8 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
 
    if( lf != nullptr ) {
     // Linear objective function
-    indices.reserve(add->vars().size());
-    values.reserve(add->vars().size());
+    indices.reserve(rmvs->vars().size());
+    values.reserve(rmvs->vars().size());
 
     for( auto * it1 : rmvs->vars() ) {
      for( auto it2: lf->get_v_var() ) {
@@ -1346,9 +1346,9 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
 
    } else if( qf != nullptr ) {
     // Quadratic objective function
-    indices.reserve(add->vars().size());
-    values.reserve(add->vars().size());
-    q_values.reserve(add->vars().size());
+    indices.reserve(rmvs->vars().size());
+    values.reserve(rmvs->vars().size());
+    q_values.reserve(rmvs->vars().size());
 
     for( auto * it1 : rmvs->vars() ) {
      for( auto it2: qf->get_v_var() ) {
@@ -1381,9 +1381,9 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
    auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
    std::vector< int > rows;
 
-   indices.reserve(add->vars().size());
-   values.reserve(add->vars().size());
-   rows.reserve(add->vars().size());
+   indices.reserve(rmvs->vars().size());
+   values.reserve(rmvs->vars().size());
+   rows.reserve(rmvs->vars().size());
 
    // Get indices and coefficients (all zeroes)
    for( auto * it1 : rmvs->vars() ) {
