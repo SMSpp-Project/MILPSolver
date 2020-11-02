@@ -276,7 +276,7 @@ void MILPSolver::load_problem() {
    if( un_any_thing_1( FRowConstraint, i, numrows += var.size() ) ) {
     continue;
    }
-   if( un_any_thing_K( FRowConstraint, i, numrows += var.size() ) ) {
+   if( un_any_thing_K( FRowConstraint, i, numrows += var.num_elements() ) ) {
     continue;
    }
   }
@@ -315,7 +315,7 @@ void MILPSolver::load_problem() {
    if( un_any_thing_1( ColVariable, i, numcols += var.size() ) ) {
     continue;
    }
-   if( un_any_thing_K( ColVariable, i, numcols += var.size() ) ) {
+   if( un_any_thing_K( ColVariable, i, numcols += var.num_elements() ) ) {
     continue;
    }
   }
