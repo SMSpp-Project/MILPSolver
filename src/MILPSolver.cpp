@@ -246,7 +246,6 @@ void MILPSolver::load_problem() {
  // First loop on the queue to count variables and constraints
  Q.push( f_Block );
 
- int var = 0;       // Variable counter for ncount_nzelements()
  int num_block = 0; // Counter for the blocks
 
  while( !Q.empty() ) {
@@ -338,22 +337,21 @@ void MILPSolver::load_problem() {
   }
 
   BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::set_Block() nonzero elements";
+  auto counter = [ this ]( ColVariable & var ) {
+   for( auto * i : var.active_stuff() ) {
+    auto * row = dynamic_cast<FRowConstraint *>(i);
+    if( row != nullptr ) {
+     ++nzelements;
+    }
+   }
+  };
+
   for( const auto & i : q_Block->get_static_variables() ) {
-   auto f1 = std::bind( &MILPSolver::count_nzelements,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( nzelements ),
-                        std::ref( var ) );
-   un_any_const_static( i, f1, un_any_type< ColVariable >() );
+   un_any_const_static( i, counter, un_any_type< ColVariable >() );
   }
 
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-   auto f1 = std::bind( &MILPSolver::count_nzelements,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( nzelements ),
-                        std::ref( var ) );
-   un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
+   un_any_const_dynamic( i, counter, un_any_type< ColVariable >() );
   }
   ++num_block;
  } // End of while loop on Block queue
@@ -419,12 +417,10 @@ void MILPSolver::load_problem() {
    int elements = 0; // Counter for group elements
    int start = row;
 
-   auto f1 = std::bind( &MILPSolver::scan_constraint,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( elements ),
-                        std::ref( row ) );
-   un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
+   auto scan = [ this, &elements, &row ]( FRowConstraint & c ) {
+    scan_constraint( c, elements, row );
+   };
+   un_any_const_static( i, scan, un_any_type< FRowConstraint >() );
 
    // Write names
    auto base = q_Block->get_s_const_name()[ set ];
@@ -450,14 +446,13 @@ void MILPSolver::load_problem() {
 
   set = 0;
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
+   int elements = -1;
    int start = row;
 
-   auto f1 = std::bind( &MILPSolver::scan_constraint,
-                        this,
-                        std::placeholders::_1,
-                        -1,
-                        std::ref( row ) );
-   un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
+   auto scan = [ this, &elements, &row ]( FRowConstraint & c ) {
+    scan_constraint( c, elements, row );
+   };
+   un_any_const_dynamic( i, scan, un_any_type< FRowConstraint >() );
 
    // Write names
    auto base = q_Block->get_d_const_name()[ set ];
@@ -507,12 +502,10 @@ void MILPSolver::load_problem() {
    int elements = 0; // Counter for group elements
    int start = col;
 
-   auto f1 = std::bind( &MILPSolver::scan_variable,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( elements ),
-                        std::ref( col ) );
-   un_any_const_static( i, f1, un_any_type< ColVariable >() );
+   auto scan = [ this, &elements, &col ]( ColVariable & v ) {
+    scan_variable( v, elements, col );
+   };
+   un_any_const_static( i, scan, un_any_type< ColVariable >() );
 
    // Write names
    auto base = q_Block->get_s_var_name()[ set ];
@@ -538,14 +531,13 @@ void MILPSolver::load_problem() {
 
   set = 0;
   for( const auto & i : q_Block->get_dynamic_variables() ) {
+   int elements = -1;
    int start = col;
 
-   auto f1 = std::bind( &MILPSolver::scan_variable,
-                        this,
-                        std::placeholders::_1,
-                        -1,
-                        std::ref( col ) );
-   un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
+   auto scan = [ this, &elements, &col ]( ColVariable & v ) {
+    scan_variable( v, elements, col );
+   };
+   un_any_const_dynamic( i, scan, un_any_type< ColVariable >() );
 
    // Write names
    auto base = q_Block->get_d_var_name()[ set ];
@@ -903,23 +895,6 @@ FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
 
 /*--------------------------------------------------------------------------*/
 /*------------- AUXILIARY METHODS FOR POPULATING THE PROBLEM  --------------*/
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::count_nzelements( ColVariable & variable,
-                                   int & nz_elements,
-                                   int & var ) {
- BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::count_nzelements(): nz/cnt "
-                            << nz_elements << "/" << var << " " << variable;
-
- for( auto * i : variable.active_stuff() ) {
-  auto * row = dynamic_cast<FRowConstraint *>(i);
-  if( row != nullptr ) {
-   ++nz_elements;
-  }
- }
- ++var;
-}
-
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {

@@ -670,19 +670,6 @@ class MILPSolver : public CDASolver {
  */
 
  /**
-  * Accumulating procedure that helps getting the total number of nonzero
-  * elements (that is, the coefficients of the matrix).
-  * Since it requires getting all the active stuff for each ColVariable and
-  * checking if they are constraints or bounds or else, we use this procedure
-  * to populate the active_row_constraints and active_box_constraints.
-  *
-  * @param variable ColVariable to be checked for active constraints
-  * @param nz_elements accumulator for nonzero elements
-  * @param var counter that keeps track of variable index
-  */
- void count_nzelements( ColVariable & variable, int & nz_elements, int & var );
-
- /**
   * It scans a ColVariable and fills the vectors of the LP accordingly.
   *
   * @param var a reference to a ColVariable
