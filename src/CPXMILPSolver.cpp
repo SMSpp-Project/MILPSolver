@@ -1112,304 +1112,107 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   }
  }
 
+ // Check the modification type
+ auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
+ auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
+ auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
+
+ if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
+  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
+ }
+
  std::vector< int > indices;
  std::vector< double > values;
  std::vector< double > q_values;
 
- // C05FunctionModVarsAddd (Add coefficients)
- // --------------------------------------------------------
- auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
- if( add ) {
+ indices.reserve( mod->vars().size() );
+ values.reserve( mod->vars().size() );
 
-  if( changing_of ) {
-   // Adding the coefficients to the objective function
+ if( changing_of ) {
+  // Adding the coefficients to the objective function
 
-   // TODO: We should also check if new cols must be added,
-   //       but at this point it's already done by a dynamic modification.
+  // TODO: We should also check if new cols must be added/removed,
+  //       but at this point it's already done by a dynamic modification.
 
-   if( lf != nullptr ) {
-    // Linear objective function
-    indices.reserve(add->vars().size());
-    values.reserve(add->vars().size());
+  if( lf != nullptr ) {
+   // Linear objective function
 
-    for( auto * it1 : add->vars() ) {
-     for( auto it2: lf->get_v_var() ) {
-      if( it1 == it2.first ) {
-       indices.push_back( index_of_variable( it2.first ) );
+   for( auto * it1 : mod->vars() ) {
+    for( auto it2: lf->get_v_var() ) {
+     if( it1 == it2.first ) {
+      indices.push_back( index_of_variable( it2.first ) );
+      if( add ) {
        values.push_back( it2.second );
-       break;
+      } else {
+       values.push_back( 0 );
       }
+      break;
      }
     }
+   }
 
-    if (!indices.empty()) {
-     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-    }
+   if( !indices.empty() ) {
+    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+   }
 
-   } else if( qf != nullptr ) {
-    // Quadratic objective function
-    indices.reserve(add->vars().size());
-    values.reserve(add->vars().size());
-    q_values.reserve(add->vars().size());
+  } else if( qf != nullptr ) {
+   // Quadratic objective function
+   q_values.reserve( mod->vars().size() );
 
-    for( auto * it1 : add->vars() ) {
-     for( auto it2: qf->get_v_var() ) {
-      if( it1 == std::get< 0 >( it2 ) ) {
-       indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
+   for( auto * it1 : mod->vars() ) {
+    for( auto it2: qf->get_v_var() ) {
+     if( it1 == std::get< 0 >( it2 ) ) {
+      indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
+      if( add ) {
        values.push_back( std::get< 1 >( it2 ) );
        q_values.push_back( std::get< 2 >( it2 ) );
-       break;
+      } else {
+       values.push_back( 0 );
+       q_values.push_back( 0 );
       }
+      break;
      }
-     CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
     }
+    CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
+   }
 
-    if( !indices.empty() ) {
-     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-    }
-
-   } else {
-    // This should never happen
-    throw std::invalid_argument( "Unknown type of Objective Function" );
+   if( !indices.empty() ) {
+    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
    }
 
   } else {
-   // Adding coefficients to a Constraint
+   // This should never happen
+   throw std::invalid_argument( "Unknown type of Objective Function" );
+  }
 
-   auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
-   std::vector< int > rows;
+ } else {
+  // Adding coefficients to a Constraint
 
-   indices.reserve(add->vars().size());
-   values.reserve(add->vars().size());
-   rows.reserve(add->vars().size());
+  auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+  std::vector< int > rows;
+  rows.reserve( mod->vars().size() );
 
-   // Get indices and coefficients
-   for( auto * it1 : add->vars() ) {
-    for( auto it2: lf->get_v_var() ) {
-     if( it1 == it2.first ) {
-      indices.push_back( index_of_variable( it2.first ) );
-      rows.push_back( index_of_constraint( p_const ) );
+  // Get indices and coefficients
+  for( auto * it1 : mod->vars() ) {
+   for( auto it2: lf->get_v_var() ) {
+    if( it1 == it2.first ) {
+     indices.push_back( index_of_variable( it2.first ) );
+     rows.push_back( index_of_constraint( p_const ) );
+     if( add ) {
       values.push_back( it2.second );
-      break;
-     }
-    }
-   }
-
-   // If no vars are found in lf->get_v_var(), it's usually because they
-   // have already been removed with a dynamic variable modification, so
-   // no further action is needed.
-
-   // Update the coefficients (all zeroes)
-   if( !indices.empty() ) {
-    CPXchgcoeflist( env, lp, indices.size(), rows.data(),
-                    indices.data(), values.data() );
-   }
-  }
-  return;
- }
-
-
- // C05FunctionModVarsRngd (Remove coefficients in a range)
- // ---------------------------------------------------------
- auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
- if( rmvr ) {
-
-  if( changing_of ) {
-   // Removing coefficients from the objective function
-
-   // TODO: We should also check if cols must be removed,
-   //       but at this point it's already done by a dynamic modification
-
-   if( lf != nullptr ) {
-    // Linear objective function
-    indices.reserve(rmvr->vars().size());
-    values.reserve(rmvr->vars().size());
-
-    for( auto * it1 : rmvr->vars() ) {
-     for( auto it2: lf->get_v_var() ) {
-      if( it1 == it2.first ) {
-       indices.push_back( index_of_variable( it2.first ) );
-       values.push_back( 0 );
-       break;
-      }
-     }
-    }
-
-    // If no vars are found in lf->get_v_var(), it's usually because they
-    // have already been removed with a dynamic variable modification, so
-    // no further action is needed.
-    if( !indices.empty() ) {
-     // Update the coefficients (all zeroes)
-     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-    }
-
-   } else if( qf != nullptr ) {
-    // Quadratic objective function
-    indices.reserve(rmvr->vars().size());
-    values.reserve(rmvr->vars().size());
-    q_values.reserve(rmvr->vars().size());
-
-    for( auto * it1 : rmvr->vars() ) {
-     for( auto it2: qf->get_v_var() ) {
-      if( it1 == std::get< 0 >( it2 ) ) {
-       indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
-       values.push_back( 0 );
-       q_values.push_back( 0 );
-       break;
-      }
-     }
-     CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
-    }
-
-    // If no vars are found in lf->get_v_var(), it's usually because they
-    // have already been removed with a dynamic variable modification, so
-    // no further action is needed.
-    if( !indices.empty() ) {
-     // Update the coefficients (all zeroes)
-     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-    }
-
-   } else {
-    // This should never happen
-    throw std::invalid_argument( "Unknown type of Objective Function" );
-   }
-
-  } else {
-   // Removing coefficients from a constraint
-
-   auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
-   std::vector< int > rows;
-
-   indices.reserve(rmvr->vars().size());
-   values.reserve(rmvr->vars().size());
-   rows.reserve(rmvr->vars().size());
-
-   // Get indices and coefficients (all zeroes)
-   for( auto * it1 : rmvr->vars() ) {
-    for( auto it2: lf->get_v_var() ) {
-     if( it1 == it2.first ) {
-      indices.push_back( index_of_variable( it2.first ) );
-      rows.push_back( index_of_constraint( p_const ) );
+     } else {
       values.push_back( 0 );
-      break;
      }
+     break;
     }
-   }
-
-   // If no vars are found in lf->get_v_var(), it's usually because they
-   // have already been removed with a dynamic variable modification, so
-   // no further action is needed.
-
-   // Update the coefficients (all zeroes)
-   if( !indices.empty() ) {
-    CPXchgcoeflist( env, lp, indices.size(), rows.data(),
-                    indices.data(), values.data() );
    }
   }
-  return;
- }
-
-
- // C05FunctionModVarsRngd (Remove coefficients in a subset)
- // ---------------------------------------------------------
- auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
- if( rmvs ) {
-
-  if( changing_of ) {
-   // Removing coefficients from the objective function
-
-   // TODO: We should also check if cols must be removed,
-   //       but at this point it's already done by a dynamic modification
-
-   if( lf != nullptr ) {
-    // Linear objective function
-    indices.reserve(rmvs->vars().size());
-    values.reserve(rmvs->vars().size());
-
-    for( auto * it1 : rmvs->vars() ) {
-     for( auto it2: lf->get_v_var() ) {
-      if( it1 == it2.first ) {
-       indices.push_back( index_of_variable( it2.first ) );
-       values.push_back( 0 );
-       break;
-      }
-     }
-    }
-
-    // If no vars are found in lf->get_v_var(), it's usually because they
-    // have already been removed with a dynamic variable modification, so
-    // no further action is needed.
-    if( !indices.empty() ) {
-     // Update the coefficients (all zeroes)
-     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-    }
-
-   } else if( qf != nullptr ) {
-    // Quadratic objective function
-    indices.reserve(rmvs->vars().size());
-    values.reserve(rmvs->vars().size());
-    q_values.reserve(rmvs->vars().size());
-
-    for( auto * it1 : rmvs->vars() ) {
-     for( auto it2: qf->get_v_var() ) {
-      if( it1 == std::get< 0 >( it2 ) ) {
-       indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
-       values.push_back( 0 );
-       q_values.push_back( 0 );
-       break;
-      }
-     }
-     CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
-    }
-
-    // If no vars are found in lf->get_v_var(), it's usually because they
-    // have already been removed with a dynamic variable modification, so
-    // no further action is needed.
-    if( !indices.empty() ) {
-     // Update the coefficients (all zeroes)
-     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-    }
-
-   } else {
-    // This should never happen
-    throw std::invalid_argument( "Unknown type of Objective Function" );
-   }
-
-  } else {
-   // Removing coefficients from a constraint
-
-   auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
-   std::vector< int > rows;
-
-   indices.reserve(rmvs->vars().size());
-   values.reserve(rmvs->vars().size());
-   rows.reserve(rmvs->vars().size());
-
-   // Get indices and coefficients (all zeroes)
-   for( auto * it1 : rmvs->vars() ) {
-    for( auto it2: lf->get_v_var() ) {
-     if( it1 == it2.first ) {
-      indices.push_back( index_of_variable( it2.first ) );
-      rows.push_back( index_of_constraint( p_const ) );
-      values.push_back( 0 );
-      break;
-     }
-    }
-   }
-
-   // If no vars are found in lf->get_v_var(), it's usually because they
-   // have already been removed with a dynamic variable modification, so
-   // no further action is needed.
-
-   // Update the coefficients (all zeroes)
-   if( !indices.empty() ) {
-    CPXchgcoeflist( env, lp, indices.size(), rows.data(),
-                    indices.data(), values.data() );
-   }
+  // Update the coefficients (all zeroes)
+  if( !indices.empty() ) {
+   CPXchgcoeflist( env, lp, indices.size(), rows.data(),
+                   indices.data(), values.data() );
   }
-  return;
  }
- throw std::invalid_argument( "This type of FunctionModVars is not handled" );
 }
 
 /*--------------------------------------------------------------------------*/
