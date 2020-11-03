@@ -658,22 +658,16 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    Q.push( i );
   }
 
-  for( const auto & i : q_Block->get_static_constraints() ) {
-   auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( pi ),
-                        std::ref( row ) );
-   un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
+  auto set = [ &pi, &row ]( FRowConstraint & c ) {
+   c.set_dual( pi[ row++ ] );
+  };
+
+  for( const auto & i : q_Block->get_static_constraints() ) { ;
+   un_any_const_static( i, set, un_any_type< FRowConstraint >() );
   }
 
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( pi ),
-                        std::ref( row ) );
-   un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
+   un_any_const_dynamic( i, set, un_any_type< FRowConstraint >() );
   }
  }
 
@@ -762,25 +756,20 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
    Q.push( i );
   }
 
+  auto set = [ &y, &row ]( FRowConstraint & c ) {
+   c.set_dual( y[ row++ ] );
+  };
+
   for( const auto & i : q_Block->get_static_constraints() ) {
-   auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( y ),
-                        std::ref( row ) );
-   un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
+   un_any_const_static( i, set, un_any_type< FRowConstraint >() );
   }
 
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( y ),
-                        std::ref( row ) );
-   un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
+   un_any_const_dynamic( i, set, un_any_type< FRowConstraint >() );
   }
  }
 
+ // TODO
  // for( int i = 0; i < numcols; ++i ) {
  //  used_bounds[ i ].first->set_dual( v[ i ] );
  //  used_bounds[ i ].second->set_dual( w[ i ] );
@@ -2082,16 +2071,6 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_dual_value( FRowConstraint & lconst,
-                                    double * pi,
-                                    int & i ) {
- BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::set_dual_value(): index = "
-                            << std::setw( 4 ) << i << ", value = " << pi[ i ];
- lconst.set_dual( pi[ i++ ] );
-}
-
-/*--------------------------------------------------------------------------*/
-
 int CPXMILPSolver::CPXgetintvars( std::vector< char > * ctype ) {
  int n;
  int current_cols = CPXgetnumcols( env, lp );
@@ -2127,30 +2106,6 @@ int CPXMILPSolver::CPXgetintvars( std::vector< char > * ctype ) {
  return n;
 }
 
-/*--------------------------------------------------------------------------*/
-
-// void CPXMILPSolver::fix_integer_vars() {
-//  int probtype = CPXgetprobtype( env, milp );
-//  switch( probtype ) {
-//   case CPXPROB_MILP:
-//    probtype = CPXPROB_FIXEDMILP;
-//    break;
-//   case CPXPROB_MIQP:
-//    probtype = CPXPROB_FIXEDMIQP;
-//    break;
-//   default:
-//    throw std::runtime_error( "Wrong problem type from CPXgetprobtype()" );
-//  }
-//  int status = CPXchgprobtype( env, milp, probtype );
-//  if( status ) {
-//   throw std::runtime_error( "Unable to change problem type with CPXchgprobtype()" );
-//  }
-//
-//  status = CPXprimopt( env, milp );
-//  if( status ) {
-//   throw std::runtime_error( "An error occurred in CPXprimopt()" );
-//  }
-// }
 /*--------------------------------------------------------------------------*/
 /*--------------------- End File CPXMILPSolver.cpp -------------------------*/
 /*--------------------------------------------------------------------------*/

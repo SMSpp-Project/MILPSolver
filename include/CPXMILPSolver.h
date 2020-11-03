@@ -394,18 +394,6 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
  private:
 
- /**
-  * It sets the dual value of a FRowConstraint taking it from pi[i],
-  * then increments i.
-  * This method is meant to be used inside get_dual_solution(), in conjunction
-  * with un_any_const_static() or un_any_const_dynamic().
-  *
-  * @param lconst The FRowConstraint to set
-  * @param pi The array containing the values
-  * @param i The position in the array
-  */
- void set_dual_value( FRowConstraint & lconst, double * pi, int & i );
-
 /**
   * Gets the number of CPLEX integer vars.
   * Optionally, the read CPLEX variable types can be saved in a vector.
@@ -414,8 +402,6 @@ class CPXMILPSolver : public MILPSolver {
   * @param ctype A vector where CPLEX variable types are saved
   */
  int CPXgetintvars( std::vector< char > * ctype = nullptr );
-
-// void fix_integer_vars();
 
  SMSpp_insert_in_factory_h;
 };
