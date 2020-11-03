@@ -677,7 +677,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    c.set_dual( pi[ row++ ] );
   };
 
-  for( const auto & i : q_Block->get_static_constraints() ) { ;
+  for( const auto & i : q_Block->get_static_constraints() ) {
    un_any_const_static( i, set, un_any_type< FRowConstraint >() );
   }
 
@@ -1086,19 +1086,48 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
   * This function is used when changing coefficents for OFs or constraints.
   */
 
- // Check if OF or a Constraint is involved
  auto * mod_f = mod->function();
  bool changing_of = false;
  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
- auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- if( p_obj != nullptr ) {
-  auto * of = p_obj->get_function();
-  if( of == mod_f ) {
-   changing_of = true;
+ // Check if OF or a Constraint is involved
+ // --------------------------------------------------------------------------
+
+ std::queue< Block * > Q;
+
+ // // Locking the Block
+ // bool owned = f_Block->is_owned_by( f_id );
+ // if( !owned && !f_Block->read_lock() ) {
+ //  throw std::runtime_error( "Unable to lock the Block" );
+ // }
+
+ Q.push( f_Block );
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto * i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  if( p_obj != nullptr ) {
+   auto * of = p_obj->get_function();
+   if( of == mod_f ) {
+    changing_of = true;
+    break;
+   }
   }
  }
+
+ // // Unlock the Block
+ // if( !owned ) {
+ //  f_Block->read_unlock();
+ // }
+
+ // Change the coefficients
+ // --------------------------------------------------------------------------
 
  std::vector< int > indices;
  std::vector< double > values;
@@ -1218,19 +1247,48 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   * to or from OFs or constraints.
   */
 
- // Check if OF or a Constraint is involved
  auto * mod_f = mod->function();
  bool changing_of = false;
  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
- auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- if( p_obj != nullptr ) {
-  auto * of = p_obj->get_function();
-  if( of == mod_f ) {
-   changing_of = true;
+ // Check if OF or a Constraint is involved
+ // --------------------------------------------------------------------------
+
+ std::queue< Block * > Q;
+
+ // // Locking the Block
+ // bool owned = f_Block->is_owned_by( f_id );
+ // if( !owned && !f_Block->read_lock() ) {
+ //  throw std::runtime_error( "Unable to lock the Block" );
+ // }
+
+ Q.push( f_Block );
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto * i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  if( p_obj != nullptr ) {
+   auto * of = p_obj->get_function();
+   if( of == mod_f ) {
+    changing_of = true;
+    break;
+   }
   }
  }
+
+ // // Unlock the Block
+ // if( !owned ) {
+ //  f_Block->read_unlock();
+ // }
+
+ // Modify the coefficients
+ // --------------------------------------------------------------------------
 
  // Check the modification type
  auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );

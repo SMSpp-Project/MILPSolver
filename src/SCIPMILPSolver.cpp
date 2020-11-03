@@ -170,7 +170,7 @@ void SCIPMILPSolver::load_problem() {
   SCIP_CALL_ABORT( SCIPreleaseCons( scip, &con ) );
  }
 
- // Add objective
+ // Add constraint coefficients
  for( int c = 0; c < numcols; ++c ) {
   for( int i = matbeg[ c ]; i < matbeg[ c + 1 ]; ++i ) {
    SCIP_CALL_ABORT( SCIPaddCoefLinear( scip,
@@ -203,7 +203,7 @@ double SCIPMILPSolver::get_problem_lb( const ColVariable & var ) {
 double SCIPMILPSolver::get_problem_ub( const ColVariable & var ) {
  double b = MILPSolver::get_problem_ub( var );
  if( b == Inf< double >() ) {
-  b = SCIPinfinity( scip );;
+  b = SCIPinfinity( scip );
  }
  return b;
 }
@@ -282,7 +282,6 @@ Solver::OFValue SCIPMILPSolver::get_lb() {
    break;
   default:
    throw std::runtime_error( "Objective type not yet defined" );
-   break;
  }
 
  return lower_bound;
@@ -323,7 +322,6 @@ Solver::OFValue SCIPMILPSolver::get_ub() {
    break;
   default:
    throw std::runtime_error( "Objective type not yet defined" );
-   break;
  }
 
  return upper_bound;
