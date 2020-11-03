@@ -57,7 +57,7 @@
 
 using namespace SMSpp_di_unipi_it;
 
-SMSpp_insert_in_factory_cpp_0( CPXMILPSolver )
+SMSpp_insert_in_factory_cpp_0( CPXMILPSolver );
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
