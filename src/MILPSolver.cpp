@@ -249,38 +249,60 @@ void MILPSolver::load_problem() {
   BOOST_LOG_TRIVIAL( trace )
    << "MILPSolver::set_Block() counting static constraints";
   for( const auto & i : q_Block->get_static_constraints() ) {
-   if( un_any_thing_0( FRowConstraint, i, ++numrows ) ) {
+   // Singles
+   if( un_any_thing_0( FRowConstraint, i,
+                       {
+                        ++numrows;
+                        ++static_cons;
+                       }
+   ) ) {
     continue;
    }
-   if( un_any_thing_1( FRowConstraint, i, numrows += var.size() ) ) {
+   // Vectors
+   if( un_any_thing_1( FRowConstraint, i, {
+                        numrows += var.size();
+                        static_cons += var.size();
+                       }
+   ) ) {
     continue;
    }
-   if( un_any_thing_K( FRowConstraint, i, numrows += var.num_elements() ) ) {
+   // Multiarrays
+   if( un_any_thing_K( FRowConstraint, i, {
+                        numrows += var.num_elements();
+                        static_cons += var.num_elements();
+                       }
+   ) ) {
     continue;
    }
   }
-  static_cons = numrows;
 
   BOOST_LOG_TRIVIAL( trace )
    << "MILPSolver::set_Block() counting dynamic constraints";
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   if( un_any_thing_0( std::list< FRowConstraint >,
-                       i, numrows += var.size() ) ) {
+   // Single lists
+   if( un_any_thing_0( std::list < FRowConstraint > , i, {
+                        numrows += var.size();
+                       }
+   ) ) {
     continue;
    }
-   if( un_any_thing_1( std::list< FRowConstraint >, i,
-                       for( auto & el: var ) {
-                        numrows += el.size();
-                       } ) ) {
+   // Vectors of lists
+   if( un_any_thing_1( std::list < FRowConstraint > , i, {
+                        for( auto & el: var ) {
+                         numrows += el.size();
+                        }
+                       }
+   ) ) {
     continue;
    }
-   if( un_any_thing_K( std::list< FRowConstraint >, i,
-                       {
+   // Multiarrays of lists
+   if( un_any_thing_K( std::list < FRowConstraint > , i, {
                         auto it = var.data();
                         for( auto i = var.num_elements(); i--; ++it ) {
                          numrows += it->size();
                         }
-                       } ) ) {
+                       }
+   ) ) {
     continue;
    }
   }
@@ -288,37 +310,60 @@ void MILPSolver::load_problem() {
   BOOST_LOG_TRIVIAL( trace )
    << "MILPSolver::set_Block() counting static variables";
   for( const auto & i : q_Block->get_static_variables() ) {
-   if( un_any_thing_0( ColVariable, i, ++numcols ) ) {
+   // Singles
+   if( un_any_thing_0( ColVariable, i,
+                       {
+                        ++numcols;
+                       ++static_vars;
+                       }
+   ) ) {
     continue;
    }
-   if( un_any_thing_1( ColVariable, i, numcols += var.size() ) ) {
+   // Vectors
+   if( un_any_thing_1( ColVariable, i, {
+                        numcols += var.size();
+                        static_vars += var.size();
+                       }
+   ) ) {
     continue;
    }
-   if( un_any_thing_K( ColVariable, i, numcols += var.num_elements() ) ) {
+   // Multiarrays
+   if( un_any_thing_K( ColVariable, i, {
+                        numcols += var.num_elements();
+                        static_vars += var.num_elements();
+                       }
+   ) ) {
     continue;
    }
   }
-  static_vars = numcols;
 
   BOOST_LOG_TRIVIAL( trace )
    << "MILPSolver::set_Block() counting dynamic variables";
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-   if( un_any_thing_0( std::list< ColVariable >, i, numcols += var.size() ) ) {
+   // Single lists
+   if( un_any_thing_0( std::list < ColVariable > , i, {
+                        numcols += var.size();
+                       }
+   ) ) {
     continue;
    }
-   if( un_any_thing_1( std::list< ColVariable >, i,
-                       for( auto & el: var ) {
-                        numcols += el.size();
-                       } ) ) {
+   // Vectors of lists
+   if( un_any_thing_1( std::list < ColVariable > , i, {
+                        for( auto & el: var ) {
+                         numcols += el.size();
+                        }
+                       }
+   ) ) {
     continue;
    }
-   if( un_any_thing_K( std::list< ColVariable >, i,
-                       {
+   // Multiarrays of lists
+   if( un_any_thing_K( std::list < ColVariable > , i, {
                         auto it = var.data();
                         for( auto i = var.num_elements(); i--; ++it ) {
                          numcols += it->size();
                         }
-                       } ) ) {
+                       }
+   ) ) {
     continue;
    }
   }
@@ -1079,87 +1124,71 @@ void MILPSolver::process_modifications() {
   // A function like this is needed to be called recursively with GroupModifications
   std::function< void( sp_Mod ) > f;
   f = [ this, &f ]( const sp_Mod & mod ) {
-   {
-    const auto tmod = std::dynamic_pointer_cast< GroupModification >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << "GroupModification containing:";
-     for( const auto & submod : tmod->sub_Modifications() ) {
-      f( submod );
-     }
-     return;
+   BOOST_LOG_TRIVIAL( trace ) << *mod;
+
+   const auto gm = std::dynamic_pointer_cast< GroupModification >( mod );
+   if( gm ) {
+    BOOST_LOG_TRIVIAL( trace ) << "GroupModification containing:";
+    for( const auto & submod : gm->sub_Modifications() ) {
+     f( submod );
     }
+    return;
    }
-   {
-    const auto tmod = std::dynamic_pointer_cast< VariableMod >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << *mod;
-     var_modification( tmod.get() );
-     return;
-    }
+
+   const auto vm = std::dynamic_pointer_cast< VariableMod >( mod );
+   if( vm ) {
+    var_modification( vm.get() );
+    return;
    }
-   {
-    const auto tmod = std::dynamic_pointer_cast< ObjectiveMod >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << *mod;
-     of_modification( tmod.get() );
-     return;
-    }
+
+   const auto om = std::dynamic_pointer_cast< ObjectiveMod >( mod );
+   if( om ) {
+    of_modification( om.get() );
+    return;
    }
-   {
-    const auto tmod = std::dynamic_pointer_cast< OneVarConstraintMod >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << *mod;
-     bound_modification( tmod.get() );
-     return;
-    }
+
+
+   const auto bm = std::dynamic_pointer_cast< OneVarConstraintMod >( mod );
+   if( bm ) {
+    bound_modification( bm.get() );
+    return;
    }
-   {
-    const auto tmod = std::dynamic_pointer_cast< RowConstraintMod >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << *mod;
-     const_modification( tmod.get() );
-     return;
-    }
+
+
+   const auto tmod = std::dynamic_pointer_cast< RowConstraintMod >( mod );
+   if( tmod ) {
+    const_modification( tmod.get() );
+    return;
    }
-   {
-    const auto tmod = std::dynamic_pointer_cast< ConstraintMod >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << *mod;
-     const_modification( tmod.get() );
-     return;
-    }
+
+   const auto cm = std::dynamic_pointer_cast< ConstraintMod >( mod );
+   if( cm ) {
+    const_modification( cm.get() );
+    return;
    }
-   {
-    const auto tmod = std::dynamic_pointer_cast< FunctionMod >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << *mod;
-     function_modification( tmod.get() );
-     return;
-    }
+
+   const auto fm = std::dynamic_pointer_cast< FunctionMod >( mod );
+   if( fm ) {
+    function_modification( fm.get() );
+    return;
    }
-   {
-    const auto tmod = std::dynamic_pointer_cast< FunctionModVars >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << *mod;
-     function_vars_modification( tmod.get() );
-     return;
-    }
+
+   const auto fvm = std::dynamic_pointer_cast< FunctionModVars >( mod );
+   if( fvm ) {
+    function_vars_modification( fvm.get() );
+    return;
    }
-   {
-    const auto tmod = std::dynamic_pointer_cast< BlockModAD >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << *mod;
-     dynamic_modification( tmod.get() );
-     return;
-    }
+
+   const auto dm = std::dynamic_pointer_cast< BlockModAD >( mod );
+   if( dm ) {
+    dynamic_modification( dm.get() );
+    return;
    }
-   {
-    const auto tmod = std::dynamic_pointer_cast< NBModification >( mod );
-    if( tmod ) {
-     BOOST_LOG_TRIVIAL( trace ) << "\033[1;33m" << *mod << "\033[0m";
-     clear_problem();
-     load_problem();
-    }
+
+   const auto nm = std::dynamic_pointer_cast< NBModification >( mod );
+   if( nm ) {
+    clear_problem();
+    load_problem();
    }
   };
 

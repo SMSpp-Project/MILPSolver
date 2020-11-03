@@ -159,7 +159,7 @@ class CPXMILPSolver : public MILPSolver {
  void set_Block( Block * block ) override;
 
  /// Optimizes the problem with CPLEX
- int compute( bool changedvars ) override;
+ int compute( bool changedvars = false ) override;
 
  /// Returns a valid lower bound on the optimal objective function value
  OFValue get_lb() override;
@@ -177,13 +177,13 @@ class CPXMILPSolver : public MILPSolver {
  OFValue get_var_value() override;
 
  /// Writes the current solution in the Block
- void get_var_solution( Configuration * solc ) override;
+ void get_var_solution( Configuration * solc = nullptr) override;
 
  /// Tells whether a dual solution is available
  bool has_dual_solution() override;
 
  /// Tells whether the current dual solution is feasible
- void get_dual_solution( Configuration * solc ) override;
+ void get_dual_solution( Configuration * solc = nullptr) override;
 
  /// Writes the LP on the specified file
  void write_lp( const std::string & filename ) override;
