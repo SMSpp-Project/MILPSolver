@@ -138,28 +138,47 @@ class SCIPMILPSolver : public MILPSolver {
  /// It sets the Block that the Solver has to solve and initializes CPLEX.
  void set_Block( Block * block ) override;
 
- /// Optimizes the problem with CPLEX.
- int compute( bool changedvars = true ) override;
+ /// Optimizes the problem with SCIP
+ int compute( bool changedvars = false ) override;
 
+ /// Returns a valid lower bound on the optimal objective function value
  OFValue get_lb() override;
 
+ /// Returns a valid upper bound on the optimal objective function value
  OFValue get_ub() override;
 
- bool has_var_solution() override;
-
- bool is_var_feasible() override;
-
+ /// Returns the value of the current solution, if any
  OFValue get_var_value() override;
 
+ /// Tells whether a solution is available
+ bool has_var_solution() override;
+
+ /// Tells whether the current solution is feasible
+ bool is_var_feasible() override;
+
+ /// Writes the current solution in the Block
  void get_var_solution( Configuration * solc = nullptr ) override;
 
+ /// Tells whether a dual solution is available
  bool has_dual_solution() override;
 
+ /// Tells whether the current dual solution is feasible
+ bool is_dual_feasible() override;
+
+ /// Writes the current dual solution in the Block
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
+ /// Tells whether a dual unbounded direction is available
+ bool has_dual_direction() override;
+
+ /// Writes the current dual unbounded direction in the Block
+ void get_dual_direction( Configuration * dirc = nullptr ) override;
+
+ /// Writes the LP on the specified file
  void write_lp( const std::string & filename ) override;
 
- int get_nodes() const override;
+ /// Returns the number of nodes used to solve a MIP
+ [[nodiscard]] int get_nodes() const override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -240,7 +259,7 @@ class SCIPMILPSolver : public MILPSolver {
  SCIP * scip{};
 
  std::vector< SCIP_VAR * > vars;   ///< SCIP variables
- std::vector< SCIP_CONS * > conss; ///< SCIP constraints
+ std::vector< SCIP_CONS * > cons;  ///< SCIP constraints
 
  std::string prob_name;   ///< SCIP problem name
  std::string output_file; ///< Output file
@@ -266,17 +285,17 @@ class SCIPMILPSolver : public MILPSolver {
  /// @}
 
  /** @name Get variable bounds for the problem
- *
- * The following two methods retrieve the upper and lower bound for the
- * given variable considering both the Variable bounds and all the active
- * OneVarConstraints active for that Variable.
- */
+  *
+  * The following two methods retrieve the upper and lower bound for the
+  * given variable considering both the Variable bounds and all the active
+  * OneVarConstraints active for that Variable.
+  */
 
  /// Gets the LB fot the given variable in the problem
- double get_problem_lb(const ColVariable & var) override;
+ double get_problem_lb( const ColVariable & var ) override;
 
  /// Gets the UB fot the given variable in the problem
- double get_problem_ub(const ColVariable & var) override;
+ double get_problem_ub( const ColVariable & var ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -332,31 +351,6 @@ class SCIPMILPSolver : public MILPSolver {
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
  private:
-
- /**
-  * It sets the value of a Colvariable taking it from x[i], then increments i.
-  * This method is meant to be used inside get_var_solution(), in conjunction
-  * with un_any_const_static() or un_any_const_dynamic().
-  *
-  * @param lvar The ColVariable to set
-  * @param x The array containing the values
-  * @param i The position in the array
-  */
- void set_var_value( ColVariable & lvar, double * x, int & i );
-
- /**
-  * It sets the dual value of a FRowConstraint taking it from pi[i],
-  * then increments i.
-  * This method is meant to be used inside get_dual_solution(), in conjunction
-  * with un_any_const_static() or un_any_const_dynamic().
-  *
-  * @param lconst The FRowConstraint to set
-  * @param pi The array containing the values
-  * @param i The position in the array
-  */
- void set_dual_value( FRowConstraint & lconst, double * pi, int & i );
-
- // void fix_integer_vars();
 
  SMSpp_insert_in_factory_h;
 };

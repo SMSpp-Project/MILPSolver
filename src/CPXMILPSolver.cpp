@@ -109,6 +109,7 @@ void CPXMILPSolver::load_problem() {
  int status = 0;
  lp = CPXcreateprob( env, &status, prob_name.c_str() );
 
+ // TODO: don't use class lb/ub here
  for( int i = 0; i < numcols; ++i ) {
   if( lb[ i ] == -Inf< double >() ) {
    lb[ i ] = -CPX_INFBOUND;
@@ -552,13 +553,10 @@ Solver::OFValue CPXMILPSolver::get_var_value() {
  switch( objsense ) {
   case 1: // Minimization problem
    return get_ub();
-   break;
   case -1: // Maximization problem
    return get_lb();
-   break;
   default:
    throw std::runtime_error( "Objective type not yet defined" );
-   break;
  }
 }
 
