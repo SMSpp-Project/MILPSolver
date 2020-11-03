@@ -616,6 +616,7 @@ bool CPXMILPSolver::has_dual_solution() {
 }
 
 /*--------------------------------------------------------------------------*/
+
 bool CPXMILPSolver::is_dual_feasible() {
  int solnmethod, solntype, pfeasind, dfeasind;
  int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
@@ -690,8 +691,8 @@ bool CPXMILPSolver::has_dual_direction() {
  double proof = 0;
  int status = CPXdualfarkas( env, lp, y, &proof );
  delete[] y;
- return !bool(status);
- }
+ return !bool( status );
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -731,13 +732,13 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
  }
 
  // Dual multipliers for bounds
- for (int i = 0; i < numcols; ++i) {
-  if (dj[i] >= 0) { // <?
-   v[i] = dj[i]; // - objective[i] ?
-   w[i] = 0;
+ for( int i = 0; i < numcols; ++i ) {
+  if( dj[ i ] >= 0 ) { // <?
+   v[ i ] = dj[ i ]; // - objective[i] ?
+   w[ i ] = 0;
   } else {
-  v[i] = 0;
-  w[i] = dj[i]; // - objective[i] ?
+   v[ i ] = 0;
+   w[ i ] = dj[ i ]; // - objective[i] ?
   }
  }
 
@@ -780,10 +781,10 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   }
  }
 
- for (int i = 0; i < numcols; ++i) {
-  used_bounds[i].first->set_dual(v[i]);
-  used_bounds[i].second->set_dual(w[i]);
- }
+ // for( int i = 0; i < numcols; ++i ) {
+ //  used_bounds[ i ].first->set_dual( v[ i ] );
+ //  used_bounds[ i ].second->set_dual( w[ i ] );
+ // }
 
  if( !owned ) {
   f_Block->unlock( f_id );

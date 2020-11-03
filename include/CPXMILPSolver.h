@@ -183,10 +183,15 @@ class CPXMILPSolver : public MILPSolver {
  bool has_dual_solution() override;
 
  /// Tells whether the current dual solution is feasible
+ bool is_dual_feasible() override;
+
+ /// Writes the current dual solution in the Block
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
+ /// Tells whether a dual unbounded direction is available
  bool has_dual_direction() override;
 
+ /// Writes the current dual unbounded direction in the Block
  void get_dual_direction( Configuration * dirc = nullptr ) override;
 
  /// Writes the LP on the specified file
