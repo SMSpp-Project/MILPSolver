@@ -167,23 +167,27 @@ class CPXMILPSolver : public MILPSolver {
  /// Returns a valid upper bound on the optimal objective function value
  OFValue get_ub() override;
 
+ /// Returns the value of the current solution, if any
+ OFValue get_var_value() override;
+
  /// Tells whether a solution is available
  bool has_var_solution() override;
 
  /// Tells whether the current solution is feasible
  bool is_var_feasible() override;
 
- /// Returns the value of the current solution, if any
- OFValue get_var_value() override;
-
  /// Writes the current solution in the Block
- void get_var_solution( Configuration * solc = nullptr) override;
+ void get_var_solution( Configuration * solc = nullptr ) override;
 
  /// Tells whether a dual solution is available
  bool has_dual_solution() override;
 
  /// Tells whether the current dual solution is feasible
- void get_dual_solution( Configuration * solc = nullptr) override;
+ void get_dual_solution( Configuration * solc = nullptr ) override;
+
+ bool has_dual_direction() override;
+
+ void get_dual_direction( Configuration * dirc = nullptr ) override;
 
  /// Writes the LP on the specified file
  void write_lp( const std::string & filename ) override;

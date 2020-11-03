@@ -498,23 +498,35 @@ Solver::OFValue CPXMILPSolver::get_ub() {
 /*--------------------------------------------------------------------------*/
 
 bool CPXMILPSolver::has_var_solution() {
- switch( sol_status ) {
-  case ( kOK ):
-   return ( true );
+ int solnmethod, solntype, pfeasind, dfeasind;
+ int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
+                           &pfeasind, &dfeasind );
+ if( status ) {
+  throw std::runtime_error( "An error occurred in CPXsolninfo()" );
+ }
+
+ switch( solntype ) {
+  case CPX_BASIC_SOLN:    // The problem has a simplex basis
+  case CPX_NONBASIC_SOLN: // Primal and dual solution but no basis
+  case CPX_PRIMAL_SOLN:   // Primal solution but no corresponding dual solution
+   return true;
+  case CPX_NO_SOLN:       // No solution
   default:
-   return ( false );
+   return false;
  }
 }
 
 /*--------------------------------------------------------------------------*/
 
 bool CPXMILPSolver::is_var_feasible() {
- switch( sol_status ) {
-  case ( kInfeasible ):
-   return ( false );
-  default:
-   return ( true );
+ int solnmethod, solntype, pfeasind, dfeasind;
+ int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
+                           &pfeasind, &dfeasind );
+ if( status ) {
+  throw std::runtime_error( "An error occurred in CPXsolninfo()" );
  }
+
+ return bool( pfeasind );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -585,58 +597,56 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
 /*--------------------------------------------------------------------------*/
 
 bool CPXMILPSolver::has_dual_solution() {
- // FIXME: Use CPXsolninfo()
- auto * pi = new double[numrows];
- int status = CPXgetpi( env, lp, pi, 0, numrows - 1 );
- delete[]pi;
- return status == 0;
+ int solnmethod, solntype, pfeasind, dfeasind;
+ int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
+                           &pfeasind, &dfeasind );
+ if( status ) {
+  throw std::runtime_error( "An error occurred in CPXsolninfo()" );
+ }
+
+ switch( solntype ) {
+  case CPX_BASIC_SOLN:    // The problem has a simplex basis
+  case CPX_NONBASIC_SOLN: // Primal and dual solution but no basis
+   return true;
+  case CPX_PRIMAL_SOLN:   // Primal solution but no corresponding dual solution
+  case CPX_NO_SOLN:       // No solution
+  default:
+   return false;
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+bool CPXMILPSolver::is_dual_feasible() {
+ int solnmethod, solntype, pfeasind, dfeasind;
+ int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
+                           &pfeasind, &dfeasind );
+ if( status ) {
+  throw std::runtime_error( "An error occurred in CPXsolninfo()" );
+ }
+
+ return bool( dfeasind );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
- int method = CPXgetmethod( env, lp );
- int status = CPXgetstat( env, lp );
- double * res = nullptr;
- // std::vector<double> res;
 
- if( method == CPX_ALG_PRIMAL ) {
-  // Primal simplex optimizer is used
-  if( status == CPX_STAT_UNBOUNDED ) {
-   // The model is primal unbounded/dual infeasible
-
-   res = new double[numcols];
-   status = CPXgetray( env, lp, res );
-  }
-  if( status == CPX_STAT_INFEASIBLE ) {
-   // The model is primal infeasible/dual unbounded
-   res = new double[numrows];
-   status = CPXgetpi( env, lp, res, 0, numrows - 1 );
-  }
+ auto * pi = new double[numrows];
+ int status = CPXgetpi( env, lp, pi, 0, numrows - 1 );
+ if( status ) {
+  delete[] pi;
+  throw std::runtime_error( "Unable to get the solution values with CPXgetpi()" );
  }
-
- if( method == CPX_ALG_DUAL ) {
-  // Dual simplex optimizer is used
-  if( status == CPX_STAT_INFEASIBLE ) {
-   // The model is dual infeasible/primal unbounded
-   res = new double[numcols];
-   status = CPXgetray( env, lp, res );
-  }
-  if( status == CPX_STAT_UNBOUNDED ) {
-   // The model is dual unbounded/primal infeasible
-   res = new double[numrows];
-   status = CPXdualfarkas( env, lp, res, nullptr );
-  }
- }
-
- // // TODO ?
- // if( status || res.size() != numrows ) {
- //  return;
- // }
 
  int row = 0;
 
  std::queue< Block * > Q;
+
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->lock( f_id ) ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
+
  Q.push( f_Block );
 
  while( !Q.empty() ) {
@@ -651,7 +661,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
                         this,
                         std::placeholders::_1,
-                        std::ref( res ),
+                        std::ref( pi ),
                         std::ref( row ) );
    un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
   }
@@ -660,12 +670,129 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
                         this,
                         std::placeholders::_1,
-                        std::ref( res ),
+                        std::ref( pi ),
                         std::ref( row ) );
    un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
   }
  }
- delete[] res;
+
+ if( !owned ) {
+  f_Block->unlock( f_id );
+ }
+
+ delete[]pi;
+}
+
+/*--------------------------------------------------------------------------*/
+
+bool CPXMILPSolver::has_dual_direction() {
+ auto * y = new double[numrows];
+ double proof = 0;
+ int status = CPXdualfarkas( env, lp, y, &proof );
+ delete[] y;
+ return !bool(status);
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
+
+ auto * y = new double[numrows];
+ auto * v = new double[numcols];
+ auto * w = new double[numcols];
+ auto * dj = new double[numcols];
+ double proof = 0;
+ int status;
+
+ // CPXdualfarkas gives a Farkas certificate y so that:
+ // y' * A * x >= y' * b
+ //   If it is a <= constraint then y[i] <= 0 holds;
+ //   If it is a >= constraint then y[i] >= 0 holds.
+ status = CPXdualfarkas( env, lp, y, &proof );
+
+ if( status ) {
+  delete[]y;
+  delete[]v;
+  delete[]dj;
+  delete[]w;
+  throw std::runtime_error( "An error occurred in CPXdualfarkas()" );
+ }
+
+ // CPXdjfrompi computes reduced costs from dual values
+ // dj = c - A'y
+ status = CPXdjfrompi( env, lp, y, dj );
+
+ if( status ) {
+  delete[]y;
+  delete[]v;
+  delete[]dj;
+  delete[]w;
+  throw std::runtime_error( "An error occurred in CPXdjfrompi()" );
+ }
+
+ // Dual multipliers for bounds
+ for (int i = 0; i < numcols; ++i) {
+  if (dj[i] >= 0) { // <?
+   v[i] = dj[i]; // - objective[i] ?
+   w[i] = 0;
+  } else {
+  v[i] = 0;
+  w[i] = dj[i]; // - objective[i] ?
+  }
+ }
+
+ // ----------------
+ int row = 0;
+
+ std::queue< Block * > Q;
+
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->lock( f_id ) ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
+
+ Q.push( f_Block );
+
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto * i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  for( const auto & i : q_Block->get_static_constraints() ) {
+   auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
+                        this,
+                        std::placeholders::_1,
+                        std::ref( y ),
+                        std::ref( row ) );
+   un_any_const_static( i, f1, un_any_type< FRowConstraint >() );
+  }
+
+  for( const auto & i : q_Block->get_dynamic_constraints() ) {
+   auto f1 = std::bind( &CPXMILPSolver::set_dual_value,
+                        this,
+                        std::placeholders::_1,
+                        std::ref( y ),
+                        std::ref( row ) );
+   un_any_const_dynamic( i, f1, un_any_type< FRowConstraint >() );
+  }
+ }
+
+ for (int i = 0; i < numcols; ++i) {
+  used_bounds[i].first->set_dual(v[i]);
+  used_bounds[i].second->set_dual(w[i]);
+ }
+
+ if( !owned ) {
+  f_Block->unlock( f_id );
+ }
+
+ delete[]y;
+ delete[]v;
+ delete[]dj;
+ delete[]w;
 }
 
 /*--------------------------------------------------------------------------*/
