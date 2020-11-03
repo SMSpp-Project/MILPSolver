@@ -19,12 +19,7 @@
  *         Dipartimento di Informatica \n
  *         Università di Pisa \n
  *
- * \author Kostas Tavlaridis-Gyparakis \n
- *         Operations Research Group \n
- *         Dipartimento di Informatica \n
- *         Università di Pisa \n
- *
- * \copyright &copy; Antonio Frangioni, Kostas Tavlaridis-Gyparakis, Niccolò Iardella
+ * \copyright &copy; Antonio Frangioni, Niccolò Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -158,62 +153,78 @@ class MILPSolver : public CDASolver {
 /*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/** @name Getters for the vectors of the LP problem
+/** @name Getters for the vectors of the LP problem.
+ *
+ * The following methods return the data that define the LP problem as
+ * specified in the CPLEX CPXcopylp(), CPXcopyctype(),  CPXcopyqpsep() and
+ * CPXcopylpwnames() documentation.
  *
  * @{
  */
 
+ /// Returns the number of variables/columns
  [[nodiscard]] int get_numcols() const;
 
+ /// Returns the number of constraints/rows
  [[nodiscard]] int get_numrows() const;
 
+ /// Returns the number of non-zero elements
  [[nodiscard]] int get_nzelements() const;
 
+ /// Returns the sense of the objective function, see CPXchgobjsen()
  [[nodiscard]] int get_objsense() const;
 
+ /// Returns the linear cofficients of the objective function
  [[nodiscard]] const std::vector< double > & get_objective() const;
 
+ /// Returns the quadratic cofficients of the objective function
  [[nodiscard]] const std::vector< double > & get_q_objective() const;
 
+ /// Returns the RHS values of the constraints
  [[nodiscard]] const std::vector< double > & get_rhs() const;
 
+ /// Returns the range values of the ranged constraints
  [[nodiscard]] const std::vector< double > & get_rngval() const;
 
+ /// Returns the sense of the constraints, see  CPXchgsense()
  [[nodiscard]] const std::vector< char > & get_sense() const;
 
+ /// Returns matbeg, one of the arrays that define the constraint matrix
  [[nodiscard]] const std::vector< int > & get_matbeg() const;
 
+ /// Returns matcnt, one of the arrays that define the constraint matrix
  [[nodiscard]] const std::vector< int > & get_matcnt() const;
 
+ /// Returns matind, one of the arrays that define the constraint matrix
  [[nodiscard]] const std::vector< int > & get_matind() const;
 
+ /// Returns matval, one of the arrays that define the constraint matrix
  [[nodiscard]] const std::vector< double > & get_matval() const;
 
- /// returns the lower bounds on the Variables
+ /// Returns the lower bounds on the variables
  [[nodiscard]] const std::vector< double > & get_var_lb() const;
 
- /// returns the upper bounds on the Variables
+ /// Returns the upper bounds on the variables
  [[nodiscard]] const std::vector< double > & get_var_ub() const;
 
+ /// Returns the types of the variables, see CPXcopyctype()
  [[nodiscard]] const std::vector< char > & get_xctype() const;
 
+ /// Returns the names of the constraints/rows
  [[nodiscard]] const std::vector< char * > & get_rowname() const;
 
+ /// Returns the names of the variables/columns
  [[nodiscard]] const std::vector< char * > & get_colname() const;
-
- [[nodiscard]] int get_nodes() const;
-
- [[nodiscard]] int get_num_integer_vars() const;
 
  /// @}
 
- /** @name Methods that use the correspondance vectors
+ /** @name Methods that use the dictionaries
   *
-  * The following methods use the tracking vectors to get the indices of the
+  * The following methods use the dictionaries to get the indices of the
   * Variables/Constraints from the pointers and viceversa.
   *
   * We provide separate methods for looking into static, dynamic or both parts
-  * of the problem, so we can reduce searching time when possible
+  * of the problem, so we can reduce searching time when possible.
   *
   * @{
   */
@@ -335,7 +346,14 @@ class MILPSolver : public CDASolver {
  FRowConstraint * dynamic_constraint_with_index( int i );
  /// @}
 
- virtual void write_lp(const std::string & filename) {}
+ /// Writes the LP on the specified file
+ virtual void write_lp( const std::string & filename ) {}
+
+ /// Returns the number of nodes used to solve a MIP
+ [[nodiscard]] virtual int get_nodes() const { return 0; }
+
+ /// Returns the number of integer variables
+ [[nodiscard]] int get_num_integer_vars() const;
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
@@ -352,8 +370,10 @@ class MILPSolver : public CDASolver {
  /// It does nothing as there is nothing to do.
  int compute( bool changedvars ) override { return 0; }
 
+ /// It does nothing as there is nothing to do.
  void get_var_solution( Configuration * solc ) override {}
 
+ /// It does nothing as there is nothing to do.
  void get_dual_solution( Configuration * solc ) override {}
  /// @}
 
@@ -410,16 +430,16 @@ class MILPSolver : public CDASolver {
   * @{
   */
  std::vector< var_int_int > svar_to_idx; ///< From static variable to index
- std::vector< int_var >     idx_to_svar; ///< From index to static variable
+ std::vector< int_var > idx_to_svar;     ///< From index to static variable
 
  std::vector< con_int_int > scon_to_idx; ///< From static constraint to index
- std::vector< int_const >   idx_to_scon; ///< From index to static constraint
+ std::vector< int_const > idx_to_scon;   ///< From index to static constraint
 
- std::vector< var_int >     dvar_to_idx; ///< From dynamic variable to index
- std::vector< int_var >     idx_to_dvar; ///< From index to dynamic variable
+ std::vector< var_int > dvar_to_idx;     ///< From dynamic variable to index
+ std::vector< int_var > idx_to_dvar;     ///< From index to dynamic variable
 
- std::vector< const_int >   dcon_to_idx; ///< From dynamic constraint to index
- std::vector< int_const >   idx_to_dcon; ///< From index to dynamic constraint
+ std::vector< const_int > dcon_to_idx;   ///< From dynamic constraint to index
+ std::vector< int_const > idx_to_dcon;   ///< From index to dynamic constraint
  /// @}
 
 /*--------------------------------------------------------------------------*/
@@ -537,19 +557,18 @@ class MILPSolver : public CDASolver {
   * An array of length at least numcols containing pointers to character
   * strings containing the names of the variables.
   */
- std::vector< char* > colname;
+ std::vector< char * > colname;
 
  /**
   * An array of length at least numrows containing pointers to character
   * strings containing the names of the constraints.
   */
- std::vector< char* > rowname;
+ std::vector< char * > rowname;
 
- int sol_status{};      ///< Solution status (OK, Infeasible, Unbounded, ...)
- int nodes{};           ///< Number of nodes used to solve the problem
- int int_vars = 0;      ///< Number of integer variables
- int static_vars = 0;   ///< Number of static variables
- int static_cons = 0;   ///< Number of static constraints
+ int sol_status{};    ///< Solution status (OK, Infeasible, Unbounded, ...)
+ int int_vars{};      ///< Number of integer variables
+ int static_vars{};   ///< Number of static variables
+ int static_cons{};   ///< Number of static constraints
  /// @}
 
  /** @name Clear and load the problem
@@ -583,6 +602,7 @@ class MILPSolver : public CDASolver {
  virtual double get_problem_ub( const ColVariable & var );
  /// @}
 
+ /// Gets the active constraints for the specified variable
  // TODO: This should be temporary
  static std::vector< FRowConstraint * >
  get_active_constraints( const ColVariable & var );
@@ -699,12 +719,13 @@ class MILPSolver : public CDASolver {
  /// @}
 
  /// Returns a loggable representation of a vector
- template<typename T> std::string log_vector(std::vector<T> v);
+ template< typename T >
+ std::string log_vector( std::vector< T > v );
 
  SMSpp_insert_in_factory_h;
-};   // end( class MILPSolver )
+};
 
-} // end( namespace SMSpp_di_unipi_it )
+}
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/

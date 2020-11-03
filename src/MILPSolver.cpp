@@ -14,17 +14,8 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Kostas Tavlaridis-Gyparakis \n
- *         Operations Research Group \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
- *
- * Copyright &copy by Antonio Frangioni, Kostas Tavlaridis-Gyparakis, Niccolò Iardella
+ * Copyright &copy; by Antonio Frangioni, Niccolò Iardella
  */
-/*--------------------------------------------------------------------------*/
-/*---------------------------- IMPLEMENTATION ------------------------------*/
-/*--------------------------------------------------------------------------*/
-
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -49,7 +40,7 @@
 
 using namespace SMSpp_di_unipi_it;
 
-SMSpp_insert_in_factory_cpp_0( MILPSolver );
+SMSpp_insert_in_factory_cpp_0( MILPSolver )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
@@ -58,7 +49,7 @@ SMSpp_insert_in_factory_cpp_0( MILPSolver );
 MILPSolver::MILPSolver() : CDASolver() {
 #ifdef MILPSLVR_DEBUG
  boost::log::core::get()->set_filter(
-  boost::log::trivial::severity >= boost::log::trivial::debug
+  boost::log::trivial::severity >= boost::log::trivial::trace
  );
 #else
  boost::log::core::get()->set_filter(
@@ -142,16 +133,12 @@ const std::vector< char > & MILPSolver::get_xctype() const {
  return xctype;
 }
 
-const std::vector< char* > & MILPSolver::get_rowname() const {
+const std::vector< char * > & MILPSolver::get_rowname() const {
  return rowname;
 }
 
-const std::vector< char* > & MILPSolver::get_colname() const {
+const std::vector< char * > & MILPSolver::get_colname() const {
  return colname;
-}
-
-int MILPSolver::get_nodes() const {
- return nodes;
 }
 
 int MILPSolver::get_num_integer_vars() const {
@@ -166,7 +153,7 @@ void MILPSolver::set_Block( Block * block ) {
 
  Solver::set_Block( block );
 
- if( block) {
+ if( block ) {
 
   bool owned = block->is_owned_by( f_id );
   if( !owned && !block->lock( f_id ) ) {
@@ -380,14 +367,14 @@ void MILPSolver::load_problem() {
  colname.resize( numcols, nullptr );
  rowname.resize( numrows, nullptr );
 
- svar_to_idx.reserve(numcols);
- idx_to_svar.reserve(numcols);
- dvar_to_idx.reserve(numcols);
- idx_to_dvar.reserve(numcols);
- scon_to_idx.reserve(numrows);
- idx_to_scon.reserve(numrows);
- dcon_to_idx.reserve(numrows);
- idx_to_dcon.reserve(numrows);
+ svar_to_idx.reserve( numcols );
+ idx_to_svar.reserve( numcols );
+ dvar_to_idx.reserve( numcols );
+ idx_to_dvar.reserve( numcols );
+ scon_to_idx.reserve( numrows );
+ idx_to_scon.reserve( numrows );
+ dcon_to_idx.reserve( numrows );
+ idx_to_dcon.reserve( numrows );
 
  // Second loop to scan the constraints
  Q.push( f_Block );
@@ -492,7 +479,7 @@ void MILPSolver::load_problem() {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto *i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
 
@@ -586,7 +573,7 @@ void MILPSolver::load_problem() {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto *i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
 
@@ -596,18 +583,18 @@ void MILPSolver::load_problem() {
   }
  } // End of while loop on Block queue
 
- BOOST_LOG_TRIVIAL(debug) << "objective   = " << log_vector(objective);
- BOOST_LOG_TRIVIAL(debug) << "q_objective = " << log_vector(q_objective );
- BOOST_LOG_TRIVIAL(debug) << "rhs         = " << log_vector(rhs );
- BOOST_LOG_TRIVIAL(debug) << "rngval      = " << log_vector(rngval );
- BOOST_LOG_TRIVIAL(debug) << "sense       = " << log_vector(sense );
- BOOST_LOG_TRIVIAL(debug) << "matbeg      = " << log_vector(matbeg );
- BOOST_LOG_TRIVIAL(debug) << "matcnt      = " << log_vector(matcnt );
- BOOST_LOG_TRIVIAL(debug) << "matind      = " << log_vector(matind );
- BOOST_LOG_TRIVIAL(debug) << "matval      = " << log_vector(matval );
- BOOST_LOG_TRIVIAL(debug) << "lb          = " << log_vector(lb );
- BOOST_LOG_TRIVIAL(debug) << "ub          = " << log_vector(ub );
- BOOST_LOG_TRIVIAL(debug) << "xctype      = " << log_vector(xctype );
+ BOOST_LOG_TRIVIAL( debug ) << "objective   = " << log_vector( objective );
+ BOOST_LOG_TRIVIAL( debug ) << "q_objective = " << log_vector( q_objective );
+ BOOST_LOG_TRIVIAL( debug ) << "rhs         = " << log_vector( rhs );
+ BOOST_LOG_TRIVIAL( debug ) << "rngval      = " << log_vector( rngval );
+ BOOST_LOG_TRIVIAL( debug ) << "sense       = " << log_vector( sense );
+ BOOST_LOG_TRIVIAL( debug ) << "matbeg      = " << log_vector( matbeg );
+ BOOST_LOG_TRIVIAL( debug ) << "matcnt      = " << log_vector( matcnt );
+ BOOST_LOG_TRIVIAL( debug ) << "matind      = " << log_vector( matind );
+ BOOST_LOG_TRIVIAL( debug ) << "matval      = " << log_vector( matval );
+ BOOST_LOG_TRIVIAL( debug ) << "lb          = " << log_vector( lb );
+ BOOST_LOG_TRIVIAL( debug ) << "ub          = " << log_vector( ub );
+ BOOST_LOG_TRIVIAL( debug ) << "xctype      = " << log_vector( xctype );
 
  // Unlock the Block
  if( !owned ) {
@@ -617,7 +604,7 @@ void MILPSolver::load_problem() {
 
 /*--------------------------------------------------------------------------*/
 
-double MILPSolver::get_problem_lb(const ColVariable & var) {
+double MILPSolver::get_problem_lb( const ColVariable & var ) {
  double b = var.get_lb();
 
  for( auto * i : var.active_stuff() ) {
@@ -632,7 +619,7 @@ double MILPSolver::get_problem_lb(const ColVariable & var) {
 
 /*--------------------------------------------------------------------------*/
 
-double MILPSolver::get_problem_ub(const ColVariable & var) {
+double MILPSolver::get_problem_ub( const ColVariable & var ) {
  double b = var.get_ub();
 
  for( auto * i : var.active_stuff() ) {
@@ -684,7 +671,7 @@ int MILPSolver::index_of_static_variable( const ColVariable * p_var ) {
  auto it = upper_bound( svar_to_idx.begin(), svar_to_idx.end(),
                         std::make_tuple( p_var, 0, 0 ),
                         [ & ]( auto & p1, auto & p2 ) {
-                         return std::get<0>(p1) < std::get<0>(p2);
+                         return std::get< 0 >( p1 ) < std::get< 0 >( p2 );
                         } );
 
  // Now it refers to the first (group of) element(s) greater than p_var
@@ -747,7 +734,7 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * p_const ) {
  auto it = upper_bound( scon_to_idx.begin(), scon_to_idx.end(),
                         std::make_tuple( p_const, 0, 0 ),
                         [ & ]( auto & p1, auto & p2 ) {
-                         return std::get<0>(p1) < std::get<0>(p2);
+                         return std::get< 0 >( p1 ) < std::get< 0 >( p2 );
                         } );
 
  // Now it refers to the first (group of) element(s) greater than p_var
@@ -1054,18 +1041,18 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
 void MILPSolver::scan_objective( const FRealObjective * obj ) {
  BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::scan_objective() " << *obj;
 
- const auto *lin_fun = dynamic_cast<const LinearFunction *> (obj->get_function());
+ const auto * lf = dynamic_cast<const LinearFunction *> (obj->get_function());
  int k = 0;
 
- if( lin_fun != nullptr ) {
-  for( auto el : lin_fun->get_v_var() ) {
+ if( lf != nullptr ) {
+  for( auto el : lf->get_v_var() ) {
    k = index_of_variable( el.first );
    objective[ k ] = el.second;
   }
  } else {
-  const auto *dquad_fun = dynamic_cast<const DQuadFunction *> (obj->get_function());
-  if( dquad_fun != nullptr ) {
-   for( auto el : dquad_fun->get_v_var() ) {
+  const auto * qf = dynamic_cast<const DQuadFunction *> (obj->get_function());
+  if( qf != nullptr ) {
+   for( auto el : qf->get_v_var() ) {
     // DQuadFunction::get_v_var() returns std::tuples of 3 elements
     k = index_of_variable( std::get< 0 >( el ) );
     objective[ k ] = std::get< 1 >( el );
@@ -1087,14 +1074,11 @@ void MILPSolver::process_modifications() {
   * e.g., OneVarConstraintMod before RowConstraintMod before ConstraintMod,
   * otherwise the generic case will intercept the more specialized Mods.
   */
- for( auto mod = front() ; mod ; mod = front() ) {
- // while( !v_mod.empty() ) {
-  // auto mod = v_mod.front();
+ for( auto mod = front(); mod; mod = front() ) {
 
   // A function like this is needed to be called recursively with GroupModifications
   std::function< void( sp_Mod ) > f;
-  f = [ this, &f ]( const sp_Mod& mod ) {
-
+  f = [ this, &f ]( const sp_Mod & mod ) {
    {
     const auto tmod = std::dynamic_pointer_cast< GroupModification >( mod );
     if( tmod ) {
@@ -1180,14 +1164,13 @@ void MILPSolver::process_modifications() {
   };
 
   f( mod );
-  // v_mod.pop_front();
   pop_front();
  }
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::var_modification( VariableMod * mod ){
+void MILPSolver::var_modification( VariableMod * mod ) {
  const auto var = dynamic_cast< const ColVariable * >( mod->variable() );
  // int idx = index_of_variable( var );
 
@@ -1206,13 +1189,13 @@ void MILPSolver::var_modification( VariableMod * mod ){
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::of_modification( ObjectiveMod * mod ){
+void MILPSolver::of_modification( ObjectiveMod * mod ) {
  // TODO: Update MILPSolver objsense
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::const_modification( ConstraintMod * mod ){
+void MILPSolver::const_modification( ConstraintMod * mod ) {
  auto * p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
 
  // TODO: Update MILPSolver rhs
@@ -1222,7 +1205,7 @@ void MILPSolver::const_modification( ConstraintMod * mod ){
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::bound_modification( OneVarConstraintMod * mod ){
+void MILPSolver::bound_modification( OneVarConstraintMod * mod ) {
  auto * p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
  auto * p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
 
@@ -1231,13 +1214,13 @@ void MILPSolver::bound_modification( OneVarConstraintMod * mod ){
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::function_modification( FunctionMod * mod ){
+void MILPSolver::function_modification( FunctionMod * mod ) {
  // TODO: update objective [and q_objective], or constraint coefficient
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::function_vars_modification( FunctionModVars * mod ){
+void MILPSolver::function_vars_modification( FunctionModVars * mod ) {
  // TODO: update objective [and q_objective], or constraint coefficient
 }
 
@@ -1335,7 +1318,7 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  }
 
  // Update the number of integer vars
- if ( p_var->is_integer() ) {
+ if( p_var->is_integer() ) {
   ++int_vars;
  }
 
@@ -1357,7 +1340,7 @@ void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {}
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
+void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
  // TODO: Implement remove_dynamic_with_index(i)
 
  // Remove the constraint from the dictionaries
@@ -1404,7 +1387,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ){
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ){
+void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
  // TODO: Implement remove_dynamic_with_index(i)
 
  // Remove the constraint from the dictionaries
@@ -1464,7 +1447,7 @@ template< typename T >
 std::string MILPSolver::log_vector( std::vector< T > v ) {
  std::string temp_log = "[";
  for( auto i : v ) {
-  temp_log += " " + std::to_string(i);
+  temp_log += " " + std::to_string( i );
  }
  temp_log += "]";
  return temp_log;
