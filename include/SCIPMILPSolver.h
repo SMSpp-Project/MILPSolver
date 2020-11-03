@@ -158,6 +158,8 @@ class SCIPMILPSolver : public MILPSolver {
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
  void write_lp( const std::string & filename ) override;
+
+ int get_nodes() const override;
  /// @}
 
 /*--------------------------------------------------------------------------*/

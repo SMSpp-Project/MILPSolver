@@ -242,7 +242,6 @@ int SCIPMILPSolver::compute( bool changedvars ) {
   case SCIP_STATUS_UNBOUNDED:
    sol_status = kUnbounded;
  }
- nodes = static_cast<int>(SCIPgetNTotalNodes( scip ));
 
  return sol_status;
 }
@@ -448,6 +447,10 @@ void SCIPMILPSolver::write_lp( const std::string & filename ) {
  SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip,
                                         filename.c_str(),
                                         "mps", FALSE ) );
+}
+
+int SCIPMILPSolver::get_nodes() const {
+ return static_cast<int>(SCIPgetNTotalNodes( scip ));
 }
 
 /*--------------------------------------------------------------------------*/

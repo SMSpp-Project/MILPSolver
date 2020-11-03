@@ -294,7 +294,6 @@ int CPXMILPSolver::compute( bool changedvars ) {
     sol_status = status;
     break;
   }
-  nodes = CPXgetnodecnt( env, lp );
 
  } else {
   if( is_qp ) {
@@ -681,6 +680,9 @@ void CPXMILPSolver::write_lp( const std::string & filename ) {
  CPXwriteprob( env, lp, filename.c_str(), "LP" );
 }
 
+int CPXMILPSolver::get_nodes() const {
+ return CPXgetnodecnt( env, lp );
+}
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
