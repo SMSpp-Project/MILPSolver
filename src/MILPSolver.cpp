@@ -1509,10 +1509,29 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {}
 /*--------------------------------------------------------------------------*/
 
 template< typename T >
-std::string MILPSolver::log_vector( std::vector< T > v ) {
+std::string MILPSolver::log_vector( const std::vector< T > & v, int limit ) {
  std::string temp_log = "[";
  for( auto i : v ) {
   temp_log += " " + std::to_string( i );
+  if( --limit == 0 ) {
+   temp_log += " ... ";
+   break;
+  }
+ }
+ temp_log += "]";
+ return temp_log;
+}
+
+template<>
+std::string MILPSolver::log_vector( const std::vector< char > & v, int limit ) {
+ std::string temp_log = "[";
+ for( auto i : v ) {
+  temp_log += " ";
+  temp_log += i;
+  if( --limit == 0 ) {
+   temp_log += " ... ";
+   break;
+  }
  }
  temp_log += "]";
  return temp_log;

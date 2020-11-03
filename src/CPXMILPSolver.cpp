@@ -205,8 +205,9 @@ int CPXMILPSolver::compute( bool changedvars ) {
 
  process_modifications();
 
- if( !output_file.empty() )
+ if( !output_file.empty() ) {
   CPXwriteprob( env, lp, output_file.c_str(), "LP" );
+ }
 
  int probtype = CPXgetprobtype( env, lp );
  switch( probtype ) {
@@ -247,97 +248,113 @@ int CPXMILPSolver::compute( bool changedvars ) {
  }
 
  if( int_vars > 0 ) {
-  // MIP Optimization
-  status = CPXmipopt( env, lp );
-
-  if( status ) {
-   if( status == CPXERR_SUBPROB_SOLVE ) {
-    int substatus = CPXgetsubstat( env, lp );
-
-    switch( substatus ) {
-     case CPX_STAT_ABORT_IT_LIM:
-      sol_status = kStopIter;
-      return sol_status;
-     default:
-      break;
-    }
-    throw std::runtime_error( "CPXmipopt() encountered an unmanaged error" );
-   }
-  }
-
-  status = CPXgetstat( env, lp );
-  switch( status ) {
-   case CPXMIP_OPTIMAL:
-   case CPXMIP_OPTIMAL_TOL:
-   case CPXMIP_SOL_LIM:
-    sol_status = kOK;
-    break;
-   case CPXMIP_INFEASIBLE:
-    sol_status = kInfeasible;
-    break;
-   case CPXMIP_NODE_LIM_FEAS:
-   case CPXMIP_NODE_LIM_INFEAS:
-    sol_status = kStopIter;
-    break;
-   case CPXMIP_TIME_LIM_FEAS:
-   case CPXMIP_TIME_LIM_INFEAS:
-    sol_status = kStopTime;
-    break;
-   case CPXMIP_FAIL_FEAS:
-   case CPXMIP_FAIL_INFEAS:
-    sol_status = kError;
-    break;
-   case CPXMIP_UNBOUNDED:
-    sol_status = kUnbounded;
-    break;
-   default:
-    sol_status = status;
-    break;
-  }
-
+  sol_status = compute_mip();
  } else {
-  if( is_qp ) {
-   // QP Optimization
-   status = CPXqpopt( env, lp );
-   if( status ) {
-    throw std::runtime_error( "CPXqpopt() encountered an error" );
-   }
-
-  } else {
-   // LP Optimization
-   status = CPXlpopt( env, lp );
-   if( status ) {
-    throw std::runtime_error( "CPXlpopt() encountered an error" );
-   }
-  }
-
-  status = CPXgetstat( env, lp );
-  switch( status ) {
-   case CPX_STAT_OPTIMAL :
-    sol_status = kOK;
-    break;
-   case CPX_STAT_INFEASIBLE :
-    sol_status = kInfeasible;
-    break;
-   case CPX_STAT_ABORT_IT_LIM :
-    sol_status = kStopIter;
-    break;
-   case CPX_STAT_ABORT_TIME_LIM :
-    sol_status = kStopTime;
-    break;
-   case CPX_STAT_UNBOUNDED :
-   case CPX_STAT_INForUNBD :
-    sol_status = kUnbounded;
-    break;
-   default:
-    sol_status = status;
-    break;
-  }
+  sol_status = compute_lqp( is_qp );
  }
-
  return sol_status;
 }
 
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::compute_mip() {
+ int status = CPXmipopt( env, lp );
+ BOOST_LOG_TRIVIAL( debug ) << "CPXmipopt() returned " << status;
+
+ if( status ) {
+  if( status == CPXERR_SUBPROB_SOLVE ) {
+   // Failed to solve one of the subproblems in the branch-and-cut tree
+   int substatus = CPXgetsubstat( env, lp );
+   BOOST_LOG_TRIVIAL( debug ) << "CPXgetsubstat() returned " << substatus;
+
+   if( substatus == CPX_STAT_ABORT_IT_LIM ) {
+    // Stopped due to limit on number of iterations
+    return kStopIter;
+   }
+  }
+  throw std::runtime_error( "CPXmipopt() encountered an unmanaged error" );
+ }
+
+ status = CPXgetstat( env, lp );
+ BOOST_LOG_TRIVIAL( debug ) << "CPXgetstat() returned " << status;
+ switch( status ) {
+  case CPXMIP_OPTIMAL:
+  case CPXMIP_OPTIMAL_TOL:
+  case CPXMIP_SOL_LIM:
+   return kOK;
+   break;
+  case CPXMIP_INFEASIBLE:
+   return kInfeasible;
+   break;
+  case CPXMIP_NODE_LIM_FEAS:
+  case CPXMIP_NODE_LIM_INFEAS:
+   return kStopIter;
+   break;
+  case CPXMIP_TIME_LIM_FEAS:
+  case CPXMIP_TIME_LIM_INFEAS:
+   return kStopTime;
+   break;
+  case CPXMIP_FAIL_FEAS:
+  case CPXMIP_FAIL_INFEAS:
+   return kError;
+   break;
+  case CPXMIP_UNBOUNDED:
+   return kUnbounded;
+   break;
+  default:
+   break;
+ }
+ throw std::runtime_error( "CPXgetstat() returned an unmanaged status" );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::compute_lqp( bool qp ) {
+ int status;
+
+ if( qp ) {
+  // QP Optimization
+  status = CPXqpopt( env, lp );
+  BOOST_LOG_TRIVIAL( debug ) << "CPXqpopt() returned " << status;
+  if( status ) {
+   throw std::runtime_error( "CPXqpopt() encountered an unmanaged error" );
+  }
+
+ } else {
+  // LP Optimization
+  status = CPXlpopt( env, lp );
+  BOOST_LOG_TRIVIAL( debug ) << "CPXlpopt() returned " << status;
+  if( status ) {
+   throw std::runtime_error( "CPXlpopt() encountered an unmanaged error" );
+  }
+ }
+
+ status = CPXgetstat( env, lp );
+ BOOST_LOG_TRIVIAL( debug ) << "CPXgetstat() returned " << status;
+ switch( status ) {
+  case CPX_STAT_OPTIMAL :
+   return kOK;
+   break;
+  case CPX_STAT_INFEASIBLE :
+   return kInfeasible;
+   break;
+  case CPX_STAT_ABORT_IT_LIM :
+   return kStopIter;
+   break;
+  case CPX_STAT_ABORT_TIME_LIM :
+   return kStopTime;
+   break;
+  case CPX_STAT_UNBOUNDED :
+  case CPX_STAT_INForUNBD :
+   return kUnbounded;
+   break;
+  default:
+   break;
+ }
+ throw std::runtime_error( "CPXgetstat() returned an unmanaged status" );
+}
+
+/*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 Solver::OFValue CPXMILPSolver::get_lb() {

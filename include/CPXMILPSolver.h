@@ -403,6 +403,12 @@ class CPXMILPSolver : public MILPSolver {
   */
  int CPXgetintvars( std::vector< char > * ctype = nullptr );
 
+/// Solves a MIP problem with CPXmipopt()
+ int compute_mip();
+
+ /// Solves a LP/QP problem with CPXlpopt() or CPXqpopt()
+ int compute_lqp( bool qp = false );
+
  SMSpp_insert_in_factory_h;
 };
 
