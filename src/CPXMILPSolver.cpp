@@ -57,7 +57,7 @@
 
 using namespace SMSpp_di_unipi_it;
 
-SMSpp_insert_in_factory_cpp_0( CPXMILPSolver );
+SMSpp_insert_in_factory_cpp_0( CPXMILPSolver )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
@@ -384,7 +384,7 @@ Solver::OFValue CPXMILPSolver::get_lb() {
    }
    break;
 
-  // Maximization problem
+   // Maximization problem
   case CPX_MAX:
 
    switch( sol_status ) {
@@ -452,7 +452,7 @@ Solver::OFValue CPXMILPSolver::get_ub() {
    }
    break;
 
-  // Maximization problem
+   // Maximization problem
   case CPX_MAX:
 
    switch( sol_status ) {
@@ -486,7 +486,7 @@ Solver::OFValue CPXMILPSolver::get_ub() {
    }
    break;
 
-  // Sense not defined
+   // Sense not defined
   default:
    throw std::runtime_error( "Objective type not yet defined" );
    break;
@@ -562,22 +562,16 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
    Q.push( i );
   }
 
+  auto set = [ &x, &col ]( ColVariable & v ) {
+   v.set_value( x[ col++ ] );
+  };
+
   for( const auto & i : q_Block->get_static_variables() ) {
-   auto f1 = std::bind( &CPXMILPSolver::set_var_value,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( x ),
-                        std::ref( col ) );
-   un_any_const_static( i, f1, un_any_type< ColVariable >() );
+   un_any_const_static( i, set, un_any_type< ColVariable >() );
   }
 
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-   auto f1 = std::bind( &CPXMILPSolver::set_var_value,
-                        this,
-                        std::placeholders::_1,
-                        std::ref( x ),
-                        std::ref( col ) );
-   un_any_const_dynamic( i, f1, un_any_type< ColVariable >() );
+   un_any_const_dynamic( i, set, un_any_type< ColVariable >() );
   }
  }
 
@@ -983,15 +977,15 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
 
   if( lf != nullptr ) {
    // Linear objective function
-   indices.reserve(lf->get_num_active_var());
-   values.reserve(lf->get_num_active_var());
+   indices.reserve( lf->get_num_active_var() );
+   values.reserve( lf->get_num_active_var() );
 
    for( auto el : lf->get_v_var() ) {
     indices.push_back( index_of_variable( el.first ) );
     values.push_back( el.second );
    }
 
-   if (!indices.empty()) {
+   if( !indices.empty() ) {
     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
    }
 
@@ -1016,9 +1010,9 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
 
   } else if( qf != nullptr ) {
    // Quadratic objective function
-   indices.reserve(qf->get_num_active_var());
-   values.reserve(qf->get_num_active_var());
-   q_values.reserve(qf->get_num_active_var());
+   indices.reserve( qf->get_num_active_var() );
+   values.reserve( qf->get_num_active_var() );
+   q_values.reserve( qf->get_num_active_var() );
 
    for( auto el : qf->get_v_var() ) {
     // Linear coefficients can be changed all at once with CPXchgobj
@@ -1030,7 +1024,7 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
     CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
    }
 
-   if (!indices.empty()) {
+   if( !indices.empty() ) {
     CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
    }
 
@@ -1064,9 +1058,9 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
    auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
    std::vector< int > rows;
 
-   indices.reserve(lf->get_num_active_var());
-   values.reserve(lf->get_num_active_var());
-   rows.reserve(lf->get_num_active_var());
+   indices.reserve( lf->get_num_active_var() );
+   values.reserve( lf->get_num_active_var() );
+   rows.reserve( lf->get_num_active_var() );
 
    for( auto el : lf->get_v_var() ) {
     indices.push_back( index_of_variable( el.first ) );
@@ -1312,8 +1306,8 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  }
 
  // Get the bounds
- double lb = get_problem_lb(*p_var);
- double ub = get_problem_ub(*p_var);
+ double lb = get_problem_lb( *p_var );
+ double ub = get_problem_ub( *p_var );
 
  // Update the CPLEX problem
  int nzcnt = cmatind.size();
@@ -1396,7 +1390,7 @@ CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
 
   MILPSolver::remove_dynamic_constraint( p_const );
  } else {
-  throw std::runtime_error("Dynamic constraint not found");
+  throw std::runtime_error( "Dynamic constraint not found" );
  }
 }
 
@@ -1411,7 +1405,7 @@ CPXMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 
   MILPSolver::remove_dynamic_variable( p_var );
  } else {
-  throw std::runtime_error("Dynamic variable not found");
+  throw std::runtime_error( "Dynamic variable not found" );
  }
 }
 
@@ -1466,7 +1460,7 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
 
  // Direct CPLEX parameter
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar];
+  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
 
   // Both int and long CPLEX parameters are handled as SMS++ int parameters
   int type;
@@ -1481,7 +1475,7 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
   return;
  }
 
- MILPSolver::set_par( par , value );
+ MILPSolver::set_par( par, value );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1599,7 +1593,7 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
 
  // Direct CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar];
+  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
 
   // Both int and long CPLEX parameters are handled as SMS++ int parameters
   int type;
@@ -1611,7 +1605,7 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
     return value;
    case CPX_PARAMTYPE_LONG:
     CPXgetlongparam( env, cplex_par, &long_value );
-    return (int)long_value;
+    return ( int ) long_value;
    default:
     break;
   }
@@ -1703,7 +1697,7 @@ int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const {
  if( par == intMaxIter ) {
   CPXinfolongparam( env, CPXPARAM_MIP_Limits_Nodes, &long_value,
                     nullptr, nullptr );
-  return (int)long_value;
+  return ( int ) long_value;
  }
  if( par == intMaxSol ) {
   CPXinfointparam( env, CPXPARAM_MIP_Pool_Capacity, &value, nullptr, nullptr );
@@ -1721,7 +1715,7 @@ int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const {
 
  // Direct CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar];
+  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
 
   // Both int and long CPLEX parameters are handled as SMS++ int parameters
   int type;
@@ -1733,7 +1727,7 @@ int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const {
     return value;
    case CPX_PARAMTYPE_LONG:
     CPXinfolongparam( env, cplex_par, &long_value, nullptr, nullptr );
-    return (int)long_value;
+    return ( int ) long_value;
    default:
     break;
   }
@@ -1853,7 +1847,7 @@ CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
 
  // CPLEX parameters
  if( idx >= intFirstCPLEXPar && idx < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars[ idx - intFirstCPLEXPar];
+  int cplex_par = SMSpp_to_CPLEX_int_pars[ idx - intFirstCPLEXPar ];
   char par_name[CPX_STR_PARAM_MAX];
 #if CPX_VERSION < 12090000
   int status = CPXgetparamname( env, cplex_par, par_name );
@@ -1960,17 +1954,11 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_var_value( ColVariable & lvar, double * x, int & i ) {
- BOOST_LOG_TRIVIAL(trace) << "MILPSolver::set_var_value(): index = " << std::setw( 4 ) << i << ", value = " << x[ i ];
- lvar.set_value( x[ i++ ] );
-}
-
-/*--------------------------------------------------------------------------*/
-
 void CPXMILPSolver::set_dual_value( FRowConstraint & lconst,
                                     double * pi,
                                     int & i ) {
- BOOST_LOG_TRIVIAL(trace) << "MILPSolver::set_dual_value(): index = " << std::setw( 4 ) << i << ", value = " << pi[ i ];
+ BOOST_LOG_TRIVIAL( trace ) << "MILPSolver::set_dual_value(): index = "
+                            << std::setw( 4 ) << i << ", value = " << pi[ i ];
  lconst.set_dual( pi[ i++ ] );
 }
 
