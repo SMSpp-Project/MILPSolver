@@ -49,7 +49,7 @@ SMSpp_insert_in_factory_cpp_0( MILPSolver )
 MILPSolver::MILPSolver() : CDASolver() {
 #ifdef MILPSLVR_DEBUG
  boost::log::core::get()->set_filter(
-  boost::log::trivial::severity >= boost::log::trivial::trace
+  boost::log::trivial::severity >= boost::log::trivial::debug
  );
 #else
  boost::log::core::get()->set_filter(
@@ -230,11 +230,14 @@ void MILPSolver::load_problem() {
   throw std::runtime_error( "Unable to lock the Block" );
  }
 
- // First loop on the queue to count variables and constraints
- Q.push( f_Block );
-
  int num_block = 0; // Counter for the blocks
+ int row = 0;       // Counter for the rows
+ int col = 0;       // Counter for the columns
 
+ // Count variables and constraints
+ // --------------------------------------------------------------------------
+
+ Q.push( f_Block );
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
@@ -259,7 +262,8 @@ void MILPSolver::load_problem() {
     continue;
    }
    // Vectors
-   if( un_any_thing_1( FRowConstraint, i, {
+   if( un_any_thing_1( FRowConstraint, i,
+                       {
                         numrows += var.size();
                         static_cons += var.size();
                        }
@@ -267,7 +271,8 @@ void MILPSolver::load_problem() {
     continue;
    }
    // Multiarrays
-   if( un_any_thing_K( FRowConstraint, i, {
+   if( un_any_thing_K( FRowConstraint, i,
+                       {
                         numrows += var.num_elements();
                         static_cons += var.num_elements();
                        }
@@ -280,14 +285,16 @@ void MILPSolver::load_problem() {
    << "MILPSolver::set_Block() counting dynamic constraints";
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
    // Single lists
-   if( un_any_thing_0( std::list < FRowConstraint > , i, {
+   if( un_any_thing_0( std::list< FRowConstraint >, i,
+                       {
                         numrows += var.size();
                        }
    ) ) {
     continue;
    }
    // Vectors of lists
-   if( un_any_thing_1( std::list < FRowConstraint > , i, {
+   if( un_any_thing_1( std::list< FRowConstraint >, i,
+                       {
                         for( auto & el: var ) {
                          numrows += el.size();
                         }
@@ -296,7 +303,8 @@ void MILPSolver::load_problem() {
     continue;
    }
    // Multiarrays of lists
-   if( un_any_thing_K( std::list < FRowConstraint > , i, {
+   if( un_any_thing_K( std::list< FRowConstraint >, i,
+                       {
                         auto it = var.data();
                         for( auto i = var.num_elements(); i--; ++it ) {
                          numrows += it->size();
@@ -314,13 +322,14 @@ void MILPSolver::load_problem() {
    if( un_any_thing_0( ColVariable, i,
                        {
                         ++numcols;
-                       ++static_vars;
+                        ++static_vars;
                        }
    ) ) {
     continue;
    }
    // Vectors
-   if( un_any_thing_1( ColVariable, i, {
+   if( un_any_thing_1( ColVariable, i,
+                       {
                         numcols += var.size();
                         static_vars += var.size();
                        }
@@ -328,7 +337,8 @@ void MILPSolver::load_problem() {
     continue;
    }
    // Multiarrays
-   if( un_any_thing_K( ColVariable, i, {
+   if( un_any_thing_K( ColVariable, i,
+                       {
                         numcols += var.num_elements();
                         static_vars += var.num_elements();
                        }
@@ -341,14 +351,16 @@ void MILPSolver::load_problem() {
    << "MILPSolver::set_Block() counting dynamic variables";
   for( const auto & i : q_Block->get_dynamic_variables() ) {
    // Single lists
-   if( un_any_thing_0( std::list < ColVariable > , i, {
+   if( un_any_thing_0( std::list< ColVariable >, i,
+                       {
                         numcols += var.size();
                        }
    ) ) {
     continue;
    }
    // Vectors of lists
-   if( un_any_thing_1( std::list < ColVariable > , i, {
+   if( un_any_thing_1( std::list< ColVariable >, i,
+                       {
                         for( auto & el: var ) {
                          numcols += el.size();
                         }
@@ -357,7 +369,8 @@ void MILPSolver::load_problem() {
     continue;
    }
    // Multiarrays of lists
-   if( un_any_thing_K( std::list < ColVariable > , i, {
+   if( un_any_thing_K( std::list< ColVariable >, i,
+                       {
                         auto it = var.data();
                         for( auto i = var.num_elements(); i--; ++it ) {
                          numcols += it->size();
@@ -386,13 +399,18 @@ void MILPSolver::load_problem() {
    un_any_const_dynamic( i, counter, un_any_type< ColVariable >() );
   }
   ++num_block;
- } // End of while loop on Block queue
+ }
 
- BOOST_LOG_TRIVIAL( debug ) << "numrows (constraints) = " << numrows;
- BOOST_LOG_TRIVIAL( debug ) << "numcols (variables)   = " << numcols;
+ BOOST_LOG_TRIVIAL( debug ) << "numrows (constraints) = " << numrows
+                            << " (S" << static_cons
+                            << "/D" << numrows - static_cons << ")";
+ BOOST_LOG_TRIVIAL( debug ) << "numcols (variables)   = " << numcols
+                            << " (S" << static_vars
+                            << "/D" << numcols - static_vars << ")";
  BOOST_LOG_TRIVIAL( debug ) << "nzelements            = " << nzelements;
- BOOST_LOG_TRIVIAL( debug ) << "static constraints    = " << static_cons;
- BOOST_LOG_TRIVIAL( debug ) << "static variables      = " << static_vars;
+
+ // LP vector allocation
+ // --------------------------------------------------------------------------
 
  // The +1 is needed by generic interface
  matbeg.resize( numcols + 1, 0 );
@@ -421,11 +439,11 @@ void MILPSolver::load_problem() {
  dcon_to_idx.reserve( numrows );
  idx_to_dcon.reserve( numrows );
 
- // Second loop to scan the constraints
- Q.push( f_Block );
- num_block = 0; // Counter for the blocks
- int row = 0;   // Counter for the rows
+ // Scan the static constraints
+ // --------------------------------------------------------------------------
 
+ num_block = 0;
+ Q.push( f_Block );
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
@@ -433,15 +451,6 @@ void MILPSolver::load_problem() {
   for( auto i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
-
-  /*
-   * Scanning and passing all the data of the examined block
-   * to the corresponding CPLEX data. We do this by first scanning
-   * the static part of the problem and then the dynamic part.
-   * This is because we want to have an order in the columns
-   * and rows of the CPLEX coeff matrix where the static part is
-   * being followed by the dynamic one
-   */
 
   int set = 0; // Counter for the constraint groups
 
@@ -475,8 +484,26 @@ void MILPSolver::load_problem() {
     std::get< 2 >( scon_to_idx.back() ) = elements;
    }
   }
+  num_block++;
+ }
 
-  set = 0;
+ std::sort( scon_to_idx.begin(), scon_to_idx.end() );
+
+ // Scan the dynamic constraints
+ // --------------------------------------------------------------------------
+
+ num_block = 0;
+ Q.push( f_Block );
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  int set = 0; // Counter for the constraint groups
+
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
    int elements = -1;
    int start = row;
@@ -505,20 +532,15 @@ void MILPSolver::load_problem() {
    set++;
   }
   num_block++;
- } // End of while loop on Block queue
+ }
 
- // Keep the dictionaries sorted
- std::sort( scon_to_idx.begin(), scon_to_idx.end() );
  std::sort( dcon_to_idx.begin(), dcon_to_idx.end() );
 
- // These are already sorted at this point
- // std::sort( v_int_s_const.begin(), v_int_s_const.end() );
- // std::sort( v_int_d_const.begin(), v_int_d_const.end() );
+ // Scan the static variables
+ // --------------------------------------------------------------------------
 
- // Third loop to scan the variables
- Q.push( f_Block );
  num_block = 0;
- int col = 0; // Counter for the columns
+ Q.push( f_Block );
 
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
@@ -560,8 +582,26 @@ void MILPSolver::load_problem() {
     std::get< 2 >( svar_to_idx.back() ) = elements;
    }
   }
+  num_block++;
+ }
 
-  set = 0;
+ std::sort( svar_to_idx.begin(), svar_to_idx.end() );
+
+// Scan the dynamic variables
+ // --------------------------------------------------------------------------
+
+ num_block = 0;
+ Q.push( f_Block );
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto * i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  int set = 0;   // Counter for the variable groups
+
   for( const auto & i : q_Block->get_dynamic_variables() ) {
    int elements = -1;
    int start = col;
@@ -590,15 +630,12 @@ void MILPSolver::load_problem() {
    set++;
   }
   num_block++;
- } // End of while loop on Block queue
+ }
 
- // Keep the dictionaries sorted
- std::sort( svar_to_idx.begin(), svar_to_idx.end() );
  std::sort( dvar_to_idx.begin(), dvar_to_idx.end() );
 
- // These are already sorted at this point
- // std::sort( v_int_s_var.begin(), v_int_s_var.end() );
- // std::sort( v_int_d_var.begin(), v_int_d_var.end() );
+ // Scan the objective
+ // --------------------------------------------------------------------------
 
  switch( f_Block->get_objective_sense() ) {
   case ( Objective::eMax ):
@@ -612,7 +649,6 @@ void MILPSolver::load_problem() {
    break;
  }
 
- // Fourth loop to scan the objective(s?)
  Q.push( f_Block );
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
@@ -626,7 +662,7 @@ void MILPSolver::load_problem() {
   if( p_obj ) {
    scan_objective( p_obj );
   }
- } // End of while loop on Block queue
+ }
 
  BOOST_LOG_TRIVIAL( debug ) << "objective   = " << log_vector( objective );
  BOOST_LOG_TRIVIAL( debug ) << "q_objective = " << log_vector( q_objective );
