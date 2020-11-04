@@ -724,7 +724,7 @@ class MILPSolver : public CDASolver {
 
  /// Returns a loggable representation of a vector of chars
  template<>
- std::string log_vector( const std::vector< char > & v, int limit);
+ std::string log_vector( const std::vector< char > & v, int limit );
 
  SMSpp_insert_in_factory_h;
 };

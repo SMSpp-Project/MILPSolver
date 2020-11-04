@@ -933,6 +933,7 @@ Solver::OFValue CPXMILPSolver::get_var_value() {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_var_solution( Configuration * solc ) {
+ // TODO use vector
  auto * x = new double[numcols];
  int status = CPXgetx( env, lp, x, 0, numcols - 1 );
  if( status ) {
@@ -1016,7 +1017,7 @@ bool CPXMILPSolver::is_dual_feasible() {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
-
+ // TODO use vector
  auto * pi = new double[numrows];
  int status = CPXgetpi( env, lp, pi, 0, numrows - 1 );
  if( status ) {
@@ -1066,6 +1067,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 /*--------------------------------------------------------------------------*/
 
 bool CPXMILPSolver::has_dual_direction() {
+ // TODO use vector
  auto * y = new double[numrows];
  double proof = 0;
  int status = CPXdualfarkas( env, lp, y, &proof );
@@ -1076,7 +1078,7 @@ bool CPXMILPSolver::has_dual_direction() {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
-
+ // TODO use vector
  auto * y = new double[numrows];
  auto * v = new double[numcols];
  auto * w = new double[numcols];

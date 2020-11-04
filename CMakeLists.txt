@@ -10,9 +10,9 @@ cmake_minimum_required(VERSION 3.11)
 project(MILPSolver VERSION 0.3.0 LANGUAGES CXX)
 
 # ----- Settings ------------------------------------------------------------ #
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    add_compile_definitions(MILPSLVR_DEBUG)
-endif ()
+#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    add_compile_definitions(MILPSOLVER_DEBUG)
+#endif ()
 
 # ----- Requirements -------------------------------------------------------- #
 # This is to use the find modules we provide
@@ -47,11 +47,11 @@ if (CPLEX_FOUND)
     target_link_libraries(MILPSolver PUBLIC CPLEX::Cplex)
 endif ()
 
-if(SCIP_FOUND)
+if (SCIP_FOUND)
     target_sources(MILPSolver PRIVATE src/SCIPMILPSolver.cpp)
     target_link_libraries(MILPSolver PUBLIC ${SCIP_LIBRARIES})
     target_include_directories(MILPSolver PRIVATE ${SCIP_INCLUDE_DIRS})
-endif()
+endif ()
 
 # Alias for testing
 add_library(SMS++::MILPSolver ALIAS MILPSolver)

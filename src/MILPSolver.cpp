@@ -47,7 +47,7 @@ SMSpp_insert_in_factory_cpp_0( MILPSolver );
 /*--------------------------------------------------------------------------*/
 
 MILPSolver::MILPSolver() : CDASolver() {
-#ifdef MILPSLVR_DEBUG
+#ifdef MILPSOLVER_DEBUG
  boost::log::core::get()->set_filter(
   boost::log::trivial::severity >= boost::log::trivial::debug
  );
@@ -241,7 +241,7 @@ void MILPSolver::load_problem() {
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
-  BOOST_LOG_TRIVIAL( debug ) << "Processing Block " << num_block << " ["
+  BOOST_LOG_TRIVIAL( trace ) << "Processing Block " << num_block << " ["
                              << q_Block << "]";
   BOOST_LOG_TRIVIAL( trace ) << *q_Block;
 
@@ -401,6 +401,7 @@ void MILPSolver::load_problem() {
   ++num_block;
  }
 
+ BOOST_LOG_TRIVIAL( debug ) << "Number of blocks      = " << num_block;
  BOOST_LOG_TRIVIAL( debug ) << "numrows (constraints) = " << numrows
                             << " (S:" << static_cons
                             << "/D:" << numrows - static_cons << ")";
@@ -1157,8 +1158,10 @@ void MILPSolver::process_modifications() {
   */
  for( auto mod = front(); mod; mod = front() ) {
 
-  // A function like this is needed to be called recursively with GroupModifications
+  // A function like this is needed to be called
+  // recursively with GroupModifications
   std::function< void( sp_Mod ) > f;
+
   f = [ this, &f ]( const sp_Mod & mod ) {
    BOOST_LOG_TRIVIAL( trace ) << *mod;
 
