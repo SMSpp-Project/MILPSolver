@@ -1234,6 +1234,10 @@ void MILPSolver::process_modifications() {
   f( mod );
   pop_front();
  }
+
+#ifdef MILPSOLVER_DEBUG
+ check_status();
+#endif
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1539,6 +1543,350 @@ std::string MILPSolver::log_vector( const std::vector< char > & v, int limit ) {
  temp_log += "]";
  return temp_log;
 }
+
+/*--------------------------------------------------------------------------*/
+
+#ifdef MILPSOLVER_DEBUG
+
+void MILPSolver::check_status() {
+ int v = 0;
+ int c = 0;
+ int sv = 0;
+ int sc = 0;
+ int svg = 0;
+ int scg = 0;
+ int dv = 0;
+ int dc = 0;
+
+ BOOST_LOG_TRIVIAL( debug ) << "Checking MILPSolver dictionaries";
+
+ // ------------------ Count everything -------------------
+ std::queue< Block * > Q;
+
+ // Locking the Block
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->read_lock() ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
+
+ Q.push( f_Block );
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto * i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  for( const auto & i : q_Block->get_static_constraints() ) {
+   // Singles
+   if( un_any_thing_0( FRowConstraint, i,
+                       {
+                        ++scg;
+                        ++c;
+                        ++sc;
+                       }
+   ) ) {
+    continue;
+   }
+   // Vectors
+   if( un_any_thing_1( FRowConstraint, i,
+                       {
+                        ++scg;
+                        c += var.size();
+                        sc += var.size();
+                       }
+   ) ) {
+    continue;
+   }
+   // Multiarrays
+   if( un_any_thing_K( FRowConstraint, i,
+                       {
+                        ++scg;
+                        c += var.num_elements();
+                        sc += var.num_elements();
+                       }
+   ) ) {
+    continue;
+   }
+  }
+
+  for( const auto & i : q_Block->get_dynamic_constraints() ) {
+   // Single lists
+   if( un_any_thing_0( std::list< FRowConstraint >, i,
+                       {
+                        c += var.size();
+                       }
+   ) ) {
+    continue;
+   }
+   // Vectors of lists
+   if( un_any_thing_1( std::list< FRowConstraint >, i,
+                       {
+                        for( auto & el: var ) {
+                         c += el.size();
+                        }
+                       }
+   ) ) {
+    continue;
+   }
+   // Multiarrays of lists
+   if( un_any_thing_K( std::list< FRowConstraint >, i,
+                       {
+                        auto it = var.data();
+                        for( auto i = var.num_elements(); i--; ++it ) {
+                         c += it->size();
+                        }
+                       }
+   ) ) {
+    continue;
+   }
+  }
+  dc = c - sc;
+
+  for( const auto & i : q_Block->get_static_variables() ) {
+   // Singles
+   if( un_any_thing_0( ColVariable, i,
+                       {
+                        ++svg;
+                        ++v;
+                        ++sv;
+                       }
+   ) ) {
+    continue;
+   }
+   // Vectors
+   if( un_any_thing_1( ColVariable, i,
+                       {
+                        ++svg;
+                        v += var.size();
+                        sv += var.size();
+                       }
+   ) ) {
+    continue;
+   }
+   // Multiarrays
+   if( un_any_thing_K( ColVariable, i,
+                       {
+                        ++svg;
+                        v += var.num_elements();
+                        sv += var.num_elements();
+                       }
+   ) ) {
+    continue;
+   }
+  }
+
+  for( const auto & i : q_Block->get_dynamic_variables() ) {
+   // Single lists
+   if( un_any_thing_0( std::list< ColVariable >, i,
+                       {
+                        v += var.size();
+                       }
+   ) ) {
+    continue;
+   }
+   // Vectors of lists
+   if( un_any_thing_1( std::list< ColVariable >, i,
+                       {
+                        for( auto & el: var ) {
+                         v += el.size();
+                        }
+                       }
+   ) ) {
+    continue;
+   }
+   // Multiarrays of lists
+   if( un_any_thing_K( std::list< ColVariable >, i,
+                       {
+                        auto it = var.data();
+                        for( auto i = var.num_elements(); i--; ++it ) {
+                         v += it->size();
+                        }
+                       }
+   ) ) {
+    continue;
+   }
+  }
+  dv = v - sv;
+ }
+
+ // Unlock the Block
+ if( !owned ) {
+  f_Block->read_unlock();
+ }
+
+ if( numcols != v ) {
+  BOOST_LOG_TRIVIAL( error ) << "numcols is " << numcols <<
+                             ", it should be "
+                             << v;
+ }
+ if( numrows != c ) {
+  BOOST_LOG_TRIVIAL( error ) << "numrows is " << numrows
+                             << ", it should be " << c;
+ }
+ if( static_vars != sv ) {
+  BOOST_LOG_TRIVIAL( error ) << "static_vars is " << static_vars
+                             << ", it should be " << sv;
+ }
+ if( static_cons != sc ) {
+  BOOST_LOG_TRIVIAL( error ) << "static_cons is " << static_cons
+                             << ", it should be " << sc;
+ }
+
+ // ------------------ Svar dictionaries ------------------
+
+ for( auto & i: idx_to_svar ) {
+  auto j = std::find_if( svar_to_idx.begin(), svar_to_idx.end(),
+                         [ & ]( auto & pair ) {
+                          return std::get< 1 >( pair ) == i.first &&
+                                 std::get< 0 >( pair ) == i.second;
+                         } );
+  if( j == svar_to_idx.end() ) {
+   BOOST_LOG_TRIVIAL( error ) << "Element [" << i.first << ", " << i.second
+                              << "] of idx_to_svar was not found in svar_to_idx";
+  }
+ }
+
+ for( auto & i: svar_to_idx ) {
+  auto j = std::find_if( idx_to_svar.begin(), idx_to_svar.end(),
+                         [ & ]( auto & pair ) {
+                          return std::get< 0 >( i ) == pair.second &&
+                                 std::get< 1 >( i ) == pair.first;
+                         } );
+  if( j == idx_to_svar.end() ) {
+   BOOST_LOG_TRIVIAL( error ) << "Element [" << std::get< 0 >( i )
+                              << ", " << std::get< 1 >( i ) <<
+                              "] of svar_to_idx was not found in idx_to_svar";
+  }
+ }
+
+ if( idx_to_svar.size() != svg ) {
+  BOOST_LOG_TRIVIAL( error ) << "Size of idx_to_svar is " << idx_to_svar.size()
+                             << ", it should be " << sv;
+ }
+
+ if( svar_to_idx.size() != svg ) {
+  BOOST_LOG_TRIVIAL( error ) << "Size of svar_to_idx is " << svar_to_idx.size()
+                             << ", it should be " << svg;
+ }
+
+ // ------------------ Dvar dictionaries ------------------
+
+ for( auto & i: idx_to_dvar ) {
+  auto j = std::find_if( dvar_to_idx.begin(), dvar_to_idx.end(),
+                         [ & ]( auto & pair ) {
+                          return pair.second == i.first &&
+                                 pair.first == i.second;
+                         } );
+  if( j == dvar_to_idx.end() ) {
+   BOOST_LOG_TRIVIAL( error ) << "Element [" << i.first << ", " << i.second
+                              << "] of idx_to_dvar was not found in dvar_to_idx";
+  }
+ }
+
+ for( auto & i: dvar_to_idx ) {
+  auto j = std::find_if( idx_to_dvar.begin(), idx_to_dvar.end(),
+                         [ & ]( auto & pair ) {
+                          return i.first == pair.second &&
+                                 i.second == pair.first;
+                         } );
+  if( j == idx_to_dvar.end() ) {
+   BOOST_LOG_TRIVIAL( debug ) << "Element [" << i.first << ", " << i.second
+                              << "] of dvar_to_idx was not found in idx_to_dvar";
+  }
+ }
+
+ if( idx_to_dvar.size() != dv ) {
+  BOOST_LOG_TRIVIAL( error ) << "Size of idx_to_dvar is " << idx_to_dvar.size()
+                             << ", it should be " << dv;
+ }
+
+ if( dvar_to_idx.size() != dv ) {
+  BOOST_LOG_TRIVIAL( error ) << "Size of dvar_to_idx is " << dvar_to_idx.size()
+                             << ", it should be " << dv;
+ }
+
+ // ------------------ Scon dictionaries ------------------
+
+ for( auto & i: idx_to_scon ) {
+  auto j = std::find_if( scon_to_idx.begin(), scon_to_idx.end(),
+                         [ & ]( auto & pair ) {
+                          return std::get< 1 >( pair ) == i.first &&
+                                 std::get< 0 >( pair ) == i.second;
+                         } );
+  if( j == scon_to_idx.end() ) {
+   BOOST_LOG_TRIVIAL( error ) << "Element [" << i.first << ", " << i.second
+                              << "] of idx_to_scon was not found in scon_to_idx";
+  }
+ }
+
+ for( auto & i: scon_to_idx ) {
+  auto j = std::find_if( idx_to_scon.begin(), idx_to_scon.end(),
+                         [ & ]( auto & pair ) {
+                          return std::get< 0 >( i ) == pair.second &&
+                                 std::get< 1 >( i ) == pair.first;
+                         } );
+  if( j == idx_to_scon.end() ) {
+   BOOST_LOG_TRIVIAL( error ) << "Element [" << std::get< 0 >( i )
+                              << ", " << std::get< 1 >( i )
+                              << "] of scon_to_idx was not found in idx_to_scon";
+  }
+ }
+
+ if( idx_to_scon.size() != scg ) {
+  BOOST_LOG_TRIVIAL( error ) << "Size of idx_to_scon is " << idx_to_scon.size()
+                             << ", it should be " << scg;
+ }
+
+ if( scon_to_idx.size() != scg ) {
+  BOOST_LOG_TRIVIAL( error ) << "Size of scon_to_idx is " << scon_to_idx.size()
+                             << ", it should be " << scg;
+ }
+
+ // ------------------ Dcon dictionaries ------------------
+
+ for( auto & i: idx_to_dcon ) {
+  auto j = std::find_if( dcon_to_idx.begin(), dcon_to_idx.end(),
+                         [ & ]( auto & pair ) {
+                          return pair.second == i.first &&
+                                 pair.first == i.second;
+                         } );
+  if( j == dcon_to_idx.end() ) {
+   BOOST_LOG_TRIVIAL( error ) << "Element [" << i.first << ", " << i.second
+                              << "] of idx_to_dcon was not found in dcon_to_idx";
+  }
+ }
+ for( auto & i: dcon_to_idx ) {
+  auto j = std::find_if( idx_to_dcon.begin(), idx_to_dcon.end(),
+                         [ & ]( auto & pair ) {
+                          return i.first == pair.second &&
+                                 i.second == pair.first;
+                         } );
+  if( j == idx_to_dcon.end() ) {
+   BOOST_LOG_TRIVIAL( error ) << "Element [" << i.first << ", " << i.second
+                              << "] of dcon_to_idx was not found in idx_to_dcon";
+  }
+ }
+
+ if( idx_to_dcon.size() != dc ) {
+  BOOST_LOG_TRIVIAL( error ) << "Size of idx_to_dcon is " << idx_to_dcon.size()
+                             << ", it should be " << dc;
+ }
+
+ if( dcon_to_idx.size() != dc ) {
+  BOOST_LOG_TRIVIAL( error ) << "Size of dcon_to_idx is " << dcon_to_idx.size()
+                             << ", it should be " << dc;
+ }
+
+
+ // ------------------ Check int_vars ------------------
+
+ int actual_int_vars = 0;
+
+}
+
+#endif // MILPSOLVER_DEBUG
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- End File MILPSolver.cpp --------------------------*/

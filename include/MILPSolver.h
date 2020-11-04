@@ -355,6 +355,11 @@ class MILPSolver : public CDASolver {
  /// Returns the number of integer variables
  [[nodiscard]] int get_num_integer_vars() const;
 
+#ifdef MILPSOLVER_DEBUG
+ /// Check the dictionaries for inconsistencies
+ void check_status();
+#endif
+
 /*--------------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
