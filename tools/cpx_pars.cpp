@@ -108,14 +108,16 @@ int main( int argc, char ** argv ) {
 
  defs_file << "/* FILE GENERATED AUTOMATICALLY, DO NOT EDIT */" << std::endl
            << std::endl
-           << "#ifndef __CPX12100000_DEFS" << std::endl
-           << "#define __CPX12100000_DEFS" << std::endl
+           << "#ifndef __CPX" << std::to_string( CPX_VERSION ) << "_DEFS"
            << std::endl
+           << "#define __CPX" << std::to_string( CPX_VERSION ) << "_DEFS"
+           << std::endl << std::endl
            << "#define CPX_NUM_INT_PARS " << int_counter << std::endl
            << "#define CPX_NUM_DBL_PARS " << dbl_counter << std::endl
            << "#define CPX_NUM_STR_PARS " << str_counter << std::endl
            << std::endl
-           << "#endif //__CPX12100000_DEFS" << std::endl;
+           << "#endif //__CPX" << std::to_string( CPX_VERSION ) << "_DEFS"
+           << std::endl;
 
  defs_file.close();
  std::cout << "Defs file written on " << defs_file_name << std::endl;
