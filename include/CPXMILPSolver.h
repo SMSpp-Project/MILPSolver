@@ -403,11 +403,24 @@ class CPXMILPSolver : public MILPSolver {
   */
  int CPXgetintvars( std::vector< char > * ctype = nullptr );
 
-/// Solves a MIP problem with CPXmipopt()
- int compute_mip();
+ /**
+  * Returns the SMS++ status corresponding to the given
+  * CPLEX status returned by CPXgetstat() in case of a LP/QP,
+  * or by CPXgetsubstat() in case of a subproblem of a MIP.
+  */
+ static int decode_lqp_status( int status );
 
- /// Solves a LP/QP problem with CPXlpopt() or CPXqpopt()
- int compute_lqp( bool qp = false );
+ /**
+  * Returns the SMS++ status corresponding to the given
+  * CPLEX status returned by CPXgetstat() in case of a MIP.
+  */
+ static int decode_mip_status( int status );
+
+ /**
+  * Returns the SMS++ status corresponding to the given
+  * CPLEX error returned by CPXmipopt(), CPXlpopt() or CPXqpopt().
+  */
+ static int decode_cpx_error( int error );
 
  SMSpp_insert_in_factory_h;
 };

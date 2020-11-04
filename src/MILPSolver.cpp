@@ -402,11 +402,11 @@ void MILPSolver::load_problem() {
  }
 
  BOOST_LOG_TRIVIAL( debug ) << "numrows (constraints) = " << numrows
-                            << " (S" << static_cons
-                            << "/D" << numrows - static_cons << ")";
+                            << " (S:" << static_cons
+                            << "/D:" << numrows - static_cons << ")";
  BOOST_LOG_TRIVIAL( debug ) << "numcols (variables)   = " << numcols
-                            << " (S" << static_vars
-                            << "/D" << numcols - static_vars << ")";
+                            << " (S:" << static_vars
+                            << "/D:" << numcols - static_vars << ")";
  BOOST_LOG_TRIVIAL( debug ) << "nzelements            = " << nzelements;
 
  // LP vector allocation

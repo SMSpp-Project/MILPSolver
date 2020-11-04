@@ -565,10 +565,10 @@ class MILPSolver : public CDASolver {
   */
  std::vector< char * > rowname;
 
- int sol_status{};    ///< Solution status (OK, Infeasible, Unbounded, ...)
- int int_vars{};      ///< Number of integer variables
- int static_vars{};   ///< Number of static variables
- int static_cons{};   ///< Number of static constraints
+ int sol_status = kUnEval; ///< Solution status (OK, Infeasible, Unbounded, ...)
+ int int_vars{};           ///< Number of integer variables
+ int static_vars{};        ///< Number of static variables
+ int static_cons{};        ///< Number of static constraints
  /// @}
 
  /** @name Clear and load the problem
