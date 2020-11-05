@@ -357,7 +357,7 @@ class MILPSolver : public CDASolver {
 
 #ifdef MILPSOLVER_DEBUG
  /// Check the dictionaries for inconsistencies
- void check_status();
+ virtual void check_status();
 #endif
 
 /*--------------------------------------------------------------------------*/

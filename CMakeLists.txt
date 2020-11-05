@@ -10,9 +10,9 @@ cmake_minimum_required(VERSION 3.11)
 project(MILPSolver VERSION 0.3.0 LANGUAGES CXX)
 
 # ----- Settings ------------------------------------------------------------ #
-#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     add_compile_definitions(MILPSOLVER_DEBUG)
-#endif ()
+endif ()
 
 # ----- Requirements -------------------------------------------------------- #
 # This is to use the find modules we provide

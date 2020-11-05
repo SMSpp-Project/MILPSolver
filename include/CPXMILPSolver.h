@@ -201,6 +201,11 @@ class CPXMILPSolver : public MILPSolver {
  [[nodiscard]] int get_nodes() const override;
  /// @}
 
+#ifdef MILPSOLVER_DEBUG
+ /// Check the dictionaries for inconsistencies
+ void check_status() override;
+#endif
+
 /*--------------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/

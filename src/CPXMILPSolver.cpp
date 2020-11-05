@@ -71,6 +71,9 @@ CPXMILPSolver::CPXMILPSolver() : MILPSolver() {
                             std::to_string( status ) );
  }
  lp = nullptr;
+#ifdef MILPSOLVER_DEBUG
+ CPXsetintparam( env, CPXPARAM_Read_DataCheck, CPX_DATACHECK_WARN );
+#endif
 }
 
 CPXMILPSolver::~CPXMILPSolver() {
@@ -2511,6 +2514,34 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 
  return MILPSolver::str_par_idx2str( idx );
 }
+
+/*--------------------------------------------------------------------------*/
+
+#ifdef MILPSOLVER_DEBUG
+void CPXMILPSolver::check_status() {
+ BOOST_LOG_TRIVIAL( debug ) << "Checking CPXMILPSolver status";
+
+ if( numcols != CPXgetnumcols( env, lp ) ) {
+  BOOST_LOG_TRIVIAL( error ) << "numcols is " << numcols
+                             << "but CPXgetnumcols() returns "
+                             << CPXgetnumcols( env, lp );
+ }
+
+ if( numrows != CPXgetnumrows( env, lp ) ) {
+  BOOST_LOG_TRIVIAL( error ) << "numrows is " << numrows
+                             << "but CPXgetnumrows() returns "
+                             << CPXgetnumrows( env, lp );
+ }
+
+ int iv = CPXgetintvars( nullptr );
+ if( int_vars != iv ) {
+  BOOST_LOG_TRIVIAL( error ) << "int_vars is " << int_vars
+                             << "but CPLEX has actually " << iv
+                             << " integer variables";
+ }
+ MILPSolver::check_status();
+}
+#endif
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
