@@ -46,11 +46,6 @@
 #include <boost/preprocessor/stringize.hpp>
 #include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX, CPX_VERSION ), _maps.h ) )
 
-// Logging
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/expressions.hpp>
-
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -96,8 +91,8 @@ void CPXMILPSolver::set_Block( Block * block ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::clear_problem() {
- MILPSolver::clear_problem();
+void CPXMILPSolver::clear_problem( unsigned int what ) {
+ MILPSolver::clear_problem( what );
 
  if( lp ) {
   CPXfreeprob( env, &lp );
@@ -112,7 +107,6 @@ void CPXMILPSolver::load_problem() {
  int status = 0;
  lp = CPXcreateprob( env, &status, prob_name.c_str() );
 
- // TODO: don't use class lb/ub here
  for( int i = 0; i < numcols; ++i ) {
   if( lb[ i ] == -Inf< double >() ) {
    lb[ i ] = -CPX_INFBOUND;
@@ -1311,11 +1305,11 @@ void CPXMILPSolver::of_modification( ObjectiveMod * mod ) {
  switch( mod->type() ) {
 
   case ObjectiveMod::eSetMin:
-   CPXchgobjsen( env, lp, 1 );
+   CPXchgobjsen( env, lp, CPX_MIN );
    break;
 
   case ObjectiveMod::eSetMax:
-   CPXchgobjsen( env, lp, -1 );
+   CPXchgobjsen( env, lp, CPX_MAX );
    break;
 
   default:
@@ -1349,8 +1343,8 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
    // In order to relax the constraint all we do is transform it
    // into an inequality with RHS equal to infinity
 
-   sense[ 0 ] = ( 'G' );
-   values[ 0 ] = -Inf< double >();
+   sense[ 0 ] = 'G';
+   values[ 0 ] = -CPX_INFBOUND;
    indices[ 0 ] = index_of_constraint( p_const );
    CPXchgrhs( env, lp, cnt, indices.data(), values.data() );
    CPXchgsense( env, lp, cnt, indices.data(), sense.data() );
@@ -1393,7 +1387,7 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
    break;
 
   default:
-   throw std::invalid_argument( "Invalid type of ObjectiveMod" );
+   throw std::invalid_argument( "Invalid type of ConstraintMod" );
  }
 }
 
@@ -1471,11 +1465,11 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
 
  std::queue< Block * > Q;
 
- // // Locking the Block
- // bool owned = f_Block->is_owned_by( f_id );
- // if( !owned && !f_Block->read_lock() ) {
- //  throw std::runtime_error( "Unable to lock the Block" );
- // }
+ // Locking the Block
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->read_lock() ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
 
  Q.push( f_Block );
  while( !Q.empty() ) {
@@ -1496,10 +1490,10 @@ void CPXMILPSolver::function_modification( FunctionMod * mod ) {
   }
  }
 
- // // Unlock the Block
- // if( !owned ) {
- //  f_Block->read_unlock();
- // }
+ // Unlock the Block
+ if( !owned ) {
+  f_Block->read_unlock();
+ }
 
  // Change the coefficients
  // --------------------------------------------------------------------------
@@ -1632,11 +1626,11 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
 
  std::queue< Block * > Q;
 
- // // Locking the Block
- // bool owned = f_Block->is_owned_by( f_id );
- // if( !owned && !f_Block->read_lock() ) {
- //  throw std::runtime_error( "Unable to lock the Block" );
- // }
+ // Locking the Block
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->read_lock() ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
 
  Q.push( f_Block );
  while( !Q.empty() ) {
@@ -1657,10 +1651,10 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
   }
  }
 
- // // Unlock the Block
- // if( !owned ) {
- //  f_Block->read_unlock();
- // }
+ // Unlock the Block
+ if( !owned ) {
+  f_Block->read_unlock();
+ }
 
  // Modify the coefficients
  // --------------------------------------------------------------------------
@@ -1913,11 +1907,11 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
     throw std::runtime_error( "Wrong CPLEX problem type" );
   }
 
-  old_ctype[ index_of_variable( p_var ) ] = new_ctype;
+  old_ctype[ index_of_dynamic_variable( p_var ) ] = new_ctype;
   CPXcopyctype( env, lp, old_ctype.data() );
  } else {
   // The problem stays a MIP, update only the one variable
-  std::array< int, 1 > indices = { index_of_variable( p_var ) };
+  std::array< int, 1 > indices = { index_of_dynamic_variable( p_var ) };
   CPXchgctype( env, lp, 1, indices.data(), &new_ctype );
  }
 }

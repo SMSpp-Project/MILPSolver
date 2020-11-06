@@ -158,6 +158,37 @@ class MILPSolver : public CDASolver {
 /*--------------------------------------------------------------------------*/
 /*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
+ /** @name Clear and load the problem
+  *
+  * The following two methods include the main logic of the class.
+  * They are called in the set_Block() method to build the problem when the
+  * Solver is [re]registered to a Block, but also when a NBModification is
+  * processed.
+  * Note: A derived class can override these methods but should call the base
+  * versions if it wants to use the LP vectors (see CPXMILPSolver).
+  *
+  * @{
+  */
+
+ /**
+  * It clears the LP vectors.
+  *
+  * The input parameter is a bitwise value that allows to specify which
+  * vectors should be cleared. From the LSB to the MSB:
+  *
+  * - 1 clears the costraint matrix, xctype the column/row names
+  * - 2 clears the OF related vectors (objective and q_objective)
+  * - 4 clears rhs, rngval and sense
+  * - 8 clears lb and ub.
+  *
+  * To clear everything, use what = 15.
+  */
+ virtual void clear_problem( unsigned int what );
+
+ /// It loads the problem from the Block into the LP vectors
+ virtual void load_problem();
+
+ /// @}
 
 /** @name Getters for the vectors of the LP problem.
  *
@@ -582,23 +613,6 @@ class MILPSolver : public CDASolver {
  int int_vars{};           ///< Number of integer variables
  int static_vars{};        ///< Number of static variables
  int static_cons{};        ///< Number of static constraints
- /// @}
-
- /** @name Clear and load the problem
-  *
-  * The following two methods include the main logic of the class.
-  * They are called in the set_Block() method to build the problem when the
-  * Solver is [re]registered to a Block, but also when a NBModification is
-  * processed.
-  * Note: A derived class can override these methods but should call the base
-  * versions if it wants to use the LP vectors (see CPXMILPSolver).
-  *
-  * @{
-  */
-
- virtual void clear_problem(); ///< It clears all the LP vectors
-
- virtual void load_problem();  ///< It loads all the LP vectors
  /// @}
 
  /** @name Get variable bounds for the problem

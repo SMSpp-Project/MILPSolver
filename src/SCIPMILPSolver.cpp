@@ -78,8 +78,8 @@ void SCIPMILPSolver::set_Block( Block * block ) {
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::clear_problem() {
- MILPSolver::clear_problem();
+void SCIPMILPSolver::clear_problem( unsigned int what ) {
+ MILPSolver::clear_problem( what );
 
  SCIP_CALL_ABORT( SCIPfreeProb( scip ) );
 }

@@ -199,12 +199,18 @@ class CPXMILPSolver : public MILPSolver {
 
  /// Returns the number of nodes used to solve a MIP
  [[nodiscard]] int get_nodes() const override;
- /// @}
+
+ /// It clears the CPLEX environment
+ void clear_problem( unsigned int what ) override;
+
+ /// It loads the problem into CPLEX
+ void load_problem() override;
 
 #ifdef MILPSOLVER_DEBUG
  /// Check the dictionaries for inconsistencies
  void check_status() override;
 #endif
+ /// @}
 
 /*--------------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
@@ -290,23 +296,6 @@ class CPXMILPSolver : public MILPSolver {
 
  /// If Variable/Constraint names should be used
  bool use_custom_names = true;
-
- /** @name Clear and load the problem
-  *
-  * The following two methods include the main logic of the class.
-  * They are called in the set_Block() method to build the problem when the
-  * Solver is [re]registered to a Block, but also when a NBModification is
-  * processed.
-  * Note: These two override the base class methods but call them after running
-  * the specific operations for this class.
-  *
-  * @{
-  */
-
- void clear_problem() override; ///< It clears all the LP vectors
-
- void load_problem() override;  ///< It loads all the LP vectors
- /// @}
 
  /** @name Get variable bounds for the problem
   *

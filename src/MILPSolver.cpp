@@ -36,7 +36,7 @@
 
 using namespace SMSpp_di_unipi_it;
 
-SMSpp_insert_in_factory_cpp_0( MILPSolver );
+SMSpp_insert_in_factory_cpp_0( MILPSolver )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
@@ -155,59 +155,54 @@ void MILPSolver::set_Block( Block * block ) {
    block->unlock( f_id );
   }
 
-  clear_problem();
   load_problem();
  }
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::clear_problem() {
- numrows = 0;
- numcols = 0;
- nzelements = 0;
- objsense = 0;
+void MILPSolver::clear_problem( unsigned int what ) {
 
- matbeg.clear();
- matcnt.clear();
- matind.clear();
- matval.clear();
- rhs.clear();
- rngval.clear();
- sense.clear();
- objective.clear();
- q_objective.clear();
- lb.clear();
- ub.clear();
- xctype.clear();
+ if( what & 1u ) {
+  matbeg.clear();
+  matcnt.clear();
+  matind.clear();
+  matval.clear();
+  xctype.clear();
 
- for( auto & i: colname )
-  delete i;
- for( auto & i: rowname )
-  delete i;
- colname.clear();
- rowname.clear();
+  for( auto & i: colname )
+   delete i;
+  for( auto & i: rowname )
+   delete i;
+  colname.clear();
+  rowname.clear();
+ }
 
- svar_to_idx.clear();
- idx_to_svar.clear();
- scon_to_idx.clear();
- idx_to_scon.clear();
- dvar_to_idx.clear();
- idx_to_dvar.clear();
- dcon_to_idx.clear();
- idx_to_dcon.clear();
+ if( what & 2u ) {
+  objective.clear();
+  q_objective.clear();
+ }
+
+ if( what & 4u ) {
+  sense.clear();
+  rhs.clear();
+  rngval.clear();
+ }
+
+ if( what & 8u ) {
+  lb.clear();
+  ub.clear();
+ }
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::load_problem() {
- /*
-  * Passing all the data of the Block to the LP.
-  *
-  * Following a Breadth First Search we proceed with scanning the received
-  * Block and all of each corresponding children if any, in order to populate
-  * the LP data.
-  */
+
+ numrows = 0;
+ numcols = 0;
+ nzelements = 0;
+
  std::queue< Block * > Q;
 
  // Locking the Block
@@ -417,6 +412,15 @@ void MILPSolver::load_problem() {
  xctype.resize( numcols, 0 );
  colname.resize( numcols, nullptr );
  rowname.resize( numrows, nullptr );
+
+ svar_to_idx.clear();
+ idx_to_svar.clear();
+ scon_to_idx.clear();
+ idx_to_scon.clear();
+ dvar_to_idx.clear();
+ idx_to_dvar.clear();
+ dcon_to_idx.clear();
+ idx_to_dcon.clear();
 
  svar_to_idx.reserve( numcols );
  idx_to_svar.reserve( numcols );
@@ -1210,7 +1214,6 @@ void MILPSolver::process_modifications() {
 
    const auto nm = std::dynamic_pointer_cast< NBModification >( mod );
    if( nm ) {
-    clear_problem();
     load_problem();
    }
   };
@@ -1228,7 +1231,26 @@ void MILPSolver::process_modifications() {
 
 void MILPSolver::var_modification( VariableMod * mod ) {
  const auto var = dynamic_cast< const ColVariable * >( mod->variable() );
- // int idx = index_of_variable( var );
+ int idx = index_of_variable( var );
+
+ if( !lb.empty() ) {
+  lb[ idx ] = get_problem_lb( *var );
+ }
+ if( !ub.empty() ) {
+  ub[ idx ] = get_problem_ub( *var );
+ }
+
+ if( !xctype.empty() ) {
+  if( var->is_integer() ) {
+   if( var->is_unitary() && var->is_positive() ) {
+    xctype[ idx ] = 'B';
+   } else {
+    xctype[ idx ] = 'I';
+   }
+  } else {
+   xctype[ idx ] = 'C';
+  }
+ }
 
  // Update the number of integer variables
  if( var->is_integer( mod->old_state() ) ) {
@@ -1238,25 +1260,102 @@ void MILPSolver::var_modification( VariableMod * mod ) {
  if( var->is_integer() ) {
   ++int_vars;
  }
-
- // TODO: Update MILPSolver bounds
- // TODO: Update MILPSolver ctypes?
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::of_modification( ObjectiveMod * mod ) {
- // TODO: Update MILPSolver objsense
+ switch( mod->type() ) {
+
+  case ObjectiveMod::eSetMin:
+   objsense = 1;
+   break;
+  case ObjectiveMod::eSetMax:
+   objsense = -1;
+   break;
+  default:
+   throw std::invalid_argument( "Invalid type of ObjectiveMod" );
+ }
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::const_modification( ConstraintMod * mod ) {
  auto * p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
+ int idx = index_of_constraint( p_const );
 
- // TODO: Update MILPSolver rhs
- // TODO: Update MILPSolver sense
- // TODO: Update MILPSolver rngval
+ RowConstraint::RHSValue const_lhs = NAN;
+ RowConstraint::RHSValue const_rhs = NAN;
+
+ switch( mod->type() ) {
+  case ConstraintMod::eRelaxConst:
+   if( !sense.empty() ) {
+    sense[ idx ] = 'G';
+   }
+   if( !rhs.empty() ) {
+    rhs[ idx ] = -Inf< double >();
+   }
+   if( !rngval.empty() ) {
+    rngval[ idx ] = 0;
+   }
+   break;
+  case ConstraintMod::eEnforceConst:
+  case RowConstraintMod::eChgLHS:
+  case RowConstraintMod::eChgRHS:
+  case RowConstraintMod::eChgBTS:
+
+   const_lhs = p_const->get_lhs();
+   const_rhs = p_const->get_rhs();
+
+   if( const_lhs == const_rhs ) {
+    if( !sense.empty() ) {
+     sense[ idx ] = 'E';
+    }
+    if( !rhs.empty() ) {
+     rhs[ idx ] = const_rhs;
+    }
+    if( !rngval.empty() ) {
+     rngval[ idx ] = 0;
+    }
+
+   } else if( const_lhs == -Inf< double >() ) {
+    if( !sense.empty() ) {
+     sense[ idx ] = 'L';
+    }
+    if( !rhs.empty() ) {
+     rhs[ idx ] = const_rhs;
+    }
+    if( !rngval.empty() ) {
+     rngval[ idx ] = 0;
+    }
+
+   } else if( const_rhs == Inf< double >() ) {
+    if( !sense.empty() ) {
+     sense[ idx ] = 'G';
+    }
+    if( !rhs.empty() ) {
+     rhs[ idx ] = const_lhs;
+    }
+    if( !rngval.empty() ) {
+     rngval[ idx ] = 0;
+    }
+
+   } else {
+    if( !sense.empty() ) {
+     sense[ idx ] = 'R';
+    }
+    if( !rhs.empty() ) {
+     rhs[ idx ] = -Inf< double >();
+    }
+    if( !rngval.empty() ) {
+     rngval[ idx ] = const_rhs - const_lhs;
+    }
+   }
+
+   break;
+  default:
+   throw std::invalid_argument( "Invalid type of ConstraintMod" );
+ }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1264,20 +1363,220 @@ void MILPSolver::const_modification( ConstraintMod * mod ) {
 void MILPSolver::bound_modification( OneVarConstraintMod * mod ) {
  auto * p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
  auto * p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
+ int idx = index_of_variable( p_var );
 
- // TODO: Update MILPSolver bounds
+ switch( mod->type() ) {
+  case RowConstraintMod::eChgLHS:
+   if( !lb.empty() ) {
+    lb[ idx ] = get_problem_lb( *p_var );
+   }
+   break;
+  case RowConstraintMod::eChgRHS:
+   if( !ub.empty() ) {
+    ub[ idx ] = get_problem_ub( *p_var );
+   }
+   break;
+  case RowConstraintMod::eChgBTS:
+   if( !lb.empty() ) {
+    lb[ idx ] = get_problem_lb( *p_var );
+   }
+   if( !ub.empty() ) {
+    ub[ idx ] = get_problem_ub( *p_var );
+   }
+   break;
+  default:
+   throw std::invalid_argument( "Invalid type of OneVarConstraintMod" );
+ }
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::function_modification( FunctionMod * mod ) {
- // TODO: update objective [and q_objective], or constraint coefficient
+ // TODO: Change only involved variables, see function_vars_modification()
+
+ auto * mod_f = mod->function();
+ bool changing_of = false;
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+ const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
+
+ // Check if OF or a Constraint is involved
+ // --------------------------------------------------------------------------
+
+ std::queue< Block * > Q;
+
+ // Locking the Block
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->read_lock() ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
+
+ Q.push( f_Block );
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto * i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  if( p_obj != nullptr ) {
+   auto * of = p_obj->get_function();
+   if( of == mod_f ) {
+    changing_of = true;
+    break;
+   }
+  }
+ }
+
+ // Unlock the Block
+ if( !owned ) {
+  f_Block->read_unlock();
+ }
+
+ // Change the coefficients
+ // --------------------------------------------------------------------------
+
+ if( changing_of ) {
+  // Changing the coefficients of the objective function
+
+  if( lf != nullptr && !objective.empty() ) {
+   // Linear objective function
+   objective.resize( lf->get_num_active_var() );
+   for( auto el : lf->get_v_var() ) {
+    objective[ index_of_variable( el.first ) ] = el.second;
+   }
+
+  } else if( qf != nullptr && !q_objective.empty() ) {
+   // Quadratic objective function
+   objective.resize( qf->get_num_active_var() );
+   q_objective.resize( qf->get_num_active_var() );
+   for( auto el : qf->get_v_var() ) {
+    objective[ index_of_variable( std::get< 0 >( el ) ) ] =
+     std::get< 1 >( el );
+    q_objective[ index_of_variable( std::get< 0 >( el ) ) ] =
+     std::get< 2 >( el );
+   }
+
+  } else {
+   // This should never happen
+   throw std::invalid_argument( "Unknown type of Objective Function" );
+  }
+ } else {
+  // Changing coefficients of a constraint
+  if( lf != nullptr ) {
+   // TODO: update constraint matrix
+  }
+ }
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::function_vars_modification( FunctionModVars * mod ) {
- // TODO: update objective [and q_objective], or constraint coefficient
+
+ auto * mod_f = mod->function();
+ bool changing_of = false;
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+ const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
+
+ // Check if OF or a Constraint is involved
+ // --------------------------------------------------------------------------
+
+ std::queue< Block * > Q;
+
+ // Locking the Block
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->read_lock() ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
+
+ Q.push( f_Block );
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto * i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  if( p_obj != nullptr ) {
+   auto * of = p_obj->get_function();
+   if( of == mod_f ) {
+    changing_of = true;
+    break;
+   }
+  }
+ }
+
+ // Unlock the Block
+ if( !owned ) {
+  f_Block->read_unlock();
+ }
+
+ // Modify the coefficients
+ // --------------------------------------------------------------------------
+
+ // Check the modification type
+ auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
+ auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
+ auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
+
+ if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
+  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
+ }
+
+ if( changing_of ) {
+  // Changing the coefficients of the objective function
+
+  if( lf != nullptr && !objective.empty() ) {
+   // Linear objective function
+   objective.resize( mod->vars().size() );
+
+   for( auto * it1 : mod->vars() ) {
+    for( auto it2: lf->get_v_var() ) {
+     if( it1 == it2.first ) {
+      if( add ) {
+       objective[ index_of_variable( it2.first ) ] = it2.second;
+      } else {
+       objective[ index_of_variable( it2.first ) ] = 0;
+      }
+      break;
+     }
+    }
+   }
+
+  } else if( qf != nullptr && !q_objective.empty() ) {
+   // Quadratic objective function
+   objective.resize( mod->vars().size() );
+   q_objective.resize( mod->vars().size() );
+
+   for( auto * it1 : mod->vars() ) {
+    for( auto it2: qf->get_v_var() ) {
+     if( it1 == std::get< 0 >( it2 ) ) {
+      if( add ) {
+       objective[ index_of_variable( std::get< 0 >( it2 ) ) ] =
+        std::get< 1 >( it2 );
+       q_objective[ index_of_variable( std::get< 0 >( it2 ) ) ] =
+        std::get< 2 >( it2 );
+      } else {
+       objective[ index_of_variable( std::get< 0 >( it2 ) ) ] = 0;
+       q_objective[ index_of_variable( std::get< 0 >( it2 ) ) ] = 0;
+      }
+      break;
+     }
+    }
+   }
+  } else {
+   // This should never happen
+   throw std::invalid_argument( "Unknown type of Objective Function" );
+  }
+ } else {
+  // Changing coefficients of a constraint
+  if( lf != nullptr ) {
+   // TODO: update constraint matrix
+  }
+ }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1351,6 +1650,56 @@ void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
                         } );
  dcon_to_idx.insert( it, { p_const, numrows } );
  idx_to_dcon.emplace_back( numrows, p_const );
+
+ auto const_lhs = p_const->get_lhs();
+ auto const_rhs = p_const->get_rhs();
+
+ if( const_lhs == const_rhs ) {
+  if( !sense.empty() ) {
+   sense.emplace_back( 'E' );
+  }
+  if( !rhs.empty() ) {
+   rhs.emplace_back( const_rhs );
+  }
+  if( !rngval.empty() ) {
+   rngval.emplace_back( 0 );
+  }
+
+ } else if( const_lhs == -Inf< double >() ) {
+  if( !sense.empty() ) {
+   sense.emplace_back( 'L' );
+  }
+  if( !rhs.empty() ) {
+   rhs.emplace_back( const_rhs );
+  }
+  if( !rngval.empty() ) {
+   rngval.emplace_back( 0 );
+  }
+
+ } else if( const_rhs == Inf< double >() ) {
+  if( !sense.empty() ) {
+   sense.emplace_back( 'G' );
+  }
+  if( !rhs.empty() ) {
+   rhs.emplace_back( const_lhs );
+  }
+  if( !rngval.empty() ) {
+   rngval.emplace_back( 0 );
+  }
+
+ } else {
+  if( !sense.empty() ) {
+   sense.emplace_back( 'R' );
+  }
+  if( !rhs.empty() ) {
+   rhs.emplace_back( const_lhs );
+  }
+  if( !rngval.empty() ) {
+   rngval.emplace_back( const_rhs - const_lhs );
+  }
+ }
+
+ // TODO: update constraint matrix
  ++numrows;
 }
 
@@ -1360,7 +1709,6 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  // Get the constraints and bounds of the new variable
  std::vector< FRowConstraint * > var_constraints;
  std::vector< OneVarConstraint * > var_bounds;
-
 
  for( auto * stuff : p_var->active_stuff() ) {
   auto * constraint = dynamic_cast<FRowConstraint *>(stuff);
@@ -1387,12 +1735,46 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
                         } );
  dvar_to_idx.insert( it, { p_var, numcols } );
  idx_to_dvar.emplace_back( numcols, p_var );
+
+ int idx = numcols;
+ if( !lb.empty() ) {
+  lb.emplace_back( get_problem_lb( *p_var ) );
+ }
+ if( !ub.empty() ) {
+  ub.emplace_back( get_problem_ub( *p_var ) );
+ }
+
+ if( !xctype.empty() ) {
+  if( p_var->is_integer() ) {
+   if( p_var->is_unitary() && p_var->is_positive() ) {
+    xctype.emplace_back( 'B' );
+   } else {
+    xctype.emplace_back( 'I' );
+   }
+  } else {
+   xctype.emplace_back( 'C' );
+  }
+ }
+
+ // TODO: update constraint matrix
  ++numcols;
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {}
+void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
+
+ auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
+ if( p_var != nullptr ) {
+  int idx = index_of_variable( p_var );
+  if( !lb.empty() ) {
+   lb[ idx ] = get_problem_lb( *p_var );
+  }
+  if( !ub.empty() ) {
+   ub[ idx ] = get_problem_ub( *p_var );
+  }
+ }
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -1438,6 +1820,17 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
   throw std::runtime_error( "Dynamic constraint not found" );
  }
 
+ if( !sense.empty() ) {
+  sense.erase( sense.begin() + index );
+ }
+ if( !rhs.empty() ) {
+  rhs.erase( rhs.begin() + index );
+ }
+ if( !rngval.empty() ) {
+  rngval.erase( rngval.begin() + index );
+ }
+
+ // TODO: update constraint matrix
  --numrows;
 }
 
@@ -1485,6 +1878,18 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
   throw std::runtime_error( "Dynamic constraint not found" );
  }
 
+ if( !lb.empty() ) {
+  lb.erase( lb.begin() + index );
+ }
+ if( !ub.empty() ) {
+  ub.erase( ub.begin() + index );
+ }
+ if( !xctype.empty() ) {
+  xctype.erase( xctype.begin() + index );
+ }
+
+ // TODO: update constraint matrix
+
  --numcols;
 
  // Update the number of integer vars
@@ -1495,7 +1900,19 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {}
+void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
+
+ auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
+ if( p_var != nullptr ) {
+  int idx = index_of_variable( p_var );
+  if( !lb.empty() ) {
+   lb[ idx ] = get_problem_lb( *p_var );
+  }
+  if( !ub.empty() ) {
+   ub[ idx ] = get_problem_ub( *p_var );
+  }
+ }
+}
 
 /*--------------------------------------------------------------------------*/
 
