@@ -753,13 +753,12 @@ int MILPSolver::index_of_static_variable( const ColVariable * p_var ) {
  auto first = const_cast<const ColVariable *>(std::get< 0 >( *it ));
  int distance = std::distance( first, p_var );
 
- if( distance < std::get< 2 >( *it ) ) {
+ if( distance >= 0 && distance < std::get< 2 >( *it ) ) {
   // The element belongs to this group
   return std::get< 1 >( *it ) + distance;
- } else {
-  // The element doesn't exist
-  return Inf< int >();
  }
+ // The element doesn't exist
+ return Inf< int >();
 }
 
 /*--------------------------------------------------------------------------*/
@@ -816,13 +815,13 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * p_const ) {
  auto first = const_cast<const FRowConstraint *>(std::get< 0 >( *it ));
  int distance = std::distance( first, p_const );
 
- if( distance < std::get< 2 >( *it ) ) {
+ if( distance >= 0 && distance < std::get< 2 >( *it ) ) {
   // The element belongs to this group
   return std::get< 1 >( *it ) + distance;
- } else {
-  // The element doesn't exist
-  return Inf< int >();
  }
+
+ // The element doesn't exist
+ return Inf< int >();
 }
 
 /*--------------------------------------------------------------------------*/
