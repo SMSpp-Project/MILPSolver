@@ -23,8 +23,6 @@ list(APPEND CMAKE_MODULE_PATH ${MILPSolver_CMAKE_DIR})
 
 find_dependency(CPLEX)
 find_dependency(SMSpp REQUIRED)
-# There is a bug in find_dependency() with COMPONENTS
-find_package(Boost REQUIRED COMPONENTS log QUIET)
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)
 

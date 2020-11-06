@@ -19,7 +19,6 @@ endif ()
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 find_package(SMSpp REQUIRED)
-find_package(Boost REQUIRED COMPONENTS log)
 find_package(CPLEX 12.8)
 find_package(SCIP)
 
@@ -38,8 +37,7 @@ target_include_directories(
         $<INSTALL_INTERFACE:include/SMS++>)
 
 target_link_libraries(MILPSolver PUBLIC
-                      SMS++::SMSpp
-                      Boost::log)
+                      SMS++::SMSpp)
 
 if (CPLEX_FOUND)
     target_sources(MILPSolver PRIVATE
