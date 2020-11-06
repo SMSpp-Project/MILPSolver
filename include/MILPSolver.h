@@ -28,6 +28,12 @@
 #ifndef __MILPSolver
 #define __MILPSolver
 
+#ifdef MILPSOLVER_DEBUG
+#define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
+#else
+#define DEBUG_LOG( stuff )
+#endif
+
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -356,8 +362,10 @@ class MILPSolver : public CDASolver {
  [[nodiscard]] int get_num_integer_vars() const;
 
 #ifdef MILPSOLVER_DEBUG
+
  /// Check the dictionaries for inconsistencies
  virtual void check_status();
+
 #endif
 
 /*--------------------------------------------------------------------------*/

@@ -217,35 +217,35 @@ int CPXMILPSolver::compute( bool changedvars ) {
  switch( probtype ) {
   // TODO: remove asserts
   case CPXPROB_LP :
-   std::cout << "[DEBUG] " << "CPLEX problem type: LP" << std::endl; 
+   DEBUG_LOG( "CPLEX problem type: LP" << std::endl );
    break;
   case CPXPROB_MILP :
-   std::cout << "[DEBUG] " << "CPLEX problem type: MILP" << std::endl; 
+   DEBUG_LOG( "CPLEX problem type: MILP" << std::endl );
    assert( int_vars > 0 );
    break;
   case CPXPROB_FIXEDMILP :
-   std::cout << "[DEBUG] " << "CPLEX problem type: FIXEDMILP" << std::endl; 
+   DEBUG_LOG( "CPLEX problem type: FIXEDMILP" << std::endl );
    assert( int_vars > 0 );
    break;
   case CPXPROB_QP :
-   std::cout << "[DEBUG] " << "CPLEX problem type: QP" << std::endl; 
+   DEBUG_LOG( "CPLEX problem type: QP" << std::endl );
    is_qp = true;
    break;
   case CPXPROB_MIQP :
-   std::cout << "[DEBUG] " << "CPLEX problem type: MIQP" << std::endl; 
+   DEBUG_LOG( "CPLEX problem type: MIQP" << std::endl );
    assert( int_vars > 0 );
    is_qp = true;
    break;
   case CPXPROB_FIXEDMIQP :
-   std::cout << "[DEBUG] " << "CPLEX problem type: FIXEDMIQP" << std::endl; 
+   DEBUG_LOG( "CPLEX problem type: FIXEDMIQP" << std::endl );
    assert( int_vars > 0 );
    is_qp = true;
    break;
   case CPXPROB_QCP :
-   std::cout << "[DEBUG] " << "CPLEX problem type: QCP" << std::endl; 
+   DEBUG_LOG( "CPLEX problem type: QCP" << std::endl );
    throw std::runtime_error( "Unsupported CPLEX problem type" );
   case CPXPROB_MIQCP :
-   std::cout << "[DEBUG] " << "CPLEX problem type: MIQCP" << std::endl; 
+   DEBUG_LOG( "CPLEX problem type: MIQCP" << std::endl );
    throw std::runtime_error( "Unsupported CPLEX problem type" );
   default:
    throw std::runtime_error( "Undefined CPLEX problem type" );
@@ -290,7 +290,7 @@ int CPXMILPSolver::compute( bool changedvars ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::decode_mip_status( int status ) {
- std::cout << "[DEBUG] " << "CPXgetstat() returned " << status << std::endl; 
+ DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
 
  /*
  * The following are the symbols that may represent the status of
@@ -375,7 +375,7 @@ int CPXMILPSolver::decode_mip_status( int status ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::decode_lqp_status( int status ) {
- std::cout << "[DEBUG] " << "CPXgetstat() returned " << status << std::endl; 
+ DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
 
  /*
   * The following are the symbols that may represent the status of
@@ -461,7 +461,7 @@ int CPXMILPSolver::decode_lqp_status( int status ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::decode_cpx_error( int error ) {
- std::cout << "[DEBUG] " << "CPLEX returned " << error << std::endl; 
+ DEBUG_LOG( "CPLEX returned " << error << std::endl );
 
  /*
   * The following symbols represent error codes returned by CPLEX,
@@ -2518,29 +2518,31 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 /*--------------------------------------------------------------------------*/
 
 #ifdef MILPSOLVER_DEBUG
+
 void CPXMILPSolver::check_status() {
- std::cout << "[DEBUG] " << "Checking CPXMILPSolver status" << std::endl; 
+ DEBUG_LOG( "Checking CPXMILPSolver status" << std::endl );
 
  if( numcols != CPXgetnumcols( env, lp ) ) {
-  std::cout << "[DEBUG] " << "numcols is " << numcols
-                             << "but CPXgetnumcols() returns "
-                             << CPXgetnumcols( env, lp ) << std::endl; 
+  DEBUG_LOG( "numcols is " << numcols
+                           << "but CPXgetnumcols() returns "
+                           << CPXgetnumcols( env, lp ) << std::endl );
  }
 
  if( numrows != CPXgetnumrows( env, lp ) ) {
-  std::cout << "[DEBUG] " << "numrows is " << numrows
-                             << "but CPXgetnumrows() returns "
-                             << CPXgetnumrows( env, lp ) << std::endl; 
+  DEBUG_LOG( "numrows is " << numrows
+                           << "but CPXgetnumrows() returns "
+                           << CPXgetnumrows( env, lp ) << std::endl );
  }
 
  int iv = CPXgetintvars( nullptr );
  if( int_vars != iv ) {
-  std::cout << "[DEBUG] " << "int_vars is " << int_vars
-                             << "but CPLEX has actually " << iv
-                             << " integer variables" << std::endl; 
+  DEBUG_LOG( "int_vars is " << int_vars
+                            << "but CPLEX has actually " << iv
+                            << " integer variables" << std::endl );
  }
  MILPSolver::check_status();
 }
+
 #endif
 
 /*--------------------------------------------------------------------------*/

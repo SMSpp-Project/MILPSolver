@@ -227,17 +227,16 @@ void MILPSolver::load_problem() {
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
-  std::cout << "[DEBUG] " << "Processing Block " << num_block << " ["
-            << q_Block << "]" << std::endl;
-  std::cout << "[DEBUG] " << *q_Block << std::endl;
+  DEBUG_LOG( "Processing Block " << num_block << " ["
+                                 << q_Block << "]" << std::endl );
+  DEBUG_LOG( *q_Block << std::endl );
 
   for( auto * i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
 
-  std::cout << "[DEBUG] "
-            << "MILPSolver::set_Block() counting static constraints"
-            << std::endl;
+  DEBUG_LOG( "MILPSolver::set_Block() counting static constraints"
+              << std::endl );
   for( const auto & i : q_Block->get_static_constraints() ) {
    // Singles
    if( un_any_thing_0( FRowConstraint, i,
@@ -268,9 +267,8 @@ void MILPSolver::load_problem() {
    }
   }
 
-  std::cout << "[DEBUG] "
-            << "MILPSolver::set_Block() counting dynamic constraints"
-            << std::endl;
+  DEBUG_LOG( "MILPSolver::set_Block() counting dynamic constraints"
+              << std::endl );
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
    // Single lists
    if( un_any_thing_0( std::list< FRowConstraint >, i,
@@ -303,8 +301,7 @@ void MILPSolver::load_problem() {
    }
   }
 
-  std::cout << "[DEBUG] " << "MILPSolver::set_Block() counting static variables"
-            << std::endl;
+  DEBUG_LOG( "MILPSolver::set_Block() counting static variables" << std::endl );
   for( const auto & i : q_Block->get_static_variables() ) {
    // Singles
    if( un_any_thing_0( ColVariable, i,
@@ -335,9 +332,8 @@ void MILPSolver::load_problem() {
    }
   }
 
-  std::cout << "[DEBUG] "
-            << "MILPSolver::set_Block() counting dynamic variables"
-            << std::endl;
+  DEBUG_LOG( "MILPSolver::set_Block() counting dynamic variables"
+              << std::endl );
   for( const auto & i : q_Block->get_dynamic_variables() ) {
    // Single lists
    if( un_any_thing_0( std::list< ColVariable >, i,
@@ -370,8 +366,7 @@ void MILPSolver::load_problem() {
    }
   }
 
-  std::cout << "[DEBUG] " << "MILPSolver::set_Block() nonzero elements"
-            << std::endl;
+  DEBUG_LOG( "MILPSolver::set_Block() nonzero elements" << std::endl );
   auto counter = [ this ]( ColVariable & var ) {
    for( auto * i : var.active_stuff() ) {
     auto * row = dynamic_cast<FRowConstraint *>(i);
@@ -391,16 +386,16 @@ void MILPSolver::load_problem() {
   ++num_block;
  }
 
- std::cout << "[DEBUG] " << "Number of blocks      = " << num_block
-           << std::endl;
- std::cout << "[DEBUG] " << "numrows (constraints) = " << numrows
-           << " (S:" << static_cons
-           << "/D:" << numrows - static_cons << ")" << std::endl;
- std::cout << "[DEBUG] " << "numcols (variables)   = " << numcols
-           << " (S:" << static_vars
-           << "/D:" << numcols - static_vars << ")" << std::endl;
- std::cout << "[DEBUG] " << "nzelements            = " << nzelements
-           << std::endl;
+ DEBUG_LOG( "Number of blocks      = " << num_block << std::endl );
+ DEBUG_LOG( "numrows (constraints) = " << numrows
+                                       << " (S:" << static_cons
+                                       << "/D:" << numrows - static_cons << ")"
+                                       << std::endl );
+ DEBUG_LOG( "numcols (variables)   = " << numcols
+                                       << " (S:" << static_vars
+                                       << "/D:" << numcols - static_vars << ")"
+                                       << std::endl );
+ DEBUG_LOG( "nzelements            = " << nzelements << std::endl );
 
  // LP vector allocation
  // --------------------------------------------------------------------------
@@ -657,27 +652,18 @@ void MILPSolver::load_problem() {
   }
  }
 
- std::cout << "[DEBUG] " << "objective   = " << log_vector( objective )
-           << std::endl;
- std::cout << "[DEBUG] " << "q_objective = " << log_vector( q_objective )
-           << std::endl;
- std::cout << "[DEBUG] " << "rhs         = " << log_vector( rhs ) << std::endl;
- std::cout << "[DEBUG] " << "rngval      = " << log_vector( rngval )
-           << std::endl;
- std::cout << "[DEBUG] " << "sense       = " << log_vector( sense )
-           << std::endl;
- std::cout << "[DEBUG] " << "matbeg      = " << log_vector( matbeg )
-           << std::endl;
- std::cout << "[DEBUG] " << "matcnt      = " << log_vector( matcnt )
-           << std::endl;
- std::cout << "[DEBUG] " << "matind      = " << log_vector( matind )
-           << std::endl;
- std::cout << "[DEBUG] " << "matval      = " << log_vector( matval )
-           << std::endl;
- std::cout << "[DEBUG] " << "lb          = " << log_vector( lb ) << std::endl;
- std::cout << "[DEBUG] " << "ub          = " << log_vector( ub ) << std::endl;
- std::cout << "[DEBUG] " << "xctype      = " << log_vector( xctype )
-           << std::endl;
+ DEBUG_LOG( "objective   = " << log_vector( objective ) << std::endl );
+ DEBUG_LOG( "q_objective = " << log_vector( q_objective ) << std::endl );
+ DEBUG_LOG( "rhs         = " << log_vector( rhs ) << std::endl );
+ DEBUG_LOG( "rngval      = " << log_vector( rngval ) << std::endl );
+ DEBUG_LOG( "sense       = " << log_vector( sense ) << std::endl );
+ DEBUG_LOG( "matbeg      = " << log_vector( matbeg ) << std::endl );
+ DEBUG_LOG( "matcnt      = " << log_vector( matcnt ) << std::endl );
+ DEBUG_LOG( "matind      = " << log_vector( matind ) << std::endl );
+ DEBUG_LOG( "matval      = " << log_vector( matval ) << std::endl );
+ DEBUG_LOG( "lb          = " << log_vector( lb ) << std::endl );
+ DEBUG_LOG( "ub          = " << log_vector( ub ) << std::endl );
+ DEBUG_LOG( "xctype      = " << log_vector( xctype ) << std::endl );
 
  // Unlock the Block
  if( !owned ) {
@@ -969,13 +955,12 @@ FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
 
 void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
  if( n < 0 ) {
-  std::cout << "[DEBUG] " << "MILPSolver::scan_variable(): D#"
-            << col << " " << var << std::endl;
+  DEBUG_LOG( "MILPSolver::scan_variable(): D#" << col << " " << var );
   dvar_to_idx.emplace_back( &var, col );
   idx_to_dvar.emplace_back( col, &var );
  } else {
-  std::cout << "[DEBUG] " << "MILPSolver::scan_variable(): S#"
-            << n << "/" << col << " " << var << std::endl;
+  DEBUG_LOG( "MILPSolver::scan_variable(): S#"
+              << n << "/" << col << " " << var );
 
   if( n == 0 ) {
    // The tuple's third field will be filled later
@@ -1053,13 +1038,12 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
 
 void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
  if( n < 0 ) {
-  std::cout << "[DEBUG] " << "MILPSolver::scan_constraint(): D#"
-            << row << " " << con << std::endl;
+  DEBUG_LOG( "MILPSolver::scan_constraint(): D#" << row << " " << con );
   dcon_to_idx.emplace_back( &con, row );
   idx_to_dcon.emplace_back( row, &con );
  } else {
-  std::cout << "[DEBUG] " << "MILPSolver::scan_constraint(): S#"
-            << n << "/" << row << " " << con << std::endl;
+  DEBUG_LOG( "MILPSolver::scan_constraint(): S#"
+              << n << "/" << row << " " << con );
 
   if( n == 0 ) {
    // The tuple's third field will be filled later
@@ -1122,8 +1106,7 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_objective( const FRealObjective * obj ) {
- std::cout << "[DEBUG] " << "MILPSolver::scan_objective() " << *obj
-           << std::endl;
+ DEBUG_LOG( "MILPSolver::scan_objective() " << *obj );
 
  const auto * lf = dynamic_cast<const LinearFunction *> (obj->get_function());
  int k = 0;
@@ -1165,11 +1148,11 @@ void MILPSolver::process_modifications() {
   std::function< void( sp_Mod ) > f;
 
   f = [ this, &f ]( const sp_Mod & mod ) {
-   std::cout << "[DEBUG] " << *mod << std::endl;
+   DEBUG_LOG( *mod );
 
    const auto gm = std::dynamic_pointer_cast< GroupModification >( mod );
    if( gm ) {
-    std::cout << "[DEBUG] " << "GroupModification containing:" << std::endl;
+    DEBUG_LOG( "GroupModification containing:" << std::endl );
     for( const auto & submod : gm->sub_Modifications() ) {
      f( submod );
     }
@@ -1560,7 +1543,7 @@ void MILPSolver::check_status() {
  int dv = 0;
  int dc = 0;
 
- std::cout << "[DEBUG] " << "Checking MILPSolver dictionaries" << std::endl;
+ DEBUG_LOG( "Checking MILPSolver dictionaries" << std::endl );
 
  // ------------------ Count everything -------------------
  std::queue< Block * > Q;
@@ -1719,21 +1702,18 @@ void MILPSolver::check_status() {
  }
 
  if( numcols != v ) {
-  std::cout << "[DEBUG] " << "numcols is " << numcols <<
-            ", it should be "
-            << v << std::endl;
+  DEBUG_LOG( "numcols is " << numcols << ", it should be " << v << std::endl );
  }
  if( numrows != c ) {
-  std::cout << "[DEBUG] " << "numrows is " << numrows
-            << ", it should be " << c << std::endl;
+  DEBUG_LOG( "numrows is " << numrows << ", it should be " << c << std::endl );
  }
  if( static_vars != sv ) {
-  std::cout << "[DEBUG] " << "static_vars is " << static_vars
-            << ", it should be " << sv << std::endl;
+  DEBUG_LOG( "static_vars is " << static_vars
+                               << ", it should be " << sv << std::endl );
  }
  if( static_cons != sc ) {
-  std::cout << "[DEBUG] " << "static_cons is " << static_cons
-            << ", it should be " << sc << std::endl;
+  DEBUG_LOG( "static_cons is " << static_cons
+                               << ", it should be " << sc << std::endl );
  }
 
  // ------------------ Svar dictionaries ------------------
@@ -1745,8 +1725,9 @@ void MILPSolver::check_status() {
                                  std::get< 0 >( pair ) == i.second;
                          } );
   if( j == svar_to_idx.end() ) {
-   std::cout << "[DEBUG] " << "Element [" << i.first << ", " << i.second
-             << "] of idx_to_svar was not found in svar_to_idx" << std::endl;
+   DEBUG_LOG( "Element [" << i.first << ", " << i.second
+                          << "] of idx_to_svar was not found in svar_to_idx"
+                          << std::endl );
   }
  }
 
@@ -1757,19 +1738,22 @@ void MILPSolver::check_status() {
                                  std::get< 1 >( i ) == pair.first;
                          } );
   if( j == idx_to_svar.end() ) {
-   std::cout << "[DEBUG] " << ", " << std::get< 1 >( i ) <<
-             "] of svar_to_idx was not found in idx_to_svar" << std::endl;
+   DEBUG_LOG( ", " << std::get< 1 >( i ) <<
+                   "] of svar_to_idx was not found in idx_to_svar"
+                   << std::endl );
   }
  }
 
  if( idx_to_svar.size() != svg ) {
-  std::cout << "[DEBUG] " << "Size of idx_to_svar is " << idx_to_svar.size()
-            << ", it should be " << sv << std::endl;
+  DEBUG_LOG( "Size of idx_to_svar is " << idx_to_svar.size()
+                                       << ", it should be " << sv
+                                       << std::endl );
  }
 
  if( svar_to_idx.size() != svg ) {
-  std::cout << "[DEBUG] " << "Size of svar_to_idx is " << svar_to_idx.size()
-            << ", it should be " << svg << std::endl;
+  DEBUG_LOG( "Size of svar_to_idx is " << svar_to_idx.size()
+                                       << ", it should be " << svg
+                                       << std::endl );
  }
 
  // ------------------ Dvar dictionaries ------------------
@@ -1781,8 +1765,9 @@ void MILPSolver::check_status() {
                                  pair.first == i.second;
                          } );
   if( j == dvar_to_idx.end() ) {
-   std::cout << "[DEBUG] " << "Element [" << i.first << ", " << i.second
-             << "] of idx_to_dvar was not found in dvar_to_idx" << std::endl;
+   DEBUG_LOG( "Element [" << i.first << ", " << i.second
+                          << "] of idx_to_dvar was not found in dvar_to_idx"
+                          << std::endl );
   }
  }
 
@@ -1793,19 +1778,22 @@ void MILPSolver::check_status() {
                                  i.second == pair.first;
                          } );
   if( j == idx_to_dvar.end() ) {
-   std::cout << "[DEBUG] " << "Element [" << i.first << ", " << i.second
-             << "] of dvar_to_idx was not found in idx_to_dvar" << std::endl;
+   DEBUG_LOG( "Element [" << i.first << ", " << i.second
+                          << "] of dvar_to_idx was not found in idx_to_dvar"
+                          << std::endl );
   }
  }
 
  if( idx_to_dvar.size() != dv ) {
-  std::cout << "[DEBUG] " << "Size of idx_to_dvar is " << idx_to_dvar.size()
-            << ", it should be " << dv << std::endl;
+  DEBUG_LOG( "Size of idx_to_dvar is " << idx_to_dvar.size()
+                                       << ", it should be " << dv
+                                       << std::endl );
  }
 
  if( dvar_to_idx.size() != dv ) {
-  std::cout << "[DEBUG] " << "Size of dvar_to_idx is " << dvar_to_idx.size()
-            << ", it should be " << dv << std::endl;
+  DEBUG_LOG( "Size of dvar_to_idx is " << dvar_to_idx.size()
+                                       << ", it should be " << dv
+                                       << std::endl );
  }
 
  // ------------------ Scon dictionaries ------------------
@@ -1817,8 +1805,9 @@ void MILPSolver::check_status() {
                                  std::get< 0 >( pair ) == i.second;
                          } );
   if( j == scon_to_idx.end() ) {
-   std::cout << "[DEBUG] " << "Element [" << i.first << ", " << i.second
-             << "] of idx_to_scon was not found in scon_to_idx" << std::endl;
+   DEBUG_LOG( "Element [" << i.first << ", " << i.second
+                          << "] of idx_to_scon was not found in scon_to_idx"
+                          << std::endl );
   }
  }
 
@@ -1829,19 +1818,22 @@ void MILPSolver::check_status() {
                                  std::get< 1 >( i ) == pair.first;
                          } );
   if( j == idx_to_scon.end() ) {
-   std::cout << "[DEBUG] " << ", " << std::get< 1 >( i )
-             << "] of scon_to_idx was not found in idx_to_scon" << std::endl;
+   DEBUG_LOG( ", " << std::get< 1 >( i )
+                   << "] of scon_to_idx was not found in idx_to_scon"
+                   << std::endl );
   }
  }
 
  if( idx_to_scon.size() != scg ) {
-  std::cout << "[DEBUG] " << "Size of idx_to_scon is " << idx_to_scon.size()
-            << ", it should be " << scg << std::endl;
+  DEBUG_LOG( "Size of idx_to_scon is " << idx_to_scon.size()
+                                       << ", it should be " << scg
+                                       << std::endl );
  }
 
  if( scon_to_idx.size() != scg ) {
-  std::cout << "[DEBUG] " << "Size of scon_to_idx is " << scon_to_idx.size()
-            << ", it should be " << scg << std::endl;
+  DEBUG_LOG( "Size of scon_to_idx is " << scon_to_idx.size()
+                                       << ", it should be " << scg
+                                       << std::endl );
  }
 
  // ------------------ Dcon dictionaries ------------------
@@ -1853,8 +1845,9 @@ void MILPSolver::check_status() {
                                  pair.first == i.second;
                          } );
   if( j == dcon_to_idx.end() ) {
-   std::cout << "[DEBUG] " << "Element [" << i.first << ", " << i.second
-             << "] of idx_to_dcon was not found in dcon_to_idx" << std::endl;
+   DEBUG_LOG( "Element [" << i.first << ", " << i.second
+                          << "] of idx_to_dcon was not found in dcon_to_idx"
+                          << std::endl );
   }
  }
  for( auto & i: dcon_to_idx ) {
@@ -1864,19 +1857,22 @@ void MILPSolver::check_status() {
                                  i.second == pair.first;
                          } );
   if( j == idx_to_dcon.end() ) {
-   std::cout << "[DEBUG] " << "Element [" << i.first << ", " << i.second
-             << "] of dcon_to_idx was not found in idx_to_dcon" << std::endl;
+   DEBUG_LOG( "Element [" << i.first << ", " << i.second
+                          << "] of dcon_to_idx was not found in idx_to_dcon"
+                          << std::endl );
   }
  }
 
  if( idx_to_dcon.size() != dc ) {
-  std::cout << "[DEBUG] " << "Size of idx_to_dcon is " << idx_to_dcon.size()
-            << ", it should be " << dc << std::endl;
+  DEBUG_LOG( "Size of idx_to_dcon is " << idx_to_dcon.size()
+                                       << ", it should be " << dc
+                                       << std::endl );
  }
 
  if( dcon_to_idx.size() != dc ) {
-  std::cout << "[DEBUG] " << "Size of dcon_to_idx is " << dcon_to_idx.size()
-            << ", it should be " << dc << std::endl;
+  DEBUG_LOG( "Size of dcon_to_idx is " << dcon_to_idx.size()
+                                       << ", it should be " << dc
+                                       << std::endl );
  }
 
 
