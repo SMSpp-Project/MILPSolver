@@ -16,11 +16,13 @@ endif ()
 
 # ----- Requirements -------------------------------------------------------- #
 # This is to use the find modules we provide
-list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 find_package(SMSpp REQUIRED)
 find_package(CPLEX 12.8)
 find_package(SCIP)
+
+list(REMOVE_AT CMAKE_MODULE_PATH -1)
 
 # ----- Configuration header ------------------------------------------------ #
 configure_file(cmake/MILPSolverConfig.h.in MILPSolverConfig.h)
@@ -126,3 +128,7 @@ endif ()
 
 # ----- Subdirectories ------------------------------------------------------ #
 add_subdirectory(tools)
+
+if (BUILD_TESTING)
+    # Just consuming BUILD_TESTING to avoid warnings
+endif ()

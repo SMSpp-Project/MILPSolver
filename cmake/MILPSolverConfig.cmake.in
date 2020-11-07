@@ -18,12 +18,11 @@ get_filename_component(MILPSolver_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
 include(CMakeFindDependencyMacro)
 
 # ----- Requirements -------------------------------------------------------- #
+find_dependency(SMSpp)
+
 # This is needed to find the custom modules we provide
 list(APPEND CMAKE_MODULE_PATH ${MILPSolver_CMAKE_DIR})
-
 find_dependency(CPLEX)
-find_dependency(SMSpp REQUIRED)
-
 list(REMOVE_AT CMAKE_MODULE_PATH -1)
 
 # ----- Import target ------------------------------------------------------- #
