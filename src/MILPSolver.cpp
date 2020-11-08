@@ -135,7 +135,10 @@ int MILPSolver::get_num_integer_vars() const {
 /*-------------------------------- SET_BLOCK -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::set_Block( Block * block ) {
+void MILPSolver::set_Block( Block * block )
+{
+ if( f_Block == block )  // registering to the same Block
+  return;                // cowardly and silently return
 
  Solver::set_Block( block );
 
