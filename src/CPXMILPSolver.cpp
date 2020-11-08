@@ -317,9 +317,17 @@ int CPXMILPSolver::decode_mip_status( int status ) {
    return kError;
   case CPXMIP_INFEASIBLE:
    // Solution is integer infeasible.
+   return kInfeasible;
   case CPXMIP_INForUNBD:
    // Problem has been proven either infeasible or unbounded.
-   return kInfeasible;
+   //!! note: this is typically given by the preprocessor when it finds an
+   //!!       easy dual unfeasible ray: since a dual feasible solution has
+   //!!       not been constructed yet it is not formally possible to declare
+   //!!       the problem unbounded, but both an empty primal and an empty
+   //!!       dual is a rare occurrence, so the most likely correct answer is
+   //!!       that the problem is unbounded
+   //!!   return kInfeasible;
+   return kUnbounded;
   case CPXMIP_MEM_LIM_FEAS:
    // Limit on tree memory has been reached, but an integer solution exists.
   case CPXMIP_MEM_LIM_INFEAS:
@@ -405,9 +413,17 @@ int CPXMILPSolver::decode_lqp_status( int status ) {
    // a Benders cut due to numerical difficulties.
   case CPX_STAT_INFEASIBLE:
    // Problem has been proven infeasible.
+   return kInfeasible;
   case CPX_STAT_INForUNBD:
    // Problem has been proven either infeasible or unbounded.
-   return kInfeasible;
+   //!! note: this is typically given by the preprocessor when it finds an
+   //!!       easy dual unfeasible ray: since a dual feasible solution has
+   //!!       not been constructed yet it is not formally possible to declare
+   //!!       the problem unbounded, but both an empty primal and an empty
+   //!!       dual is a rare occurrence, so the most likely correct answer is
+   //!!       that the problem is unbounded
+   //!! return kInfeasible;
+   return kUnbounded;
   case CPX_STAT_NUM_BEST:
    // Solution is available, but not proved optimal,
    // due to numeric difficulties during optimization.
