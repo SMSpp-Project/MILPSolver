@@ -2370,13 +2370,15 @@ double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
 
 const std::string &
 CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
+ static const std::vector< std::string > vals = { "CPXMILPSolver_prob",
+                                                  "output.lp" };
 
  if( par == strProblemName ) {
-  return std::move( std::string( "CPXMILPSolver_prob" ) );
+  return vals[ 0 ];
  }
 
  if( par == strOutputFile ) {
-  return std::move( std::string( "output.lp" ) );
+  return vals[ 2 ];
  }
 
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
