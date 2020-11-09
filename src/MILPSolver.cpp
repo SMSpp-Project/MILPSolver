@@ -39,6 +39,14 @@ using namespace SMSpp_di_unipi_it;
 SMSpp_insert_in_factory_cpp_0( MILPSolver );
 
 /*--------------------------------------------------------------------------*/
+
+template< typename T >
+std::string log_vector( const std::vector< T > & v, int limit = 10 );
+
+template<>
+std::string log_vector( const std::vector< char > & v, int limit );
+
+/*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -135,8 +143,7 @@ int MILPSolver::get_num_integer_vars() const {
 /*-------------------------------- SET_BLOCK -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::set_Block( Block * block )
-{
+void MILPSolver::set_Block( Block * block ) {
  if( f_Block == block )  // registering to the same Block
   return;                // cowardly and silently return
 
@@ -1920,7 +1927,7 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
 /*--------------------------------------------------------------------------*/
 
 template< typename T >
-std::string MILPSolver::log_vector( const std::vector< T > & v, int limit ) {
+std::string log_vector( const std::vector< T > & v, int limit ) {
  std::string temp_log = "[";
  for( auto i : v ) {
   temp_log += " " + std::to_string( i );
@@ -1934,7 +1941,7 @@ std::string MILPSolver::log_vector( const std::vector< T > & v, int limit ) {
 }
 
 template<>
-std::string MILPSolver::log_vector( const std::vector< char > & v, int limit ) {
+std::string log_vector( const std::vector< char > & v, int limit ) {
  std::string temp_log = "[";
  for( auto i : v ) {
   temp_log += " ";

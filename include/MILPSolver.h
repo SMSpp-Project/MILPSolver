@@ -745,14 +745,6 @@ class MILPSolver : public CDASolver {
  void scan_objective( const FRealObjective * obj );
  /// @}
 
- /// Returns a loggable representation of a vector
- template< typename T >
- std::string log_vector( const std::vector< T > & v, int limit = 10 );
-
- /// Returns a loggable representation of a vector of chars
- template<>
- std::string log_vector( const std::vector< char > & v, int limit );
-
  SMSpp_insert_in_factory_h;
 };
 
