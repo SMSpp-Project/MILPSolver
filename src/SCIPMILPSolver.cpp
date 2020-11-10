@@ -39,11 +39,6 @@
 #include <scip/scipdefplugins.h>
 #include <scip/cons_linear.h>
 
-// Logging
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/expressions.hpp>
-
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -900,9 +895,9 @@ void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
   // case intMaxSol:
   //  SCIP_CALL_ABORT( SCIPsetIntParam( scip, "limits/solutions", value ) );
   //  break;
-  // case intLogVerb:
-  //  SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", value ) );
-  //  break;
+  case intLogVerb:
+   SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", value ) );
+   break;
   case intUseCustomNames:
    use_custom_names = bool( value );
    break;
@@ -986,9 +981,9 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const {
   // case intMaxSol:
   //  SCIP_CALL_ABORT( SCIPgetIntParam( scip, "limits/solutions", &value ) );
   //  return value;
-  // case intLogVerb:
-  //  SCIP_CALL_ABORT( SCIPgetIntParam( scip, "display/verblevel", &value ) );
-  //  return value;
+  case intLogVerb:
+   SCIP_CALL_ABORT( SCIPgetIntParam( scip, "display/verblevel", &value ) );
+   return value;
   case intUseCustomNames:
    return use_custom_names;
   default:
@@ -1056,8 +1051,8 @@ int SCIPMILPSolver::get_dflt_int_par( const idx_type par ) const {
   //  return ( int ) long_value;
   // case intMaxSol:
   //  return value;
-  // case intLogVerb:
-  //  return value;
+  case intLogVerb:
+   return 4;
   case intUseCustomNames:
    return 1;
   default:

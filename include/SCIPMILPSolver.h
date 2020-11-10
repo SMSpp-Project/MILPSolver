@@ -97,7 +97,7 @@ class SCIPMILPSolver : public MILPSolver {
 * Public enum describing the different types of algorithmic parameters
 * of "double" type that the SCIPMILPSolver has.
 */
- enum dbl_par_type_CPXS {
+ enum dbl_par_type_SCPS {
   dblFirstCPLEXPar = dblLastAlgParMILP, ///< First double parameter
   dblLastAlgParSCPS
  };
