@@ -55,7 +55,7 @@ int main( int argc, char ** argv ) {
  for( int i = CPX_PARAM_ALL_MIN; i <= CPX_PARAM_ALL_MAX; ++i ) {
 
 #if CPX_VERSION < 12090000
-  status = CPXgetparamname(env, i, name);
+  status = CPXgetparamname( env, i, name );
 #else
   status = CPXgetparamhiername( env, i, name );
 #endif
@@ -82,7 +82,10 @@ int main( int argc, char ** argv ) {
      // Remove unsupported internal parameters
      if( strcmp( name, "CPXPARAM_Internal_cfilemul" ) == 0 ||
          strcmp( name, "CPXPARAM_Internal_rfilemul" ) == 0 ||
-         strcmp( name, "CPXPARAM_Internal_singtol" ) == 0 ) {
+         strcmp( name, "CPXPARAM_Internal_singtol" ) == 0 ||
+         strcmp( name, "CPX_PARAM_CFILEMUL" ) == 0 ||
+         strcmp( name, "CPX_PARAM_RFILEMUL" ) == 0 ||
+         strcmp( name, "CPX_PARAM_SINGTOL" ) == 0 ) {
       break;
      }
      dbl_parameters.insert( { dbl_counter++, std::string( name ) } );

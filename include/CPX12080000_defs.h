@@ -4,7 +4,7 @@
 #define __CPX12080000_DEFS
 
 #define CPX_NUM_INT_PARS 135
-#define CPX_NUM_DBL_PARS 44
+#define CPX_NUM_DBL_PARS 41
 #define CPX_NUM_STR_PARS 5
 
 #endif //__CPX12080000_DEFS
