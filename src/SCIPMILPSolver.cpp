@@ -836,7 +836,14 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 void
 SCIPMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
  MILPSolver::add_dynamic_bound( p_bound );
- // TODO
+
+ auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
+ SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
+
+ SCIP_Real lb = get_problem_lb( *p_var );
+ SCIP_Real ub = get_problem_ub( *p_var );
+ SCIP_CALL_ABORT( SCIPchgVarLb( scip, var, lb ) );
+ SCIP_CALL_ABORT( SCIPchgVarUb( scip, var, ub ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -880,7 +887,14 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 void
 SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
  MILPSolver::remove_dynamic_bound( p_bound );
- // TODO
+
+ auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
+ SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
+
+ SCIP_Real lb = get_problem_lb( *p_var );
+ SCIP_Real ub = get_problem_ub( *p_var );
+ SCIP_CALL_ABORT( SCIPchgVarLb( scip, var, lb ) );
+ SCIP_CALL_ABORT( SCIPchgVarUb( scip, var, ub ) );
 }
 
 /*--------------------------------------------------------------------------*/
