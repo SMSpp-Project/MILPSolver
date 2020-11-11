@@ -775,7 +775,6 @@ void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  }
 
  SCIP_CALL_ABORT( SCIPaddCons( scip, con ) );
- assert( cons.size() == dcon_to_idx.back().second + 1 );
  cons.push_back( con );
  SCIP_CALL_ABORT( SCIPreleaseCons( scip, &con ) );
 }
