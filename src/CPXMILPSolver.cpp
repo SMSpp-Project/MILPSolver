@@ -2027,13 +2027,7 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
   return;
  }
 
- // CPXMILPSolver parameters
- if( par == intUseCustomNames ) {
-  use_custom_names = bool( value );
-  return;
- }
-
- // Direct CPLEX parameter
+ // CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
 
@@ -2092,7 +2086,7 @@ void CPXMILPSolver::set_par( idx_type par, const double value ) {
   return;
  }
 
- // Direct CPLEX parameters
+ // CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
   CPXsetdblparam( env, cplex_par, value );
@@ -2105,19 +2099,8 @@ void CPXMILPSolver::set_par( idx_type par, const double value ) {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::set_par( idx_type par, const std::string & value ) {
- // A switch-case here makes the code uglier
 
- // CPXMILPSolver parameters
- if( par == strProblemName ) {
-  prob_name = value;
-  return;
- }
- if( par == strOutputFile ) {
-  output_file = value;
-  return;
- }
-
- // Direct CPLEX parameter
+ // CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   CPXsetstrparam( env, cplex_par, value.c_str() );
@@ -2133,12 +2116,12 @@ ThinComputeInterface::idx_type CPXMILPSolver::get_num_int_par() const {
  return MILPSolver::get_num_int_par() + intLastAlgParCPXS - intLastAlgParMILP;
 }
 
-ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
- return MILPSolver::get_num_str_par() + strLastAlgParCPXS - strLastAlgParMILP;
-}
-
 ThinComputeInterface::idx_type CPXMILPSolver::get_num_dbl_par() const {
  return MILPSolver::get_num_dbl_par() + dblLastAlgParCPXS - dblLastAlgParMILP;
+}
+
+ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
+ return MILPSolver::get_num_str_par() + strLastAlgParCPXS - strLastAlgParMILP;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2161,12 +2144,7 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
   return value;
  }
 
- // CPXMILPSolver parameters
- if( par == intUseCustomNames ) {
-  return use_custom_names;
- }
-
- // Direct CPLEX parameters
+ // CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
 
@@ -2228,7 +2206,7 @@ double CPXMILPSolver::get_dbl_par( idx_type par ) const {
   return value;
  }
 
- // Direct CPLEX parameters
+ // CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
   CPXgetdblparam( env, cplex_par, &value );
@@ -2240,17 +2218,7 @@ double CPXMILPSolver::get_dbl_par( idx_type par ) const {
 /*--------------------------------------------------------------------------*/
 
 const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const {
-
- // CPXMILPSolver parameters
- if( par == strProblemName ) {
-  return prob_name;
- }
-
- if( par == strProblemName ) {
-  return output_file;
- }
-
- // Direct CPLEX parameters
+ // CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   char value[CPX_STR_PARAM_MAX];
@@ -2283,12 +2251,7 @@ int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const {
   return value;
  }
 
- // CPXMILPSolver parameters
- if( par == intUseCustomNames ) {
-  return 1;
- }
-
- // Direct CPLEX parameters
+ // CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
 
@@ -2356,7 +2319,7 @@ double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
   return value;
  }
 
- // Direct CPLEX parameters
+ // CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
   CPXinfodblparam( env, cplex_par, &value, nullptr, nullptr );
@@ -2370,19 +2333,9 @@ double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
 
 const std::string &
 CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
- static const std::vector< std::string > vals = { "CPXMILPSolver_prob",
-                                                  "output.lp" };
 
- if( par == strProblemName ) {
-  return vals[ 0 ];
- }
-
- if( par == strOutputFile ) {
-  return vals[ 2 ];
- }
-
+ // CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
-  // CPLEX parameter
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   char value[CPX_STR_PARAM_MAX];
   CPXinfostrparam( env, cplex_par, value );
@@ -2397,11 +2350,8 @@ CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
 
 ThinComputeInterface::idx_type
 CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
- if( name == "intUseCustomNames" ) {
-  return intUseCustomNames;
- }
 
- // Try CPLEX parameters
+ // CPLEX parameters
  int cplex_par;
  int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
  if( status == 0 ) {
@@ -2418,9 +2368,6 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
 
 const std::string &
 CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
- if( idx == intUseCustomNames ) {
-  return std::move( std::string( "intUseCustomNames" ) );
- }
 
  // CPLEX parameters
  if( idx >= intFirstCPLEXPar && idx < intLastAlgParCPXS ) {
@@ -2431,7 +2378,6 @@ CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
 #else
   int status = CPXgetparamhiername( env, cplex_par, par_name );
 #endif
-
   return std::move( std::string( par_name ) );
  }
 
@@ -2443,7 +2389,7 @@ CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
 ThinComputeInterface::idx_type
 CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const {
 
- // Try CPLEX parameters
+ // CPLEX parameters
  int cplex_par;
  int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
  if( status == 0 ) {
@@ -2468,7 +2414,6 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
 #else
   int status = CPXgetparamhiername( env, cplex_par, par_name );
 #endif
-
   return std::move( std::string( par_name ) );
  }
 
@@ -2479,12 +2424,8 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
 
 ThinComputeInterface::idx_type
 CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
- if( name == "strProblemName" )
-  return strProblemName;
- if( name == "strOutputFile" )
-  return strOutputFile;
 
- // Try CPLEX parameters
+ // CPLEX parameters
  int cplex_par;
  int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
  if( status == 0 ) {
@@ -2501,15 +2442,6 @@ CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
 
 const std::string &
 CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
- static const std::vector< std::string > pars = { "strProblemName",
-                                                  "strOutputFile" };
- if( idx == strProblemName ) {
-  return pars[ 0 ];
- }
-
- if( idx == strOutputFile ) {
-  return pars[ 1 ];
- }
 
  // CPLEX parameters
  if( idx >= strFirstCPLEXPar && idx < strLastAlgParCPXS ) {
@@ -2520,10 +2452,8 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 #else
   int status = CPXgetparamhiername( env, cplex_par, par_name );
 #endif
-
   return std::move( std::string( par_name ) );
  }
-
  return MILPSolver::str_par_idx2str( idx );
 }
 

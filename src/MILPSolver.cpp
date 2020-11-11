@@ -170,6 +170,8 @@ void MILPSolver::set_Block( Block * block ) {
 }
 
 /*--------------------------------------------------------------------------*/
+/*------------------------------- CLEAR/LOAD -------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 void MILPSolver::clear_problem( unsigned int what ) {
 
@@ -1145,6 +1147,8 @@ void MILPSolver::scan_objective( const FRealObjective * obj ) {
 }
 
 /*--------------------------------------------------------------------------*/
+/*----------------------------- MODIFICATIONS ------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 void MILPSolver::process_modifications() {
  /*
@@ -1924,6 +1928,170 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
  }
 }
 
+/*--------------------------------------------------------------------------*/
+/*------------------------------- PARAMETERS -------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::set_par( idx_type par, int value ) {
+ if( par == intUseCustomNames ) {
+  use_custom_names = bool( value );
+  return;
+ }
+ CDASolver::set_par( par, value );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::set_par( idx_type par, double value ) {
+ CDASolver::set_par( par, value );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::set_par( idx_type par, const std::string & value ) {
+ if( par == strProblemName ) {
+  prob_name = value;
+  return;
+ }
+ if( par == strOutputFile ) {
+  output_file = value;
+  return;
+ }
+ CDASolver::set_par( par, value );
+}
+
+/*--------------------------------------------------------------------------*/
+
+ThinComputeInterface::idx_type MILPSolver::get_num_int_par() const {
+ return CDASolver::get_num_int_par() + intLastAlgParMILP - intLastParCDAS;
+}
+
+ThinComputeInterface::idx_type MILPSolver::get_num_dbl_par() const {
+ return CDASolver::get_num_dbl_par() + dblLastAlgParMILP - dblLastParCDAS;
+}
+
+ThinComputeInterface::idx_type MILPSolver::get_num_str_par() const {
+ return CDASolver::get_num_str_par() + strLastAlgParMILP - strLastParCDAS;
+}
+
+/*--------------------------------------------------------------------------*/
+
+int MILPSolver::get_dflt_int_par( idx_type par ) const {
+ if( par == intUseCustomNames ) {
+  return 1;
+ }
+ return CDASolver::get_dflt_int_par( par );
+}
+
+/*--------------------------------------------------------------------------*/
+
+double MILPSolver::get_dflt_dbl_par( idx_type par ) const {
+ return CDASolver::get_dflt_dbl_par( par );
+}
+
+/*--------------------------------------------------------------------------*/
+
+const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const {
+ static const std::vector< std::string > vals = { "MILPSolver_prob",
+                                                  "output.lp" };
+ if( par == strProblemName ) {
+  return vals[ 0 ];
+ }
+ if( par == strOutputFile ) {
+  return vals[ 1 ];
+ }
+ return CDASolver::get_dflt_str_par( par );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int MILPSolver::get_int_par( idx_type par ) const {
+ if( par == intUseCustomNames ) {
+  return use_custom_names;
+ }
+ return CDASolver::get_int_par( par );
+}
+
+/*--------------------------------------------------------------------------*/
+
+double MILPSolver::get_dbl_par( idx_type par ) const {
+ return CDASolver::get_dbl_par( par );
+}
+
+/*--------------------------------------------------------------------------*/
+
+const std::string & MILPSolver::get_str_par( idx_type par ) const {
+ if( par == strProblemName ) {
+  return prob_name;
+ }
+ if( par == strOutputFile ) {
+  return output_file;
+ }
+ return CDASolver::get_str_par( par );
+}
+
+/*--------------------------------------------------------------------------*/
+
+ThinComputeInterface::idx_type
+MILPSolver::int_par_str2idx( const std::string & name ) const {
+ if( name == "intUseCustomNames" ) {
+  return intUseCustomNames;
+ }
+ return CDASolver::int_par_str2idx( name );
+}
+
+/*--------------------------------------------------------------------------*/
+
+const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const {
+ static const std::string par = "intUseCustomNames";
+ if( idx == intUseCustomNames ) {
+  return par;
+ }
+ return CDASolver::int_par_idx2str( idx );
+}
+
+/*--------------------------------------------------------------------------*/
+
+ThinComputeInterface::idx_type
+MILPSolver::dbl_par_str2idx( const std::string & name ) const {
+ return CDASolver::dbl_par_str2idx( name );
+}
+
+/*--------------------------------------------------------------------------*/
+
+const std::string &
+MILPSolver::dbl_par_idx2str( idx_type idx ) const {
+ return CDASolver::dbl_par_idx2str( idx );
+}
+
+/*--------------------------------------------------------------------------*/
+
+ThinComputeInterface::idx_type
+MILPSolver::str_par_str2idx( const std::string & name ) const {
+ if( name == "strProblemName" )
+  return strProblemName;
+ if( name == "strOutputFile" )
+  return strOutputFile;
+ return CDASolver::str_par_str2idx( name );
+}
+
+/*--------------------------------------------------------------------------*/
+
+const std::string & MILPSolver::str_par_idx2str( idx_type idx ) const {
+ static const std::vector< std::string > pars = { "strProblemName",
+                                                  "strOutputFile" };
+ if( idx == strProblemName ) {
+  return pars[ 0 ];
+ }
+
+ if( idx == strOutputFile ) {
+  return pars[ 1 ];
+ }
+ return CDASolver::str_par_idx2str( idx );
+}
+
+/*--------------------------------------------------------------------------*/
+/*---------------------------------- DEBUG ---------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 template< typename T >

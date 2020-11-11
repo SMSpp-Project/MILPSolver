@@ -898,9 +898,6 @@ void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
   case intLogVerb:
    SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", value ) );
    break;
-  case intUseCustomNames:
-   use_custom_names = bool( value );
-   break;
   default:
    MILPSolver::set_par( par, value );
  }
@@ -942,16 +939,7 @@ void SCIPMILPSolver::set_par( idx_type par, const double value ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::set_par( idx_type par, const std::string & value ) {
- switch( par ) {
-  case strProblemName:
-   prob_name = value;
-   break;
-  case strOutputFile:
-   output_file = value;
-   break;
-  default:
-   MILPSolver::set_par( par, value );
- }
+ MILPSolver::set_par( par, value );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -984,8 +972,6 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const {
   case intLogVerb:
    SCIP_CALL_ABORT( SCIPgetIntParam( scip, "display/verblevel", &value ) );
    return value;
-  case intUseCustomNames:
-   return use_custom_names;
   default:
    return MILPSolver::get_int_par( par );
  }
@@ -1030,14 +1016,7 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const {
 
 const std::string &
 SCIPMILPSolver::get_str_par( const idx_type par ) const {
- switch( par ) {
-  case strProblemName:
-   return prob_name;
-  case strOutputFile:
-   return output_file;
-  default:
-   return MILPSolver::get_str_par( par );
- }
+ return MILPSolver::get_str_par( par );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1053,8 +1032,6 @@ int SCIPMILPSolver::get_dflt_int_par( const idx_type par ) const {
   //  return value;
   case intLogVerb:
    return 4;
-  case intUseCustomNames:
-   return 1;
   default:
    return MILPSolver::get_dflt_int_par( par );
  }
@@ -1095,15 +1072,6 @@ double SCIPMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
 
 const std::string &
 SCIPMILPSolver::get_dflt_str_par( const idx_type par ) const {
-
- if( par == strProblemName ) {
-  return std::move( std::string( "SCIPMILPSolver_prob" ) );
- }
-
- if( par == strOutputFile ) {
-  return std::move( std::string( "output.lp" ) );
- }
-
  return MILPSolver::get_dflt_str_par( par );
 }
 
@@ -1111,8 +1079,6 @@ SCIPMILPSolver::get_dflt_str_par( const idx_type par ) const {
 
 ThinComputeInterface::idx_type
 SCIPMILPSolver::int_par_str2idx( const std::string & name ) const {
- if( name == "intUseCustomNames" )
-  return intUseCustomNames;
  return MILPSolver::int_par_str2idx( name );
 }
 
@@ -1120,10 +1086,6 @@ SCIPMILPSolver::int_par_str2idx( const std::string & name ) const {
 
 const std::string &
 SCIPMILPSolver::int_par_idx2str( const idx_type idx ) const {
- if( idx == intUseCustomNames ) {
-  return std::move( std::string( "intUseCustomNames" ) );
- }
-
  return MILPSolver::int_par_idx2str( idx );
 }
 
@@ -1146,10 +1108,6 @@ SCIPMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
 
 ThinComputeInterface::idx_type
 SCIPMILPSolver::str_par_str2idx( const std::string & name ) const {
- if( name == "strProblemName" )
-  return strProblemName;
- if( name == "strOutputFile" )
-  return strOutputFile;
  return MILPSolver::str_par_str2idx( name );
 }
 
@@ -1157,16 +1115,7 @@ SCIPMILPSolver::str_par_str2idx( const std::string & name ) const {
 
 const std::string &
 SCIPMILPSolver::str_par_idx2str( const idx_type idx ) const {
- static const std::vector< std::string > pars = { "strProblemName",
-                                                  "strOutputFile" };
- switch( idx ) {
-  case strProblemName:
-   return pars[ 0 ];
-  case strOutputFile:
-   return pars[ 1 ];
-  default:
-   return MILPSolver::str_par_idx2str( idx );
- }
+ return MILPSolver::str_par_idx2str( idx );
 }
 
 /*--------------------------------------------------------------------------*/

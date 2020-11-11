@@ -96,38 +96,27 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
- /** Types of integer parameters.
-  * Public enum describing the different types of algorithmic parameters
-  * of "int" type that the CPXMILPSolver has.
-  */
- enum int_par_type_CPXS {
-  intUseCustomNames = intLastAlgParMILP, ///< Use custom names for rows/columns
-  intFirstCPLEXPar,                      ///< First CPLEX int/long parameter
 
+ /// Types of integer parameters
+ enum int_par_type_CPXS {
+  /// First CPLEX int/long parameter
+  intFirstCPLEXPar = intLastAlgParMILP,
   /// First allowed new int parameter for derived classes
   intLastAlgParCPXS = intFirstCPLEXPar + CPX_NUM_INT_PARS
  };
 
- /** Types of double parameters.
-* Public enum describing the different types of algorithmic parameters
-* of "double" type that the CPXMILPSolver has.
-*/
+ /// Types of double parameters
  enum dbl_par_type_CPXS {
-  dblFirstCPLEXPar = dblLastAlgParMILP, ///< First CPLEX double parameter
-
+  /// First CPLEX double parameter
+  dblFirstCPLEXPar = dblLastAlgParMILP,
   /// First allowed new double parameter for derived classes
   dblLastAlgParCPXS = dblFirstCPLEXPar + CPX_NUM_DBL_PARS
  };
 
- /** Types of string parameters.
-  * Public enum describing the different types of algorithmic parameters
-  * of "string" type that the CPXMILPSolver has.
-  */
+ /// Types of string parameters
  enum str_par_type_CPXS {
-  strProblemName = strLastAlgParMILP, ///< Problem name
-  strOutputFile,                      ///< Output .lp file
-  strFirstCPLEXPar,                   ///< First CPLEX string parameter
-
+  /// First CPLEX string parameter
+  strFirstCPLEXPar = strLastAlgParMILP,
   /// First allowed new string parameter for derived classes
   strLastAlgParCPXS = strFirstCPLEXPar + CPX_NUM_STR_PARS
  };
@@ -207,8 +196,10 @@ class CPXMILPSolver : public MILPSolver {
  void load_problem() override;
 
 #ifdef MILPSOLVER_DEBUG
+
  /// Check the dictionaries for inconsistencies
  void check_status() override;
+
 #endif
  /// @}
 
@@ -232,19 +223,19 @@ class CPXMILPSolver : public MILPSolver {
  /// Gets the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par() const override;
 
- /// Gets the number of string parameters
- [[nodiscard]] idx_type get_num_str_par() const override;
-
  /// Gets the number of double parameters
  [[nodiscard]] idx_type get_num_dbl_par() const override;
+
+ /// Gets the number of string parameters
+ [[nodiscard]] idx_type get_num_str_par() const override;
 
  /// Gets the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- /// Gets the default value of the specified integer parameter
+ /// Gets the default value of the specified double parameter
  [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
- /// Gets the default value of the specified integer parameter
+ /// Gets the default value of the specified string parameter
  [[nodiscard]] const std::string &
  get_dflt_str_par( idx_type par ) const override;
 
@@ -290,12 +281,6 @@ class CPXMILPSolver : public MILPSolver {
 
  CPXENVptr env; ///< CPLEX environment
  CPXLPptr lp;   ///< CPLEX LP problem
-
- std::string prob_name;   ///< CPLEX problem name
- std::string output_file; ///< Output file for CPXwriteprob
-
- /// If Variable/Constraint names should be used
- bool use_custom_names = true;
 
  /** @name Get variable bounds for the problem
   *

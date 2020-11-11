@@ -84,32 +84,23 @@ class SCIPMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
- /** Types of integer parameters.
-  * Public enum describing the different types of algorithmic parameters
-  * of "int" type that the SCIPMILPSolver has.
-  */
+
+ /// Types of integer parameters
  enum int_par_type_SCPS {
-  intUseCustomNames = intLastAlgParMILP, ///< Use custom names for rows/columns
-  intLastAlgParSCPS
+  /// First allowed new int parameter for derived classes
+  intLastAlgParSCPS = intLastAlgParMILP
  };
 
- /** Types of double parameters.
-* Public enum describing the different types of algorithmic parameters
-* of "double" type that the SCIPMILPSolver has.
-*/
+ /// Types of double parameters
  enum dbl_par_type_SCPS {
-  dblFirstCPLEXPar = dblLastAlgParMILP, ///< First double parameter
-  dblLastAlgParSCPS
+  /// First allowed new double parameter for derived classes
+  dblLastAlgParSCPS = dblLastAlgParMILP
  };
 
- /** Types of string parameters.
-  * Public enum describing the different types of algorithmic parameters
-  * of "string" type that the SCIPMILPSolver has.
-  */
+ /// Types of string parameters
  enum str_par_type_SCPS {
-  strProblemName = strLastAlgParMILP, ///< Problem name
-  strOutputFile,                      ///< Output .lp file
-  strLastAlgParSCPS
+  /// First allowed new string parameter for derived classes
+  strLastAlgParSCPS = strLastAlgParMILP
  };
 
 /*--------------------------------------------------------------------------*/
@@ -207,19 +198,19 @@ class SCIPMILPSolver : public MILPSolver {
  /// Gets the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par() const override;
 
- /// Gets the number of string parameters
- [[nodiscard]] idx_type get_num_str_par() const override;
-
  /// Gets the number of double parameters
  [[nodiscard]] idx_type get_num_dbl_par() const override;
+
+ /// Gets the number of string parameters
+ [[nodiscard]] idx_type get_num_str_par() const override;
 
  /// Gets the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- /// Gets the default value of the specified integer parameter
+ /// Gets the default value of the specified double parameter
  [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
- /// Gets the default value of the specified integer parameter
+ /// Gets the default value of the specified string parameter
  [[nodiscard]] const std::string &
  get_dflt_str_par( idx_type par ) const override;
 
@@ -267,17 +258,13 @@ class SCIPMILPSolver : public MILPSolver {
  std::vector< SCIP_VAR * > vars;   ///< SCIP variables
  std::vector< SCIP_CONS * > cons;  ///< SCIP constraints
 
- std::string prob_name;   ///< SCIP problem name
- std::string output_file; ///< Output file
-
- /// If Variable/Constraint names should be used
- bool use_custom_names = true;
-
  /** @name Get variable bounds for the problem
   *
   * The following two methods retrieve the upper and lower bound for the
   * given variable considering both the Variable bounds and all the active
   * OneVarConstraints active for that Variable.
+  *
+  * @{
   */
 
  /// Gets the LB fot the given variable in the problem
