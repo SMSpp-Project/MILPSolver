@@ -19,6 +19,7 @@ include(CMakeFindDependencyMacro)
 
 # ----- Requirements -------------------------------------------------------- #
 find_dependency(SMSpp)
+find_dependency(SCIP)
 
 # This is needed to find the custom modules we provide
 list(APPEND CMAKE_MODULE_PATH ${MILPSolver_CMAKE_DIR})
