@@ -287,7 +287,7 @@ class SCIPMILPSolver : public MILPSolver {
  void var_modification( VariableMod * mod ) override;
 
  /// It handles an objective modification
- void of_modification( ObjectiveMod * mod ) override;
+ void objective_modification( ObjectiveMod * mod ) override;
 
  /// It handles a constraint modification
  void const_modification( ConstraintMod * mod ) override;
@@ -295,11 +295,17 @@ class SCIPMILPSolver : public MILPSolver {
  /// It handles a bound modification
  void bound_modification( OneVarConstraintMod * mod ) override;
 
- /// It handles a function modification
- void function_modification( FunctionMod * mod ) override;
+ /// It handles a function modification applied to the objective
+ void objective_function_modification( FunctionMod * mod ) override;
 
- /// It handles a function vars modification
- void function_vars_modification( FunctionModVars * mod ) override;
+ /// It handles a function modification applied to a constraint
+ void constraint_function_modification( FunctionMod * mod ) override;
+
+ /// It handles a function vars modification to the objective
+ void objective_fvars_modification( FunctionModVars * mod ) override;
+
+ /// It handles a function vars modification to a constraint
+ void constraint_fvars_modification( FunctionModVars * mod ) override;
 
  /// It handles a dynamic modification
  void dynamic_modification( BlockModAD * mod ) override;

@@ -1184,7 +1184,7 @@ void MILPSolver::process_modifications() {
 
    const auto om = std::dynamic_pointer_cast< ObjectiveMod >( mod );
    if( om ) {
-    of_modification( om.get() );
+    objective_modification( om.get() );
     return;
    }
 
@@ -1210,13 +1210,21 @@ void MILPSolver::process_modifications() {
 
    const auto fm = std::dynamic_pointer_cast< FunctionMod >( mod );
    if( fm ) {
-    function_modification( fm.get() );
+    if( is_of( fm->function() ) ) {
+     objective_function_modification( fm.get() );
+    } else {
+     constraint_function_modification( fm.get() );
+    }
     return;
    }
 
    const auto fvm = std::dynamic_pointer_cast< FunctionModVars >( mod );
    if( fvm ) {
-    function_vars_modification( fvm.get() );
+    if( is_of( fvm->function() ) ) {
+     objective_fvars_modification( fvm.get() );
+    } else {
+     constraint_fvars_modification( fvm.get() );
+    }
     return;
    }
 
@@ -1239,6 +1247,46 @@ void MILPSolver::process_modifications() {
 #ifdef MILPSOLVER_DEBUG
  check_status();
 #endif
+}
+
+/*--------------------------------------------------------------------------*/
+
+bool MILPSolver::is_of( Function * f ) {
+
+ bool is_of = false;
+ std::queue< Block * > Q;
+
+ // Locking the Block
+ bool owned = f_Block->is_owned_by( f_id );
+ if( !owned && !f_Block->read_lock() ) {
+  throw std::runtime_error( "Unable to lock the Block" );
+ }
+
+ Q.push( f_Block );
+ while( !Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto * i : q_Block->get_nested_Blocks() ) {
+   Q.push( i );
+  }
+
+  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  if( p_obj != nullptr ) {
+   auto * of = p_obj->get_function();
+   if( of == f ) {
+    is_of = true;
+    break;
+   }
+  }
+ }
+
+ // Unlock the Block
+ if( !owned ) {
+  f_Block->read_unlock();
+ }
+
+ return is_of;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1278,7 +1326,7 @@ void MILPSolver::var_modification( VariableMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::of_modification( ObjectiveMod * mod ) {
+void MILPSolver::objective_modification( ObjectiveMod * mod ) {
  switch( mod->type() ) {
 
   case ObjectiveMod::eSetMin:
@@ -1405,192 +1453,119 @@ void MILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::function_modification( FunctionMod * mod ) {
- // TODO: Change only involved variables, see function_vars_modification()
+// TODO: Change only involved variables, see function_vars_modification()
+void MILPSolver::objective_function_modification( FunctionMod * mod ) {
 
  auto * mod_f = mod->function();
- bool changing_of = false;
  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
- // Check if OF or a Constraint is involved
- // --------------------------------------------------------------------------
-
- std::queue< Block * > Q;
-
- // Locking the Block
- bool owned = f_Block->is_owned_by( f_id );
- if( !owned && !f_Block->read_lock() ) {
-  throw std::runtime_error( "Unable to lock the Block" );
- }
-
- Q.push( f_Block );
- while( !Q.empty() ) {
-  Block * q_Block = Q.front();
-  Q.pop();
-
-  for( auto * i : q_Block->get_nested_Blocks() ) {
-   Q.push( i );
+ if( lf != nullptr && !objective.empty() ) {
+  // Linear objective function
+  objective.resize( lf->get_num_active_var() );
+  for( auto el : lf->get_v_var() ) {
+   objective[ index_of_variable( el.first ) ] = el.second;
   }
 
-  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
-  if( p_obj != nullptr ) {
-   auto * of = p_obj->get_function();
-   if( of == mod_f ) {
-    changing_of = true;
-    break;
-   }
+ } else if( qf != nullptr && !q_objective.empty() ) {
+  // Quadratic objective function
+  objective.resize( qf->get_num_active_var() );
+  q_objective.resize( qf->get_num_active_var() );
+  for( auto el : qf->get_v_var() ) {
+   int idx = index_of_variable( std::get< 0 >( el ) );
+   objective[ idx ] = std::get< 1 >( el );
+   q_objective[ idx ] = std::get< 2 >( el );
   }
- }
 
- // Unlock the Block
- if( !owned ) {
-  f_Block->read_unlock();
- }
-
- // Change the coefficients
- // --------------------------------------------------------------------------
-
- if( changing_of ) {
-  // Changing the coefficients of the objective function
-
-  if( lf != nullptr && !objective.empty() ) {
-   // Linear objective function
-   objective.resize( lf->get_num_active_var() );
-   for( auto el : lf->get_v_var() ) {
-    objective[ index_of_variable( el.first ) ] = el.second;
-   }
-
-  } else if( qf != nullptr && !q_objective.empty() ) {
-   // Quadratic objective function
-   objective.resize( qf->get_num_active_var() );
-   q_objective.resize( qf->get_num_active_var() );
-   for( auto el : qf->get_v_var() ) {
-    objective[ index_of_variable( std::get< 0 >( el ) ) ] =
-     std::get< 1 >( el );
-    q_objective[ index_of_variable( std::get< 0 >( el ) ) ] =
-     std::get< 2 >( el );
-   }
-
-  } else {
-   // This should never happen
-   throw std::invalid_argument( "Unknown type of Objective Function" );
-  }
  } else {
-  // Changing coefficients of a constraint
-  if( lf != nullptr ) {
-   // TODO: update constraint matrix
-  }
+  // This should never happen
+  throw std::invalid_argument( "Unknown type of Objective Function" );
  }
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::function_vars_modification( FunctionModVars * mod ) {
+// TODO: Change only involved variables, see function_vars_modification()
+void MILPSolver::constraint_function_modification( FunctionMod * mod ) {
+ auto * mod_f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+
+ if( lf == nullptr ) {
+  return;
+ }
+ // TODO: update constraint matrix
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
 
  auto * mod_f = mod->function();
- bool changing_of = false;
  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
- // Check if OF or a Constraint is involved
- // --------------------------------------------------------------------------
-
- std::queue< Block * > Q;
-
- // Locking the Block
- bool owned = f_Block->is_owned_by( f_id );
- if( !owned && !f_Block->read_lock() ) {
-  throw std::runtime_error( "Unable to lock the Block" );
- }
-
- Q.push( f_Block );
- while( !Q.empty() ) {
-  Block * q_Block = Q.front();
-  Q.pop();
-
-  for( auto * i : q_Block->get_nested_Blocks() ) {
-   Q.push( i );
-  }
-
-  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
-  if( p_obj != nullptr ) {
-   auto * of = p_obj->get_function();
-   if( of == mod_f ) {
-    changing_of = true;
-    break;
-   }
-  }
- }
-
- // Unlock the Block
- if( !owned ) {
-  f_Block->read_unlock();
- }
-
- // Modify the coefficients
- // --------------------------------------------------------------------------
-
  // Check the modification type
+ // TODO: Remove this when debugging is done
  auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
  auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
  auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
-
  if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
- if( changing_of ) {
-  // Changing the coefficients of the objective function
+ if( lf != nullptr && !objective.empty() ) {
+  // Linear objective function
+  objective.resize( mod->vars().size() );
 
-  if( lf != nullptr && !objective.empty() ) {
-   // Linear objective function
-   objective.resize( mod->vars().size() );
-
-   for( auto * it1 : mod->vars() ) {
-    for( auto it2: lf->get_v_var() ) {
-     if( it1 == it2.first ) {
-      if( add ) {
-       objective[ index_of_variable( it2.first ) ] = it2.second;
-      } else {
-       objective[ index_of_variable( it2.first ) ] = 0;
-      }
-      break;
+  for( auto * it1 : mod->vars() ) {
+   for( auto it2: lf->get_v_var() ) {
+    if( it1 == it2.first ) {
+     if( mod->added() ) {
+      objective[ index_of_variable( it2.first ) ] = it2.second;
+     } else {
+      objective[ index_of_variable( it2.first ) ] = 0;
      }
+     break;
     }
    }
+  }
 
-  } else if( qf != nullptr && !q_objective.empty() ) {
-   // Quadratic objective function
-   objective.resize( mod->vars().size() );
-   q_objective.resize( mod->vars().size() );
+ } else if( qf != nullptr && !q_objective.empty() ) {
+  // Quadratic objective function
+  objective.resize( mod->vars().size() );
+  q_objective.resize( mod->vars().size() );
 
-   for( auto * it1 : mod->vars() ) {
-    for( auto it2: qf->get_v_var() ) {
-     if( it1 == std::get< 0 >( it2 ) ) {
-      if( add ) {
-       objective[ index_of_variable( std::get< 0 >( it2 ) ) ] =
-        std::get< 1 >( it2 );
-       q_objective[ index_of_variable( std::get< 0 >( it2 ) ) ] =
-        std::get< 2 >( it2 );
-      } else {
-       objective[ index_of_variable( std::get< 0 >( it2 ) ) ] = 0;
-       q_objective[ index_of_variable( std::get< 0 >( it2 ) ) ] = 0;
-      }
-      break;
+  for( auto * it1 : mod->vars() ) {
+   for( auto it2: qf->get_v_var() ) {
+    if( it1 == std::get< 0 >( it2 ) ) {
+     int idx = index_of_variable( std::get< 0 >( it2 ) );
+     if( mod->added() ) {
+      objective[ idx ] = std::get< 1 >( it2 );
+      q_objective[ idx ] = std::get< 2 >( it2 );
+     } else {
+      objective[ idx ] = 0;
+      q_objective[ idx ] = 0;
      }
+     break;
     }
    }
-  } else {
-   // This should never happen
-   throw std::invalid_argument( "Unknown type of Objective Function" );
   }
  } else {
-  // Changing coefficients of a constraint
-  if( lf != nullptr ) {
-   // TODO: update constraint matrix
-  }
+  // This should never happen
+  throw std::invalid_argument( "Unknown type of Objective Function" );
  }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
+ auto * mod_f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+
+ if( lf == nullptr ) {
+  return;
+ }
+ // TODO: update constraint matrix
 }
 
 /*--------------------------------------------------------------------------*/

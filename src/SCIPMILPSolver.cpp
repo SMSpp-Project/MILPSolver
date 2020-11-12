@@ -514,8 +514,8 @@ void SCIPMILPSolver::var_modification( VariableMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::of_modification( ObjectiveMod * mod ) {
- MILPSolver::of_modification( mod );
+void SCIPMILPSolver::objective_modification( ObjectiveMod * mod ) {
+ MILPSolver::objective_modification( mod );
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
@@ -640,92 +640,89 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::function_modification( FunctionMod * mod ) {
- MILPSolver::function_modification( mod );
+// TODO: Change only involved variables
+void SCIPMILPSolver::objective_function_modification( FunctionMod * mod ) {
+ MILPSolver::objective_function_modification( mod );
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- /*
-  * This function is used when changing coefficents for OFs or constraints.
-  */
-
- // Check if OF or a Constraint is involved
  auto * mod_f = mod->function();
- bool changing_of = false;
  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
- auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- if( p_obj != nullptr ) {
-  auto * of = p_obj->get_function();
-  if( of == mod_f ) {
-   changing_of = true;
+ if( lf != nullptr ) {
+  // Linear objective function
+
+  for( auto el : lf->get_v_var() ) {
+   SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
+   SCIP_CALL_ABORT( SCIPchgVarObj( scip, var, el.second ) );
   }
- }
-
- if( changing_of ) {
-  // Changing objective function
-
-  if( lf != nullptr ) {
-   // Linear objective function
-
-   for( auto el : lf->get_v_var() ) {
-    SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
-    SCIP_CALL_ABORT( SCIPchgVarObj( scip, var, el.second ) );
-   }
-  } else if( qf != nullptr ) {
-   // Quadratic objective function
-   SCIPABORT();
-
-  } else {
-   // This should never happen
-   throw std::invalid_argument( "Unknown type of Objective Function" );
-  }
+ } else if( qf != nullptr ) {
+  // Quadratic objective function
+  SCIPABORT();
 
  } else {
-// Changing coefficients of a constraint
-  if( lf != nullptr ) {
-   auto * p_const = ( FRowConstraint * ) lf->get_Observer();
-
-   SCIP_CONS * con = cons[ index_of_constraint( p_const ) ];
-
-   for( auto el : lf->get_v_var() ) {
-    SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
-    SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, con, var, el.second ) );
-   }
-  }
+  // This should never happen
+  throw std::invalid_argument( "Unknown type of Objective Function" );
  }
 }
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::function_vars_modification( FunctionModVars * mod ) {
- MILPSolver::function_vars_modification( mod );
-
- /*
- * This function is used when adding coefficents to OFs or constraints.
- */
-
- // Check if OF or a Constraint is involved
+// TODO: Change only involved variables
+void SCIPMILPSolver::constraint_function_modification( FunctionMod * mod ) {
  auto * mod_f = mod->function();
- bool changing_of = false;
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+
+ if( lf == nullptr ) {
+  return;
+ }
+
+ auto * p_const = ( FRowConstraint * ) lf->get_Observer();
+ SCIP_CONS * con = cons[ index_of_constraint( p_const ) ];
+
+ for( auto el : lf->get_v_var() ) {
+  SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
+  SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, con, var, el.second ) );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
+ MILPSolver::objective_fvars_modification( mod );
+
+ auto * mod_f = mod->function();
  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
- auto * p_obj = dynamic_cast< FRealObjective * >( f_Block->get_objective() );
- if( p_obj != nullptr ) {
-  auto * of = p_obj->get_function();
-  if( of == mod_f ) {
-   changing_of = true;
-  }
- }
-
  // Check the modification type
+ // TODO: Remove this when debugging is done
  auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
  auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
  auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
+ if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
+  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
+ }
 
+ // TODO
+}
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
+ MILPSolver::constraint_fvars_modification( mod );
+
+ auto * mod_f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+ const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
+
+ // Check the modification type
+ // TODO: Remove this when debugging is done
+ auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
+ auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
+ auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
  if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }

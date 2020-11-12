@@ -729,11 +729,23 @@ class MILPSolver : public CDASolver {
  /// It processes all the pending modifications
  void process_modifications();
 
+ /// Checks if the given function is an objective function
+ /**
+  * This method is meant to be used by process_modifications() when a
+  * FunctionMod is catched, in order to discriminate between a modification
+  * of the objective function and one of a constraint.
+  * The method checks against the block's and all the sub-blocks' OFs.
+  *
+  * @param f a function
+  * @return true if the function belongs to the objective, false otherwise
+  */
+ bool is_of( Function * f );
+
  /// It handles a variable modification
  virtual void var_modification( VariableMod * mod );
 
  /// It handles an objective modification
- virtual void of_modification( ObjectiveMod * mod );
+ virtual void objective_modification( ObjectiveMod * mod );
 
  /// It handles a constraint modification
  virtual void const_modification( ConstraintMod * mod );
@@ -741,11 +753,17 @@ class MILPSolver : public CDASolver {
  /// It handles a bound modification
  virtual void bound_modification( OneVarConstraintMod * mod );
 
- /// It handles a function modification
- virtual void function_modification( FunctionMod * mod );
+ /// It handles a function modification applied to the objective
+ virtual void objective_function_modification( FunctionMod * mod );
 
- /// It handles a function vars modification
- virtual void function_vars_modification( FunctionModVars * mod );
+ /// It handles a function modification applied to a constraint
+ virtual void constraint_function_modification( FunctionMod * mod );
+
+ /// It handles a function vars modification to the objective
+ virtual void objective_fvars_modification( FunctionModVars * mod );
+
+ /// It handles a function vars modification to a constraint
+ virtual void constraint_fvars_modification( FunctionModVars * mod );
 
  /// It handles a dynamic modification
  virtual void dynamic_modification( BlockModAD * mod );

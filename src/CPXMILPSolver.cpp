@@ -1309,8 +1309,8 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::of_modification( ObjectiveMod * mod ) {
- MILPSolver::of_modification( mod );
+void CPXMILPSolver::objective_modification( ObjectiveMod * mod ) {
+ MILPSolver::objective_modification( mod );
 
  /*
   * ObjectiveMod class does not include any modification types except
@@ -1463,223 +1463,143 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::function_modification( FunctionMod * mod ) {
- // TODO: Change only involved variables, see function_vars_modification()
- MILPSolver::function_modification( mod );
-
- /*
-  * This function is used when changing coefficents for OFs or constraints.
-  */
+// TODO: Change only involved variables, see function_vars_modification()
+void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
+ MILPSolver::objective_function_modification( mod );
 
  auto * mod_f = mod->function();
- bool changing_of = false;
  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
-
- // Check if OF or a Constraint is involved
- // --------------------------------------------------------------------------
-
- std::queue< Block * > Q;
-
- // Locking the Block
- bool owned = f_Block->is_owned_by( f_id );
- if( !owned && !f_Block->read_lock() ) {
-  throw std::runtime_error( "Unable to lock the Block" );
- }
-
- Q.push( f_Block );
- while( !Q.empty() ) {
-  Block * q_Block = Q.front();
-  Q.pop();
-
-  for( auto * i : q_Block->get_nested_Blocks() ) {
-   Q.push( i );
-  }
-
-  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
-  if( p_obj != nullptr ) {
-   auto * of = p_obj->get_function();
-   if( of == mod_f ) {
-    changing_of = true;
-    break;
-   }
-  }
- }
-
- // Unlock the Block
- if( !owned ) {
-  f_Block->read_unlock();
- }
-
- // Change the coefficients
- // --------------------------------------------------------------------------
 
  std::vector< int > indices;
  std::vector< double > values;
  std::vector< double > q_values;
 
- if( changing_of ) {
-  // Changing the coefficients of the objective function
+ if( lf != nullptr ) {
+  // Linear objective function
+  indices.reserve( lf->get_num_active_var() );
+  values.reserve( lf->get_num_active_var() );
 
-  if( lf != nullptr ) {
-   // Linear objective function
-   indices.reserve( lf->get_num_active_var() );
-   values.reserve( lf->get_num_active_var() );
+  for( auto el : lf->get_v_var() ) {
+   indices.push_back( index_of_variable( el.first ) );
+   values.push_back( el.second );
+  }
 
-   for( auto el : lf->get_v_var() ) {
-    indices.push_back( index_of_variable( el.first ) );
-    values.push_back( el.second );
-   }
+  if( !indices.empty() ) {
+   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+  }
 
-   if( !indices.empty() ) {
-    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-   }
+  // Update problem type, if needed
+  switch( CPXgetprobtype( env, lp ) ) {
+   case CPXPROB_LP :
+   case CPXPROB_MILP :
+   case CPXPROB_FIXEDMILP :
+    break;
+   case CPXPROB_QP :
+    CPXchgprobtype( env, lp, CPXPROB_LP );
+    break;
+   case CPXPROB_MIQP :
+    CPXchgprobtype( env, lp, CPXPROB_MILP );
+    break;
+   case CPXPROB_FIXEDMIQP :
+    CPXchgprobtype( env, lp, CPXPROB_FIXEDMILP );
+    break;
+   default:
+    throw std::runtime_error( "Wrong CPLEX problem type" );
+  }
 
-   // Update problem type, if needed
-   switch( CPXgetprobtype( env, lp ) ) {
-    case CPXPROB_LP :
-    case CPXPROB_MILP :
-    case CPXPROB_FIXEDMILP :
-     break;
-    case CPXPROB_QP :
-     CPXchgprobtype( env, lp, CPXPROB_LP );
-     break;
-    case CPXPROB_MIQP :
-     CPXchgprobtype( env, lp, CPXPROB_MILP );
-     break;
-    case CPXPROB_FIXEDMIQP :
-     CPXchgprobtype( env, lp, CPXPROB_FIXEDMILP );
-     break;
-    default:
-     throw std::runtime_error( "Wrong CPLEX problem type" );
-   }
+ } else if( qf != nullptr ) {
+  // Quadratic objective function
+  indices.reserve( qf->get_num_active_var() );
+  values.reserve( qf->get_num_active_var() );
+  q_values.reserve( qf->get_num_active_var() );
 
-  } else if( qf != nullptr ) {
-   // Quadratic objective function
-   indices.reserve( qf->get_num_active_var() );
-   values.reserve( qf->get_num_active_var() );
-   q_values.reserve( qf->get_num_active_var() );
+  for( auto el : qf->get_v_var() ) {
+   // Linear coefficients can be changed all at once with CPXchgobj
+   indices.push_back( index_of_variable( std::get< 0 >( el ) ) );
+   values.push_back( std::get< 1 >( el ) );
+   q_values.push_back( std::get< 2 >( el ) );
 
-   for( auto el : qf->get_v_var() ) {
-    // Linear coefficients can be changed all at once with CPXchgobj
-    indices.push_back( index_of_variable( std::get< 0 >( el ) ) );
-    values.push_back( std::get< 1 >( el ) );
-    q_values.push_back( std::get< 2 >( el ) );
+   // Quadratic coefficients can be changed one at a time
+   CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
+  }
 
-    // Quadratic coefficients can be changed one at a time
-    CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
-   }
+  if( !indices.empty() ) {
+   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+  }
 
-   if( !indices.empty() ) {
-    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-   }
-
-   // Update problem type, if needed
-   switch( CPXgetprobtype( env, lp ) ) {
-    case CPXPROB_LP :
-     CPXchgprobtype( env, lp, CPXPROB_QP );
-     break;
-    case CPXPROB_MILP :
-     CPXchgprobtype( env, lp, CPXPROB_MIQP );
-     break;
-    case CPXPROB_FIXEDMILP :
-     CPXchgprobtype( env, lp, CPXPROB_FIXEDMIQP );
-     break;
-    case CPXPROB_QP :
-    case CPXPROB_MIQP :
-    case CPXPROB_FIXEDMIQP :
-     break;
-    default:
-     throw std::runtime_error( "Wrong CPLEX problem type" );
-   }
-
-  } else {
-   // This should never happen
-   throw std::invalid_argument( "Unknown type of Objective Function" );
+  // Update problem type, if needed
+  switch( CPXgetprobtype( env, lp ) ) {
+   case CPXPROB_LP :
+    CPXchgprobtype( env, lp, CPXPROB_QP );
+    break;
+   case CPXPROB_MILP :
+    CPXchgprobtype( env, lp, CPXPROB_MIQP );
+    break;
+   case CPXPROB_FIXEDMILP :
+    CPXchgprobtype( env, lp, CPXPROB_FIXEDMIQP );
+    break;
+   case CPXPROB_QP :
+   case CPXPROB_MIQP :
+   case CPXPROB_FIXEDMIQP :
+    break;
+   default:
+    throw std::runtime_error( "Wrong CPLEX problem type" );
   }
 
  } else {
-  // Changing coefficients of a constraint
-  if( lf != nullptr ) {
-   auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
-   std::vector< int > rows;
-
-   indices.reserve( lf->get_num_active_var() );
-   values.reserve( lf->get_num_active_var() );
-   rows.reserve( lf->get_num_active_var() );
-
-   for( auto el : lf->get_v_var() ) {
-    indices.push_back( index_of_variable( el.first ) );
-    rows.push_back( index_of_constraint( p_const ) );
-    values.push_back( el.second );
-   }
-
-   if( !indices.empty() ) {
-    CPXchgcoeflist( env, lp, indices.size(), rows.data(),
-                    indices.data(), values.data() );
-   }
-  }
+  // This should never happen
+  throw std::invalid_argument( "Unknown type of Objective Function" );
  }
 }
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
- MILPSolver::function_vars_modification( mod );
+// TODO: Change only involved variables, see function_vars_modification()
+void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
+ auto * mod_f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
 
- /*
-  * This function is used when adding or removing coefficents
-  * to or from OFs or constraints.
-  */
+ if( lf == nullptr ) {
+  return;
+ }
+
+ std::vector< int > indices;
+ std::vector< double > values;
+ std::vector< int > rows;
+
+ indices.reserve( lf->get_num_active_var() );
+ values.reserve( lf->get_num_active_var() );
+ rows.reserve( lf->get_num_active_var() );
+
+ auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+
+ for( auto el : lf->get_v_var() ) {
+  indices.push_back( index_of_variable( el.first ) );
+  rows.push_back( index_of_constraint( p_const ) );
+  values.push_back( el.second );
+ }
+
+ if( !indices.empty() ) {
+  CPXchgcoeflist( env, lp, indices.size(), rows.data(),
+                  indices.data(), values.data() );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
+ MILPSolver::objective_fvars_modification( mod );
 
  auto * mod_f = mod->function();
- bool changing_of = false;
  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
  const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
- // Check if OF or a Constraint is involved
- // --------------------------------------------------------------------------
-
- std::queue< Block * > Q;
-
- // Locking the Block
- bool owned = f_Block->is_owned_by( f_id );
- if( !owned && !f_Block->read_lock() ) {
-  throw std::runtime_error( "Unable to lock the Block" );
- }
-
- Q.push( f_Block );
- while( !Q.empty() ) {
-  Block * q_Block = Q.front();
-  Q.pop();
-
-  for( auto * i : q_Block->get_nested_Blocks() ) {
-   Q.push( i );
-  }
-
-  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
-  if( p_obj != nullptr ) {
-   auto * of = p_obj->get_function();
-   if( of == mod_f ) {
-    changing_of = true;
-    break;
-   }
-  }
- }
-
- // Unlock the Block
- if( !owned ) {
-  f_Block->read_unlock();
- }
-
- // Modify the coefficients
- // --------------------------------------------------------------------------
-
  // Check the modification type
+ // TODO: Remove this when debugging is done
  auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
  auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
  auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
-
  if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
@@ -1691,77 +1611,17 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
  indices.reserve( mod->vars().size() );
  values.reserve( mod->vars().size() );
 
- if( changing_of ) {
-  // Adding the coefficients to the objective function
+ // TODO: We should also check if new cols must be added/removed,
+ //       but at this point it's already done by a dynamic modification.
 
-  // TODO: We should also check if new cols must be added/removed,
-  //       but at this point it's already done by a dynamic modification.
+ if( lf != nullptr ) {
+  // Linear objective function
 
-  if( lf != nullptr ) {
-   // Linear objective function
-
-   for( auto * it1 : mod->vars() ) {
-    for( auto it2: lf->get_v_var() ) {
-     if( it1 == it2.first ) {
-      indices.push_back( index_of_variable( it2.first ) );
-      if( add ) {
-       values.push_back( it2.second );
-      } else {
-       values.push_back( 0 );
-      }
-      break;
-     }
-    }
-   }
-
-   if( !indices.empty() ) {
-    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-   }
-
-  } else if( qf != nullptr ) {
-   // Quadratic objective function
-   q_values.reserve( mod->vars().size() );
-
-   for( auto * it1 : mod->vars() ) {
-    for( auto it2: qf->get_v_var() ) {
-     if( it1 == std::get< 0 >( it2 ) ) {
-      indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
-      if( add ) {
-       values.push_back( std::get< 1 >( it2 ) );
-       q_values.push_back( std::get< 2 >( it2 ) );
-      } else {
-       values.push_back( 0 );
-       q_values.push_back( 0 );
-      }
-      break;
-     }
-    }
-    CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
-   }
-
-   if( !indices.empty() ) {
-    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-   }
-
-  } else {
-   // This should never happen
-   throw std::invalid_argument( "Unknown type of Objective Function" );
-  }
-
- } else {
-  // Adding coefficients to a Constraint
-
-  auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
-  std::vector< int > rows;
-  rows.reserve( mod->vars().size() );
-
-  // Get indices and coefficients
   for( auto * it1 : mod->vars() ) {
    for( auto it2: lf->get_v_var() ) {
     if( it1 == it2.first ) {
      indices.push_back( index_of_variable( it2.first ) );
-     rows.push_back( index_of_constraint( p_const ) );
-     if( add ) {
+     if( mod->added() ) {
       values.push_back( it2.second );
      } else {
       values.push_back( 0 );
@@ -1770,11 +1630,91 @@ void CPXMILPSolver::function_vars_modification( FunctionModVars * mod ) {
     }
    }
   }
-  // Update the coefficients (all zeroes)
+
   if( !indices.empty() ) {
-   CPXchgcoeflist( env, lp, indices.size(), rows.data(),
-                   indices.data(), values.data() );
+   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
   }
+
+ } else if( qf != nullptr ) {
+  // Quadratic objective function
+  q_values.reserve( mod->vars().size() );
+
+  for( auto * it1 : mod->vars() ) {
+   for( auto it2: qf->get_v_var() ) {
+    if( it1 == std::get< 0 >( it2 ) ) {
+     indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
+     if( mod->added() ) {
+      values.push_back( std::get< 1 >( it2 ) );
+      q_values.push_back( std::get< 2 >( it2 ) );
+     } else {
+      values.push_back( 0 );
+      q_values.push_back( 0 );
+     }
+     break;
+    }
+   }
+   CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
+  }
+
+  if( !indices.empty() ) {
+   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+  }
+
+ } else {
+  // This should never happen
+  throw std::invalid_argument( "Unknown type of Objective Function" );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
+ MILPSolver::constraint_fvars_modification( mod );
+
+ auto * mod_f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+
+ if( lf == nullptr ) {
+  return;
+ }
+
+ // Check the modification type
+ // TODO: Remove this when debugging is done
+ auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
+ auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
+ auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
+ if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
+  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
+ }
+
+ std::vector< int > indices;
+ std::vector< double > values;
+ std::vector< int > rows;
+
+ indices.reserve( mod->vars().size() );
+ values.reserve( mod->vars().size() );
+ rows.reserve( mod->vars().size() );
+
+ // Get indices and coefficients
+ auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ for( auto * it1 : mod->vars() ) {
+  for( auto it2: lf->get_v_var() ) {
+   if( it1 == it2.first ) {
+    indices.push_back( index_of_variable( it2.first ) );
+    rows.push_back( index_of_constraint( p_const ) );
+    if( mod->added() ) {
+     values.push_back( it2.second );
+    } else {
+     values.push_back( 0 );
+    }
+    break;
+   }
+  }
+ }
+ // Update the coefficients (all zeroes)
+ if( !indices.empty() ) {
+  CPXchgcoeflist( env, lp, indices.size(), rows.data(),
+                  indices.data(), values.data() );
  }
 }
 
