@@ -682,6 +682,9 @@ void SCIPMILPSolver::constraint_function_modification( FunctionMod * mod ) {
   return;
  }
 
+ if( SCIPisTransformed( scip ) )
+  SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
+
  auto * p_const = ( FRowConstraint * ) lf->get_Observer();
  SCIP_CONS * con = cons[ index_of_constraint( p_const ) ];
 
@@ -836,6 +839,9 @@ void
 SCIPMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
  MILPSolver::add_dynamic_bound( p_bound );
 
+ if( SCIPisTransformed( scip ) )
+  SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
+
  auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
  SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
 
@@ -886,6 +892,9 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 void
 SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
  MILPSolver::remove_dynamic_bound( p_bound );
+
+ if( SCIPisTransformed( scip ) )
+  SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
  auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
  SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
