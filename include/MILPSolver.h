@@ -409,7 +409,7 @@ class MILPSolver : public CDASolver {
  void set_Block( Block * block ) override;
 
  /// It does nothing as there is nothing to do.
- int compute( bool changedvars ) override { return 0; }
+ int compute( bool changedvars ) override;
 
  /// It does nothing as there is nothing to do.
  void get_var_solution( Configuration * solc ) override {}

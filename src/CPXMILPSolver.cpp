@@ -197,11 +197,13 @@ double CPXMILPSolver::get_problem_ub( const ColVariable & var ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::compute( bool changedvars ) {
+ if( MILPSolver::compute( changedvars ) ) {
+  // This should never happen
+  throw std::runtime_error( "An error occurred in MILPSolver::compute()" );
+ }
 
  int status = 0;
  bool is_qp = false;
-
- process_modifications();
 
  if( !output_file.empty() ) {
   CPXwriteprob( env, lp, output_file.c_str(), "LP" );

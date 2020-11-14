@@ -1150,6 +1150,11 @@ void MILPSolver::scan_objective( const FRealObjective * obj ) {
 /*----------------------------- MODIFICATIONS ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+int MILPSolver::compute( bool changedvars ) {
+ MILPSolver::process_modifications();
+ return 0;
+}
+
 void MILPSolver::process_modifications() {
  /*
   * This function processes one modification after another, without

@@ -206,7 +206,10 @@ double SCIPMILPSolver::get_problem_ub( const ColVariable & var ) {
 /*--------------------------------------------------------------------------*/
 
 int SCIPMILPSolver::compute( bool changedvars ) {
- process_modifications();
+ if( MILPSolver::compute( changedvars ) ) {
+  // This should never happen
+  throw std::runtime_error( "An error occurred in MILPSolver::compute()" );
+ }
 
  if( !output_file.empty() ) {
   SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip, output_file
