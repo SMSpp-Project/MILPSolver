@@ -1559,6 +1559,8 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
 
 // TODO: Change only involved variables, see function_vars_modification()
 void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
+ MILPSolver::constraint_function_modification( mod );
+
  auto * mod_f = mod->function();
  const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
 
