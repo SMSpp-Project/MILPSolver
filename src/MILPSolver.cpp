@@ -1085,7 +1085,13 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
  auto const_lhs = con.get_lhs();
  auto const_rhs = con.get_rhs();
 
- if( const_lhs == const_rhs ) {
+ if (con.is_relaxed()) {
+  // A relaxed constraint becomes:
+  // function >= -Inf
+  sense[ row ] = 'G';
+  rhs[ row ] = -Inf< double >();
+
+ } else if( const_lhs == const_rhs ) {
   // LHS <= function <= RHS, with LHS = RHS
   // becomes:
   // function = RHS
