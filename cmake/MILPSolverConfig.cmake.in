@@ -17,18 +17,29 @@
 get_filename_component(MILPSolver_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
 include(CMakeFindDependencyMacro)
 
-# ----- Requirements -------------------------------------------------------- #
-find_dependency(SMSpp)
-find_dependency(SCIP)
+# ----- Settings ------------------------------------------------------------ #
+set(MILPSolver_USE_CPLEX @MILPSolver_USE_CPLEX@)
+set(MILPSolver_USE_SCIP @MILPSolver_USE_SCIP@)
 
+# ----- Requirements -------------------------------------------------------- #
 # This is needed to find the custom modules we provide
 list(APPEND CMAKE_MODULE_PATH ${MILPSolver_CMAKE_DIR})
-find_dependency(CPLEX)
+
+find_dependency(SMSpp)
+
+if (MILPSolver_USE_SCIP)
+    find_dependency(SCIP)
+endif ()
+
+if (MILPSolver_USE_CPLEX)
+    find_dependency(CPLEX)
+endif ()
+
 list(REMOVE_AT CMAKE_MODULE_PATH -1)
 
 # ----- Import target ------------------------------------------------------- #
-if(NOT TARGET SMS++::MILPSolver)
+if (NOT TARGET SMS++::MILPSolver)
     include("${MILPSolver_CMAKE_DIR}/MILPSolverTargets.cmake")
-endif()
+endif ()
 
 set(MILPSolver_LIBRARIES SMS++::MILPSolver)
