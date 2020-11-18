@@ -29,7 +29,7 @@ option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP" ON)
 
 # A lot of debug prints
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    add_compile_definitions(MILPSOLVER_DEBUG)
+#    add_compile_definitions(MILPSOLVER_DEBUG)
 endif ()
 
 # ----- Requirements -------------------------------------------------------- #
