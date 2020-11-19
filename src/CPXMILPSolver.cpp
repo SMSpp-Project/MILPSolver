@@ -107,12 +107,15 @@ void CPXMILPSolver::load_problem() {
  int status = 0;
  lp = CPXcreateprob( env, &status, prob_name.c_str() );
 
+ std::vector< double > cpx_lb = lb;
+ std::vector< double > cpx_ub = ub;
+
  for( int i = 0; i < numcols; ++i ) {
-  if( lb[ i ] == -Inf< double >() ) {
-   lb[ i ] = -CPX_INFBOUND;
+  if( cpx_lb[ i ] == -Inf< double >() ) {
+   cpx_lb[ i ] = -CPX_INFBOUND;
   }
-  if( ub[ i ] == Inf< double >() ) {
-   ub[ i ] = CPX_INFBOUND;
+  if( cpx_ub[ i ] == Inf< double >() ) {
+   cpx_ub[ i ] = CPX_INFBOUND;
   }
  }
 
@@ -128,8 +131,8 @@ void CPXMILPSolver::load_problem() {
                    matcnt.data(),
                    matind.data(),
                    matval.data(),
-                   lb.data(),
-                   ub.data(),
+                   cpx_lb.data(),
+                   cpx_ub.data(),
                    rngval.data(),
                    colname.data(),
                    rowname.data() );
@@ -145,8 +148,8 @@ void CPXMILPSolver::load_problem() {
              matcnt.data(),
              matind.data(),
              matval.data(),
-             lb.data(),
-             ub.data(),
+             cpx_lb.data(),
+             cpx_ub.data(),
              rngval.data() );
  }
 
