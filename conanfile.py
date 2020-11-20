@@ -16,7 +16,7 @@ class SmsppConan(ConanFile):
     default_options = {"shared": False, "fPIC": True}
 
     requires = (
-        "smspp/0.3.0@smspp/testing",
+        "smspp/0.3.2@smspp/testing",
         "CPLEX/12.10"
     )
 
@@ -24,6 +24,7 @@ class SmsppConan(ConanFile):
         "CMakeLists.txt",
         "src/*",
         "include/*",
+        "tools/*",
         "cmake/*"
     ]
 
@@ -31,7 +32,7 @@ class SmsppConan(ConanFile):
         tools.replace_in_file(
             "CMakeLists.txt",
             '''project(MILPSolver VERSION 0.3.0 LANGUAGES CXX)''',
-            '''project(MILPSolver VERSION 0.3.0 LANGUAGES CXX)\n''' +
+            '''project(MILPSolver VERSION 0.3.0 LANGUAGES C CXX)\n''' +
             '''include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)\n''' +
             '''conan_basic_setup()'''
         )
@@ -39,6 +40,8 @@ class SmsppConan(ConanFile):
     def _configure_cmake(self):
         cmake = CMake(self)
         cmake.definitions["BUILD_TESTING"] = False
+        # SCIP not supported in Conan, yet
+        cmake.definitions["MILPSolver_USE_SCIP"] = False
         cmake.configure()
         return cmake
 
