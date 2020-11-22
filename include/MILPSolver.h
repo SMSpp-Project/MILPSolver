@@ -739,7 +739,7 @@ class MILPSolver : public CDASolver {
   * @param f a function
   * @return true if the function belongs to the objective, false otherwise
   */
- bool is_of( Function * f );
+ static bool is_of( Function * f );
 
  /// It handles a variable modification
  virtual void var_modification( VariableMod * mod );

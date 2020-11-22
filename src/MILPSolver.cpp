@@ -1085,7 +1085,7 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
  auto const_lhs = con.get_lhs();
  auto const_rhs = con.get_rhs();
 
- if (con.is_relaxed()) {
+ if( con.is_relaxed() ) {
   // A relaxed constraint becomes:
   // function >= -Inf
   sense[ row ] = 'G';
@@ -1129,28 +1129,31 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
 void MILPSolver::scan_objective( const FRealObjective * obj ) {
  DEBUG_LOG( "MILPSolver::scan_objective() " << *obj );
 
- const auto * lf = dynamic_cast<const LinearFunction *> (obj->get_function());
  int k = 0;
 
- if( lf != nullptr ) {
+ if( const auto * lf =
+  dynamic_cast<const LinearFunction *> (obj->get_function()) ) {
   for( auto el : lf->get_v_var() ) {
    k = index_of_variable( el.first );
    objective[ k ] = el.second;
   }
- } else {
-  const auto * qf = dynamic_cast<const DQuadFunction *> (obj->get_function());
-  if( qf != nullptr ) {
-   for( auto el : qf->get_v_var() ) {
-    // DQuadFunction::get_v_var() returns std::tuples of 3 elements
-    k = index_of_variable( std::get< 0 >( el ) );
-    objective[ k ] = std::get< 1 >( el );
-    q_objective[ k ] = std::get< 2 >( el );
-   }
-  } else {
-   throw ( std::invalid_argument( "Unknown type of Objective Function" ) );
-  }
+  return;
  }
+
+ if( const auto * qf =
+  dynamic_cast<const DQuadFunction *> (obj->get_function()) ) {
+  for( auto el : qf->get_v_var() ) {
+   // DQuadFunction::get_v_var() returns std::tuples of 3 elements
+   k = index_of_variable( std::get< 0 >( el ) );
+   objective[ k ] = std::get< 1 >( el );
+   q_objective[ k ] = std::get< 2 >( el );
+  }
+  return;
+ }
+
+ throw ( std::invalid_argument( "Unknown type of Objective Function" ) );
 }
+
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- MODIFICATIONS ------------------------------*/
@@ -1158,7 +1161,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj ) {
 
 int MILPSolver::compute( bool changedvars ) {
  MILPSolver::process_modifications();
- return 0;
+ return kOK;
 }
 
 void MILPSolver::process_modifications() {
@@ -1263,41 +1266,7 @@ void MILPSolver::process_modifications() {
 /*--------------------------------------------------------------------------*/
 
 bool MILPSolver::is_of( Function * f ) {
-
- bool is_of = false;
- std::queue< Block * > Q;
-
- // Locking the Block
- bool owned = f_Block->is_owned_by( f_id );
- if( !owned && !f_Block->read_lock() ) {
-  throw std::runtime_error( "Unable to lock the Block" );
- }
-
- Q.push( f_Block );
- while( !Q.empty() ) {
-  Block * q_Block = Q.front();
-  Q.pop();
-
-  for( auto * i : q_Block->get_nested_Blocks() ) {
-   Q.push( i );
-  }
-
-  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
-  if( p_obj != nullptr ) {
-   auto * of = p_obj->get_function();
-   if( of == f ) {
-    is_of = true;
-    break;
-   }
-  }
- }
-
- // Unlock the Block
- if( !owned ) {
-  f_Block->read_unlock();
- }
-
- return is_of;
+ return ( dynamic_cast< Objective * >( f->get_Observer() ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1468,30 +1437,33 @@ void MILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 void MILPSolver::objective_function_modification( FunctionMod * mod ) {
 
  auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
- const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
- if( lf != nullptr && !objective.empty() ) {
-  // Linear objective function
-  objective.resize( lf->get_num_active_var() );
-  for( auto el : lf->get_v_var() ) {
-   objective[ index_of_variable( el.first ) ] = el.second;
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+  if( !objective.empty() ) {
+   // Linear objective function
+
+   for( auto el : lf->get_v_var() ) {
+    objective[ index_of_variable( el.first ) ] = el.second;
+   }
   }
-
- } else if( qf != nullptr && !q_objective.empty() ) {
-  // Quadratic objective function
-  objective.resize( qf->get_num_active_var() );
-  q_objective.resize( qf->get_num_active_var() );
-  for( auto el : qf->get_v_var() ) {
-   int idx = index_of_variable( std::get< 0 >( el ) );
-   objective[ idx ] = std::get< 1 >( el );
-   q_objective[ idx ] = std::get< 2 >( el );
-  }
-
- } else {
-  // This should never happen
-  throw std::invalid_argument( "Unknown type of Objective Function" );
+  return;
  }
+
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+  if( !q_objective.empty() ) {
+   // Quadratic objective function
+
+   for( auto el : qf->get_v_var() ) {
+    int idx = index_of_variable( std::get< 0 >( el ) );
+    objective[ idx ] = std::get< 1 >( el );
+    q_objective[ idx ] = std::get< 2 >( el );
+   }
+  }
+  return;
+ }
+
+ // This should never happen
+ throw std::invalid_argument( "Unknown type of Objective Function" );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1512,8 +1484,6 @@ void MILPSolver::constraint_function_modification( FunctionMod * mod ) {
 void MILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
 
  auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
- const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
  // Check the modification type
  // TODO: Remove this when debugging is done
@@ -1524,47 +1494,51 @@ void MILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
- if( lf != nullptr && !objective.empty() ) {
-  // Linear objective function
-  objective.resize( mod->vars().size() );
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+  if( !objective.empty() ) {
+   // Linear objective function
 
-  for( auto * it1 : mod->vars() ) {
-   for( auto it2: lf->get_v_var() ) {
-    if( it1 == it2.first ) {
-     if( mod->added() ) {
-      objective[ index_of_variable( it2.first ) ] = it2.second;
-     } else {
-      objective[ index_of_variable( it2.first ) ] = 0;
+   for( auto * it1 : mod->vars() ) {
+    for( auto it2: lf->get_v_var() ) {
+     if( it1 == it2.first ) {
+      if( mod->added() ) {
+       objective[ index_of_variable( it2.first ) ] = it2.second;
+      } else {
+       objective[ index_of_variable( it2.first ) ] = 0;
+      }
+      break;
      }
-     break;
     }
    }
+   return;
   }
-
- } else if( qf != nullptr && !q_objective.empty() ) {
-  // Quadratic objective function
-  objective.resize( mod->vars().size() );
-  q_objective.resize( mod->vars().size() );
-
-  for( auto * it1 : mod->vars() ) {
-   for( auto it2: qf->get_v_var() ) {
-    if( it1 == std::get< 0 >( it2 ) ) {
-     int idx = index_of_variable( std::get< 0 >( it2 ) );
-     if( mod->added() ) {
-      objective[ idx ] = std::get< 1 >( it2 );
-      q_objective[ idx ] = std::get< 2 >( it2 );
-     } else {
-      objective[ idx ] = 0;
-      q_objective[ idx ] = 0;
-     }
-     break;
-    }
-   }
-  }
- } else {
-  // This should never happen
-  throw std::invalid_argument( "Unknown type of Objective Function" );
  }
+
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+  if( !q_objective.empty() ) {
+   // Quadratic objective function
+
+   for( auto * it1 : mod->vars() ) {
+    for( auto it2: qf->get_v_var() ) {
+     if( it1 == std::get< 0 >( it2 ) ) {
+      int idx = index_of_variable( std::get< 0 >( it2 ) );
+      if( mod->added() ) {
+       objective[ idx ] = std::get< 1 >( it2 );
+       q_objective[ idx ] = std::get< 2 >( it2 );
+      } else {
+       objective[ idx ] = 0;
+       q_objective[ idx ] = 0;
+      }
+      break;
+     }
+    }
+   }
+   return;
+  }
+ }
+
+ // This should never happen
+ throw std::invalid_argument( "Unknown type of Objective Function" );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1756,6 +1730,13 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
   }
  }
 
+ if( !objective.empty() ) {
+  objective.push_back( 0 );
+ }
+ if( !q_objective.empty() ) {
+  q_objective.push_back( 0 );
+ }
+
  // TODO: update constraint matrix
  ++numcols;
 }
@@ -1886,6 +1867,12 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
  }
  if( !xctype.empty() ) {
   xctype.erase( xctype.begin() + index );
+ }
+ if( !objective.empty() ) {
+  objective.erase( objective.begin() + index );
+ }
+ if( !q_objective.empty() ) {
+  q_objective.erase( q_objective.begin() + index );
  }
 
  // TODO: update constraint matrix

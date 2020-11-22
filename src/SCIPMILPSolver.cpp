@@ -206,7 +206,7 @@ double SCIPMILPSolver::get_problem_ub( const ColVariable & var ) {
 /*--------------------------------------------------------------------------*/
 
 int SCIPMILPSolver::compute( bool changedvars ) {
- if( MILPSolver::compute( changedvars ) ) {
+ if( MILPSolver::compute( changedvars )  != kOK ) {
   // This should never happen
   throw std::runtime_error( "An error occurred in MILPSolver::compute()" );
  }
@@ -651,24 +651,25 @@ void SCIPMILPSolver::objective_function_modification( FunctionMod * mod ) {
  }
 
  auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
- const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
- if( lf != nullptr ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
   // Linear objective function
 
   for( auto el : lf->get_v_var() ) {
    SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
    SCIP_CALL_ABORT( SCIPchgVarObj( scip, var, el.second ) );
   }
- } else if( qf != nullptr ) {
+  return;
+ }
+
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
   // Quadratic objective function
   SCIPABORT();
-
- } else {
-  // This should never happen
-  throw std::invalid_argument( "Unknown type of Objective Function" );
+  return;
  }
+
+ // This should never happen
+ throw std::invalid_argument( "Unknown type of Objective Function" );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -703,8 +704,6 @@ void SCIPMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
  MILPSolver::objective_fvars_modification( mod );
 
  auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
- const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
  // Check the modification type
  // TODO: Remove this when debugging is done
@@ -715,7 +714,18 @@ void SCIPMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
- // TODO
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+  // TODO
+  return;
+ }
+
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+  // TODO
+  return;
+ }
+
+ // This should never happen
+ throw std::invalid_argument( "Unknown type of Objective Function" );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -724,8 +734,6 @@ void SCIPMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
  MILPSolver::constraint_fvars_modification( mod );
 
  auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
- const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
  // Check the modification type
  // TODO: Remove this when debugging is done
@@ -736,7 +744,15 @@ void SCIPMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
- // TODO
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+  // TODO
+  return;
+ }
+
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+  // TODO
+  return;
+ }
 }
 
 /*--------------------------------------------------------------------------*/

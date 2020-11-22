@@ -200,7 +200,7 @@ double CPXMILPSolver::get_problem_ub( const ColVariable & var ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::compute( bool changedvars ) {
- if( MILPSolver::compute( changedvars ) ) {
+ if( MILPSolver::compute( changedvars ) != kOK ) {
   // This should never happen
   throw std::runtime_error( "An error occurred in MILPSolver::compute()" );
  }
@@ -1473,14 +1473,12 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
  MILPSolver::objective_function_modification( mod );
 
  auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
- const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
  std::vector< int > indices;
  std::vector< double > values;
  std::vector< double > q_values;
 
- if( lf != nullptr ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
   // Linear objective function
   indices.reserve( lf->get_num_active_var() );
   values.reserve( lf->get_num_active_var() );
@@ -1512,8 +1510,10 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
    default:
     throw std::runtime_error( "Wrong CPLEX problem type" );
   }
+  return;
+ }
 
- } else if( qf != nullptr ) {
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
   // Quadratic objective function
   indices.reserve( qf->get_num_active_var() );
   values.reserve( qf->get_num_active_var() );
@@ -1551,11 +1551,11 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
    default:
     throw std::runtime_error( "Wrong CPLEX problem type" );
   }
-
- } else {
-  // This should never happen
-  throw std::invalid_argument( "Unknown type of Objective Function" );
+  return;
  }
+
+ // This should never happen
+ throw std::invalid_argument( "Unknown type of Objective Function" );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1599,8 +1599,6 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
  MILPSolver::objective_fvars_modification( mod );
 
  auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
- const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f);
 
  // Check the modification type
  // TODO: Remove this when debugging is done
@@ -1621,7 +1619,7 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
  // TODO: We should also check if new cols must be added/removed,
  //       but at this point it's already done by a dynamic modification.
 
- if( lf != nullptr ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
   // Linear objective function
 
   for( auto * it1 : mod->vars() ) {
@@ -1641,8 +1639,10 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   if( !indices.empty() ) {
    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
   }
+  return;
+ }
 
- } else if( qf != nullptr ) {
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
   // Quadratic objective function
   q_values.reserve( mod->vars().size() );
 
@@ -1666,11 +1666,11 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   if( !indices.empty() ) {
    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
   }
-
- } else {
-  // This should never happen
-  throw std::invalid_argument( "Unknown type of Objective Function" );
+  return;
  }
+
+ // This should never happen
+ throw std::invalid_argument( "Unknown type of Objective Function" );
 }
 
 /*--------------------------------------------------------------------------*/
