@@ -1280,6 +1280,8 @@ void MILPSolver::var_modification( VariableMod * mod ) {
  }
  if( !ub.empty() ) {
   ub[ idx ] = get_problem_ub( *var );
+ } else {
+  throw std::logic_error( "Bound representation is empty" );
  }
 
  if( !xctype.empty() ) {
@@ -1323,6 +1325,12 @@ void MILPSolver::objective_modification( ObjectiveMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::const_modification( ConstraintMod * mod ) {
+
+ // This modification has nothing to do if these are empty
+ if( sense.empty() || rhs.empty() || rngval.empty() ) {
+  throw std::logic_error( "Constraint range representation is empty" );
+ }
+
  auto * p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
  int idx = index_of_constraint( p_const );
 
@@ -1331,16 +1339,11 @@ void MILPSolver::const_modification( ConstraintMod * mod ) {
 
  switch( mod->type() ) {
   case ConstraintMod::eRelaxConst:
-   if( !sense.empty() ) {
-    sense[ idx ] = 'G';
-   }
-   if( !rhs.empty() ) {
-    rhs[ idx ] = -Inf< double >();
-   }
-   if( !rngval.empty() ) {
-    rngval[ idx ] = 0;
-   }
+   sense[ idx ] = 'G';
+   rhs[ idx ] = -Inf< double >();
+   rngval[ idx ] = 0;
    break;
+
   case ConstraintMod::eEnforceConst:
   case RowConstraintMod::eChgLHS:
   case RowConstraintMod::eChgRHS:
@@ -1350,48 +1353,21 @@ void MILPSolver::const_modification( ConstraintMod * mod ) {
    const_rhs = p_const->get_rhs();
 
    if( const_lhs == const_rhs ) {
-    if( !sense.empty() ) {
-     sense[ idx ] = 'E';
-    }
-    if( !rhs.empty() ) {
-     rhs[ idx ] = const_rhs;
-    }
-    if( !rngval.empty() ) {
-     rngval[ idx ] = 0;
-    }
-
+    sense[ idx ] = 'E';
+    rhs[ idx ] = const_rhs;
+    rngval[ idx ] = 0;
    } else if( const_lhs == -Inf< double >() ) {
-    if( !sense.empty() ) {
-     sense[ idx ] = 'L';
-    }
-    if( !rhs.empty() ) {
-     rhs[ idx ] = const_rhs;
-    }
-    if( !rngval.empty() ) {
-     rngval[ idx ] = 0;
-    }
-
+    sense[ idx ] = 'L';
+    rhs[ idx ] = const_rhs;
+    rngval[ idx ] = 0;
    } else if( const_rhs == Inf< double >() ) {
-    if( !sense.empty() ) {
-     sense[ idx ] = 'G';
-    }
-    if( !rhs.empty() ) {
-     rhs[ idx ] = const_lhs;
-    }
-    if( !rngval.empty() ) {
-     rngval[ idx ] = 0;
-    }
-
+    sense[ idx ] = 'G';
+    rhs[ idx ] = const_lhs;
+    rngval[ idx ] = 0;
    } else {
-    if( !sense.empty() ) {
-     sense[ idx ] = 'R';
-    }
-    if( !rhs.empty() ) {
-     rhs[ idx ] = -Inf< double >();
-    }
-    if( !rngval.empty() ) {
-     rngval[ idx ] = const_rhs - const_lhs;
-    }
+    sense[ idx ] = 'R';
+    rhs[ idx ] = -Inf< double >();
+    rngval[ idx ] = const_rhs - const_lhs;
    }
 
    break;
@@ -1403,28 +1379,26 @@ void MILPSolver::const_modification( ConstraintMod * mod ) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::bound_modification( OneVarConstraintMod * mod ) {
+
+ // This modification has nothing to do if these are empty
+ if( lb.empty() || ub.empty() ) {
+  throw std::logic_error( "Bound representation is empty" );
+ }
+
  auto * p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
  auto * p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
  int idx = index_of_variable( p_var );
 
  switch( mod->type() ) {
   case RowConstraintMod::eChgLHS:
-   if( !lb.empty() ) {
-    lb[ idx ] = get_problem_lb( *p_var );
-   }
+   lb[ idx ] = get_problem_lb( *p_var );
    break;
   case RowConstraintMod::eChgRHS:
-   if( !ub.empty() ) {
-    ub[ idx ] = get_problem_ub( *p_var );
-   }
+   ub[ idx ] = get_problem_ub( *p_var );
    break;
   case RowConstraintMod::eChgBTS:
-   if( !lb.empty() ) {
-    lb[ idx ] = get_problem_lb( *p_var );
-   }
-   if( !ub.empty() ) {
-    ub[ idx ] = get_problem_ub( *p_var );
-   }
+   lb[ idx ] = get_problem_lb( *p_var );
+   ub[ idx ] = get_problem_ub( *p_var );
    break;
   default:
    throw std::invalid_argument( "Invalid type of OneVarConstraintMod" );
@@ -1433,55 +1407,127 @@ void MILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-// TODO: Change only involved variables, see function_vars_modification()
 void MILPSolver::objective_function_modification( FunctionMod * mod ) {
+
+ // This modification has nothing to do if these are empty
+ if( objective.empty() ) {
+  throw std::logic_error( "Objective representation is empty" );
+ }
 
  auto * mod_f = mod->function();
 
  if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
-  if( !objective.empty() ) {
-   // Linear objective function
+  // Linear objective function
+  // TODO: Change only involved variables
 
-   for( auto el : lf->get_v_var() ) {
-    objective[ index_of_variable( el.first ) ] = el.second;
-   }
+  for( auto el : lf->get_v_var() ) {
+   objective[ index_of_variable( el.first ) ] = el.second;
   }
+
+  // FIXME: The following stuff doesn't work
+  // if( auto * rngd = dynamic_cast<C05FunctionModRngd *>( mod ) ) {
+  //  for( auto * it1 : rngd->vars() ) {
+  //   for( auto it2: lf->get_v_var() ) {
+  //    if( it1 == it2.first ) {
+  //     objective[ index_of_variable( it2.first ) ] = it2.second;
+  //     break;
+  //    }
+  //   }
+  //  }
+  //  return;
+  // }
+  //
+  // if( auto * sbst = dynamic_cast<C05FunctionModSbst *>( mod ) ) {
+  //  for( auto * it1 : sbst->vars() ) {
+  //   for( auto it2: lf->get_v_var() ) {
+  //    if( it1 == it2.first ) {
+  //     objective[ index_of_variable( it2.first ) ] = it2.second;
+  //     break;
+  //    }
+  //   }
+  //  }
+  //  return;
+  // }
   return;
  }
 
  if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
-  if( !q_objective.empty() ) {
-   // Quadratic objective function
+  // Quadratic objective function
 
-   for( auto el : qf->get_v_var() ) {
-    int idx = index_of_variable( std::get< 0 >( el ) );
-    objective[ idx ] = std::get< 1 >( el );
-    q_objective[ idx ] = std::get< 2 >( el );
-   }
+  // This may happen if we change from LP to QP
+  if( q_objective.empty() ) {
+   q_objective.resize( numcols );
   }
+
+  // TODO: Change only involved variables
+  for( auto el : qf->get_v_var() ) {
+   int idx = index_of_variable( std::get< 0 >( el ) );
+   objective[ idx ] = std::get< 1 >( el );
+   q_objective[ idx ] = std::get< 2 >( el );
+  }
+
+  // FIXME: The following stuff doesn't work
+  // if( auto * rngd = dynamic_cast<C05FunctionModRngd *>( mod ) ) {
+  //  for( auto * it1 : rngd->vars() ) {
+  //   for( auto it2: qf->get_v_var() ) {
+  //    if( it1 == std::get< 0 >( it2 ) ) {
+  //     int idx = index_of_variable( std::get< 0 >( it2 ) );
+  //     objective[ idx ] = std::get< 1 >( it2 );
+  //     q_objective[ idx ] = std::get< 2 >( it2 );
+  //     break;
+  //    }
+  //   }
+  //  }
+  //  return;
+  // }
+  //
+  // if( auto * sbst = dynamic_cast<C05FunctionModSbst *>( mod ) ) {
+  //  for( auto * it1 : sbst->vars() ) {
+  //   for( auto it2: qf->get_v_var() ) {
+  //    if( it1 == std::get< 0 >( it2 ) ) {
+  //     int idx = index_of_variable( std::get< 0 >( it2 ) );
+  //     objective[ idx ] = std::get< 1 >( it2 );
+  //     q_objective[ idx ] = std::get< 2 >( it2 );
+  //     break;
+  //    }
+  //   }
+  //  }
+  //  return;
+  // }
   return;
  }
 
  // This should never happen
- throw std::invalid_argument( "Unknown type of Objective Function" );
+ throw std::invalid_argument( "Unsupported type of Objective function" );
 }
 
 /*--------------------------------------------------------------------------*/
 
-// TODO: Change only involved variables, see function_vars_modification()
 void MILPSolver::constraint_function_modification( FunctionMod * mod ) {
- auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
 
- if( lf == nullptr ) {
+ if( matval.empty() ) {
+  // throw std::logic_error( "Constraint representation is empty" );
+ }
+
+ auto * mod_f = mod->function();
+
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+  // TODO: update constraint matrix
   return;
  }
- // TODO: update constraint matrix
+
+ // This should never happen
+ throw std::invalid_argument( "Unsupported type of Constraint function" );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
+
+ // This modification has nothing to do if these are empty
+ if( objective.empty() ) {
+  throw std::logic_error( "Objective representation is empty" );
+ }
 
  auto * mod_f = mod->function();
 
@@ -1495,62 +1541,65 @@ void MILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
  }
 
  if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
-  if( !objective.empty() ) {
-   // Linear objective function
+  // Linear objective function
 
-   for( auto * it1 : mod->vars() ) {
-    for( auto it2: lf->get_v_var() ) {
-     if( it1 == it2.first ) {
-      if( mod->added() ) {
-       objective[ index_of_variable( it2.first ) ] = it2.second;
-      } else {
-       objective[ index_of_variable( it2.first ) ] = 0;
-      }
-      break;
+  for( auto * it1 : mod->vars() ) {
+   for( auto it2: lf->get_v_var() ) {
+    if( it1 == it2.first ) {
+     if( mod->added() ) {
+      objective[ index_of_variable( it2.first ) ] = it2.second;
+     } else {
+      objective[ index_of_variable( it2.first ) ] = 0;
      }
+     break;
     }
    }
-   return;
   }
+  return;
  }
 
  if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
-  if( !q_objective.empty() ) {
-   // Quadratic objective function
+  // Quadratic objective function
 
-   for( auto * it1 : mod->vars() ) {
-    for( auto it2: qf->get_v_var() ) {
-     if( it1 == std::get< 0 >( it2 ) ) {
-      int idx = index_of_variable( std::get< 0 >( it2 ) );
-      if( mod->added() ) {
-       objective[ idx ] = std::get< 1 >( it2 );
-       q_objective[ idx ] = std::get< 2 >( it2 );
-      } else {
-       objective[ idx ] = 0;
-       q_objective[ idx ] = 0;
-      }
-      break;
+  for( auto * it1 : mod->vars() ) {
+   for( auto it2: qf->get_v_var() ) {
+    if( it1 == std::get< 0 >( it2 ) ) {
+     int idx = index_of_variable( std::get< 0 >( it2 ) );
+     if( mod->added() ) {
+      objective[ idx ] = std::get< 1 >( it2 );
+      q_objective[ idx ] = std::get< 2 >( it2 );
+     } else {
+      objective[ idx ] = 0;
+      q_objective[ idx ] = 0;
      }
+     break;
     }
    }
-   return;
   }
+  return;
  }
 
  // This should never happen
- throw std::invalid_argument( "Unknown type of Objective Function" );
+ throw std::invalid_argument( "Unsupported type of Objective function" );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
- auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
 
- if( lf == nullptr ) {
+ if( matval.empty() ) {
+  throw std::logic_error( "Constraint representation is empty" );
+ }
+
+ auto * mod_f = mod->function();
+
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+  // TODO: update constraint matrix
   return;
  }
- // TODO: update constraint matrix
+
+ // This should never happen
+ throw std::invalid_argument( "Unsupported type of Constraint function" );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1625,61 +1674,49 @@ void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  dcon_to_idx.insert( it, { p_const, numrows } );
  idx_to_dcon.emplace_back( numrows, p_const );
 
- auto const_lhs = p_const->get_lhs();
- auto const_rhs = p_const->get_rhs();
+ // Update the counter
+ ++numrows;
 
- if( const_lhs == const_rhs ) {
-  if( !sense.empty() ) {
-   sense.emplace_back( 'E' );
-  }
-  if( !rhs.empty() ) {
-   rhs.emplace_back( const_rhs );
-  }
-  if( !rngval.empty() ) {
-   rngval.emplace_back( 0 );
-  }
-
- } else if( const_lhs == -Inf< double >() ) {
-  if( !sense.empty() ) {
-   sense.emplace_back( 'L' );
-  }
-  if( !rhs.empty() ) {
-   rhs.emplace_back( const_rhs );
-  }
-  if( !rngval.empty() ) {
-   rngval.emplace_back( 0 );
-  }
-
- } else if( const_rhs == Inf< double >() ) {
-  if( !sense.empty() ) {
-   sense.emplace_back( 'G' );
-  }
-  if( !rhs.empty() ) {
-   rhs.emplace_back( const_lhs );
-  }
-  if( !rngval.empty() ) {
-   rngval.emplace_back( 0 );
-  }
-
+ // Update the vectors
+ if( sense.empty() || rhs.empty() || rngval.empty() ) {
+  throw std::logic_error( "Constraint range representation is empty" );
  } else {
-  if( !sense.empty() ) {
-   sense.emplace_back( 'R' );
-  }
-  if( !rhs.empty() ) {
+  auto const_lhs = p_const->get_lhs();
+  auto const_rhs = p_const->get_rhs();
+
+  if( const_lhs == const_rhs ) {
+   sense.emplace_back( 'E' );
+   rhs.emplace_back( const_rhs );
+   rngval.emplace_back( 0 );
+
+  } else if( const_lhs == -Inf< double >() ) {
+   sense.emplace_back( 'L' );
+   rhs.emplace_back( const_rhs );
+   rngval.emplace_back( 0 );
+
+  } else if( const_rhs == Inf< double >() ) {
+   sense.emplace_back( 'G' );
    rhs.emplace_back( const_lhs );
-  }
-  if( !rngval.empty() ) {
+   rngval.emplace_back( 0 );
+
+  } else {
+   sense.emplace_back( 'R' );
+   rhs.emplace_back( const_lhs );
    rngval.emplace_back( const_rhs - const_lhs );
   }
  }
 
- // TODO: update constraint matrix
- ++numrows;
+ if( matval.empty() ) {
+  throw std::logic_error( "Constraint representation is empty" );
+ } else {
+  // TODO: update constraint matrix
+ }
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
+
  // Get the constraints and bounds of the new variable
  std::vector< FRowConstraint * > var_constraints;
  std::vector< OneVarConstraint * > var_bounds;
@@ -1695,11 +1732,6 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
   }
  }
 
- // Update the number of integer vars
- if( p_var->is_integer() ) {
-  ++int_vars;
- }
-
  // Update the dictionaries
  auto it = lower_bound( dvar_to_idx.begin(),
                         dvar_to_idx.end(),
@@ -1710,15 +1742,24 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  dvar_to_idx.insert( it, { p_var, numcols } );
  idx_to_dvar.emplace_back( numcols, p_var );
 
- int idx = numcols;
- if( !lb.empty() ) {
-  lb.emplace_back( get_problem_lb( *p_var ) );
+ // Update the counters
+ ++numcols;
+ if( p_var->is_integer() ) {
+  ++int_vars;
  }
- if( !ub.empty() ) {
+
+ // Update the bound vectors
+ if( lb.empty() || ub.empty() ) {
+  throw std::logic_error( "Bound representation is empty" );
+ } else {
+  lb.emplace_back( get_problem_lb( *p_var ) );
   ub.emplace_back( get_problem_ub( *p_var ) );
  }
 
- if( !xctype.empty() ) {
+ // Update the variable type vector
+ if( xctype.empty() ) {
+  throw std::logic_error( "Variable type representation is empty" );
+ } else {
   if( p_var->is_integer() ) {
    if( p_var->is_unitary() && p_var->is_positive() ) {
     xctype.emplace_back( 'B' );
@@ -1730,30 +1771,37 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
   }
  }
 
- if( !objective.empty() ) {
+ // Update the objective vectors
+ if( objective.empty() ) {
+  throw std::logic_error( "Objective representation is empty" );
+ } else {
   objective.push_back( 0 );
- }
- if( !q_objective.empty() ) {
-  q_objective.push_back( 0 );
+  if( !q_objective.empty() ) {
+   q_objective.push_back( 0 );
+  }
  }
 
- // TODO: update constraint matrix
- ++numcols;
+ if( matval.empty() ) {
+  throw std::logic_error( "Constraint representation is empty" );
+ } else {
+  // TODO: update constraint matrix
+ }
 }
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
 
+ // This modification has nothing to do if these are empty
+ if( lb.empty() || ub.empty() ) {
+  throw std::logic_error( "Bound representation is empty" );
+ }
+
  auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
  if( p_var != nullptr ) {
   int idx = index_of_variable( p_var );
-  if( !lb.empty() ) {
-   lb[ idx ] = get_problem_lb( *p_var );
-  }
-  if( !ub.empty() ) {
-   ub[ idx ] = get_problem_ub( *p_var );
-  }
+  lb[ idx ] = get_problem_lb( *p_var );
+  ub[ idx ] = get_problem_ub( *p_var );
  }
 }
 
@@ -1762,7 +1810,7 @@ void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
 void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
  // TODO: Implement remove_dynamic_with_index(i)
 
- // Remove the constraint from the dictionaries
+ // Update the dictionaries
  int index = 0;
  assert( std::is_sorted( dcon_to_idx.begin(), dcon_to_idx.end() ) );
  assert( std::is_sorted( idx_to_dcon.begin(), idx_to_dcon.end() ) );
@@ -1801,18 +1849,23 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
   throw std::runtime_error( "Dynamic constraint not found" );
  }
 
- if( !sense.empty() ) {
+ // Update the counter
+ --numrows;
+
+ // Update the vectors
+ if( sense.empty() || rhs.empty() || rngval.empty() ) {
+  throw std::logic_error( "Constraint range representation is empty" );
+ } else {
   sense.erase( sense.begin() + index );
- }
- if( !rhs.empty() ) {
   rhs.erase( rhs.begin() + index );
- }
- if( !rngval.empty() ) {
   rngval.erase( rngval.begin() + index );
  }
 
- // TODO: update constraint matrix
- --numrows;
+ if( matval.empty() ) {
+  throw std::logic_error( "Constraint representation is empty" );
+ } else {
+  // TODO: update constraint matrix
+ }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1820,7 +1873,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
 void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
  // TODO: Implement remove_dynamic_with_index(i)
 
- // Remove the constraint from the dictionaries
+ // Update the dictionaries
  int index = 0;
  assert( std::is_sorted( dvar_to_idx.begin(), dvar_to_idx.end() ) );
  assert( std::is_sorted( idx_to_dvar.begin(), idx_to_dvar.end() ) );
@@ -1859,29 +1912,41 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
   throw std::runtime_error( "Dynamic constraint not found" );
  }
 
- if( !lb.empty() ) {
-  lb.erase( lb.begin() + index );
- }
- if( !ub.empty() ) {
-  ub.erase( ub.begin() + index );
- }
- if( !xctype.empty() ) {
-  xctype.erase( xctype.begin() + index );
- }
- if( !objective.empty() ) {
-  objective.erase( objective.begin() + index );
- }
- if( !q_objective.empty() ) {
-  q_objective.erase( q_objective.begin() + index );
- }
-
- // TODO: update constraint matrix
-
+ // Update the counters
  --numcols;
-
- // Update the number of integer vars
  if( p_var->is_integer() ) {
   --int_vars;
+ }
+
+ // Update the bound vectors
+ if( lb.empty() || ub.empty() ) {
+  throw std::logic_error( "Bound representation is empty" );
+ } else {
+  lb.erase( lb.begin() + index );
+  ub.erase( ub.begin() + index );
+ }
+
+ // Update the variable type vector
+ if( xctype.empty() ) {
+  throw std::logic_error( "Variable type representation is empty" );
+ } else {
+  xctype.erase( xctype.begin() + index );
+ }
+
+ // Update the objective vectors
+ if( objective.empty() ) {
+  throw std::logic_error( "Objective representation is empty" );
+ } else {
+  objective.erase( objective.begin() + index );
+  if( !q_objective.empty() ) {
+   q_objective.erase( q_objective.begin() + index );
+  }
+ }
+
+ if( matval.empty() ) {
+  throw std::logic_error( "Constraint representation is empty" );
+ } else {
+  // TODO: update constraint matrix
  }
 }
 
@@ -1889,15 +1954,16 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 
 void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
 
+ // This modification has nothing to do if these are empty
+ if( lb.empty() || ub.empty() ) {
+  throw std::logic_error( "Bound representation is empty" );
+ }
+
  auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
  if( p_var != nullptr ) {
   int idx = index_of_variable( p_var );
-  if( !lb.empty() ) {
-   lb[ idx ] = get_problem_lb( *p_var );
-  }
-  if( !ub.empty() ) {
-   ub[ idx ] = get_problem_ub( *p_var );
-  }
+  lb[ idx ] = get_problem_lb( *p_var );
+  ub[ idx ] = get_problem_ub( *p_var );
  }
 }
 

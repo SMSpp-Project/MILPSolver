@@ -179,6 +179,10 @@ class MILPSolver : public CDASolver {
   * - 8 clears lb and ub.
   *
   * To clear everything, use what = 15.
+  *
+  * Note: this method is provided so the user can clear the stuff that
+  * she is sure IT WILL NOT BE CHANGED. If some vectors are cleared and
+  * a method tries to change them, it will throw exception!
   */
  virtual void clear_problem( unsigned int what );
 
