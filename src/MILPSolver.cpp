@@ -1273,17 +1273,27 @@ bool MILPSolver::is_of( Function * f ) {
 
 void MILPSolver::var_modification( VariableMod * mod ) {
  const auto var = dynamic_cast< const ColVariable * >( mod->variable() );
+
+ // Update the number of integer variables
+ if( var->is_integer( mod->old_state() ) ) {
+  --int_vars;
+ }
+
+ if( var->is_integer() ) {
+  ++int_vars;
+ }
+
  int idx = index_of_variable( var );
 
- if( !lb.empty() ) {
+ // Update bounds
+ if( !lb.empty() && !ub.empty() ) {
   lb[ idx ] = get_problem_lb( *var );
- }
- if( !ub.empty() ) {
   ub[ idx ] = get_problem_ub( *var );
  } else {
   throw std::logic_error( "Bound representation is empty" );
  }
 
+ // Update variable type
  if( !xctype.empty() ) {
   if( var->is_integer() ) {
    if( var->is_unitary() && var->is_positive() ) {
@@ -1294,15 +1304,8 @@ void MILPSolver::var_modification( VariableMod * mod ) {
   } else {
    xctype[ idx ] = 'C';
   }
- }
-
- // Update the number of integer variables
- if( var->is_integer( mod->old_state() ) ) {
-  --int_vars;
- }
-
- if( var->is_integer() ) {
-  ++int_vars;
+ } else {
+  throw std::logic_error( "Variable type representation is empty" );
  }
 }
 
@@ -1516,8 +1519,8 @@ void MILPSolver::constraint_function_modification( FunctionMod * mod ) {
   return;
  }
 
- // This should never happen
- throw std::invalid_argument( "Unsupported type of Constraint function" );
+ // Enabling this will break Polyhedral Functions
+ // throw std::invalid_argument( "Unsupported type of Constraint function" );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1598,8 +1601,8 @@ void MILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
   return;
  }
 
- // This should never happen
- throw std::invalid_argument( "Unsupported type of Constraint function" );
+ // Enabling this will break Polyhedral Functions
+ // throw std::invalid_argument( "Unsupported type of Constraint function" );
 }
 
 /*--------------------------------------------------------------------------*/
