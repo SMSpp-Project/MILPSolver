@@ -253,10 +253,16 @@ class SCIPMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 
  protected:
+ /// SCIP environment
  SCIP * scip{};
 
  std::vector< SCIP_VAR * > vars;   ///< SCIP variables
  std::vector< SCIP_CONS * > cons;  ///< SCIP constraints
+
+ /// SCIP auxiliary variables for QPs
+ std::vector< SCIP_VAR * > aux_vars;
+ /// SCIP auxiliary constraints for QPs
+ std::vector< SCIP_CONS * > aux_cons;
 
  /** @name Get variable bounds for the problem
   *

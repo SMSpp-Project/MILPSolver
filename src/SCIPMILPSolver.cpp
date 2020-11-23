@@ -179,9 +179,86 @@ void SCIPMILPSolver::load_problem() {
                            q_objective.end(),
                            []( double d ) { return d != 0; } );
  if( is_qp ) {
-  SCIPABORT();
+  // For each col add create a new aux_var z.
+  // In the objective z goes with the q_objective value.
+  // Then add a new quad aux_constraint z - xˆ2 >= 0
+
+  aux_vars.resize( numcols );
+  aux_cons.resize( numcols );
+
+  for( int i = 0; i < numcols; ++i ) {
+
+   // Add auxiliary variables
+   SCIP_Real z_lb = ( lb[ i ] == -Inf< double >() ) ?
+                    -SCIPinfinity( scip ) : lb[ i ];
+   SCIP_Real z_ub = ( ub[ i ] == Inf< double >() ) ?
+                    SCIPinfinity( scip ) : ub[ i ];
+
+   SCIP_VARTYPE z_type;
+   switch( xctype[ i ] ) {
+    case 'C':
+     z_type = SCIP_VARTYPE_CONTINUOUS;
+     break;
+    case 'B':
+     z_lb = 0;
+     z_ub = 1;
+     z_type = SCIP_VARTYPE_BINARY;
+     break;
+    case 'I':
+     z_type = SCIP_VARTYPE_INTEGER;
+     break;
+    case 'S':
+    case 'N':
+    default:
+     SCIPABORT();
+   }
+
+   SCIP_VAR * z = nullptr;
+   SCIP_CALL_ABORT( SCIPcreateVarBasic( scip, &z, nullptr, z_lb, z_ub,
+                                        q_objective[ i ], z_type ) );
+   SCIP_CALL_ABORT( SCIPaddVar( scip, z ) );
+   aux_vars[ i ] = z;
+   SCIP_CALL_ABORT( SCIPreleaseVar( scip, &z ) );
+
+
+   // Add auxiliary constraints
+   SCIP_Real con_lhs = NAN;
+   SCIP_Real con_rhs = NAN;
+
+   if( objsense == SCIP_OBJSENSE_MINIMIZE ) {
+    con_lhs = 0;
+    con_rhs = SCIPinfinity( scip );
+   } else if( objsense == SCIP_OBJSENSE_MAXIMIZE ) {
+    con_lhs = -SCIPinfinity( scip );
+    con_rhs = 0;
+   } else {
+    SCIPABORT();
+   }
+
+   SCIP_CONS * con = nullptr;
+   SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip, &con, nullptr, 0,
+                                                  nullptr, nullptr, 0,
+                                                  nullptr, nullptr, nullptr,
+                                                  con_lhs, con_rhs ) );
+   SCIP_CALL_ABORT( SCIPaddCons( scip, con ) );
+   aux_cons[ i ] = con;
+   SCIP_CALL_ABORT( SCIPreleaseCons( scip, &con ) );
+
+
+   // Add constraint coefficients
+   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip,
+                                       aux_cons[ i ],
+                                       aux_vars[ i ],
+                                       1 ) );
+   SCIP_CALL_ABORT( SCIPaddQuadVarQuadratic( scip,
+                                             aux_cons[ i ],
+                                             aux_vars[ i ],
+                                             0,
+                                             -1 ) );
+  }
  }
 }
+
 
 /*--------------------------------------------------------------------------*/
 
