@@ -1663,37 +1663,49 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
 
  auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
 
- if( auto * rngd = dynamic_cast<C05FunctionModRngd *>( mod ) ) {
-  indices.reserve( rngd->vars().size() );
-  values.reserve( rngd->vars().size() );
-  rows.reserve( rngd->vars().size() );
+ // TODO: Change only involved variables
+ indices.reserve( lf->get_num_active_var() );
+ values.reserve( lf->get_num_active_var() );
+ rows.reserve( lf->get_num_active_var() );
 
-  for( auto * it1 : rngd->vars() ) {
-   for( auto it2: lf->get_v_var() ) {
-    if( it1 == it2.first ) {
-     indices.push_back( index_of_variable( it2.first ) );
-     rows.push_back( index_of_constraint( p_const ) );
-     values.push_back( it2.second );
-    }
-   }
-  }
+ for( auto el : lf->get_v_var() ) {
+  indices.push_back( index_of_variable( el.first ) );
+  rows.push_back( index_of_constraint( p_const ) );
+  values.push_back( el.second );
  }
 
- if( auto * sbst = dynamic_cast<C05FunctionModSbst *>( mod ) ) {
-  indices.reserve( sbst->vars().size() );
-  values.reserve( sbst->vars().size() );
-  rows.reserve( sbst->vars().size() );
-
-  for( auto * it1 : sbst->vars() ) {
-   for( auto it2: lf->get_v_var() ) {
-    if( it1 == it2.first ) {
-     indices.push_back( index_of_variable( it2.first ) );
-     rows.push_back( index_of_constraint( p_const ) );
-     values.push_back( it2.second );
-    }
-   }
-  }
- }
+ // FIXME: The following stuff doesn't work
+ // if( auto * rngd = dynamic_cast<C05FunctionModRngd *>( mod ) ) {
+ //  indices.reserve( rngd->vars().size() );
+ //  values.reserve( rngd->vars().size() );
+ //  rows.reserve( rngd->vars().size() );
+ //
+ //  for( auto * it1 : rngd->vars() ) {
+ //   for( auto it2: lf->get_v_var() ) {
+ //    if( it1 == it2.first ) {
+ //     indices.push_back( index_of_variable( it2.first ) );
+ //     rows.push_back( index_of_constraint( p_const ) );
+ //     values.push_back( it2.second );
+ //    }
+ //   }
+ //  }
+ // }
+ //
+ // if( auto * sbst = dynamic_cast<C05FunctionModSbst *>( mod ) ) {
+ //  indices.reserve( sbst->vars().size() );
+ //  values.reserve( sbst->vars().size() );
+ //  rows.reserve( sbst->vars().size() );
+ //
+ //  for( auto * it1 : sbst->vars() ) {
+ //   for( auto it2: lf->get_v_var() ) {
+ //    if( it1 == it2.first ) {
+ //     indices.push_back( index_of_variable( it2.first ) );
+ //     rows.push_back( index_of_constraint( p_const ) );
+ //     values.push_back( it2.second );
+ //    }
+ //   }
+ //  }
+ // }
 
  if( !indices.empty() ) {
   CPXchgcoeflist( env, lp, indices.size(), rows.data(),
