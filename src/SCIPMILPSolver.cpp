@@ -1013,12 +1013,12 @@ SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
 
 void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
  switch( par ) {
-  // case intMaxIter:
-  //  SCIP_CALL_ABORT( SCIPsetLongintParam( scip, "limits/nodes", value ) );
-  //  break;
-  // case intMaxSol:
-  //  SCIP_CALL_ABORT( SCIPsetIntParam( scip, "limits/solutions", value ) );
-  //  break;
+  case intMaxIter:
+   SCIP_CALL_ABORT( SCIPsetLongintParam( scip, "limits/nodes", value ) );
+   break;
+  case intMaxSol:
+   SCIP_CALL_ABORT( SCIPsetIntParam( scip, "limits/solutions", value ) );
+   break;
   case intLogVerb:
    SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", value ) );
    break;
@@ -1031,9 +1031,9 @@ void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
 
 void SCIPMILPSolver::set_par( idx_type par, const double value ) {
  switch( par ) {
-  // case dblMaxTime:
-  //  SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/time", value ) );
-  //  break;
+  case dblMaxTime:
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/time", value ) );
+   break;
   // case dblRelAcc: // TODO
   //  break;
   // case dblAbsAcc: // TODO
@@ -1087,12 +1087,12 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const {
  SCIP_Longint long_value;
 
  switch( par ) {
-  // case intMaxIter:
-  //  SCIP_CALL_ABORT( SCIPgetLongintParam( scip, "limits/nodes", &long_value ) );
-  //  return ( int ) long_value;
-  // case intMaxSol:
-  //  SCIP_CALL_ABORT( SCIPgetIntParam( scip, "limits/solutions", &value ) );
-  //  return value;
+  case intMaxIter:
+   SCIP_CALL_ABORT( SCIPgetLongintParam( scip, "limits/nodes", &long_value ) );
+   return ( int ) long_value;
+  case intMaxSol:
+   SCIP_CALL_ABORT( SCIPgetIntParam( scip, "limits/solutions", &value ) );
+   return value;
   case intLogVerb:
    SCIP_CALL_ABORT( SCIPgetIntParam( scip, "display/verblevel", &value ) );
    return value;
@@ -1107,9 +1107,9 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const {
  double value;
 
  switch( par ) {
-  // case dblMaxTime:
-  //  SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/time", &value ) );
-  //  return value;
+  case dblMaxTime:
+   SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/time", &value ) );
+   return value;
   // case dblRelAcc:   // TODO
   //  return 1e-6;
   // case dblAbsAcc:   // TODO
@@ -1149,11 +1149,12 @@ int SCIPMILPSolver::get_dflt_int_par( const idx_type par ) const {
  int value;
  SCIP_Longint long_value;
 
+ // See: https://www.scipopt.org/doc/html/PARAMETERS.php
  switch( par ) {
-  // case intMaxIter:
-  //  return ( int ) long_value;
-  // case intMaxSol:
-  //  return value;
+  case intMaxIter:
+   return -1;
+  case intMaxSol:
+   return -1;
   case intLogVerb:
    return 4;
   default:
@@ -1167,8 +1168,8 @@ double SCIPMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
  double value;
 
  switch( par ) {
-  // case dblMaxTime:
-  //  return value;
+  case dblMaxTime:
+   return 1e20;
   // case dblRelAcc:   // TODO
   //  return 1e-6;
   // case dblAbsAcc:   // TODO
