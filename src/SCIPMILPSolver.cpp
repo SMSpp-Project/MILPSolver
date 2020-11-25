@@ -329,7 +329,7 @@ Solver::OFValue SCIPMILPSolver::get_lb() {
  OFValue lower_bound = 0;
 
  switch( objsense ) {
-  case 1: // Minimization problem
+  case SCIP_OBJSENSE_MINIMIZE:
    switch( sol_status ) {
     case kUnbounded:
      lower_bound = -Inf< OFValue >();
@@ -342,7 +342,7 @@ Solver::OFValue SCIPMILPSolver::get_lb() {
      break;
    }
    break;
-  case -1: // Maximization problem
+  case SCIP_OBJSENSE_MAXIMIZE:
    switch( sol_status ) {
     case kUnbounded:
      lower_bound = Inf< OFValue >();
@@ -351,7 +351,7 @@ Solver::OFValue SCIPMILPSolver::get_lb() {
      lower_bound = -Inf< OFValue >();
      break;
     default:
-     lower_bound = SCIPgetDualbound( scip );
+     lower_bound = SCIPgetPrimalbound( scip );
      break;
    }
    break;
@@ -369,7 +369,7 @@ Solver::OFValue SCIPMILPSolver::get_ub() {
  OFValue upper_bound = 0;
 
  switch( objsense ) {
-  case 1: // Minimization problem
+  case SCIP_OBJSENSE_MINIMIZE:
    switch( sol_status ) {
     case kUnbounded:
      upper_bound = -Inf< OFValue >();
@@ -382,7 +382,7 @@ Solver::OFValue SCIPMILPSolver::get_ub() {
      break;
    }
    break;
-  case -1: // Maximization problem
+  case SCIP_OBJSENSE_MAXIMIZE:
    switch( sol_status ) {
     case kUnbounded:
      upper_bound = Inf< OFValue >();
@@ -391,7 +391,7 @@ Solver::OFValue SCIPMILPSolver::get_ub() {
      upper_bound = -Inf< OFValue >();
      break;
     default:
-     upper_bound = SCIPgetPrimalbound( scip );
+     upper_bound = SCIPgetDualbound( scip );
      break;
    }
    break;
