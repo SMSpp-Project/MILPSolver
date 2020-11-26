@@ -14,7 +14,7 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-get_filename_component(MILPSolver_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+get_filename_component(@modName@_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
 include(CMakeFindDependencyMacro)
 
 # ----- Settings ------------------------------------------------------------ #
@@ -22,10 +22,10 @@ set(MILPSolver_USE_CPLEX @MILPSolver_USE_CPLEX@)
 set(MILPSolver_USE_SCIP @MILPSolver_USE_SCIP@)
 
 # ----- Requirements -------------------------------------------------------- #
-# This is needed to find the custom modules we provide
-list(APPEND CMAKE_MODULE_PATH ${MILPSolver_CMAKE_DIR})
-
 find_dependency(SMSpp)
+
+# This is needed to find the custom modules we provide
+list(APPEND CMAKE_MODULE_PATH ${@modName@_CMAKE_DIR})
 
 if (MILPSolver_USE_SCIP)
     find_dependency(SCIP)
@@ -38,8 +38,8 @@ endif ()
 list(REMOVE_AT CMAKE_MODULE_PATH -1)
 
 # ----- Import target ------------------------------------------------------- #
-if (NOT TARGET SMS++::MILPSolver)
-    include("${MILPSolver_CMAKE_DIR}/MILPSolverTargets.cmake")
-endif ()
+if (NOT TARGET @modNamespace@::@modName@)
+    include("${@modName@_CMAKE_DIR}/@modName@Targets.cmake")
+endif()
 
-set(MILPSolver_LIBRARIES SMS++::MILPSolver)
+set(@modName@_LIBRARIES @modNamespace@::@modName@)

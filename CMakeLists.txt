@@ -22,10 +22,21 @@
 cmake_minimum_required(VERSION 3.11)
 project(MILPSolver VERSION 0.3.0 LANGUAGES CXX)
 
+# These variables make the code harder to read but easier to change.
+set(modName ${PROJECT_NAME})
+set(modNamespace "SMS++")
+set(modHeader "${modName}Config.h")
+set(modTargets "${modName}Targets")
+
 # ----- Settings ------------------------------------------------------------ #
+# This creates an ENABLE_TESTING option (default: ON) and enables the testing
+# using the ctest executable.
+# See: https://cmake.org/cmake/help/latest/manual/ctest.1.html
+#include(CTest)
+
 # An option is an ON/OFF user-settable cache variable
-option(MILPSolver_USE_CPLEX "Whether MILPSolver will use CPLEX" ON)
-option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP" ON)
+option(${modName}_USE_CPLEX "Whether ${modName} will use CPLEX or not." ON)
+option(${modName}_USE_SCIP "Whether ${modName} will use SCIP or not." ON)
 
 # A lot of debug prints
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -62,20 +73,22 @@ endif ()
 
 # ----- Configuration header ------------------------------------------------ #
 # This will generate a *Config.h header in the build directory.
-configure_file(cmake/MILPSolverConfig.h.in MILPSolverConfig.h)
+configure_file(cmake/${modHeader}.in ${modHeader})
 
 # ----- Library ------------------------------------------------------------- #
 # With the BUILD_SHARED_LIBS variable we can specify if the library will
 # be STATIC or SHARED, so no reason to do it now.
-add_library(MILPSolver)
-target_compile_features(MILPSolver PUBLIC cxx_std_17)
+add_library(${modName})
+target_compile_features(${modName} PUBLIC cxx_std_17)
 
 # When adding source files with target_sources(), PRIVATE means that the files
 # should only be added to this library, whereas PUBLIC means they should be
 # added to this library and to any target that links to it.
 # INTERFACE can be used for sources that should not be added to this library
 # but should be added to anything that links to it.
-target_sources(MILPSolver PRIVATE src/MILPSolver.cpp)
+# Note: do not GLOB files here.
+target_sources(${modName} PRIVATE
+               src/MILPSolver.cpp)
 
 # When using target_include_directories(), PUBLIC means that any targets
 # that link to this target also need that include directory.
@@ -88,35 +101,42 @@ target_sources(MILPSolver PRIVATE src/MILPSolver.cpp)
 # will look into the BUILD_INTERFACE path for its headers, if it finds it
 # installed in the system will look into the INSTALL_INTERFACE path.
 target_include_directories(
-        MILPSolver PUBLIC
+        ${modName} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include/SMS++>)
+        $<INSTALL_INTERFACE:include/${modNamespace}>)
 
 # When linking other targets to the library with target_link_libraries(),
 # PRIVATE means that the libraries will be linked only to this library,
 # PUBLIC means they will be linked also to the targets that depend on this
 # library, INTERFACE means they will be linked only to the targets that depend
 # on this library.
-target_link_libraries(MILPSolver PUBLIC
-                      SMS++::SMSpp)
+target_link_libraries(${modName} PUBLIC
+                      ${modNamespace}::SMSpp)
 
-if (MILPSolver_USE_CPLEX)
-    message(STATUS "MILPSolver: CPLEX found, configuring CPXMILPSolver")
-    target_sources(MILPSolver PRIVATE src/CPXMILPSolver.cpp)
-    target_link_libraries(MILPSolver PUBLIC CPLEX::Cplex)
+if (${modName}_USE_CPLEX)
+    message(STATUS "${modName}: CPLEX found, configuring CPX${modName}")
+
+    target_sources(${modName} PRIVATE
+                   src/CPX${modName}.cpp)
+
+    target_link_libraries(${modName} PUBLIC
+                          CPLEX::Cplex)
 endif ()
 
-if (MILPSolver_USE_SCIP)
-    message(STATUS "MILPSolver: SCIP found, configuring SCIPMILPSolver")
-    target_sources(MILPSolver PRIVATE src/SCIPMILPSolver.cpp)
+if (${modName}_USE_SCIP)
+    message(STATUS "${modName}: SCIP found, configuring SCIP${modName}")
+
+    target_sources(${modName} PRIVATE
+                   src/SCIP${modName}.cpp)
+
     # SCIP configuration file doesn't define a target
-    target_link_libraries(MILPSolver PUBLIC ${SCIP_LIBRARIES})
-    target_include_directories(MILPSolver PRIVATE ${SCIP_INCLUDE_DIRS})
+    target_link_libraries(${modName} PUBLIC ${SCIP_LIBRARIES})
+    target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
 endif ()
 
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
-add_library(SMS++::MILPSolver ALIAS MILPSolver)
+add_library(${modNamespace}::${modName} ALIAS ${modName})
 
 # ----- Install instructions ------------------------------------------------ #
 # The following commands are used when installing the library
@@ -126,59 +146,58 @@ add_library(SMS++::MILPSolver ALIAS MILPSolver)
 include(GNUInstallDirs)
 
 # Install the library
-install(TARGETS MILPSolver
-        EXPORT MILPSolver-targets
+install(TARGETS ${modName}
+        EXPORT ${modTargets}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Install the headers
 install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/include/MILPSolver.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SMS++)
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace})
 
-if (MILPSolver_USE_CPLEX)
+if (${modName}_USE_CPLEX)
     install(DIRECTORY include/
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SMS++
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "CPX*")
 endif ()
 
-if (MILPSolver_USE_SCIP)
+if (${modName}_USE_SCIP)
     install(DIRECTORY include/
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SMS++
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "SCIP*")
 endif ()
 
 # Install the auto-generated configuration header (see above).
-install(FILES ${PROJECT_BINARY_DIR}/MILPSolverConfig.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/SMS++)
+install(FILES ${PROJECT_BINARY_DIR}/${modName}Config.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace})
 
 # (Generate and) install the target import file, that allows other
 # CMake projects to import the target.
-install(EXPORT MILPSolver-targets
-        FILE MILPSolverTargets.cmake
-        NAMESPACE SMS++::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MILPSolver)
+install(EXPORT ${modTargets}
+        NAMESPACE ${modNamespace}::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${modName})
 
 # Generate the package version file, that allows other
 # CMake projects to know the version.
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
-        ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfigVersion.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/${modName}ConfigVersion.cmake
         VERSION ${PROJECT_VERSION}
         COMPATIBILITY AnyNewerVersion)
 
 # Generate the package configuration file, that allows other
 # CMake projects to find the library with find_package().
 configure_package_config_file(
-        ${CMAKE_CURRENT_LIST_DIR}/cmake/MILPSolverConfig.cmake.in
-        ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfig.cmake
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MILPSolver)
+        ${CMAKE_CURRENT_LIST_DIR}/cmake/${modName}Config.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/${modName}Config.cmake
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${modName})
 
 # Install the package version and configuration files.
 install(FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfig.cmake
-        ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverConfigVersion.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/MILPSolver)
+        ${CMAKE_CURRENT_BINARY_DIR}/${modName}Config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/${modName}ConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${modName})
 
 # Shipping custom find modules should not be encouraged because third
 # party developers should provide them.
@@ -200,9 +219,9 @@ if (CMAKE_EXPORT_PACKAGE_REGISTRY)
 
     # Generate the target import file, that allows other
     # CMake projects to import the target.
-    export(EXPORT MILPSolver-targets
-           FILE ${CMAKE_CURRENT_BINARY_DIR}/MILPSolverTargets.cmake
-           NAMESPACE SMS++::)
+    export(EXPORT ${modTargets}
+           FILE ${CMAKE_CURRENT_BINARY_DIR}/${modTargets}.cmake
+           NAMESPACE ${modNamespace}::)
 
     # Export the find modules for the local configuration file to use them.
     configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/FindCPLEX.cmake
@@ -218,7 +237,7 @@ if (CMAKE_EXPORT_PACKAGE_REGISTRY)
     endif ()
 
     # Export the package in user's package registry
-    export(PACKAGE MILPSolver)
+    export(PACKAGE ${modName})
 endif ()
 
 # ----- Subdirectories ------------------------------------------------------ #
