@@ -2309,6 +2309,7 @@ const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const {
   char value[CPX_STR_PARAM_MAX];
   CPXgetstrparam( env, cplex_par, value );
 
+  // warning: function returns address of local variable [-Wreturn-local-addr]
   return std::move( std::string( value ) );
  }
 
@@ -2425,6 +2426,7 @@ CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
   char value[CPX_STR_PARAM_MAX];
   CPXinfostrparam( env, cplex_par, value );
 
+  // warning: function returns address of local variable [-Wreturn-local-addr]
   return std::move( std::string( value ) );
  }
 
@@ -2449,7 +2451,7 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
  return MILPSolver::int_par_str2idx( name );
 }
 
-/*--------------------------------------------------------------------------*/
+/*----------------------------- ---------------------------------------------*/
 
 const std::string &
 CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
@@ -2463,6 +2465,8 @@ CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
 #else
   int status = CPXgetparamhiername( env, cplex_par, par_name );
 #endif
+
+  // warning: function returns address of local variable [-Wreturn-local-addr]
   return std::move( std::string( par_name ) );
  }
 
@@ -2499,6 +2503,8 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
 #else
   int status = CPXgetparamhiername( env, cplex_par, par_name );
 #endif
+
+  //warning: function returns address of local variable [-Wreturn-local-addr]
   return std::move( std::string( par_name ) );
  }
 
@@ -2537,6 +2543,7 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 #else
   int status = CPXgetparamhiername( env, cplex_par, par_name );
 #endif
+  //  warning: function returns address of local variable [-Wreturn-local-addr]
   return std::move( std::string( par_name ) );
  }
  return MILPSolver::str_par_idx2str( idx );
