@@ -14,6 +14,7 @@ These instructions will let you build MILPSolver on your system.
 ### Build and install with CMake
 
 Configure and build the library with:
+
 ```sh
 mkdir build
 cd build
@@ -23,7 +24,6 @@ make
 
 The library has the same configuration options of
 [SMS++](https://gitlab.com/smspp/smspp/wikis/custom).
-
 Moreover, you can use the following configuration options:
 
 | Variable               | Description | Default value |
@@ -32,6 +32,7 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_SCIP`  | Use SCIP    | ON            |
 
 Optionally, install the library in the system with:
+
 ```sh
 sudo make install
 ```
@@ -64,7 +65,9 @@ This section is not ready yet.
 
 ## License
 
-This section is not ready yet. See SMS++ library for details.
+This code is provided free of charge under the [GNU Lesser General Public
+License version 3.0](https://opensource.org/licenses/lgpl-3.0.html) -
+see the [LICENSE](LICENSE) file for details.
 
 ## Disclaimer
 
