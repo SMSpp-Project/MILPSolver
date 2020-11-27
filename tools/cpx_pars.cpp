@@ -24,15 +24,16 @@
 #include <fstream>
 #include <cstring>
 #include <map>
-#include <filesystem>
 #include <getopt.h>
+// #include <filesystem>
 
 #include <ilcplex/cplex.h>
 
 /*--------------------------------------------------------------------------*/
 
 bool verbose = false;         ///< If the tool should be verbose
-std::filesystem::path path{}; ///< Path for output files
+// std::filesystem::path path{};
+std::string path{};           ///< Path for output files
 std::string exe{};            ///< Name of the executable file
 std::string docopt_desc{};    ///< Tool description
 
@@ -103,20 +104,24 @@ void process_args( int argc, char ** argv ) {
 int main( int argc, char ** argv ) {
 
  // Manage options and help
- path = std::filesystem::current_path();
+ path = ".";
+ // path = std::filesystem::current_path();
  docopt_desc = "CPLEX parameter map generator.\n";
  exe = get_filename( argv[ 0 ] );
  process_args( argc, argv );
 
- if (!std::filesystem::exists(path)) {
-  std::filesystem::create_directory(path);
- }
+ // if (!std::filesystem::exists(path)) {
+ //  std::filesystem::create_directory(path);
+ // }
 
  std::string defs_filename = "CPX" + std::to_string( CPX_VERSION ) + "_defs.h";
  std::string maps_filename = "CPX" + std::to_string( CPX_VERSION ) + "_maps.h";
 
- auto defs_path = path / defs_filename;
- auto maps_path = path / maps_filename;
+ // auto defs_path = path / defs_filename;
+ // auto maps_path = path / maps_filename;
+
+ auto defs_path = path + "/" + defs_filename;
+ auto maps_path = path + "/" + maps_filename;
 
  std::ofstream defs_file;
  std::ofstream maps_file;
