@@ -2096,20 +2096,19 @@ CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::set_par( const idx_type par, const int value ) {
- // A switch-case here makes the code uglier
 
  // Solver parameters explicitly mapped in CPLEX
- if( par == intMaxIter ) {
-  CPXsetlongparam( env, CPXPARAM_MIP_Limits_Nodes, value );
-  return;
- }
- if( par == intMaxSol ) {
-  CPXsetintparam( env, CPXPARAM_MIP_Pool_Capacity, value );
-  return;
- }
- if( par == intLogVerb ) {
-  CPXsetintparam( env, CPXPARAM_ScreenOutput, value );
-  return;
+ switch( par ) {
+  case intMaxIter:
+   CPXsetlongparam( env, CPXPARAM_MIP_Limits_Nodes, value );
+   return;
+  case intMaxSol:
+   CPXsetintparam( env, CPXPARAM_MIP_Pool_Capacity, value );
+   return;
+  case intLogVerb:
+   CPXsetintparam( env, CPXPARAM_ScreenOutput, value );
+   return;
+  default:;
  }
 
  // CPLEX parameters
@@ -2122,8 +2121,7 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
 
   if( type == CPX_PARAMTYPE_INT ) {
    CPXsetintparam( env, cplex_par, value );
-  }
-  if( type == CPX_PARAMTYPE_LONG ) {
+  } else if( type == CPX_PARAMTYPE_LONG ) {
    CPXsetlongparam( env, cplex_par, value );
   }
   return;
@@ -2135,40 +2133,34 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::set_par( idx_type par, const double value ) {
- // A switch-case here makes the code uglier
 
  // Solver parameters explicitly mapped in CPLEX
- if( par == dblMaxTime ) {
-  CPXsetdblparam( env, CPXPARAM_TimeLimit, value );
-  return;
- }
- if( par == dblRelAcc ) {
-  CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_RelObjDifference, value );
-  return;
- }
- if( par == dblAbsAcc ) {
-  CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_ObjDifference, value );
-  return;
- }
- if( par == dblUpCutOff ) {
-  CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_UpperCutoff, value );
-  return;
- }
- if( par == dblLwCutOff ) {
-  CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, value );
-  return;
- }
- if( par == dblRAccSol ) {
-  CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_MIPGap, value );
-  return;
- }
- if( par == dblAAccSol ) {
-  CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap, value );
-  return;
- }
- if( par == dblFAccSol ) {
-  CPXsetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, value );
-  return;
+ switch( par ) {
+  case dblMaxTime:
+   CPXsetdblparam( env, CPXPARAM_TimeLimit, value );
+   return;
+  case dblRelAcc:
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_RelObjDifference, value );
+   return;
+  case dblAbsAcc:
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_ObjDifference, value );
+   return;
+  case dblUpCutOff:
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_UpperCutoff, value );
+   return;
+  case dblLwCutOff:
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, value );
+   return;
+  case dblRAccSol:
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_MIPGap, value );
+   return;
+  case dblAAccSol:
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap, value );
+   return;
+  case dblFAccSol:
+   CPXsetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, value );
+   return;
+  default:;
  }
 
  // CPLEX parameters
@@ -2216,17 +2208,17 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
  CPXLONG long_value;
 
  // Solver parameters explicitly mapped in CPLEX
- if( par == intMaxIter ) {
-  CPXgetlongparam( env, CPXPARAM_MIP_Limits_Nodes, &long_value );
-  return ( int ) long_value;
- }
- if( par == intMaxSol ) {
-  CPXgetintparam( env, CPXPARAM_MIP_Pool_Capacity, &value );
-  return value;
- }
- if( par == intLogVerb ) {
-  CPXgetintparam( env, CPXPARAM_ScreenOutput, &value );
-  return value;
+ switch( par ) {
+  case intMaxIter:
+   CPXgetlongparam( env, CPXPARAM_MIP_Limits_Nodes, &long_value );
+   return ( int ) long_value;
+  case intMaxSol:
+   CPXgetintparam( env, CPXPARAM_MIP_Pool_Capacity, &value );
+   return value;
+  case intLogVerb:
+   CPXgetintparam( env, CPXPARAM_ScreenOutput, &value );
+   return value;
+  default:;
  }
 
  // CPLEX parameters
@@ -2244,8 +2236,7 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
    case CPX_PARAMTYPE_LONG:
     CPXgetlongparam( env, cplex_par, &long_value );
     return ( int ) long_value;
-   default:
-    break;
+   default:;
   }
  }
 
@@ -2258,37 +2249,32 @@ double CPXMILPSolver::get_dbl_par( idx_type par ) const {
  double value;
 
  // Solver parameters explicitly mapped in CPLEX
- if( par == dblMaxTime ) {
-  CPXgetdblparam( env, CPXPARAM_TimeLimit, &value );
-  return value;
- }
- if( par == dblRelAcc ) {
-  CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_RelObjDifference, &value );
-  return value;
- }
- if( par == dblAbsAcc ) {
-  CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_ObjDifference, &value );
-  return value;
- }
- if( par == dblUpCutOff ) {
-  CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_UpperCutoff, &value );
-  return value;
- }
- if( par == dblLwCutOff ) {
-  CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, &value );
-  return value;
- }
- if( par == dblRAccSol ) {
-  CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_MIPGap, &value );
-  return value;
- }
- if( par == dblAAccSol ) {
-  CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap, &value );
-  return value;
- }
- if( par == dblFAccSol ) {
-  CPXgetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, &value );
-  return value;
+ switch( par ) {
+  case dblMaxTime:
+   CPXgetdblparam( env, CPXPARAM_TimeLimit, &value );
+   return value;
+  case dblRelAcc:
+   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_RelObjDifference, &value );
+   return value;
+  case dblAbsAcc:
+   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_ObjDifference, &value );
+   return value;
+  case dblUpCutOff:
+   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_UpperCutoff, &value );
+   return value;
+  case dblLwCutOff:
+   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, &value );
+   return value;
+  case dblRAccSol:
+   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_MIPGap, &value );
+   return value;
+  case dblAAccSol:
+   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap, &value );
+   return value;
+  case dblFAccSol:
+   CPXgetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, &value );
+   return value;
+  default:;
  }
 
  // CPLEX parameters
@@ -2303,6 +2289,7 @@ double CPXMILPSolver::get_dbl_par( idx_type par ) const {
 /*--------------------------------------------------------------------------*/
 
 const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const {
+
  // CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];

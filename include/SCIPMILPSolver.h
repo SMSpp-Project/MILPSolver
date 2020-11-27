@@ -43,6 +43,11 @@
 
 #include "MILPSolver.h"
 
+// Include the proper CPLEX parameter mapping
+#include <boost/preprocessor/cat.hpp>
+#include <boost/preprocessor/stringize.hpp>
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( SCIP, SCIP_VERSION ), _defs.h ) )
+
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -87,20 +92,26 @@ class SCIPMILPSolver : public MILPSolver {
 
  /// Types of integer parameters
  enum int_par_type_SCPS {
+  /// First SCIP int/long parameter
+  intFirstSCIPPar = intLastAlgParMILP,
   /// First allowed new int parameter for derived classes
-  intLastAlgParSCPS = intLastAlgParMILP
+  intLastAlgParSCPS = intFirstSCIPPar + SCIP_NUM_INT_PARS
  };
 
  /// Types of double parameters
  enum dbl_par_type_SCPS {
+  /// First SCIP double parameter
+  dblFirstSCIPPar = dblLastAlgParMILP,
   /// First allowed new double parameter for derived classes
-  dblLastAlgParSCPS = dblLastAlgParMILP
+  dblLastAlgParSCPS = dblFirstSCIPPar + SCIP_NUM_DBL_PARS
  };
 
  /// Types of string parameters
  enum str_par_type_SCPS {
+  /// First SCIP string parameter
+  strFirstSCIPPar = strLastAlgParMILP,
   /// First allowed new string parameter for derived classes
-  strLastAlgParSCPS = strLastAlgParMILP
+  strLastAlgParSCPS = strFirstSCIPPar + SCIP_NUM_STR_PARS
  };
 
 /*--------------------------------------------------------------------------*/
@@ -278,6 +289,30 @@ class SCIPMILPSolver : public MILPSolver {
 
  /// Gets the UB fot the given variable in the problem
  double get_problem_ub( const ColVariable & var ) override;
+ /// @}
+
+ /** @name Handling of SCIP parameters
+ *
+ * The following maps are used to keep a relationship between SMS++ parameter
+ * system and SCIP parameters. This allows us to use SCIP parameters
+ * (See https://www.scipopt.org/doc/html/PARAMETERS.php) as they were SMS++
+ * parameters with the same names, for example in configuration files.
+ *
+ * Bool, int and long SCIP parameters are handled as SMS++ int parameters.
+ * Real SCIP parameters are handled as SMS++ double parameters.
+ * Char and string SCIP parameters are handled as SMS++ string parameters.
+ *
+ * @{
+ */
+
+ const static std::array< std::string, SCIP_NUM_INT_PARS > SMSpp_to_SCIP_int_pars;
+ const static std::array< std::string, SCIP_NUM_DBL_PARS > SMSpp_to_SCIP_dbl_pars;
+ const static std::array< std::string, SCIP_NUM_STR_PARS > SMSpp_to_SCIP_str_pars;
+
+ const static std::array< std::pair< std::string, int >, SCIP_NUM_INT_PARS > SCIP_to_SMSpp_int_pars;
+ const static std::array< std::pair< std::string, int >, SCIP_NUM_DBL_PARS > SCIP_to_SMSpp_dbl_pars;
+ const static std::array< std::pair< std::string, int >, SCIP_NUM_STR_PARS > SCIP_to_SMSpp_str_pars;
+
  /// @}
 
 /*--------------------------------------------------------------------------*/

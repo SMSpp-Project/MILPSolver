@@ -39,6 +39,11 @@
 #include <scip/scipdefplugins.h>
 #include <scip/cons_linear.h>
 
+// Include the proper SCIP parameter mapping
+#include <boost/preprocessor/cat.hpp>
+#include <boost/preprocessor/stringize.hpp>
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( SCIP, SCIP_VERSION ), _maps.h ) )
+
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1051,57 +1056,111 @@ SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
+
+ // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case intMaxIter:
    SCIP_CALL_ABORT( SCIPsetLongintParam( scip, "limits/nodes", value ) );
-   break;
+   return;
   case intMaxSol:
    SCIP_CALL_ABORT( SCIPsetIntParam( scip, "limits/solutions", value ) );
-   break;
+   return;
   case intLogVerb:
    SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", value ) );
-   break;
-  default:
-   MILPSolver::set_par( par, value );
+   return;
+  default:;
  }
+
+ // SCIP parameters
+ if( par >= intFirstSCIPPar && par < intLastAlgParSCPS ) {
+  const std::string & scip_par =
+   SMSpp_to_SCIP_int_pars[ par - intFirstSCIPPar ];
+
+  // Bool, int and long SCIP parameters are handled as SMS++ int parameters
+  SCIP_PARAM * param = SCIPgetParam( scip, scip_par.c_str() );
+  SCIP_PARAMTYPE type = SCIPparamGetType( param );
+
+  if( type == SCIP_PARAMTYPE_BOOL ) {
+   SCIP_CALL_ABORT( SCIPsetBoolParam( scip, scip_par.c_str(), value ) );
+  } else if( type == SCIP_PARAMTYPE_INT ) {
+   SCIP_CALL_ABORT( SCIPsetIntParam( scip, scip_par.c_str(), value ) );
+  } else if( type == SCIP_PARAMTYPE_LONGINT ) {
+   SCIP_CALL_ABORT( SCIPsetLongintParam( scip, scip_par.c_str(), value ) );
+  }
+  return;
+ }
+
+ MILPSolver::set_par( par, value );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::set_par( idx_type par, const double value ) {
+
+ // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case dblMaxTime:
    SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/time", value ) );
-   break;
-  // case dblRelAcc: // TODO
-  //  break;
-  // case dblAbsAcc: // TODO
-  //  break;
-  // case dblUpCutOff:
-  //  if( objsense == 1 )
-  //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
-  //  break;
-  // case dblLwCutOff:
-  //  if( objsense == -1 )
-  //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
-  //  break;
-  // case dblRAccSol:
-  //  SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/gap", value ) );
-  //  break;
-  // case dblAAccSol:
-  //  SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/absgap", value ) );
-  //  break;
-  // case dblFAccSol:
-  //  SCIP_CALL_ABORT( SCIPsetRealParam( scip, "numerics/feastol", value ) );
-  //  break;
-  default:
-   MILPSolver::set_par( par, value );
+   return;
+   // case dblRelAcc: // TODO
+   //  return;
+   // case dblAbsAcc: // TODO
+   //  return;
+   // case dblUpCutOff:
+   //  if( objsense == SCIP_OBJSENSE_MINIMIZE ) {
+   //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
+   //  }
+   //  return;
+   // case dblLwCutOff:
+   //  if( objsense == SCIP_OBJSENSE_MAXIMIZE ) {
+   //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
+   //  }
+   //  return;
+  case dblRAccSol:
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/gap", value ) );
+   return;
+  case dblAAccSol:
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/absgap", value ) );
+   return;
+  case dblFAccSol:
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "numerics/feastol", value ) );
+   return;
+  default:;
  }
+
+ // SCIP parameters
+ if( par >= dblFirstSCIPPar && par < dblLastAlgParSCPS ) {
+  const std::string & scip_par =
+   SMSpp_to_SCIP_dbl_pars[ par - dblFirstSCIPPar ];
+  SCIP_CALL_ABORT( SCIPsetRealParam( scip, scip_par.c_str(), value ) );
+  return;
+ }
+
+ MILPSolver::set_par( par, value );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::set_par( idx_type par, const std::string & value ) {
+
+ // SCIP parameters
+ if( par >= strFirstSCIPPar && par < strLastAlgParSCPS ) {
+  const std::string & scip_par =
+   SMSpp_to_SCIP_str_pars[ par - strFirstSCIPPar ];
+
+  // Char and string SCIP parameters are handled as SMS++ int parameters
+  SCIP_PARAM * param = SCIPgetParam( scip, scip_par.c_str() );
+  SCIP_PARAMTYPE type = SCIPparamGetType( param );
+
+  if( type == SCIP_PARAMTYPE_CHAR ) {
+   SCIP_CALL_ABORT( SCIPsetCharParam( scip, scip_par.c_str(), value[ 0 ] ) );
+  } else if( type == SCIP_PARAMTYPE_STRING ) {
+   SCIP_CALL_ABORT( SCIPsetStringParam( scip, scip_par.c_str(),
+                                        value.c_str() ) );
+  }
+  return;
+ }
+
  MILPSolver::set_par( par, value );
 }
 
@@ -1123,21 +1182,47 @@ ThinComputeInterface::idx_type SCIPMILPSolver::get_num_dbl_par() const {
 
 int SCIPMILPSolver::get_int_par( idx_type par ) const {
  int value;
- SCIP_Longint long_value;
+ SCIP_Bool bool_val;
+ SCIP_Longint long_val;
 
+ // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case intMaxIter:
-   SCIP_CALL_ABORT( SCIPgetLongintParam( scip, "limits/nodes", &long_value ) );
-   return ( int ) long_value;
+   SCIP_CALL_ABORT( SCIPgetLongintParam( scip, "limits/nodes", &long_val ) );
+   return ( int ) long_val;
   case intMaxSol:
    SCIP_CALL_ABORT( SCIPgetIntParam( scip, "limits/solutions", &value ) );
    return value;
   case intLogVerb:
    SCIP_CALL_ABORT( SCIPgetIntParam( scip, "display/verblevel", &value ) );
    return value;
-  default:
-   return MILPSolver::get_int_par( par );
+  default:;
  }
+
+ // SCIP parameters
+ if( par >= intFirstSCIPPar && par < intLastAlgParSCPS ) {
+  const std::string & scip_par =
+   SMSpp_to_SCIP_int_pars[ par - intFirstSCIPPar ];
+
+  // Bool, int and long SCIP parameters are handled as SMS++ int parameters
+  SCIP_PARAM * param = SCIPgetParam( scip, scip_par.c_str() );
+  SCIP_PARAMTYPE type = SCIPparamGetType( param );
+
+  switch( type ) {
+   case SCIP_PARAMTYPE_BOOL:
+    SCIP_CALL_ABORT( SCIPgetBoolParam( scip, scip_par.c_str(), &bool_val ) );
+    return ( int ) bool_val;
+   case SCIP_PARAMTYPE_INT:
+    SCIP_CALL_ABORT( SCIPgetIntParam( scip, scip_par.c_str(), &value ) );
+    return value;
+   case SCIP_PARAMTYPE_LONGINT:
+    SCIP_CALL_ABORT( SCIPgetLongintParam( scip, scip_par.c_str(), &long_val ) );
+    return ( int ) long_val;
+   default:;
+  }
+ }
+
+ return MILPSolver::get_int_par( par );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1145,40 +1230,79 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const {
 double SCIPMILPSolver::get_dbl_par( idx_type par ) const {
  double value;
 
+ // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case dblMaxTime:
    SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/time", &value ) );
    return value;
-  // case dblRelAcc:   // TODO
-  //  return 1e-6;
-  // case dblAbsAcc:   // TODO
-  //  return Inf< OFValue >();
-  // case dblUpCutOff: // TODO
-  //  if( objsense == 1 )
-  //   return SCIPgetObjlimit( scip );
-  //  return Inf< OFValue >();
-  // case dblLwCutOff: // TODO
-  //  if( objsense == -1 )
-  //   return SCIPgetObjlimit( scip );
-  //  return -Inf< OFValue >();
-  // case dblRAccSol:
-  //  SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/gap", &value ) );
-  //  return value;
-  // case dblAAccSol:
-  //  SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/absgap", &value ) );
-  //  return value;
-  // case dblFAccSol:
-  //  SCIP_CALL_ABORT( SCIPgetRealParam( scip, "numerics/feastol", &value ) );
-  //  return value;
-  default:
-   return MILPSolver::get_dbl_par( par );
+   // case dblRelAcc:   // TODO
+   //  return 1e-6;
+   // case dblAbsAcc:   // TODO
+   //  return Inf< OFValue >();
+   // case dblUpCutOff:
+   //  if( objsense == SCIP_OBJSENSE_MINIMIZE ) {
+   //   return SCIPgetObjlimit( scip );
+   //  }
+   //  return Inf< OFValue >();
+   // case dblLwCutOff:
+   //  if( objsense == SCIP_OBJSENSE_MAXIMIZE ) {
+   //   return SCIPgetObjlimit( scip );
+   //  }
+   //  return -Inf< OFValue >();
+  case dblRAccSol:
+   SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/gap", &value ) );
+   return value;
+  case dblAAccSol:
+   SCIP_CALL_ABORT( SCIPgetRealParam( scip, "limits/absgap", &value ) );
+   return value;
+  case dblFAccSol:
+   SCIP_CALL_ABORT( SCIPgetRealParam( scip, "numerics/feastol", &value ) );
+   return value;
+  default:;
  }
+
+ // SCIP parameters
+ if( par >= dblFirstSCIPPar && par < dblLastAlgParSCPS ) {
+  const std::string & scip_par =
+   SMSpp_to_SCIP_dbl_pars[ par - dblFirstSCIPPar ];
+  SCIP_CALL_ABORT( SCIPgetRealParam( scip, scip_par.c_str(), &value ) );
+  return value;
+ }
+
+ return MILPSolver::get_dbl_par( par );
 }
 
 /*--------------------------------------------------------------------------*/
 
 const std::string &
 SCIPMILPSolver::get_str_par( const idx_type par ) const {
+ // TODO: check if all these are necessary
+ char char_val;
+ char * str_val;
+ std::string return_str;
+
+ // SCIP parameters
+ if( par >= strFirstSCIPPar && par < strLastAlgParSCPS ) {
+  const std::string & scip_par =
+   SMSpp_to_SCIP_str_pars[ par - strFirstSCIPPar ];
+
+  // Char and string SCIP parameters are handled as SMS++ string parameters
+  SCIP_PARAM * param = SCIPgetParam( scip, scip_par.c_str() );
+  SCIP_PARAMTYPE type = SCIPparamGetType( param );
+
+  switch( type ) {
+   case SCIP_PARAMTYPE_CHAR:
+    SCIP_CALL_ABORT( SCIPgetCharParam( scip, scip_par.c_str(), &char_val ) );
+    return std::move( std::to_string( char_val ) );
+   case SCIP_PARAMTYPE_STRING:
+    SCIP_CALL_ABORT( SCIPgetStringParam( scip, scip_par.c_str(), &str_val ) );
+    return_str = str_val;
+    delete[] str_val;
+    return std::move( return_str );
+   default:;
+  }
+ }
+
  return MILPSolver::get_str_par( par );
 }
 
@@ -1186,56 +1310,126 @@ SCIPMILPSolver::get_str_par( const idx_type par ) const {
 
 int SCIPMILPSolver::get_dflt_int_par( const idx_type par ) const {
  int value;
- SCIP_Longint long_value;
+ SCIP_Longint long_val;
+ SCIP_PARAM * param;
 
- // See: https://www.scipopt.org/doc/html/PARAMETERS.php
+ // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case intMaxIter:
-   return -1;
+   param = SCIPgetParam( scip, "limits/nodes" );
+   return ( int ) SCIPparamGetLongintDefault( param );
   case intMaxSol:
-   return -1;
+   param = SCIPgetParam( scip, "limits/solutions" );
+   return SCIPparamGetIntDefault( param );
   case intLogVerb:
-   return 4;
-  default:
-   return MILPSolver::get_dflt_int_par( par );
+   param = SCIPgetParam( scip, "display/verblevel" );
+   return SCIPparamGetIntDefault( param );
+  default:;
  }
+
+ // SCIP parameters
+ if( par >= intFirstSCIPPar && par < intLastAlgParSCPS ) {
+  const std::string & scip_par =
+   SMSpp_to_SCIP_int_pars[ par - intFirstSCIPPar ];
+
+  // Bool, int and long SCIP parameters are handled as SMS++ int parameters
+  param = SCIPgetParam( scip, scip_par.c_str() );
+  SCIP_PARAMTYPE type = SCIPparamGetType( param );
+
+  switch( type ) {
+   case SCIP_PARAMTYPE_BOOL:
+    return ( int ) SCIPparamGetBoolDefault( param );
+   case SCIP_PARAMTYPE_INT:
+    return SCIPparamGetIntDefault( param );
+   case SCIP_PARAMTYPE_LONGINT:
+    return ( int ) SCIPparamGetLongintDefault( param );
+   default:;
+  }
+ }
+
+ return MILPSolver::get_dflt_int_par( par );
 }
 
 /*--------------------------------------------------------------------------*/
 
 double SCIPMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
  double value;
+ SCIP_PARAM * param;
 
  switch( par ) {
   case dblMaxTime:
-   return 1e20;
-  // case dblRelAcc:   // TODO
-  //  return 1e-6;
-  // case dblAbsAcc:   // TODO
-  //  return Inf< OFValue >();
-  // case dblUpCutOff: // TODO
-  //  if( objsense == 1 )
-  //   return SCIPgetObjlimit( scip );
-  //  return Inf< OFValue >();
-  // case dblLwCutOff: // TODO
-  //  if( objsense == -1 )
-  //   return SCIPgetObjlimit( scip );
-  //  return -Inf< OFValue >();
-  // case dblRAccSol:
-  //  return value;
-  // case dblAAccSol:
-  //  return value;
-  // case dblFAccSol:
-  //  return value;
-  default:
-   return MILPSolver::get_dflt_dbl_par( par );
+   param = SCIPgetParam( scip, "limits/time" );
+   return SCIPparamGetRealDefault( param );
+   // case dblRelAcc:   // TODO
+   //  return 1e-6;
+   // case dblAbsAcc:   // TODO
+   //  return Inf< OFValue >();
+   // case dblUpCutOff:
+   //  if( objsense == 1 ) {
+   //   return -Inf< OFValue >();
+   //  }
+   //  return Inf< OFValue >();
+   // case dblLwCutOff:
+   //  if( objsense == -1 ) {
+   //   return Inf< OFValue >();
+   //  }
+   //  return -Inf< OFValue >();
+  case dblRAccSol:
+   param = SCIPgetParam( scip, "limits/gap" );
+   return SCIPparamGetRealDefault( param );
+  case dblAAccSol:
+   param = SCIPgetParam( scip, "limits/absgap" );
+   return SCIPparamGetRealDefault( param );
+  case dblFAccSol:
+   param = SCIPgetParam( scip, "numerics/feastol" );
+   return SCIPparamGetRealDefault( param );
+  default:;
  }
+
+ // SCIP parameters
+ if( par >= dblFirstSCIPPar && par < dblLastAlgParSCPS ) {
+  const std::string & scip_par =
+   SMSpp_to_SCIP_dbl_pars[ par - dblFirstSCIPPar ];
+
+  param = SCIPgetParam( scip, scip_par.c_str() );
+  SCIP_PARAMTYPE type = SCIPparamGetType( param );
+  return SCIPparamGetRealDefault( param );
+ }
+
+ return MILPSolver::get_dflt_dbl_par( par );
 }
 
 /*--------------------------------------------------------------------------*/
 
 const std::string &
 SCIPMILPSolver::get_dflt_str_par( const idx_type par ) const {
+ // TODO: check if all these are necessary
+ std::string char_val( 1, '\0' );
+ char * str_val;
+ std::string return_str;
+
+ // SCIP parameters
+ if( par >= strFirstSCIPPar && par < strLastAlgParSCPS ) {
+  const std::string & scip_par =
+   SMSpp_to_SCIP_str_pars[ par - strFirstSCIPPar ];
+
+  // Char and string SCIP parameters are handled as SMS++ string parameters
+  SCIP_PARAM * param = SCIPgetParam( scip, scip_par.c_str() );
+  SCIP_PARAMTYPE type = SCIPparamGetType( param );
+
+  switch( type ) {
+   case SCIP_PARAMTYPE_CHAR:
+    char_val[ 0 ] = SCIPparamGetCharDefault( param );
+    return std::move( char_val );
+   case SCIP_PARAMTYPE_STRING:
+    str_val = SCIPparamGetStringDefault( param );
+    return_str = str_val;
+    delete[] str_val;
+    return std::move( return_str );
+   default:;
+  }
+ }
+
  return MILPSolver::get_dflt_str_par( par );
 }
 
@@ -1243,6 +1437,16 @@ SCIPMILPSolver::get_dflt_str_par( const idx_type par ) const {
 
 ThinComputeInterface::idx_type
 SCIPMILPSolver::int_par_str2idx( const std::string & name ) const {
+
+ // SCIP parameters
+ auto it = lower_bound( SCIP_to_SMSpp_int_pars.begin(),
+                        SCIP_to_SMSpp_int_pars.end(),
+                        std::make_pair( name, 0 ) );
+
+ if( it != SCIP_to_SMSpp_int_pars.end() && it->first == name ) {
+  return it->second;
+ }
+
  return MILPSolver::int_par_str2idx( name );
 }
 
@@ -1250,6 +1454,12 @@ SCIPMILPSolver::int_par_str2idx( const std::string & name ) const {
 
 const std::string &
 SCIPMILPSolver::int_par_idx2str( const idx_type idx ) const {
+
+ // SCIP parameters
+ if( idx >= intFirstSCIPPar && idx < intLastAlgParSCPS ) {
+  return SMSpp_to_SCIP_int_pars[ idx - intFirstSCIPPar ];
+ }
+
  return MILPSolver::int_par_idx2str( idx );
 }
 
@@ -1257,6 +1467,16 @@ SCIPMILPSolver::int_par_idx2str( const idx_type idx ) const {
 
 ThinComputeInterface::idx_type
 SCIPMILPSolver::dbl_par_str2idx( const std::string & name ) const {
+
+ // SCIP parameters
+ auto it = lower_bound( SCIP_to_SMSpp_dbl_pars.begin(),
+                        SCIP_to_SMSpp_dbl_pars.end(),
+                        std::make_pair( name, 0 ) );
+
+ if( it != SCIP_to_SMSpp_dbl_pars.end() && it->first == name ) {
+  return it->second;
+ }
+
  return MILPSolver::dbl_par_str2idx( name );
 }
 
@@ -1264,6 +1484,12 @@ SCIPMILPSolver::dbl_par_str2idx( const std::string & name ) const {
 
 const std::string &
 SCIPMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
+
+ // SCIP parameters
+ if( idx >= dblFirstSCIPPar && idx < dblLastAlgParSCPS ) {
+  return SMSpp_to_SCIP_dbl_pars[ idx - dblFirstSCIPPar ];
+ }
+
  return MILPSolver::dbl_par_idx2str( idx );
 }
 
@@ -1272,6 +1498,16 @@ SCIPMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
 
 ThinComputeInterface::idx_type
 SCIPMILPSolver::str_par_str2idx( const std::string & name ) const {
+
+ // SCIP parameters
+ auto it = lower_bound( SCIP_to_SMSpp_str_pars.begin(),
+                        SCIP_to_SMSpp_str_pars.end(),
+                        std::make_pair( name, 0 ) );
+
+ if( it != SCIP_to_SMSpp_str_pars.end() && it->first == name ) {
+  return it->second;
+ }
+
  return MILPSolver::str_par_str2idx( name );
 }
 
@@ -1279,6 +1515,12 @@ SCIPMILPSolver::str_par_str2idx( const std::string & name ) const {
 
 const std::string &
 SCIPMILPSolver::str_par_idx2str( const idx_type idx ) const {
+
+ // SCIP parameters
+ if( idx >= strFirstSCIPPar && idx < strLastAlgParSCPS ) {
+  return SMSpp_to_SCIP_str_pars[ idx - strFirstSCIPPar ];
+ }
+
  return MILPSolver::str_par_idx2str( idx );
 }
 
