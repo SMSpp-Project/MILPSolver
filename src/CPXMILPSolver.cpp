@@ -1473,159 +1473,106 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
 
  std::vector< int > indices;
  std::vector< double > values;
- std::vector< double > q_values;
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
-  // Linear objective function
-  // TODO: Change only involved variables
-  indices.reserve( lf->get_num_active_var() );
-  values.reserve( lf->get_num_active_var() );
+ // C05FunctionModLinRngd
+ // --------------------------------------------------------------------------
 
-  for( auto el : lf->get_v_var() ) {
-   indices.push_back( index_of_variable( el.first ) );
-   values.push_back( el.second );
+ if( const auto * rngd = dynamic_cast<C05FunctionModLinRngd *>(mod) ) {
+
+  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+   indices.reserve( rngd->vars().size() );
+   values.reserve( rngd->vars().size() );
+
+   auto range = rngd->range();
+   for( Function::Index i = range.first; i < range.second; ++i ) {
+    auto var = static_cast<const ColVariable *>(lf->get_active_var( i ));
+    indices.push_back( index_of_variable( var ) );
+    values.push_back( lf->get_coefficient( i ) );
+   }
+
+   if( !indices.empty() ) {
+    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+   }
+
+   update_problem_type( f );
+   return;
   }
 
-  // FIXME: The following stuff doesn't work
-  // if( auto * rngd = dynamic_cast<C05FunctionModRngd *>( mod ) ) {
-  //  indices.reserve( rngd->vars().size() );
-  //  values.reserve( rngd->vars().size() );
-  //
-  //  for( auto * it1 : rngd->vars() ) {
-  //   for( auto it2: lf->get_v_var() ) {
-  //    if( it1 == it2.first ) {
-  //     indices.push_back( index_of_variable( it2.first ) );
-  //     values.push_back( it2.second );
-  //     break;
-  //    }
-  //   }
-  //  }
-  // }
-  //
-  // if( auto * sbst = dynamic_cast<C05FunctionModSbst *>( mod ) ) {
-  //  indices.reserve( sbst->vars().size() );
-  //  values.reserve( sbst->vars().size() );
-  //
-  //  for( auto * it1 : sbst->vars() ) {
-  //   for( auto it2: lf->get_v_var() ) {
-  //    if( it1 == it2.first ) {
-  //     indices.push_back( index_of_variable( it2.first ) );
-  //     values.push_back( it2.second );
-  //     break;
-  //    }
-  //   }
-  //  }
-  // }
+  if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
+   indices.reserve( rngd->vars().size() );
+   values.reserve( rngd->vars().size() );
 
-  if( !indices.empty() ) {
-   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-  }
+   auto range = rngd->range();
+   for( Function::Index i = range.first; i < range.second; ++i ) {
+    auto var = static_cast<const ColVariable *>(qf->get_active_var( i ));
+    indices.push_back( index_of_variable( var ) );
+    values.push_back( qf->get_linear_coefficient( i ) );
+    double q_value = qf->get_quadratic_coefficient( i );
 
-  // Update problem type, if needed
-  switch( CPXgetprobtype( env, lp ) ) {
-   case CPXPROB_LP :
-   case CPXPROB_MILP :
-   case CPXPROB_FIXEDMILP :
-    break;
-   case CPXPROB_QP :
-    CPXchgprobtype( env, lp, CPXPROB_LP );
-    break;
-   case CPXPROB_MIQP :
-    CPXchgprobtype( env, lp, CPXPROB_MILP );
-    break;
-   case CPXPROB_FIXEDMIQP :
-    CPXchgprobtype( env, lp, CPXPROB_FIXEDMILP );
-    break;
-   default:
-    throw std::runtime_error( "Wrong CPLEX problem type" );
+    // Quadratic coefficients must be changed one at a time
+    CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_value );
+   }
+
+   if( !indices.empty() ) {
+    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+   }
+
+   update_problem_type( f );
+   return;
   }
-  return;
+  // This should never happen
+  throw std::invalid_argument( "Unknown type of Objective Function" );
  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
-  // Quadratic objective function
-  // TODO: Change only involved variables
-  indices.reserve( qf->get_num_active_var() );
-  values.reserve( qf->get_num_active_var() );
-  q_values.reserve( qf->get_num_active_var() );
+ // C05FunctionModLinSbst
+ // --------------------------------------------------------------------------
+ if( const auto * sbst = dynamic_cast<C05FunctionModLinSbst *>(mod) ) {
 
-  for( auto el : qf->get_v_var() ) {
-   // Linear coefficients can be changed all at once with CPXchgobj
-   indices.push_back( index_of_variable( std::get< 0 >( el ) ) );
-   values.push_back( std::get< 1 >( el ) );
-   q_values.push_back( std::get< 2 >( el ) );
+  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+   indices.reserve( sbst->vars().size() );
+   values.reserve( sbst->vars().size() );
 
-   // Quadratic coefficients can be changed one at a time
-   CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
+   for( auto i : sbst->subset() ) {
+    auto var = static_cast<const ColVariable *>(lf->get_active_var( i ));
+    indices.push_back( index_of_variable( var ) );
+    values.push_back( lf->get_coefficient( i ) );
+   }
+
+   if( !indices.empty() ) {
+    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+   }
+
+   update_problem_type( f );
+   return;
   }
 
-  // FIXME: The following stuff doesn't work
-  // if( auto * rngd = dynamic_cast<C05FunctionModRngd *>( mod ) ) {
-  //  indices.reserve( rngd->vars().size() );
-  //  values.reserve( rngd->vars().size() );
-  //  q_values.reserve( rngd->vars().size() );
-  //
-  //  for( auto * it1 : rngd->vars() ) {
-  //   for( auto it2: qf->get_v_var() ) {
-  //    if( it1 == std::get< 0 >( it2 ) ) {
-  //     indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
-  //     values.push_back( std::get< 1 >( it2 ) );
-  //     q_values.push_back( std::get< 2 >( it2 ) );
-  //
-  //     // Quadratic coefficients can be changed one at a time
-  //     CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
-  //    }
-  //   }
-  //  }
-  // }
-  //
-  // if( auto * sbst = dynamic_cast<C05FunctionModSbst *>( mod ) ) {
-  //  indices.reserve( sbst->vars().size() );
-  //  values.reserve( sbst->vars().size() );
-  //  q_values.reserve( sbst->vars().size() );
-  //
-  //
-  //  for( auto * it1 : sbst->vars() ) {
-  //   for( auto it2: qf->get_v_var() ) {
-  //    if( it1 == std::get< 0 >( it2 ) ) {
-  //     indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
-  //     values.push_back( std::get< 1 >( it2 ) );
-  //     q_values.push_back( std::get< 2 >( it2 ) );
-  //
-  //     // Quadratic coefficients can be changed one at a time
-  //     CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
-  //    }
-  //   }
-  //  }
-  // }
+  if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
+   indices.reserve( sbst->vars().size() );
+   values.reserve( sbst->vars().size() );
 
-  if( !indices.empty() ) {
-   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-  }
+   for( auto i : sbst->subset() ) {
+    auto var = static_cast<const ColVariable *>(qf->get_active_var( i ));
+    indices.push_back( index_of_variable( var ) );
+    values.push_back( qf->get_linear_coefficient( i ) );
+    double q_value = qf->get_quadratic_coefficient( i );
 
-  // Update problem type, if needed
-  switch( CPXgetprobtype( env, lp ) ) {
-   case CPXPROB_LP :
-    CPXchgprobtype( env, lp, CPXPROB_QP );
-    break;
-   case CPXPROB_MILP :
-    CPXchgprobtype( env, lp, CPXPROB_MIQP );
-    break;
-   case CPXPROB_FIXEDMILP :
-    CPXchgprobtype( env, lp, CPXPROB_FIXEDMIQP );
-    break;
-   case CPXPROB_QP :
-   case CPXPROB_MIQP :
-   case CPXPROB_FIXEDMIQP :
-    break;
-   default:
-    throw std::runtime_error( "Wrong CPLEX problem type" );
+    // Quadratic coefficients must be changed one at a time
+    CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_value );
+   }
+
+   if( !indices.empty() ) {
+    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+   }
+
+   update_problem_type( f );
+   return;
   }
-  return;
+  // This should never happen
+  throw std::invalid_argument( "Unknown type of Objective Function" );
  }
 
- // This should never happen
- throw std::invalid_argument( "Unknown type of Objective Function" );
+ // Fallback method
+ reload_objective( f );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1636,71 +1583,13 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
  } catch( std::logic_error & e ) {}
 
  auto * f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (f);
 
- if( lf == nullptr ) {
-  return;
- }
-
+// TODO: C05FunctionModLinRngd/Sbst
  std::vector< int > indices;
  std::vector< double > values;
- std::vector< int > rows;
 
- auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
- // TODO: Is dynamic_cast necessary?
- if( con == nullptr ) {
-  // TODO: Throw exception?
-  return;
- }
-
- // TODO: Change only involved variables
- indices.reserve( lf->get_num_active_var() );
- values.reserve( lf->get_num_active_var() );
- rows.reserve( lf->get_num_active_var() );
-
- for( auto el : lf->get_v_var() ) {
-  indices.push_back( index_of_variable( el.first ) );
-  rows.push_back( index_of_constraint( con ) );
-  values.push_back( el.second );
- }
-
- // FIXME: The following stuff doesn't work
- // if( auto * rngd = dynamic_cast<C05FunctionModRngd *>( mod ) ) {
- //  indices.reserve( rngd->vars().size() );
- //  values.reserve( rngd->vars().size() );
- //  rows.reserve( rngd->vars().size() );
- //
- //  for( auto * it1 : rngd->vars() ) {
- //   for( auto it2: lf->get_v_var() ) {
- //    if( it1 == it2.first ) {
- //     indices.push_back( index_of_variable( it2.first ) );
- //     rows.push_back( index_of_constraint( con ) );
- //     values.push_back( it2.second );
- //    }
- //   }
- //  }
- // }
- //
- // if( auto * sbst = dynamic_cast<C05FunctionModSbst *>( mod ) ) {
- //  indices.reserve( sbst->vars().size() );
- //  values.reserve( sbst->vars().size() );
- //  rows.reserve( sbst->vars().size() );
- //
- //  for( auto * it1 : sbst->vars() ) {
- //   for( auto it2: lf->get_v_var() ) {
- //    if( it1 == it2.first ) {
- //     indices.push_back( index_of_variable( it2.first ) );
- //     rows.push_back( index_of_constraint( con ) );
- //     values.push_back( it2.second );
- //    }
- //   }
- //  }
- // }
-
- if( !indices.empty() ) {
-  CPXchgcoeflist( env, lp, indices.size(), rows.data(),
-                  indices.data(), values.data() );
- }
+// Fallback method
+ reload_constraint( f );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2078,6 +1967,7 @@ CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
  } catch( std::logic_error & e ) {}
 
  auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
+ // TODO: Is dynamic_cast necessary?
  if( var == nullptr ) {
   // TODO: Throw exception?
   return;
@@ -2607,6 +2497,143 @@ int CPXMILPSolver::CPXgetintvars( std::vector< char > * ctype ) {
   delete good_ctype;
  }
  return n;
+}
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::reload_constraint( Function * f ) {
+ const auto * lf = dynamic_cast<const LinearFunction *> (f);
+ if( lf == nullptr ) {
+  return;
+ }
+
+ std::vector< int > indices;
+ std::vector< double > values;
+ std::vector< int > rows;
+
+ auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
+
+ indices.reserve( lf->get_num_active_var() );
+ values.reserve( lf->get_num_active_var() );
+ rows.reserve( lf->get_num_active_var() );
+
+ for( auto el : lf->get_v_var() ) {
+  indices.push_back( index_of_variable( el.first ) );
+  rows.push_back( index_of_constraint( con ) );
+  values.push_back( el.second );
+ }
+
+ if( !indices.empty() ) {
+  CPXchgcoeflist( env, lp, indices.size(), rows.data(),
+                  indices.data(), values.data() );
+ }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::reload_objective( Function * f ) {
+
+ std::vector< int > indices;
+ std::vector< double > values;
+
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+  indices.reserve( lf->get_num_active_var() );
+  values.reserve( lf->get_num_active_var() );
+
+  for( auto el : lf->get_v_var() ) {
+   indices.push_back( index_of_variable( el.first ) );
+   values.push_back( el.second );
+  }
+
+  if( !indices.empty() ) {
+   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+  }
+
+  update_problem_type( f );
+  return;
+ }
+
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
+  indices.reserve( qf->get_num_active_var() );
+  values.reserve( qf->get_num_active_var() );
+
+  for( auto el : qf->get_v_var() ) {
+   // Linear coefficients can be changed all at once with CPXchgobj
+   indices.push_back( index_of_variable( std::get< 0 >( el ) ) );
+   values.push_back( std::get< 1 >( el ) );
+   double q_value = std::get< 2 >( el );
+
+   // Quadratic coefficients can be changed one at a time
+   CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_value );
+  }
+
+  if( !indices.empty() ) {
+   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
+  }
+
+  update_problem_type( f );
+  return;
+ }
+
+ // This should never happen
+ throw std::invalid_argument( "Unknown type of Objective Function" );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::update_problem_type( Function * f ) {
+ // TODO: I'm not really sure if this is done automatically by CPLEX, check.
+
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+  // Update problem type, if needed
+  switch( CPXgetprobtype( env, lp ) ) {
+   case CPXPROB_LP :
+   case CPXPROB_MILP :
+   case CPXPROB_FIXEDMILP :
+    break;
+   case CPXPROB_QP :
+    CPXchgprobtype( env, lp, CPXPROB_LP );
+    break;
+   case CPXPROB_MIQP :
+    CPXchgprobtype( env, lp, CPXPROB_MILP );
+    break;
+   case CPXPROB_FIXEDMIQP :
+    CPXchgprobtype( env, lp, CPXPROB_FIXEDMILP );
+    break;
+   default:
+    throw std::runtime_error( "Wrong CPLEX problem type" );
+  }
+  return;
+ }
+
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
+  switch( CPXgetprobtype( env, lp ) ) {
+   case CPXPROB_LP :
+    CPXchgprobtype( env, lp, CPXPROB_QP );
+    break;
+   case CPXPROB_MILP :
+    CPXchgprobtype( env, lp, CPXPROB_MIQP );
+    break;
+   case CPXPROB_FIXEDMILP :
+    CPXchgprobtype( env, lp, CPXPROB_FIXEDMIQP );
+    break;
+   case CPXPROB_QP :
+   case CPXPROB_MIQP :
+   case CPXPROB_FIXEDMIQP :
+    break;
+   default:
+    throw std::runtime_error( "Wrong CPLEX problem type" );
+  }
+  return;
+ }
+
+ // This should never happen
+ throw std::invalid_argument( "Unknown type of Objective Function" );
 }
 
 /*--------------------------------------------------------------------------*/

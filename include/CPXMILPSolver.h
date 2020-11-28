@@ -407,6 +407,24 @@ class CPXMILPSolver : public MILPSolver {
   */
  static int decode_cpx_error( int error );
 
+ /**
+  * Reloads a constraint.
+  * To be used as fallback method for constraint FunctionMods.
+  */
+ void reload_constraint( Function * f );
+
+ /**
+  * Reloads the objective.
+  * To be used as fallback method for objective FunctionMods.
+  */
+ void reload_objective( Function * f );
+
+ /**
+  * Update problem type.
+  * To be used with objective FunctionMods.
+  */
+ void update_problem_type( Function * f );
+
  SMSpp_insert_in_factory_h;
 };
 
