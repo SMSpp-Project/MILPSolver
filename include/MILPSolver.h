@@ -270,55 +270,55 @@ class MILPSolver : public CDASolver {
  /**
   * It returns the matrix column index of a given variable.
   *
-  * @param p_var a pointer to a ColVariable
+  * @param var a pointer to a ColVariable
   * @return the corresponding matrix column index
   * @throws std::invalid_argument if no indices are associated to that variable
   */
- int index_of_variable( const ColVariable * p_var );
+ int index_of_variable( const ColVariable * var );
 
  /**
   * It returns the matrix column index of a given static variable.
   *
-  * @param p_var a pointer to a ColVariable
+  * @param var a pointer to a ColVariable
   * @return the corresponding matrix column index
   * @throws std::invalid_argument if no indices are associated to the variable
   */
- int index_of_static_variable( const ColVariable * p_var );
+ int index_of_static_variable( const ColVariable * var );
 
  /**
   * It returns the matrix column index of a given dynamic variable.
   *
-  * @param p_var a pointer to a ColVariable
+  * @param var a pointer to a ColVariable
   * @return the corresponding matrix column index
   * @throws std::invalid_argument if no indices are associated to the variable
   */
- int index_of_dynamic_variable( const ColVariable * p_var );
+ int index_of_dynamic_variable( const ColVariable * var );
 
  /**
   * It returns the matrix row index of the given constraint.
   *
-  * @param p_const a pointer to a FRowConstraint
+  * @param con a pointer to a FRowConstraint
   * @return the corresponding matrix row index
   */
- int index_of_constraint( const FRowConstraint * p_const );
+ int index_of_constraint( const FRowConstraint * con );
 
  /**
   * It returns the matrix row index of the given static constraint.
   *
-  * @param p_const a pointer to a FRowConstraint
+  * @param con a pointer to a FRowConstraint
   * @return the corresponding matrix row index
   * @throws std::invalid_argument if no indices are associated to the constraint
   */
- int index_of_static_constraint( const FRowConstraint * p_const );
+ int index_of_static_constraint( const FRowConstraint * con );
 
  /**
   * It returns the matrix row index of the given dynamic constraint.
   *
-  * @param p_const a pointer to a FRowConstraint
+  * @param con a pointer to a FRowConstraint
   * @return the corresponding matrix row index
   * @throws std::invalid_argument if no indices are associated to the constraint
   */
- int index_of_dynamic_constraint( const FRowConstraint * p_const );
+ int index_of_dynamic_constraint( const FRowConstraint * con );
 
  /**
   * It returns the variable corresponding to a variable matrix column index.
@@ -773,22 +773,22 @@ class MILPSolver : public CDASolver {
  virtual void dynamic_modification( BlockModAD * mod );
 
  /// It adds a single new dynamic constraint
- virtual void add_dynamic_constraint( FRowConstraint * p_const );
+ virtual void add_dynamic_constraint( FRowConstraint * con );
 
  /// It adds a single new dynamic variable
- virtual void add_dynamic_variable( ColVariable * p_var );
+ virtual void add_dynamic_variable( ColVariable * var );
 
  /// It adds a single new dynamic bound
- virtual void add_dynamic_bound( OneVarConstraint * p_bound );
+ virtual void add_dynamic_bound( OneVarConstraint * con );
 
  /// It removes a single dynamic constraint
- virtual void remove_dynamic_constraint( const FRowConstraint * p_const );
+ virtual void remove_dynamic_constraint( const FRowConstraint * con );
 
  /// It removes a single dynamic variable
- virtual void remove_dynamic_variable( const ColVariable * p_var );
+ virtual void remove_dynamic_variable( const ColVariable * var );
 
  /// It removes a single dynamic bound
- virtual void remove_dynamic_bound( const OneVarConstraint * p_bound );
+ virtual void remove_dynamic_bound( const OneVarConstraint * con );
  /// @}
 
 /*--------------------------------------------------------------------------*/

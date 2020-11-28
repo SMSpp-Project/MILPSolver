@@ -662,9 +662,9 @@ void MILPSolver::load_problem() {
    Q.push( i );
   }
 
-  auto * p_obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
-  if( p_obj ) {
-   scan_objective( p_obj );
+  auto * obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  if( obj ) {
+   scan_objective( obj );
   }
  }
 
@@ -735,18 +735,18 @@ MILPSolver::get_active_constraints( const ColVariable & var ) {
 /*-------------------- METHODS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_variable( const ColVariable * p_var ) {
- auto i = index_of_static_variable( p_var );
+int MILPSolver::index_of_variable( const ColVariable * var ) {
+ auto i = index_of_static_variable( var );
  if( i < Inf< int >() ) {
   return i;
  } else {
-  return index_of_dynamic_variable( p_var );
+  return index_of_dynamic_variable( var );
  }
 }
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_static_variable( const ColVariable * p_var ) {
+int MILPSolver::index_of_static_variable( const ColVariable * var ) {
 
  if( svar_to_idx.empty() ) {
   return Inf< int >();
@@ -754,12 +754,12 @@ int MILPSolver::index_of_static_variable( const ColVariable * p_var ) {
 
  assert( std::is_sorted( svar_to_idx.begin(), svar_to_idx.end() ) );
  auto it = upper_bound( svar_to_idx.begin(), svar_to_idx.end(),
-                        std::make_tuple( p_var, 0, 0 ),
+                        std::make_tuple( var, 0, 0 ),
                         [ & ]( auto & p1, auto & p2 ) {
                          return std::get< 0 >( p1 ) < std::get< 0 >( p2 );
                         } );
 
- // Now it refers to the first (group of) element(s) greater than p_var
+ // Now it refers to the first (group of) element(s) greater than var
  if( it == svar_to_idx.begin() ) {
   return Inf< int >();
  }
@@ -767,7 +767,7 @@ int MILPSolver::index_of_static_variable( const ColVariable * p_var ) {
 
  // First element of the variable group
  auto first = const_cast<const ColVariable *>(std::get< 0 >( *it ));
- int distance = std::distance( first, p_var );
+ int distance = std::distance( first, var );
 
  if( distance >= 0 && distance < std::get< 2 >( *it ) ) {
   // The element belongs to this group
@@ -779,16 +779,16 @@ int MILPSolver::index_of_static_variable( const ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_dynamic_variable( const ColVariable * p_var ) {
+int MILPSolver::index_of_dynamic_variable( const ColVariable * var ) {
 
  assert( std::is_sorted( dvar_to_idx.begin(), dvar_to_idx.end() ) );
  auto it = lower_bound( dvar_to_idx.begin(), dvar_to_idx.end(),
-                        std::make_pair( p_var, 0 ),
+                        std::make_pair( var, 0 ),
                         [ & ]( auto & p1, auto & p2 ) {
                          return p1.first < p2.first;
                         } );
 
- if( it != dvar_to_idx.end() && it->first == p_var ) {
+ if( it != dvar_to_idx.end() && it->first == var ) {
   return it->second;
  } else {
   return Inf< int >();
@@ -797,18 +797,18 @@ int MILPSolver::index_of_dynamic_variable( const ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_constraint( const FRowConstraint * p_const ) {
- auto i = index_of_static_constraint( p_const );
+int MILPSolver::index_of_constraint( const FRowConstraint * con ) {
+ auto i = index_of_static_constraint( con );
  if( i < Inf< int >() ) {
   return i;
  } else {
-  return index_of_dynamic_constraint( p_const );
+  return index_of_dynamic_constraint( con );
  }
 }
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_static_constraint( const FRowConstraint * p_const ) {
+int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) {
 
  if( scon_to_idx.empty() ) {
   return Inf< int >();
@@ -816,12 +816,12 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * p_const ) {
 
  assert( std::is_sorted( scon_to_idx.begin(), scon_to_idx.end() ) );
  auto it = upper_bound( scon_to_idx.begin(), scon_to_idx.end(),
-                        std::make_tuple( p_const, 0, 0 ),
+                        std::make_tuple( con, 0, 0 ),
                         [ & ]( auto & p1, auto & p2 ) {
                          return std::get< 0 >( p1 ) < std::get< 0 >( p2 );
                         } );
 
- // Now it refers to the first (group of) element(s) greater than p_var
+ // Now it refers to the first (group of) element(s) greater than var
  if( it == scon_to_idx.begin() ) {
   return Inf< int >();
  }
@@ -829,7 +829,7 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * p_const ) {
 
  // First element of the constraint group
  auto first = const_cast<const FRowConstraint *>(std::get< 0 >( *it ));
- int distance = std::distance( first, p_const );
+ int distance = std::distance( first, con );
 
  if( distance >= 0 && distance < std::get< 2 >( *it ) ) {
   // The element belongs to this group
@@ -842,16 +842,16 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * p_const ) {
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * p_const ) {
+int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * con ) {
 
  assert( std::is_sorted( dcon_to_idx.begin(), dcon_to_idx.end() ) );
  auto it = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(),
-                        std::make_pair( p_const, 0 ),
+                        std::make_pair( con, 0 ),
                         [ & ]( auto & p1, auto & p2 ) {
                          return p1.first < p2.first;
                         } );
 
- if( it != dcon_to_idx.end() && it->first == p_const ) {
+ if( it != dcon_to_idx.end() && it->first == con ) {
   return it->second;
  } else {
   return Inf< int >();
@@ -1028,19 +1028,22 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
  }
 
  for( int j = 0; j < nz_elements; ++j ) {
-  auto * p_const = active_constraints[ j ];
-  const auto * p_fun = dynamic_cast<const LinearFunction *> (p_const
-   ->get_function());
+  auto * con = active_constraints[ j ];
+  const auto * f = dynamic_cast<const LinearFunction *> (con->get_function());
+  // TODO: Is dynamic_cast necessary?
+  if( f == nullptr ) {
+   // TODO: Throw exception?
+   continue;
+  }
 
-  auto it = std::find_if( p_fun->get_v_var().begin(),
-                          p_fun->get_v_var().end(),
+  auto it = std::find_if( f->get_v_var().begin(), f->get_v_var().end(),
                           [ & ]( LinearFunction::coeff_pair pair ) {
                            return pair.first == &var;
                           } );
 
-  if( it != p_fun->get_v_var().end() ) {
+  if( it != f->get_v_var().end() ) {
    matval[ matbeg[ col ] + j ] = it->second;
-   matind[ matbeg[ col ] + j ] = index_of_constraint( p_const );
+   matind[ matbeg[ col ] + j ] = index_of_constraint( con );
   } else {
    // This should never happen because we are looping on the active contraints
    throw ( std::invalid_argument( "This ColVariable is not active in the examined FRowConstraint" ) );
@@ -1082,8 +1085,8 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
  * CPLEX uses rhs and rngval arrays as documented in CPXcopylp reference.
  */
 
- auto const_lhs = con.get_lhs();
- auto const_rhs = con.get_rhs();
+ auto con_lhs = con.get_lhs();
+ auto con_rhs = con.get_rhs();
 
  if( con.is_relaxed() ) {
   // A relaxed constraint becomes:
@@ -1091,26 +1094,26 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
   sense[ row ] = 'G';
   rhs[ row ] = -Inf< double >();
 
- } else if( const_lhs == const_rhs ) {
+ } else if( con_lhs == con_rhs ) {
   // LHS <= function <= RHS, with LHS = RHS
   // becomes:
   // function = RHS
   sense[ row ] = 'E';
-  rhs[ row ] = const_rhs;
+  rhs[ row ] = con_rhs;
 
- } else if( const_lhs == -Inf< double >() ) {
+ } else if( con_lhs == -Inf< double >() ) {
   // -inf <= function <= RHS
   // becomes:
   // function <= RHS
   sense[ row ] = 'L';
-  rhs[ row ] = const_rhs;
+  rhs[ row ] = con_rhs;
 
- } else if( const_rhs == Inf< double >() ) {
+ } else if( con_rhs == Inf< double >() ) {
   // LHS <= function <= inf
   // becomes:
   // function >= LHS
   sense[ row ] = 'G';
-  rhs[ row ] = const_lhs;
+  rhs[ row ] = con_lhs;
 
  } else {
   // LHS <= function <= RHS
@@ -1118,8 +1121,8 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
   // LHS <= function <= LHS + (range),
   // with range = RHS - LHS
   sense[ row ] = 'R';
-  rhs[ row ] = const_lhs;
-  rngval[ row ] = const_rhs - const_lhs;
+  rhs[ row ] = con_lhs;
+  rngval[ row ] = con_rhs - con_lhs;
  }
  ++row;
 }
@@ -1272,7 +1275,12 @@ bool MILPSolver::is_of( Function * f ) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::var_modification( VariableMod * mod ) {
- const auto var = dynamic_cast< const ColVariable * >( mod->variable() );
+ auto * var = dynamic_cast< const ColVariable * >( mod->variable() );
+ // TODO: Is dynamic_cast necessary?
+ if( var == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
 
  // Update the number of integer variables
  if( var->is_integer( mod->old_state() ) ) {
@@ -1334,11 +1342,17 @@ void MILPSolver::const_modification( ConstraintMod * mod ) {
   throw std::logic_error( "Constraint range representation is empty" );
  }
 
- auto * p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
- int idx = index_of_constraint( p_const );
+ auto * con = dynamic_cast<FRowConstraint *>(mod->constraint());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
 
- RowConstraint::RHSValue const_lhs = NAN;
- RowConstraint::RHSValue const_rhs = NAN;
+ int idx = index_of_constraint( con );
+
+ RowConstraint::RHSValue con_lhs = NAN;
+ RowConstraint::RHSValue con_rhs = NAN;
 
  switch( mod->type() ) {
   case ConstraintMod::eRelaxConst:
@@ -1352,25 +1366,25 @@ void MILPSolver::const_modification( ConstraintMod * mod ) {
   case RowConstraintMod::eChgRHS:
   case RowConstraintMod::eChgBTS:
 
-   const_lhs = p_const->get_lhs();
-   const_rhs = p_const->get_rhs();
+   con_lhs = con->get_lhs();
+   con_rhs = con->get_rhs();
 
-   if( const_lhs == const_rhs ) {
+   if( con_lhs == con_rhs ) {
     sense[ idx ] = 'E';
-    rhs[ idx ] = const_rhs;
+    rhs[ idx ] = con_rhs;
     rngval[ idx ] = 0;
-   } else if( const_lhs == -Inf< double >() ) {
+   } else if( con_lhs == -Inf< double >() ) {
     sense[ idx ] = 'L';
-    rhs[ idx ] = const_rhs;
+    rhs[ idx ] = con_rhs;
     rngval[ idx ] = 0;
-   } else if( const_rhs == Inf< double >() ) {
+   } else if( con_rhs == Inf< double >() ) {
     sense[ idx ] = 'G';
-    rhs[ idx ] = const_lhs;
+    rhs[ idx ] = con_lhs;
     rngval[ idx ] = 0;
    } else {
     sense[ idx ] = 'R';
     rhs[ idx ] = -Inf< double >();
-    rngval[ idx ] = const_rhs - const_lhs;
+    rngval[ idx ] = con_rhs - con_lhs;
    }
 
    break;
@@ -1388,20 +1402,20 @@ void MILPSolver::bound_modification( OneVarConstraintMod * mod ) {
   throw std::logic_error( "Bound representation is empty" );
  }
 
- auto * p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
- auto * p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
- int idx = index_of_variable( p_var );
+ auto * con = static_cast<OneVarConstraint *>(mod->constraint());
+ auto * var = static_cast<ColVariable *>(con->get_active_var( 0 ));
+ int idx = index_of_variable( var );
 
  switch( mod->type() ) {
   case RowConstraintMod::eChgLHS:
-   lb[ idx ] = get_problem_lb( *p_var );
+   lb[ idx ] = get_problem_lb( *var );
    break;
   case RowConstraintMod::eChgRHS:
-   ub[ idx ] = get_problem_ub( *p_var );
+   ub[ idx ] = get_problem_ub( *var );
    break;
   case RowConstraintMod::eChgBTS:
-   lb[ idx ] = get_problem_lb( *p_var );
-   ub[ idx ] = get_problem_ub( *p_var );
+   lb[ idx ] = get_problem_lb( *var );
+   ub[ idx ] = get_problem_ub( *var );
    break;
   default:
    throw std::invalid_argument( "Invalid type of OneVarConstraintMod" );
@@ -1417,9 +1431,9 @@ void MILPSolver::objective_function_modification( FunctionMod * mod ) {
   throw std::logic_error( "Objective representation is empty" );
  }
 
- auto * mod_f = mod->function();
+ auto * f = mod->function();
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // Linear objective function
   // TODO: Change only involved variables
 
@@ -1454,7 +1468,7 @@ void MILPSolver::objective_function_modification( FunctionMod * mod ) {
   return;
  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // Quadratic objective function
 
   // This may happen if we change from LP to QP
@@ -1512,9 +1526,9 @@ void MILPSolver::constraint_function_modification( FunctionMod * mod ) {
   // throw std::logic_error( "Constraint representation is empty" );
  }
 
- auto * mod_f = mod->function();
+ auto * f = mod->function();
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // TODO: update constraint matrix
   return;
  }
@@ -1532,7 +1546,7 @@ void MILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   throw std::logic_error( "Objective representation is empty" );
  }
 
- auto * mod_f = mod->function();
+ auto * f = mod->function();
 
  // Check the modification type
  // TODO: Remove this when debugging is done
@@ -1543,7 +1557,7 @@ void MILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // Linear objective function
 
   for( auto * it1 : mod->vars() ) {
@@ -1561,7 +1575,7 @@ void MILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   return;
  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // Quadratic objective function
 
   for( auto * it1 : mod->vars() ) {
@@ -1594,9 +1608,9 @@ void MILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
   throw std::logic_error( "Constraint representation is empty" );
  }
 
- auto * mod_f = mod->function();
+ auto * f = mod->function();
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // TODO: update constraint matrix
   return;
  }
@@ -1661,21 +1675,20 @@ void MILPSolver::dynamic_modification( BlockModAD * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
+void MILPSolver::add_dynamic_constraint( FRowConstraint * con ) {
 
- const auto * p_fun =
-  dynamic_cast<const LinearFunction *>(p_const->get_function());
- if( p_fun == nullptr ) {
+ const auto * f = dynamic_cast<const LinearFunction *>(con->get_function());
+ if( f == nullptr ) {
   throw std::invalid_argument( "The Constraint is not linear" );
  }
 
  // Update the dictionaries
- auto it = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(), p_const,
+ auto it = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(), con,
                         [ & ]( const_int pair, FRowConstraint * c ) {
                          return pair.first < c;
                         } );
- dcon_to_idx.insert( it, { p_const, numrows } );
- idx_to_dcon.emplace_back( numrows, p_const );
+ dcon_to_idx.insert( it, { con, numrows } );
+ idx_to_dcon.emplace_back( numrows, con );
 
  // Update the counter
  ++numrows;
@@ -1684,28 +1697,28 @@ void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
  if( sense.empty() || rhs.empty() || rngval.empty() ) {
   throw std::logic_error( "Constraint range representation is empty" );
  } else {
-  auto const_lhs = p_const->get_lhs();
-  auto const_rhs = p_const->get_rhs();
+  auto con_lhs = con->get_lhs();
+  auto con_rhs = con->get_rhs();
 
-  if( const_lhs == const_rhs ) {
+  if( con_lhs == con_rhs ) {
    sense.emplace_back( 'E' );
-   rhs.emplace_back( const_rhs );
+   rhs.emplace_back( con_rhs );
    rngval.emplace_back( 0 );
 
-  } else if( const_lhs == -Inf< double >() ) {
+  } else if( con_lhs == -Inf< double >() ) {
    sense.emplace_back( 'L' );
-   rhs.emplace_back( const_rhs );
+   rhs.emplace_back( con_rhs );
    rngval.emplace_back( 0 );
 
-  } else if( const_rhs == Inf< double >() ) {
+  } else if( con_rhs == Inf< double >() ) {
    sense.emplace_back( 'G' );
-   rhs.emplace_back( const_lhs );
+   rhs.emplace_back( con_lhs );
    rngval.emplace_back( 0 );
 
   } else {
    sense.emplace_back( 'R' );
-   rhs.emplace_back( const_lhs );
-   rngval.emplace_back( const_rhs - const_lhs );
+   rhs.emplace_back( con_lhs );
+   rngval.emplace_back( con_rhs - con_lhs );
   }
  }
 
@@ -1718,36 +1731,20 @@ void MILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
-
- // Get the constraints and bounds of the new variable
- std::vector< FRowConstraint * > var_constraints;
- std::vector< OneVarConstraint * > var_bounds;
-
- for( auto * stuff : p_var->active_stuff() ) {
-  auto * constraint = dynamic_cast<FRowConstraint *>(stuff);
-  if( constraint != nullptr ) {
-   var_constraints.push_back( constraint );
-  }
-  auto * bound = dynamic_cast<OneVarConstraint *>(stuff);
-  if( bound != nullptr ) {
-   var_bounds.push_back( bound );
-  }
- }
+void MILPSolver::add_dynamic_variable( ColVariable * var ) {
 
  // Update the dictionaries
- auto it = lower_bound( dvar_to_idx.begin(),
-                        dvar_to_idx.end(),
-                        p_var,
+ auto it = lower_bound( dvar_to_idx.begin(), dvar_to_idx.end(), var,
                         [ & ]( var_int pair, ColVariable * v ) {
                          return pair.first < v;
                         } );
- dvar_to_idx.insert( it, { p_var, numcols } );
- idx_to_dvar.emplace_back( numcols, p_var );
+
+ dvar_to_idx.insert( it, { var, numcols } );
+ idx_to_dvar.emplace_back( numcols, var );
 
  // Update the counters
  ++numcols;
- if( p_var->is_integer() ) {
+ if( var->is_integer() ) {
   ++int_vars;
  }
 
@@ -1755,16 +1752,16 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  if( lb.empty() || ub.empty() ) {
   throw std::logic_error( "Bound representation is empty" );
  } else {
-  lb.emplace_back( get_problem_lb( *p_var ) );
-  ub.emplace_back( get_problem_ub( *p_var ) );
+  lb.emplace_back( get_problem_lb( *var ) );
+  ub.emplace_back( get_problem_ub( *var ) );
  }
 
  // Update the variable type vector
  if( xctype.empty() ) {
   throw std::logic_error( "Variable type representation is empty" );
  } else {
-  if( p_var->is_integer() ) {
-   if( p_var->is_unitary() && p_var->is_positive() ) {
+  if( var->is_integer() ) {
+   if( var->is_unitary() && var->is_positive() ) {
     xctype.emplace_back( 'B' );
    } else {
     xctype.emplace_back( 'I' );
@@ -1793,25 +1790,29 @@ void MILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
+void MILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
 
  // This modification has nothing to do if these are empty
  if( lb.empty() || ub.empty() ) {
   throw std::logic_error( "Bound representation is empty" );
  }
 
- auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
- if( p_var != nullptr ) {
-  int idx = index_of_variable( p_var );
-  lb[ idx ] = get_problem_lb( *p_var );
-  ub[ idx ] = get_problem_ub( *p_var );
+ auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
+ // TODO: Is dynamic_cast necessary?
+ if (var == nullptr) {
+  // TODO: Throw exception?
+  return;
  }
+
+ int idx = index_of_variable( var );
+ lb[ idx ] = get_problem_lb( *var );
+ ub[ idx ] = get_problem_ub( *var );
 }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
- // TODO: Implement remove_dynamic_with_index(i)
+void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con ) {
+ // TODO: Implement remove_dynamic_with_index(i)?
 
  // Update the dictionaries
  int index = 0;
@@ -1819,12 +1820,12 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
  assert( std::is_sorted( idx_to_dcon.begin(), idx_to_dcon.end() ) );
 
  auto it1 = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(),
-                         std::make_pair( p_const, 0 ),
+                         std::make_pair( con, 0 ),
                          [ & ]( auto & p1, auto & p2 ) {
                           return p1.first < p2.first;
                          } );
 
- if( it1 != dcon_to_idx.end() && it1->first == p_const ) {
+ if( it1 != dcon_to_idx.end() && it1->first == con ) {
   index = it1->second;
   dcon_to_idx.erase( it1 );
  } else {
@@ -1843,7 +1844,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
                           return p1.first < p2.first;
                          } );
 
- if( it2 != idx_to_dcon.end() && it2->second == p_const ) {
+ if( it2 != idx_to_dcon.end() && it2->second == con ) {
   for( auto it = it2; it != idx_to_dcon.end(); ++it ) {
    it->first--;
   }
@@ -1873,8 +1874,8 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
- // TODO: Implement remove_dynamic_with_index(i)
+void MILPSolver::remove_dynamic_variable( const ColVariable * var ) {
+ // TODO: Implement remove_dynamic_with_index(i)?
 
  // Update the dictionaries
  int index = 0;
@@ -1882,12 +1883,12 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
  assert( std::is_sorted( idx_to_dvar.begin(), idx_to_dvar.end() ) );
 
  auto it1 = lower_bound( dvar_to_idx.begin(), dvar_to_idx.end(),
-                         std::make_pair( p_var, 0 ),
+                         std::make_pair( var, 0 ),
                          [ & ]( auto & p1, auto & p2 ) {
                           return p1.first < p2.first;
                          } );
 
- if( it1 != dvar_to_idx.end() && it1->first == p_var ) {
+ if( it1 != dvar_to_idx.end() && it1->first == var ) {
   index = it1->second;
   dvar_to_idx.erase( it1 );
  } else {
@@ -1906,7 +1907,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
                           return p1.first < p2.first;
                          } );
 
- if( it2 != idx_to_dvar.end() && it2->second == p_var ) {
+ if( it2 != idx_to_dvar.end() && it2->second == var ) {
   for( auto it = it2; it != idx_to_dvar.end(); ++it ) {
    it->first--;
   }
@@ -1917,7 +1918,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 
  // Update the counters
  --numcols;
- if( p_var->is_integer() ) {
+ if( var->is_integer() ) {
   --int_vars;
  }
 
@@ -1955,19 +1956,23 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
+void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 
  // This modification has nothing to do if these are empty
  if( lb.empty() || ub.empty() ) {
   throw std::logic_error( "Bound representation is empty" );
  }
 
- auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
- if( p_var != nullptr ) {
-  int idx = index_of_variable( p_var );
-  lb[ idx ] = get_problem_lb( *p_var );
-  ub[ idx ] = get_problem_ub( *p_var );
+ auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
+ // TODO: Is dynamic_cast necessary?
+ if( var == nullptr ) {
+  // TODO: Throw exception?
+  return;
  }
+
+ int idx = index_of_variable( var );
+ lb[ idx ] = get_problem_lb( *var );
+ ub[ idx ] = get_problem_ub( *var );
 }
 
 /*--------------------------------------------------------------------------*/

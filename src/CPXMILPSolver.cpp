@@ -1224,6 +1224,12 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   */
 
  auto * var = dynamic_cast<ColVariable *>(mod->variable());
+ // TODO: Is dynamic_cast necessary?
+ if( var == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
+
  int idx = index_of_variable( var );
  std::vector< int > indices( 2, idx );
 
@@ -1356,7 +1362,12 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
   * To change the coefficents, a FunctionMod must be used.
   */
 
- auto * p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
+ auto * con = dynamic_cast<FRowConstraint *>(mod->constraint());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
 
  const int cnt = 1;
  std::array< int, cnt > indices{};
@@ -1364,8 +1375,8 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
  std::array< char, cnt > sense{};
  std::array< double, cnt > rngval{};
 
- RowConstraint::RHSValue const_lhs = NAN;
- RowConstraint::RHSValue const_rhs = NAN;
+ RowConstraint::RHSValue con_lhs = NAN;
+ RowConstraint::RHSValue con_rhs = NAN;
 
  switch( mod->type() ) {
 
@@ -1375,7 +1386,7 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
 
    sense[ 0 ] = 'G';
    values[ 0 ] = -CPX_INFBOUND;
-   indices[ 0 ] = index_of_constraint( p_const );
+   indices[ 0 ] = index_of_constraint( con );
    CPXchgrhs( env, lp, cnt, indices.data(), values.data() );
    CPXchgsense( env, lp, cnt, indices.data(), sense.data() );
    break;
@@ -1390,25 +1401,25 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
    // Moreover, for the way the LP vectors are built, handling
    // LHS/RHS/BTS cases separately is not worth it.
 
-   const_lhs = p_const->get_lhs();
-   const_rhs = p_const->get_rhs();
+   con_lhs = con->get_lhs();
+   con_rhs = con->get_rhs();
 
-   if( const_lhs == const_rhs ) {
+   if( con_lhs == con_rhs ) {
     sense[ 0 ] = 'E';
-    values[ 0 ] = const_rhs;
-   } else if( const_lhs == -Inf< double >() ) {
+    values[ 0 ] = con_rhs;
+   } else if( con_lhs == -Inf< double >() ) {
     sense[ 0 ] = 'L';
-    values[ 0 ] = const_rhs;
-   } else if( const_rhs == Inf< double >() ) {
+    values[ 0 ] = con_rhs;
+   } else if( con_rhs == Inf< double >() ) {
     sense[ 0 ] = 'G';
-    values[ 0 ] = const_lhs;
+    values[ 0 ] = con_lhs;
    } else {
     sense[ 0 ] = 'R';
-    values[ 0 ] = const_rhs;
-    rngval[ 0 ] = const_rhs - const_lhs;
+    values[ 0 ] = con_rhs;
+    rngval[ 0 ] = con_rhs - con_lhs;
    }
 
-   indices[ 0 ] = index_of_constraint( p_const );
+   indices[ 0 ] = index_of_constraint( con );
    CPXchgrhs( env, lp, cnt, indices.data(), values.data() );
    CPXchgsense( env, lp, cnt, indices.data(), sense.data() );
    if( sense[ 0 ] == 'R' ) {
@@ -1434,10 +1445,10 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
   * of the Variable change.
   */
 
- auto * p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
- auto * p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
+ auto * con = static_cast<OneVarConstraint *>(mod->constraint());
+ auto * var = static_cast<ColVariable *>(con->get_active_var( 0 ));
 
- std::vector< int > indices( 2, index_of_variable( p_var ) );
+ std::vector< int > indices( 2, index_of_variable( var ) );
  std::vector< char > lu;
  std::vector< double > bd;
 
@@ -1447,7 +1458,7 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    lu.resize( 1 );
    bd.resize( 1 );
    lu[ 0 ] = 'L';
-   bd[ 0 ] = get_problem_lb( *p_var );
+   bd[ 0 ] = get_problem_lb( *var );
 
    CPXchgbds( env, lp, 1, indices.data(), lu.data(), bd.data() );
    break;
@@ -1456,7 +1467,7 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    lu.resize( 1 );
    bd.resize( 1 );
    lu[ 0 ] = 'U';
-   bd[ 0 ] = get_problem_ub( *p_var );
+   bd[ 0 ] = get_problem_ub( *var );
 
    CPXchgbds( env, lp, 1, indices.data(), lu.data(), bd.data() );
    break;
@@ -1466,8 +1477,8 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    bd.resize( 2 );
    lu[ 0 ] = 'L';
    lu[ 1 ] = 'U';
-   bd[ 0 ] = get_problem_lb( *p_var );
-   bd[ 1 ] = get_problem_ub( *p_var );
+   bd[ 0 ] = get_problem_lb( *var );
+   bd[ 1 ] = get_problem_ub( *var );
 
    CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
    break;
@@ -1484,13 +1495,13 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
   MILPSolver::objective_function_modification( mod );
  } catch( std::logic_error & e ) {}
 
- auto * mod_f = mod->function();
+ auto * f = mod->function();
 
  std::vector< int > indices;
  std::vector< double > values;
  std::vector< double > q_values;
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // Linear objective function
   // TODO: Change only involved variables
   indices.reserve( lf->get_num_active_var() );
@@ -1557,7 +1568,7 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
   return;
  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // Quadratic objective function
   // TODO: Change only involved variables
   indices.reserve( qf->get_num_active_var() );
@@ -1650,8 +1661,8 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
   MILPSolver::constraint_function_modification( mod );
  } catch( std::logic_error & e ) {}
 
- auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+ auto * f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (f);
 
  if( lf == nullptr ) {
   return;
@@ -1661,7 +1672,12 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
  std::vector< double > values;
  std::vector< int > rows;
 
- auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
 
  // TODO: Change only involved variables
  indices.reserve( lf->get_num_active_var() );
@@ -1670,7 +1686,7 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
 
  for( auto el : lf->get_v_var() ) {
   indices.push_back( index_of_variable( el.first ) );
-  rows.push_back( index_of_constraint( p_const ) );
+  rows.push_back( index_of_constraint( con ) );
   values.push_back( el.second );
  }
 
@@ -1684,7 +1700,7 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
  //   for( auto it2: lf->get_v_var() ) {
  //    if( it1 == it2.first ) {
  //     indices.push_back( index_of_variable( it2.first ) );
- //     rows.push_back( index_of_constraint( p_const ) );
+ //     rows.push_back( index_of_constraint( con ) );
  //     values.push_back( it2.second );
  //    }
  //   }
@@ -1700,7 +1716,7 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
  //   for( auto it2: lf->get_v_var() ) {
  //    if( it1 == it2.first ) {
  //     indices.push_back( index_of_variable( it2.first ) );
- //     rows.push_back( index_of_constraint( p_const ) );
+ //     rows.push_back( index_of_constraint( con ) );
  //     values.push_back( it2.second );
  //    }
  //   }
@@ -1720,7 +1736,7 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   MILPSolver::objective_fvars_modification( mod );
  } catch( std::logic_error & e ) {}
 
- auto * mod_f = mod->function();
+ auto * f = mod->function();
 
  // Check the modification type
  // TODO: Remove this when debugging is done
@@ -1741,7 +1757,7 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
  // TODO: We should also check if new cols must be added/removed,
  //       but at this point it's already done by a dynamic modification.
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // Linear objective function
 
   for( auto * it1 : mod->vars() ) {
@@ -1764,7 +1780,7 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   return;
  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // Quadratic objective function
   q_values.reserve( mod->vars().size() );
 
@@ -1802,8 +1818,8 @@ void CPXMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
   MILPSolver::constraint_fvars_modification( mod );
  } catch( std::logic_error & e ) {}
 
- auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
+ auto * f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (f);
 
  if( lf == nullptr ) {
   return;
@@ -1827,12 +1843,18 @@ void CPXMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
  rows.reserve( mod->vars().size() );
 
  // Get indices and coefficients
- auto * p_const = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
+
  for( auto * it1 : mod->vars() ) {
   for( auto it2: lf->get_v_var() ) {
    if( it1 == it2.first ) {
     indices.push_back( index_of_variable( it2.first ) );
-    rows.push_back( index_of_constraint( p_const ) );
+    rows.push_back( index_of_constraint( con ) );
     if( mod->added() ) {
      values.push_back( it2.second );
     } else {
@@ -1859,18 +1881,17 @@ void CPXMILPSolver::dynamic_modification( BlockModAD * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
+void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * con ) {
  try {
-  MILPSolver::add_dynamic_constraint( p_const );
+  MILPSolver::add_dynamic_constraint( con );
  } catch( std::logic_error & e ) {}
 
- const auto * p_fun =
-  dynamic_cast<const LinearFunction *>(p_const->get_function());
- if( p_fun == nullptr ) {
+ const auto * f = dynamic_cast<const LinearFunction *>(con->get_function());
+ if( f == nullptr ) {
   throw std::invalid_argument( "The Constraint is not linear" );
  }
 
- int nzcnt = p_const->get_num_active_var();
+ int nzcnt = con->get_num_active_var();
 
  std::array< int, 2 > rmatbeg = { 0, nzcnt };
  std::vector< int > rmatind( nzcnt );
@@ -1883,32 +1904,38 @@ void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
 
  // Get the coefficients to fill the matrix
  for( int i = 0; i < nzcnt; ++i ) {
-  auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( i ));
-  rmatind[ i ] = index_of_variable( p_var );
-  rmatval[ i ] = p_fun->get_coefficient( i );
+  auto * var = dynamic_cast<ColVariable *>(f->get_active_var( i ));
+  // TODO: Is dynamic_cast necessary?
+  if( var == nullptr ) {
+   // TODO: Throw exception?
+   continue;
+  }
+
+  rmatind[ i ] = index_of_variable( var );
+  rmatval[ i ] = f->get_coefficient( i );
  }
 
  // Get the bounds
- int new_index = index_of_dynamic_constraint( p_const );
- auto const_lhs = p_const->get_lhs();
- auto const_rhs = p_const->get_rhs();
+ int new_index = index_of_dynamic_constraint( con );
+ auto con_lhs = con->get_lhs();
+ auto con_rhs = con->get_rhs();
 
- if( const_lhs == const_rhs ) {
+ if( con_lhs == con_rhs ) {
   sense[ 0 ] = 'E';
-  rhs[ 0 ] = const_rhs;
+  rhs[ 0 ] = con_rhs;
 
- } else if( const_lhs == -Inf< double >() ) {
+ } else if( con_lhs == -Inf< double >() ) {
   sense[ 0 ] = 'L';
-  rhs[ 0 ] = const_rhs;
+  rhs[ 0 ] = con_rhs;
 
- } else if( const_rhs == Inf< double >() ) {
+ } else if( con_rhs == Inf< double >() ) {
   sense[ 0 ] = 'G';
-  rhs[ 0 ] = const_lhs;
+  rhs[ 0 ] = con_lhs;
 
  } else {
   sense[ 0 ] = 'R';
-  rhs[ 0 ] = const_lhs;
-  rngval[ 0 ] = const_rhs - const_lhs;
+  rhs[ 0 ] = con_lhs;
+  rngval[ 0 ] = con_rhs - con_lhs;
   indices[ 0 ] = new_index;
  }
 
@@ -1927,39 +1954,37 @@ void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
+void CPXMILPSolver::add_dynamic_variable( ColVariable * var ) {
  try {
-  MILPSolver::add_dynamic_variable( p_var );
+  MILPSolver::add_dynamic_variable( var );
  } catch( std::logic_error & e ) {}
 
  // Build the coefficient matrix for the new variable
  std::vector< int > cmatind;
  std::vector< double > cmatval;
 
- auto active_constraints = get_active_constraints( *p_var );
+ auto active_constraints = get_active_constraints( *var );
  cmatind.reserve( active_constraints.size() );
  cmatval.reserve( active_constraints.size() );
 
  // Get the coefficients for this variable for each active constraint
- for( auto * p_const : active_constraints ) {
+ for( auto * con : active_constraints ) {
 
-  const auto * p_fun =
-   dynamic_cast<const LinearFunction *>(p_const->get_function());
-  if( p_fun == nullptr ) {
+  const auto * f = dynamic_cast<const LinearFunction *>(con->get_function());
+  if( f == nullptr ) {
    throw std::invalid_argument( "The Constraint is not linear" );
   }
-  cmatind.push_back( index_of_constraint( p_const ) );
-  auto it = find_if( p_fun->get_v_var().begin(),
-                     p_fun->get_v_var().end(),
+  cmatind.push_back( index_of_constraint( con ) );
+  auto it = find_if( f->get_v_var().begin(), f->get_v_var().end(),
                      [ & ]( LinearFunction::coeff_pair pair ) {
-                      return pair.first == p_var;
+                      return pair.first == var;
                      } );
   cmatval.push_back( it->second );
  }
 
  // Get the bounds
- double lb = get_problem_lb( *p_var );
- double ub = get_problem_ub( *p_var );
+ double lb = get_problem_lb( *var );
+ double ub = get_problem_ub( *var );
 
  // Update the CPLEX problem
  int nzcnt = cmatind.size();
@@ -1972,9 +1997,9 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
  std::vector< char > old_ctype;
  int is_mip = CPXgetintvars( &old_ctype );
 
- if( p_var->is_integer() ) {
+ if( var->is_integer() ) {
   ++is_mip;
-  if( p_var->is_unitary() && p_var->is_positive() ) {
+  if( var->is_unitary() && var->is_positive() ) {
    new_ctype = 'B'; // Binary
   } else {
    new_ctype = 'I'; // Integer
@@ -2000,11 +2025,11 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
     throw std::runtime_error( "Wrong CPLEX problem type" );
   }
 
-  old_ctype[ index_of_dynamic_variable( p_var ) ] = new_ctype;
+  old_ctype[ index_of_dynamic_variable( var ) ] = new_ctype;
   CPXcopyctype( env, lp, old_ctype.data() );
  } else {
   // The problem stays a MIP, update only the one variable
-  std::array< int, 1 > indices = { index_of_dynamic_variable( p_var ) };
+  std::array< int, 1 > indices = { index_of_dynamic_variable( var ) };
   CPXchgctype( env, lp, 1, indices.data(), &new_ctype );
  }
 }
@@ -2012,38 +2037,41 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
 /*--------------------------------------------------------------------------*/
 
 void
-CPXMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
+CPXMILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
  try {
-  MILPSolver::add_dynamic_bound( p_bound );
+  MILPSolver::add_dynamic_bound( con );
  } catch( std::logic_error & e ) {}
 
- auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
- if( p_var != nullptr ) {
-
-  std::vector< int > indices( 2, index_of_variable( p_var ) );
-  std::vector< char > lu( 2 );
-  std::vector< double > bd( 2 );
-
-  lu[ 0 ] = 'L';
-  lu[ 1 ] = 'U';
-  bd[ 0 ] = get_problem_lb( *p_var );
-  bd[ 1 ] = get_problem_ub( *p_var );
-
-  CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
+ auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
+ // TODO: Is dynamic_cast necessary?
+ if( var == nullptr ) {
+  // TODO: Throw exception?
+  return;
  }
+
+ std::vector< int > indices( 2, index_of_variable( var ) );
+ std::vector< char > lu( 2 );
+ std::vector< double > bd( 2 );
+
+ lu[ 0 ] = 'L';
+ lu[ 1 ] = 'U';
+ bd[ 0 ] = get_problem_lb( *var );
+ bd[ 1 ] = get_problem_ub( *var );
+
+ CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void
-CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
+CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * con ) {
 
- int index = index_of_dynamic_constraint( p_const );
+ int index = index_of_dynamic_constraint( con );
  if( index < Inf< int >() ) {
   CPXdelrows( env, lp, index, index );
 
   try {
-   MILPSolver::remove_dynamic_constraint( p_const );
+   MILPSolver::remove_dynamic_constraint( con );
   } catch( std::logic_error & e ) {}
  } else {
   throw std::runtime_error( "Dynamic constraint not found" );
@@ -2053,14 +2081,14 @@ CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
 /*--------------------------------------------------------------------------*/
 
 void
-CPXMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
+CPXMILPSolver::remove_dynamic_variable( const ColVariable * var ) {
 
- int index = index_of_dynamic_variable( p_var );
+ int index = index_of_dynamic_variable( var );
  if( index < Inf< int >() ) {
   CPXdelcols( env, lp, index, index );
 
   try {
-   MILPSolver::remove_dynamic_variable( p_var );
+   MILPSolver::remove_dynamic_variable( var );
   } catch( std::logic_error & e ) {}
  } else {
   throw std::runtime_error( "Dynamic variable not found" );
@@ -2070,25 +2098,27 @@ CPXMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
 /*--------------------------------------------------------------------------*/
 
 void
-CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
+CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
  try {
-  MILPSolver::remove_dynamic_bound( p_bound );
+  MILPSolver::remove_dynamic_bound( con );
  } catch( std::logic_error & e ) {}
 
- auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
- if( p_var != nullptr ) {
-
-  std::vector< int > indices( 2, index_of_variable( p_var ) );
-  std::vector< char > lu( 2 );
-  std::vector< double > bd( 2 );
-
-  lu[ 0 ] = 'L';
-  lu[ 1 ] = 'U';
-  bd[ 0 ] = get_problem_lb( *p_var );
-  bd[ 1 ] = get_problem_ub( *p_var );
-
-  CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
+ auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
+ if( var == nullptr ) {
+  // TODO: Throw exception?
+  return;
  }
+
+ std::vector< int > indices( 2, index_of_variable( var ) );
+ std::vector< char > lu( 2 );
+ std::vector< double > bd( 2 );
+
+ lu[ 0 ] = 'L';
+ lu[ 1 ] = 'U';
+ bd[ 0 ] = get_problem_lb( *var );
+ bd[ 1 ] = get_problem_ub( *var );
+
+ CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
 }
 
 /*--------------------------------------------------------------------------*/

@@ -567,7 +567,13 @@ void SCIPMILPSolver::var_modification( VariableMod * mod ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- auto * var = dynamic_cast<ColVariable *>(mod->variable());
+ auto * var = dynamic_cast< ColVariable * >( mod->variable() );
+ // TODO: Is dynamic_cast necessary?
+ if( var == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
+
  int idx = index_of_variable( var );
 
  // Read old variable type
@@ -658,20 +664,25 @@ void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- auto * p_const = dynamic_cast<FRowConstraint *>(mod->constraint());
+ auto * con = dynamic_cast<FRowConstraint *>(mod->constraint());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
 
- RowConstraint::RHSValue const_lhs = NAN;
- RowConstraint::RHSValue const_rhs = NAN;
+ RowConstraint::RHSValue con_lhs = NAN;
+ RowConstraint::RHSValue con_rhs = NAN;
 
- SCIP_CONS * con = cons[ index_of_constraint( p_const ) ];
+ SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
 
  switch( mod->type() ) {
 
   case ConstraintMod::eRelaxConst:
    // In order to relax the constraint all we do is transform it
    // into an inequality with RHS equal to infinity
-   SCIP_CALL_ABORT( SCIPchgLhsLinear( scip, con, -SCIPinfinity( scip ) ) );
-   SCIP_CALL_ABORT( SCIPchgRhsLinear( scip, con, SCIPinfinity( scip ) ) );
+   SCIP_CALL_ABORT( SCIPchgLhsLinear( scip, scip_con, -SCIPinfinity( scip ) ) );
+   SCIP_CALL_ABORT( SCIPchgRhsLinear( scip, scip_con, SCIPinfinity( scip ) ) );
    break;
 
   case ConstraintMod::eEnforceConst:
@@ -684,13 +695,13 @@ void SCIPMILPSolver::const_modification( ConstraintMod * mod ) {
    // Moreover, for the way the LP vectors are built, handling
    // LHS/RHS/BTS cases separately is not worth it.
 
-   const_lhs = p_const->get_lhs() == -Inf< double >() ?
-               -SCIPinfinity( scip ) : p_const->get_lhs();
-   const_rhs = p_const->get_rhs() == Inf< double >() ?
-               SCIPinfinity( scip ) : p_const->get_rhs();
+   con_lhs = con->get_lhs() == -Inf< double >() ?
+             -SCIPinfinity( scip ) : con->get_lhs();
+   con_rhs = con->get_rhs() == Inf< double >() ?
+             SCIPinfinity( scip ) : con->get_rhs();
 
-   SCIP_CALL_ABORT( SCIPchgLhsLinear( scip, con, const_lhs ) );
-   SCIP_CALL_ABORT( SCIPchgRhsLinear( scip, con, const_rhs ) );
+   SCIP_CALL_ABORT( SCIPchgLhsLinear( scip, scip_con, con_lhs ) );
+   SCIP_CALL_ABORT( SCIPchgRhsLinear( scip, scip_con, con_rhs ) );
 
    break;
 
@@ -716,30 +727,30 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- auto * p_const = dynamic_cast<OneVarConstraint *>(mod->constraint());
- auto * p_var = dynamic_cast<ColVariable *>(p_const->get_active_var( 0 ));
+ auto * con = static_cast<OneVarConstraint *>(mod->constraint());
+ auto * var = static_cast<ColVariable *>(con->get_active_var( 0 ));
 
  SCIP_Real lb;
  SCIP_Real ub;
- SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
+ SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
 
  switch( mod->type() ) {
 
   case RowConstraintMod::eChgLHS:
-   lb = get_problem_lb( *p_var );
-   SCIP_CALL_ABORT( SCIPchgVarLb( scip, var, lb ) );
+   lb = get_problem_lb( *var );
+   SCIP_CALL_ABORT( SCIPchgVarLb( scip, scip_var, lb ) );
    break;
 
   case RowConstraintMod::eChgRHS:
-   ub = get_problem_ub( *p_var );
-   SCIP_CALL_ABORT( SCIPchgVarUb( scip, var, ub ) );
+   ub = get_problem_ub( *var );
+   SCIP_CALL_ABORT( SCIPchgVarUb( scip, scip_var, ub ) );
    break;
 
   case RowConstraintMod::eChgBTS:
-   lb = get_problem_lb( *p_var );
-   ub = get_problem_ub( *p_var );
-   SCIP_CALL_ABORT( SCIPchgVarLb( scip, var, lb ) );
-   SCIP_CALL_ABORT( SCIPchgVarUb( scip, var, ub ) );
+   lb = get_problem_lb( *var );
+   ub = get_problem_ub( *var );
+   SCIP_CALL_ABORT( SCIPchgVarLb( scip, scip_var, lb ) );
+   SCIP_CALL_ABORT( SCIPchgVarUb( scip, scip_var, ub ) );
    break;
 
   default:
@@ -758,9 +769,9 @@ void SCIPMILPSolver::objective_function_modification( FunctionMod * mod ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- auto * mod_f = mod->function();
+ auto * f = mod->function();
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // Linear objective function
 
   // TODO: Change only involved variables
@@ -771,7 +782,7 @@ void SCIPMILPSolver::objective_function_modification( FunctionMod * mod ) {
   return;
  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // Quadratic objective function
   SCIPABORT();
   return;
@@ -789,9 +800,8 @@ void SCIPMILPSolver::constraint_function_modification( FunctionMod * mod ) {
   MILPSolver::constraint_function_modification( mod );
  } catch( std::logic_error & e ) {}
 
- auto * mod_f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (mod_f);
-
+ auto * f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (f);
  if( lf == nullptr ) {
   return;
  }
@@ -800,12 +810,12 @@ void SCIPMILPSolver::constraint_function_modification( FunctionMod * mod ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- auto * p_const = ( FRowConstraint * ) lf->get_Observer();
- SCIP_CONS * con = cons[ index_of_constraint( p_const ) ];
+ auto * con = ( FRowConstraint * ) lf->get_Observer();
+ SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
 
  for( auto el : lf->get_v_var() ) {
   SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
-  SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, con, var, el.second ) );
+  SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, scip_con, var, el.second ) );
  }
 }
 
@@ -816,7 +826,7 @@ void SCIPMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   MILPSolver::objective_fvars_modification( mod );
  } catch( std::logic_error & e ) {}
 
- auto * mod_f = mod->function();
+ auto * f = mod->function();
 
  // Check the modification type
  // TODO: Remove this when debugging is done
@@ -827,12 +837,12 @@ void SCIPMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // TODO
   return;
  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // TODO
   return;
  }
@@ -848,7 +858,7 @@ void SCIPMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
   MILPSolver::constraint_fvars_modification( mod );
  } catch( std::logic_error & e ) {}
 
- auto * mod_f = mod->function();
+ auto * f = mod->function();
 
  // Check the modification type
  // TODO: Remove this when debugging is done
@@ -859,12 +869,12 @@ void SCIPMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (mod_f) ) {
+ if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // TODO
   return;
  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (mod_f) ) {
+ if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // TODO
   return;
  }
@@ -880,14 +890,13 @@ void SCIPMILPSolver::dynamic_modification( BlockModAD * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
+void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * con ) {
  try {
-  MILPSolver::add_dynamic_constraint( p_const );
+  MILPSolver::add_dynamic_constraint( con );
  } catch( std::logic_error & e ) {}
 
- const auto * p_fun =
-  dynamic_cast<const LinearFunction *>(p_const->get_function());
- if( p_fun == nullptr ) {
+ const auto * f = dynamic_cast<const LinearFunction *>(con->get_function());
+ if( f == nullptr ) {
   throw std::invalid_argument( "The Constraint is not linear" );
  }
 
@@ -895,51 +904,56 @@ void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- SCIP_CONS * con = nullptr;
+ SCIP_CONS * scip_con = nullptr;
 
- SCIP_Real const_lhs = p_const->get_lhs() == -Inf< double >() ?
-                       -SCIPinfinity( scip ) : p_const->get_lhs();
- SCIP_Real const_rhs = p_const->get_rhs() == Inf< double >() ?
-                       SCIPinfinity( scip ) : p_const->get_rhs();
+ SCIP_Real con_lhs = con->get_lhs() == -Inf< double >() ?
+                     -SCIPinfinity( scip ) : con->get_lhs();
+ SCIP_Real con_rhs = con->get_rhs() == Inf< double >() ?
+                     SCIPinfinity( scip ) : con->get_rhs();
 
  char name[32];
- std::snprintf( name, sizeof( name ), "%p", ( void * ) p_const );
- SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip, &con, name, 0,
+ std::snprintf( name, sizeof( name ), "%p", ( void * ) con );
+ SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip, &scip_con, name, 0,
                                              nullptr, nullptr,
-                                             const_lhs, const_rhs ) );
+                                             con_lhs, con_rhs ) );
 
  // Get the coefficients to fill the matrix
- for( Block::Index i = 0; i < p_const->get_num_active_var(); ++i ) {
-  auto * p_var = dynamic_cast<ColVariable *>( p_fun->get_active_var( i ) );
-  SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
-  SCIP_Real coef = p_fun->get_coefficient( i );
-  SCIP_CALL_ABORT( SCIPaddCoefLinear( scip, con, var, coef ) );
+ for( Block::Index i = 0; i < con->get_num_active_var(); ++i ) {
+  auto * var = dynamic_cast<ColVariable *>( f->get_active_var( i ) );
+  // TODO: Is dynamic_cast necessary?
+  if( var == nullptr ) {
+   // TODO: Throw exception?
+   continue;
   }
+  SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
+  SCIP_Real coef = f->get_coefficient( i );
+  SCIP_CALL_ABORT( SCIPaddCoefLinear( scip, scip_con, scip_var, coef ) );
+ }
 
- SCIP_CALL_ABORT( SCIPaddCons( scip, con ) );
- cons.push_back( con );
- SCIP_CALL_ABORT( SCIPreleaseCons( scip, &con ) );
+ SCIP_CALL_ABORT( SCIPaddCons( scip, scip_con ) );
+ cons.push_back( scip_con );
+ SCIP_CALL_ABORT( SCIPreleaseCons( scip, &scip_con ) );
 }
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
+void SCIPMILPSolver::add_dynamic_variable( ColVariable * var ) {
  try {
-  MILPSolver::add_dynamic_variable( p_var );
+  MILPSolver::add_dynamic_variable( var );
  } catch( std::logic_error & e ) {}
 
  if( SCIPisTransformed( scip ) ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- SCIP_Real lb = get_problem_lb( *p_var );
- SCIP_Real ub = get_problem_ub( *p_var );
+ SCIP_Real lb = get_problem_lb( *var );
+ SCIP_Real ub = get_problem_ub( *var );
  SCIP_VARTYPE vartype = SCIP_VARTYPE_BINARY;
 
  // Variable type
 
- if( p_var->is_integer() ) {
-  if( p_var->is_unitary() && p_var->is_positive() ) {
+ if( var->is_integer() ) {
+  if( var->is_unitary() && var->is_positive() ) {
    vartype = SCIP_VARTYPE_BINARY;
   } else {
    vartype = SCIP_VARTYPE_INTEGER;
@@ -948,115 +962,126 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * p_var ) {
   vartype = SCIP_VARTYPE_CONTINUOUS;
  }
 
- SCIP_VAR * var = nullptr;
+ SCIP_VAR * scip_var = nullptr;
 
- SCIP_CALL_ABORT( SCIPcreateVarBasic( scip, &var, nullptr,
+ SCIP_CALL_ABORT( SCIPcreateVarBasic( scip, &scip_var, nullptr,
                                       lb, ub, 0.0, vartype ) );
- vars.push_back( var );
- SCIP_CALL_ABORT( SCIPaddVar( scip, var ) );
+ vars.push_back( scip_var );
+ SCIP_CALL_ABORT( SCIPaddVar( scip, scip_var ) );
 
  int i = 0;
 
  // We need the coefficients for this variable in each constraint
- auto active_constraints = get_active_constraints( *p_var );
- for( auto * p_const : active_constraints ) {
+ auto active_constraints = get_active_constraints( *var );
+ for( auto * con : active_constraints ) {
 
-  const auto * p_fun =
-   dynamic_cast<const LinearFunction *>(p_const->get_function());
-  if( p_fun == nullptr ) {
+  const auto * f = dynamic_cast<const LinearFunction *>(con->get_function());
+  if( f == nullptr ) {
    throw ( std::invalid_argument( "The Constraint is not linear" ) );
   }
-  SCIP_CONS * con = cons[ index_of_constraint( p_const ) ];
-  SCIP_Real coeff = p_fun->get_coefficient( i );
-  SCIP_CALL_ABORT( SCIPaddCoefLinear( scip, con, var, coeff ) );
+  SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
+  SCIP_Real coeff = f->get_coefficient( i );
+  SCIP_CALL_ABORT( SCIPaddCoefLinear( scip, scip_con, scip_var, coeff ) );
   ++i;
  }
 
- SCIP_CALL_ABORT( SCIPreleaseVar( scip, &var ) );
+ SCIP_CALL_ABORT( SCIPreleaseVar( scip, &scip_var ) );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void
-SCIPMILPSolver::add_dynamic_bound( OneVarConstraint * p_bound ) {
+SCIPMILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
  try {
-  MILPSolver::add_dynamic_bound( p_bound );
+  MILPSolver::add_dynamic_bound( con );
  } catch( std::logic_error & e ) {}
 
  if( SCIPisTransformed( scip ) ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
- SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
+ auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
+ // TODO: Is dynamic_cast necessary?
+ if( var == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
 
- SCIP_Real lb = get_problem_lb( *p_var );
- SCIP_Real ub = get_problem_ub( *p_var );
- SCIP_CALL_ABORT( SCIPchgVarLb( scip, var, lb ) );
- SCIP_CALL_ABORT( SCIPchgVarUb( scip, var, ub ) );
+ SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
+
+ SCIP_Real lb = get_problem_lb( *var );
+ SCIP_Real ub = get_problem_ub( *var );
+ SCIP_CALL_ABORT( SCIPchgVarLb( scip, scip_var, lb ) );
+ SCIP_CALL_ABORT( SCIPchgVarUb( scip, scip_var, ub ) );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void
-SCIPMILPSolver::remove_dynamic_constraint( const FRowConstraint * p_const ) {
+SCIPMILPSolver::remove_dynamic_constraint( const FRowConstraint * con ) {
  if( SCIPisTransformed( scip ) ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- int index = index_of_dynamic_constraint( p_const );
+ int index = index_of_dynamic_constraint( con );
 
  auto it = cons.begin() + index;
- SCIP_CONS * con = *it;
+ SCIP_CONS * scip_con = *it;
  cons.erase( it );
- SCIP_CALL_ABORT( SCIPdelCons( scip, con ) );
+ SCIP_CALL_ABORT( SCIPdelCons( scip, scip_con ) );
 
  try {
-  MILPSolver::remove_dynamic_constraint( p_const );
+  MILPSolver::remove_dynamic_constraint( con );
  } catch( std::logic_error & e ) {}
 }
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * p_var ) {
+void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * var ) {
  if( SCIPisTransformed( scip ) ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- int index = index_of_dynamic_variable( p_var );
+ int index = index_of_dynamic_variable( var );
 
  auto it = vars.begin() + index;
- SCIP_VAR * var = *it;
+ SCIP_VAR * scip_var = *it;
  vars.erase( it );
 
  SCIP_Bool deleted = 0;
- SCIP_CALL_ABORT( SCIPdelVar( scip, var, &deleted ) );
+ SCIP_CALL_ABORT( SCIPdelVar( scip, scip_var, &deleted ) );
  assert( deleted );
 
  try {
-  MILPSolver::remove_dynamic_variable( p_var );
+  MILPSolver::remove_dynamic_variable( var );
  } catch( std::logic_error & e ) {}
 }
 
 /*--------------------------------------------------------------------------*/
 
 void
-SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * p_bound ) {
+SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
  try {
-  MILPSolver::remove_dynamic_bound( p_bound );
+  MILPSolver::remove_dynamic_bound( con );
  } catch( std::logic_error & e ) {}
 
  if( SCIPisTransformed( scip ) ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- auto * p_var = dynamic_cast<ColVariable *>(p_bound->get_active_var( 0 ));
- SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
+ auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
+ // TODO: Is dynamic_cast necessary?
+ if( var == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
 
- SCIP_Real lb = get_problem_lb( *p_var );
- SCIP_Real ub = get_problem_ub( *p_var );
- SCIP_CALL_ABORT( SCIPchgVarLb( scip, var, lb ) );
- SCIP_CALL_ABORT( SCIPchgVarUb( scip, var, ub ) );
+ SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
+
+ SCIP_Real lb = get_problem_lb( *var );
+ SCIP_Real ub = get_problem_ub( *var );
+ SCIP_CALL_ABORT( SCIPchgVarLb( scip, scip_var, lb ) );
+ SCIP_CALL_ABORT( SCIPchgVarUb( scip, scip_var, ub ) );
 }
 
 /*--------------------------------------------------------------------------*/

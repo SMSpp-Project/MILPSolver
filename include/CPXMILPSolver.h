@@ -356,22 +356,22 @@ class CPXMILPSolver : public MILPSolver {
  void dynamic_modification( BlockModAD * mod ) override;
 
  /// It adds a single new dynamic constraint
- void add_dynamic_constraint( FRowConstraint * p_const ) override;
+ void add_dynamic_constraint( FRowConstraint * con ) override;
 
  /// It adds a single new dynamic bound
- void add_dynamic_bound( OneVarConstraint * p_bound ) override;
+ void add_dynamic_bound( OneVarConstraint * con ) override;
 
  /// It adds a single new dynamic variable
- void add_dynamic_variable( ColVariable * p_var ) override;
+ void add_dynamic_variable( ColVariable * var ) override;
 
  /// It removes a single dynamic constraint
- void remove_dynamic_constraint( const FRowConstraint * p_const ) override;
+ void remove_dynamic_constraint( const FRowConstraint * con ) override;
 
  /// It removes a single dynamic variable
- void remove_dynamic_variable( const ColVariable * p_var ) override;
+ void remove_dynamic_variable( const ColVariable * var ) override;
 
  /// It removes a single dynamic bound
- void remove_dynamic_bound( const OneVarConstraint * p_bound ) override;
+ void remove_dynamic_bound( const OneVarConstraint * con ) override;
  /// @}
 
 /*--------------------------------------------------------------------------*/
