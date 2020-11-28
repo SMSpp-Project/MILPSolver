@@ -217,17 +217,14 @@ int CPXMILPSolver::compute( bool changedvars ) {
 
  int probtype = CPXgetprobtype( env, lp );
  switch( probtype ) {
-  // TODO: remove asserts
   case CPXPROB_LP :
    DEBUG_LOG( "CPLEX problem type: LP" << std::endl );
    break;
   case CPXPROB_MILP :
    DEBUG_LOG( "CPLEX problem type: MILP" << std::endl );
-   assert( int_vars > 0 );
    break;
   case CPXPROB_FIXEDMILP :
    DEBUG_LOG( "CPLEX problem type: FIXEDMILP" << std::endl );
-   assert( int_vars > 0 );
    break;
   case CPXPROB_QP :
    DEBUG_LOG( "CPLEX problem type: QP" << std::endl );
@@ -235,12 +232,10 @@ int CPXMILPSolver::compute( bool changedvars ) {
    break;
   case CPXPROB_MIQP :
    DEBUG_LOG( "CPLEX problem type: MIQP" << std::endl );
-   assert( int_vars > 0 );
    is_qp = true;
    break;
   case CPXPROB_FIXEDMIQP :
    DEBUG_LOG( "CPLEX problem type: FIXEDMIQP" << std::endl );
-   assert( int_vars > 0 );
    is_qp = true;
    break;
   case CPXPROB_QCP :
@@ -954,11 +949,10 @@ Solver::OFValue CPXMILPSolver::get_var_value() {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_var_solution( Configuration * solc ) {
- // TODO use vector
- auto * x = new double[numcols];
- int status = CPXgetx( env, lp, x, 0, numcols - 1 );
+
+ std::vector< double > x( numcols, 0 );
+ int status = CPXgetx( env, lp, x.data(), 0, numcols - 1 );
  if( status ) {
-  delete[] x;
   throw std::runtime_error( "Unable to get the solution values with CPXgetx()" );
  }
 
@@ -997,8 +991,6 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  if( !owned ) {
   f_Block->unlock( f_id );
  }
-
- delete[]x;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1038,11 +1030,10 @@ bool CPXMILPSolver::is_dual_feasible() {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
- // TODO use vector
- auto * pi = new double[numrows];
- int status = CPXgetpi( env, lp, pi, 0, numrows - 1 );
+
+ std::vector< double > pi( numrows, 0 );
+ int status = CPXgetpi( env, lp, pi.data(), 0, numrows - 1 );
  if( status ) {
-  delete[] pi;
   throw std::runtime_error( "Unable to get the solution values with CPXgetpi()" );
  }
 
@@ -1081,29 +1072,25 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
  if( !owned ) {
   f_Block->unlock( f_id );
  }
-
- delete[]pi;
 }
 
 /*--------------------------------------------------------------------------*/
 
 bool CPXMILPSolver::has_dual_direction() {
- // TODO use vector
- auto * y = new double[numrows];
+ std::vector< double > y( numrows, 0 );
  double proof = 0;
- int status = CPXdualfarkas( env, lp, y, &proof );
- delete[] y;
+ int status = CPXdualfarkas( env, lp, y.data(), &proof );
  return !bool( status );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
- // TODO use vector
- auto * y = new double[numrows];
- auto * v = new double[numcols];
- auto * w = new double[numcols];
- auto * dj = new double[numcols];
+
+ std::vector< double > y( numrows, 0 );
+ std::vector< double > v( numcols, 0 );
+ std::vector< double > w( numcols, 0 );
+ std::vector< double > dj( numcols, 0 );
  double proof = 0;
  int status;
 
@@ -1111,25 +1098,17 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
  // y' * A * x >= y' * b
  //   If it is a <= constraint then y[i] <= 0 holds;
  //   If it is a >= constraint then y[i] >= 0 holds.
- status = CPXdualfarkas( env, lp, y, &proof );
+ status = CPXdualfarkas( env, lp, y.data(), &proof );
 
  if( status ) {
-  delete[]y;
-  delete[]v;
-  delete[]dj;
-  delete[]w;
   throw std::runtime_error( "An error occurred in CPXdualfarkas()" );
  }
 
  // CPXdjfrompi computes reduced costs from dual values
  // dj = c - A'y
- status = CPXdjfrompi( env, lp, y, dj );
+ status = CPXdjfrompi( env, lp, y.data(), dj.data() );
 
  if( status ) {
-  delete[]y;
-  delete[]v;
-  delete[]dj;
-  delete[]w;
   throw std::runtime_error( "An error occurred in CPXdjfrompi()" );
  }
 
@@ -1186,11 +1165,6 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
  if( !owned ) {
   f_Block->unlock( f_id );
  }
-
- delete[]y;
- delete[]v;
- delete[]dj;
- delete[]w;
 }
 
 /*--------------------------------------------------------------------------*/
