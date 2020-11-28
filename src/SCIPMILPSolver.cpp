@@ -909,12 +909,12 @@ void SCIPMILPSolver::add_dynamic_constraint( FRowConstraint * p_const ) {
                                              const_lhs, const_rhs ) );
 
  // Get the coefficients to fill the matrix
- for( int i = 0; i < p_const->get_num_active_var(); ++i ) {
-  auto * p_var = dynamic_cast<ColVariable *>(p_fun->get_active_var( i ));
+ for( Block::Index i = 0; i < p_const->get_num_active_var(); ++i ) {
+  auto * p_var = dynamic_cast<ColVariable *>( p_fun->get_active_var( i ) );
   SCIP_VAR * var = vars[ index_of_variable( p_var ) ];
   SCIP_Real coef = p_fun->get_coefficient( i );
   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip, con, var, coef ) );
- }
+  }
 
  SCIP_CALL_ABORT( SCIPaddCons( scip, con ) );
  cons.push_back( con );
