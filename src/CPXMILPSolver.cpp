@@ -754,7 +754,7 @@ Solver::OFValue CPXMILPSolver::get_lb() {
  OFValue lower_bound = 0;
  int probtype = CPXgetprobtype( env, lp );
 
- switch( objsense ) {
+ switch( CPXgetobjsen( env, lp ) ) {
 
   // Minimization problem
   case CPX_MIN:
@@ -832,7 +832,7 @@ Solver::OFValue CPXMILPSolver::get_ub() {
  OFValue upper_bound = 0;
  int probtype = CPXgetprobtype( env, lp );
 
- switch( objsense ) {
+ switch( CPXgetobjsen( env, lp ) ) {
 
   // Minimization problem
   case CPX_MIN:
@@ -941,10 +941,10 @@ bool CPXMILPSolver::is_var_feasible() {
 /*--------------------------------------------------------------------------*/
 
 Solver::OFValue CPXMILPSolver::get_var_value() {
- switch( objsense ) {
-  case 1: // Minimization problem
+ switch( CPXgetobjsen( env, lp ) ) {
+  case CPX_MIN:
    return get_ub();
-  case -1: // Maximization problem
+  case CPX_MAX:
    return get_lb();
   default:
    throw std::runtime_error( "Objective type not yet defined" );

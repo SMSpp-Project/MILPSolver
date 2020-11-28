@@ -90,7 +90,15 @@ void SCIPMILPSolver::load_problem() {
  MILPSolver::load_problem();
 
  SCIP_CALL_ABORT( SCIPcreateProbBasic( scip, prob_name.c_str() ) );
- SCIP_CALL_ABORT( SCIPsetObjsense( scip, ( SCIP_OBJSENSE ) objsense ) );
+
+ // Set objective sense
+ if( objsense == 1 ) {
+  SCIP_CALL_ABORT( SCIPsetObjsense( scip, SCIP_OBJSENSE_MINIMIZE ) );
+ } else if( objsense == -1 ) {
+  SCIP_CALL_ABORT( SCIPsetObjsense( scip, SCIP_OBJSENSE_MAXIMIZE ) );
+ } else {
+  SCIPABORT();
+ }
 
  // Add variables
  vars.resize( numcols );
@@ -230,10 +238,10 @@ void SCIPMILPSolver::load_problem() {
    SCIP_Real con_lhs = NAN;
    SCIP_Real con_rhs = NAN;
 
-   if( objsense == SCIP_OBJSENSE_MINIMIZE ) {
+   if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE ) {
     con_lhs = 0;
     con_rhs = SCIPinfinity( scip );
-   } else if( objsense == SCIP_OBJSENSE_MAXIMIZE ) {
+   } else if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MAXIMIZE ) {
     con_lhs = -SCIPinfinity( scip );
     con_rhs = 0;
    } else {
@@ -333,7 +341,7 @@ Solver::OFValue SCIPMILPSolver::get_lb() {
 
  OFValue lower_bound = 0;
 
- switch( objsense ) {
+ switch( SCIPgetObjsense( scip ) ) {
   case SCIP_OBJSENSE_MINIMIZE:
    switch( sol_status ) {
     case kUnbounded:
@@ -373,7 +381,7 @@ Solver::OFValue SCIPMILPSolver::get_ub() {
 
  OFValue upper_bound = 0;
 
- switch( objsense ) {
+ switch( SCIPgetObjsense( scip ) ) {
   case SCIP_OBJSENSE_MINIMIZE:
    switch( sol_status ) {
     case kUnbounded:
@@ -433,10 +441,10 @@ bool SCIPMILPSolver::is_var_feasible() {
 /*--------------------------------------------------------------------------*/
 
 Solver::OFValue SCIPMILPSolver::get_var_value() {
- switch( objsense ) {
-  case 1: // Minimization problem
+ switch( SCIPgetObjsense( scip ) ) {
+  case SCIP_OBJSENSE_MINIMIZE:
    return get_ub();
-  case -1: // Maximization problem
+  case SCIP_OBJSENSE_MAXIMIZE:
    return get_lb();
   default:
    throw std::runtime_error( "Objective type not yet defined" );
@@ -1107,12 +1115,12 @@ void SCIPMILPSolver::set_par( idx_type par, const double value ) {
    // case dblAbsAcc: // TODO
    //  return;
    // case dblUpCutOff:
-   //  if( objsense == SCIP_OBJSENSE_MINIMIZE ) {
+   //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE ) {
    //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
    //  }
    //  return;
    // case dblLwCutOff:
-   //  if( objsense == SCIP_OBJSENSE_MAXIMIZE ) {
+   //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MAXIMIZE ) {
    //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
    //  }
    //  return;
@@ -1240,12 +1248,12 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const {
    // case dblAbsAcc:   // TODO
    //  return Inf< OFValue >();
    // case dblUpCutOff:
-   //  if( objsense == SCIP_OBJSENSE_MINIMIZE ) {
+   //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE ) {
    //   return SCIPgetObjlimit( scip );
    //  }
    //  return Inf< OFValue >();
    // case dblLwCutOff:
-   //  if( objsense == SCIP_OBJSENSE_MAXIMIZE ) {
+   //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MAXIMIZE ) {
    //   return SCIPgetObjlimit( scip );
    //  }
    //  return -Inf< OFValue >();
@@ -1365,12 +1373,12 @@ double SCIPMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
    // case dblAbsAcc:   // TODO
    //  return Inf< OFValue >();
    // case dblUpCutOff:
-   //  if( objsense == 1 ) {
+   //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE ) {
    //   return -Inf< OFValue >();
    //  }
    //  return Inf< OFValue >();
    // case dblLwCutOff:
-   //  if( objsense == -1 ) {
+   //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MAXIMIZE ) {
    //   return Inf< OFValue >();
    //  }
    //  return -Inf< OFValue >();
