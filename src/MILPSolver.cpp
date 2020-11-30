@@ -1433,38 +1433,46 @@ void MILPSolver::objective_function_modification( FunctionMod * mod ) {
 
  auto * f = mod->function();
 
+ // C05FunctionModLin
+ // --------------------------------------------------------------------------
+ if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
+
+  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+   for( int i = 0; i < modl->vars().size(); ++i ) {
+    auto var = static_cast<const ColVariable *>(modl->vars()[ i ]);
+    objective[ index_of_variable( var ) ] += modl->delta()[ i ];
+   }
+   return;
+  }
+
+  // if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
+  //
+  //  // This may happen if we change from LP to QP
+  //  if( q_objective.empty() ) {
+  //   q_objective.resize( numcols );
+  //  }
+  //
+  //  for( auto i : sbst->subset() ) {
+  //   auto var = static_cast<const ColVariable *>(qf->get_active_var( i ));
+  //   auto idx = index_of_variable( var );
+  //   objective[ idx ] = qf->get_linear_coefficient( i );
+  //   q_objective[ idx ] = qf->get_quadratic_coefficient( i );
+  //  }
+  //
+  //  return;
+  // }
+
+  // This should never happen
+  throw std::invalid_argument( "Unknown type of Objective Function" );
+ }
+
+ // Fallback method - Update all costs
+ // --------------------------------------------------------------------------
  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // Linear objective function
-  // TODO: Change only involved variables
-
   for( auto el : lf->get_v_var() ) {
    objective[ index_of_variable( el.first ) ] = el.second;
   }
-
-  // FIXME: The following stuff doesn't work
-  // if( auto * rngd = dynamic_cast<C05FunctionModRngd *>( mod ) ) {
-  //  for( auto * it1 : rngd->vars() ) {
-  //   for( auto it2: lf->get_v_var() ) {
-  //    if( it1 == it2.first ) {
-  //     objective[ index_of_variable( it2.first ) ] = it2.second;
-  //     break;
-  //    }
-  //   }
-  //  }
-  //  return;
-  // }
-  //
-  // if( auto * sbst = dynamic_cast<C05FunctionModSbst *>( mod ) ) {
-  //  for( auto * it1 : sbst->vars() ) {
-  //   for( auto it2: lf->get_v_var() ) {
-  //    if( it1 == it2.first ) {
-  //     objective[ index_of_variable( it2.first ) ] = it2.second;
-  //     break;
-  //    }
-  //   }
-  //  }
-  //  return;
-  // }
   return;
  }
 
@@ -1476,41 +1484,11 @@ void MILPSolver::objective_function_modification( FunctionMod * mod ) {
    q_objective.resize( numcols );
   }
 
-  // TODO: Change only involved variables
   for( auto el : qf->get_v_var() ) {
    int idx = index_of_variable( std::get< 0 >( el ) );
    objective[ idx ] = std::get< 1 >( el );
    q_objective[ idx ] = std::get< 2 >( el );
   }
-
-  // FIXME: The following stuff doesn't work
-  // if( auto * rngd = dynamic_cast<C05FunctionModRngd *>( mod ) ) {
-  //  for( auto * it1 : rngd->vars() ) {
-  //   for( auto it2: qf->get_v_var() ) {
-  //    if( it1 == std::get< 0 >( it2 ) ) {
-  //     int idx = index_of_variable( std::get< 0 >( it2 ) );
-  //     objective[ idx ] = std::get< 1 >( it2 );
-  //     q_objective[ idx ] = std::get< 2 >( it2 );
-  //     break;
-  //    }
-  //   }
-  //  }
-  //  return;
-  // }
-  //
-  // if( auto * sbst = dynamic_cast<C05FunctionModSbst *>( mod ) ) {
-  //  for( auto * it1 : sbst->vars() ) {
-  //   for( auto it2: qf->get_v_var() ) {
-  //    if( it1 == std::get< 0 >( it2 ) ) {
-  //     int idx = index_of_variable( std::get< 0 >( it2 ) );
-  //     objective[ idx ] = std::get< 1 >( it2 );
-  //     q_objective[ idx ] = std::get< 2 >( it2 );
-  //     break;
-  //    }
-  //   }
-  //  }
-  //  return;
-  // }
   return;
  }
 
@@ -1549,11 +1527,9 @@ void MILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
  auto * f = mod->function();
 
  // Check the modification type
- // TODO: Remove this when debugging is done
- auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
- auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
- auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
- if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
+ if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
@@ -1799,7 +1775,7 @@ void MILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
 
  auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
  // TODO: Is dynamic_cast necessary?
- if (var == nullptr) {
+ if( var == nullptr ) {
   // TODO: Throw exception?
   return;
  }

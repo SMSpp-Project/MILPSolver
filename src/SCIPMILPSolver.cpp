@@ -771,10 +771,13 @@ void SCIPMILPSolver::objective_function_modification( FunctionMod * mod ) {
 
  auto * f = mod->function();
 
+ // C05FunctionModLin
+ // --------------------------------------------------------------------------
+
+ // Fallback method - Update all costs
+ // --------------------------------------------------------------------------
  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // Linear objective function
-
-  // TODO: Change only involved variables
   for( auto el : lf->get_v_var() ) {
    SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
    SCIP_CALL_ABORT( SCIPchgVarObj( scip, var, el.second ) );
@@ -784,6 +787,7 @@ void SCIPMILPSolver::objective_function_modification( FunctionMod * mod ) {
 
  if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // Quadratic objective function
+  // TODO
   SCIPABORT();
   return;
  }
@@ -806,13 +810,23 @@ void SCIPMILPSolver::constraint_function_modification( FunctionMod * mod ) {
   return;
  }
 
+ auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
+ SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
+
  if( SCIPisTransformed( scip ) ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- auto * con = ( FRowConstraint * ) lf->get_Observer();
- SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
+ // C05FunctionModLin
+ // --------------------------------------------------------------------------
 
+ // Fallback method - Reload all coefficients
+ // --------------------------------------------------------------------------
  for( auto el : lf->get_v_var() ) {
   SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
   SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, scip_con, var, el.second ) );
@@ -829,21 +843,39 @@ void SCIPMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
  auto * f = mod->function();
 
  // Check the modification type
- // TODO: Remove this when debugging is done
- auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
- auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
- auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
- if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
+ if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
+ if( SCIPisTransformed( scip ) ) {
+  SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
+ }
+
  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
-  // TODO
+  // Linear objective function
+
+  for( auto * it1 : mod->vars() ) {
+   for( auto it2: lf->get_v_var() ) {
+    if( it1 == it2.first ) {
+     SCIP_VAR * scip_var = vars[ index_of_variable( it2.first ) ];
+     if( mod->added() ) {
+      SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, it2.second ) );
+     } else {
+      SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
+     }
+     break;
+    }
+   }
+  }
+
   return;
  }
 
  if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // TODO
+  SCIPABORT();
   return;
  }
 
@@ -859,24 +891,43 @@ void SCIPMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
  } catch( std::logic_error & e ) {}
 
  auto * f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (f);
+ if( lf == nullptr ) {
+  return;
+ }
 
  // Check the modification type
- // TODO: Remove this when debugging is done
- auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
- auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
- auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
- if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
+ if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
-  // TODO
+ auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
   return;
  }
+ SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
-  // TODO
-  return;
+ if( SCIPisTransformed( scip ) ) {
+  SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
+ }
+
+ for( auto * it1 : mod->vars() ) {
+  for( auto it2: lf->get_v_var() ) {
+   if( it1 == it2.first ) {
+    SCIP_VAR * scip_var = vars[ index_of_variable( it2.first ) ];
+    if( mod->added() ) {
+     SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, scip_con, scip_var, it2
+      .second ) );
+    } else {
+     SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, scip_con, scip_var, 0 ) );
+    }
+    break;
+   }
+  }
  }
 }
 

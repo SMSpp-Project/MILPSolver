@@ -177,7 +177,8 @@ void CPXMILPSolver::load_problem() {
  }
 
  // The base representation isn't needed anymore
- MILPSolver::clear_problem( 15 );
+ // TODO: Uncomment this after debug
+ // MILPSolver::clear_problem( 15 );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1471,107 +1472,33 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
 
  auto * f = mod->function();
 
- std::vector< int > indices;
- std::vector< double > values;
-
- // C05FunctionModLinRngd
+ // C05FunctionModLin
  // --------------------------------------------------------------------------
+ // if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
+ //
+ //  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+ //   // Linear objective function
+ //
+ //   for( int i = 0; i < modl->vars().size(); ++i ) {
+ //    auto var = static_cast<const ColVariable *>(modl->vars()[ i ]);
+ //    auto idx = index_of_variable( var );
+ //    double value;
+ //
+ //    CPXgetobj( env, lp, &value, idx, idx );
+ //    value += modl->delta()[ i ];
+ //    CPXchgobj( env, lp, 1, &idx, &value );
+ //   }
+ //
+ //   update_problem_type( f );
+ //   return;
+ //  }
+ //
+ //  // This should never happen
+ //  throw std::invalid_argument( "Unknown type of Objective Function" );
+ // }
 
- if( const auto * rngd = dynamic_cast<C05FunctionModLinRngd *>(mod) ) {
-
-  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
-   indices.reserve( rngd->vars().size() );
-   values.reserve( rngd->vars().size() );
-
-   auto range = rngd->range();
-   for( Function::Index i = range.first; i < range.second; ++i ) {
-    auto var = static_cast<const ColVariable *>(lf->get_active_var( i ));
-    indices.push_back( index_of_variable( var ) );
-    values.push_back( lf->get_coefficient( i ) );
-   }
-
-   if( !indices.empty() ) {
-    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-   }
-
-   update_problem_type( f );
-   return;
-  }
-
-  if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
-   indices.reserve( rngd->vars().size() );
-   values.reserve( rngd->vars().size() );
-
-   auto range = rngd->range();
-   for( Function::Index i = range.first; i < range.second; ++i ) {
-    auto var = static_cast<const ColVariable *>(qf->get_active_var( i ));
-    indices.push_back( index_of_variable( var ) );
-    values.push_back( qf->get_linear_coefficient( i ) );
-    double q_value = qf->get_quadratic_coefficient( i );
-
-    // Quadratic coefficients must be changed one at a time
-    CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_value );
-   }
-
-   if( !indices.empty() ) {
-    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-   }
-
-   update_problem_type( f );
-   return;
-  }
-  // This should never happen
-  throw std::invalid_argument( "Unknown type of Objective Function" );
- }
-
- // C05FunctionModLinSbst
+ // Fallback method - Update all costs
  // --------------------------------------------------------------------------
- if( const auto * sbst = dynamic_cast<C05FunctionModLinSbst *>(mod) ) {
-
-  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
-   indices.reserve( sbst->vars().size() );
-   values.reserve( sbst->vars().size() );
-
-   for( auto i : sbst->subset() ) {
-    auto var = static_cast<const ColVariable *>(lf->get_active_var( i ));
-    indices.push_back( index_of_variable( var ) );
-    values.push_back( lf->get_coefficient( i ) );
-   }
-
-   if( !indices.empty() ) {
-    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-   }
-
-   update_problem_type( f );
-   return;
-  }
-
-  if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
-   indices.reserve( sbst->vars().size() );
-   values.reserve( sbst->vars().size() );
-
-   for( auto i : sbst->subset() ) {
-    auto var = static_cast<const ColVariable *>(qf->get_active_var( i ));
-    indices.push_back( index_of_variable( var ) );
-    values.push_back( qf->get_linear_coefficient( i ) );
-    double q_value = qf->get_quadratic_coefficient( i );
-
-    // Quadratic coefficients must be changed one at a time
-    CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_value );
-   }
-
-   if( !indices.empty() ) {
-    CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-   }
-
-   update_problem_type( f );
-   return;
-  }
-  // This should never happen
-  throw std::invalid_argument( "Unknown type of Objective Function" );
- }
-
- // Fallback method
  reload_objective( f );
 }
 
@@ -1583,12 +1510,39 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
  } catch( std::logic_error & e ) {}
 
  auto * f = mod->function();
+ const auto * lf = dynamic_cast<const LinearFunction *> (f);
+ if( lf == nullptr ) {
+  return;
+ }
 
-// TODO: C05FunctionModLinRngd/Sbst
- std::vector< int > indices;
- std::vector< double > values;
+ auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
 
-// Fallback method
+ // C05FunctionModLin
+ // --------------------------------------------------------------------------
+ // if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
+ //  auto row = index_of_constraint( con );
+ //
+ //  for( int i = 0; i < modl->vars().size(); ++i ) {
+ //   auto var = static_cast<const ColVariable *>(modl->vars()[ i ]);
+ //   auto col = index_of_variable( var );
+ //   double value;
+ //
+ //   CPXgetcoef( env, lp, row, col, &value );
+ //   value += modl->delta()[ i ];
+ //   CPXchgcoeflist( env, lp, 1, &row, &col, &value );
+ //  }
+ //
+ //  update_problem_type( f );
+ //  return;
+ // }
+
+ // Fallback method - Reload all coefficients
+ // --------------------------------------------------------------------------
  reload_constraint( f );
 }
 
@@ -1602,11 +1556,9 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
  auto * f = mod->function();
 
  // Check the modification type
- // TODO: Remove this when debugging is done
- auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
- auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
- auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
- if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
+ if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
@@ -1616,9 +1568,6 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
 
  indices.reserve( mod->vars().size() );
  values.reserve( mod->vars().size() );
-
- // TODO: We should also check if new cols must be added/removed,
- //       but at this point it's already done by a dynamic modification.
 
  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // Linear objective function
@@ -1683,17 +1632,14 @@ void CPXMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
 
  auto * f = mod->function();
  const auto * lf = dynamic_cast<const LinearFunction *> (f);
-
  if( lf == nullptr ) {
   return;
  }
 
  // Check the modification type
- // TODO: Remove this when debugging is done
- auto * add = dynamic_cast<C05FunctionModVarsAddd *>( mod );
- auto * rmvr = dynamic_cast<C05FunctionModVarsRngd *>( mod );
- auto * rmvs = dynamic_cast<C05FunctionModVarsSbst *>( mod );
- if( add == nullptr && rmvr == nullptr && rmvs == nullptr ) {
+ if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
  }
 
@@ -1727,7 +1673,8 @@ void CPXMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
    }
   }
  }
- // Update the coefficients (all zeroes)
+
+ // Update the coefficients
  if( !indices.empty() ) {
   CPXchgcoeflist( env, lp, indices.size(), rows.data(),
                   indices.data(), values.data() );
@@ -2507,10 +2454,6 @@ void CPXMILPSolver::reload_constraint( Function * f ) {
   return;
  }
 
- std::vector< int > indices;
- std::vector< double > values;
- std::vector< int > rows;
-
  auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
  // TODO: Is dynamic_cast necessary?
  if( con == nullptr ) {
@@ -2518,19 +2461,22 @@ void CPXMILPSolver::reload_constraint( Function * f ) {
   return;
  }
 
- indices.reserve( lf->get_num_active_var() );
- values.reserve( lf->get_num_active_var() );
- rows.reserve( lf->get_num_active_var() );
+ std::vector< double > vals;
+ std::vector< int > cols;
+ std::vector< int > rows;
+ auto row = index_of_constraint( con );
 
- for( auto el : lf->get_v_var() ) {
-  indices.push_back( index_of_variable( el.first ) );
-  rows.push_back( index_of_constraint( con ) );
-  values.push_back( el.second );
+ vals.reserve( lf->get_num_active_var() );
+ cols.reserve( lf->get_num_active_var() );
+ rows.resize( lf->get_num_active_var(), row );
+
+ for( auto var : lf->get_v_var() ) {
+  cols.push_back( index_of_variable( var.first ) );
+  vals.push_back( var.second );
  }
 
- if( !indices.empty() ) {
-  CPXchgcoeflist( env, lp, indices.size(), rows.data(),
-                  indices.data(), values.data() );
+ if( !cols.empty() ) {
+  CPXchgcoeflist( env, lp, cols.size(), rows.data(), cols.data(), vals.data() );
  }
 }
 
