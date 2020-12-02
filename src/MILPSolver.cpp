@@ -234,16 +234,16 @@ void MILPSolver::load_problem() {
  while( !Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
+#ifdef MILPSOLVER_DEBUG
   DEBUG_LOG( "Processing Block " << num_block << " ["
                                  << q_Block << "]" << std::endl );
   DEBUG_LOG( *q_Block << std::endl );
+#endif
 
   for( auto * i : q_Block->get_nested_Blocks() ) {
    Q.push( i );
   }
 
-  DEBUG_LOG( "MILPSolver::set_Block() counting static constraints"
-              << std::endl );
   for( const auto & i : q_Block->get_static_constraints() ) {
    // Singles
    if( un_any_thing_0( FRowConstraint, i,
@@ -274,8 +274,6 @@ void MILPSolver::load_problem() {
    }
   }
 
-  DEBUG_LOG( "MILPSolver::set_Block() counting dynamic constraints"
-              << std::endl );
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
    // Single lists
    if( un_any_thing_0( std::list< FRowConstraint >, i,
@@ -308,7 +306,6 @@ void MILPSolver::load_problem() {
    }
   }
 
-  DEBUG_LOG( "MILPSolver::set_Block() counting static variables" << std::endl );
   for( const auto & i : q_Block->get_static_variables() ) {
    // Singles
    if( un_any_thing_0( ColVariable, i,
@@ -339,8 +336,6 @@ void MILPSolver::load_problem() {
    }
   }
 
-  DEBUG_LOG( "MILPSolver::set_Block() counting dynamic variables"
-              << std::endl );
   for( const auto & i : q_Block->get_dynamic_variables() ) {
    // Single lists
    if( un_any_thing_0( std::list< ColVariable >, i,
@@ -373,7 +368,6 @@ void MILPSolver::load_problem() {
    }
   }
 
-  DEBUG_LOG( "MILPSolver::set_Block() nonzero elements" << std::endl );
   auto counter = [ this ]( ColVariable & var ) {
    for( auto * i : var.active_stuff() ) {
     auto * row = dynamic_cast<FRowConstraint *>(i);
@@ -393,6 +387,7 @@ void MILPSolver::load_problem() {
   ++num_block;
  }
 
+#ifdef MILPSOLVER_DEBUG
  DEBUG_LOG( "Number of blocks      = " << num_block << std::endl );
  DEBUG_LOG( "numrows (constraints) = " << numrows
                                        << " (S:" << static_cons
@@ -403,6 +398,7 @@ void MILPSolver::load_problem() {
                                        << "/D:" << numcols - static_vars << ")"
                                        << std::endl );
  DEBUG_LOG( "nzelements            = " << nzelements << std::endl );
+#endif
 
  // LP vector allocation
  // --------------------------------------------------------------------------
@@ -668,6 +664,7 @@ void MILPSolver::load_problem() {
   }
  }
 
+#ifdef MILPSOLVER_DEBUG
  DEBUG_LOG( "objective   = " << log_vector( objective ) << std::endl );
  DEBUG_LOG( "q_objective = " << log_vector( q_objective ) << std::endl );
  DEBUG_LOG( "rhs         = " << log_vector( rhs ) << std::endl );
@@ -680,6 +677,7 @@ void MILPSolver::load_problem() {
  DEBUG_LOG( "lb          = " << log_vector( lb ) << std::endl );
  DEBUG_LOG( "ub          = " << log_vector( ub ) << std::endl );
  DEBUG_LOG( "xctype      = " << log_vector( xctype ) << std::endl );
+#endif
 
  // Unlock the Block
  if( !owned ) {
@@ -970,12 +968,12 @@ FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
 
 void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
  if( n < 0 ) {
-  DEBUG_LOG( "MILPSolver::scan_variable(): D#" << col << " " << var );
+  // DEBUG_LOG( "MILPSolver::scan_variable(): D#" << col << " " << var );
   dvar_to_idx.emplace_back( &var, col );
   idx_to_dvar.emplace_back( col, &var );
  } else {
-  DEBUG_LOG( "MILPSolver::scan_variable(): S#"
-              << n << "/" << col << " " << var );
+  // DEBUG_LOG( "MILPSolver::scan_variable(): S#"
+  //             << n << "/" << col << " " << var );
 
   if( n == 0 ) {
    // The tuple's third field will be filled later
@@ -1056,12 +1054,12 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
 
 void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
  if( n < 0 ) {
-  DEBUG_LOG( "MILPSolver::scan_constraint(): D#" << row << " " << con );
+  // DEBUG_LOG( "MILPSolver::scan_constraint(): D#" << row << " " << con );
   dcon_to_idx.emplace_back( &con, row );
   idx_to_dcon.emplace_back( row, &con );
  } else {
-  DEBUG_LOG( "MILPSolver::scan_constraint(): S#"
-              << n << "/" << row << " " << con );
+  // DEBUG_LOG( "MILPSolver::scan_constraint(): S#"
+  //             << n << "/" << row << " " << con );
 
   if( n == 0 ) {
    // The tuple's third field will be filled later
@@ -1130,7 +1128,7 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::scan_objective( const FRealObjective * obj ) {
- DEBUG_LOG( "MILPSolver::scan_objective() " << *obj );
+ // DEBUG_LOG( "MILPSolver::scan_objective() " << *obj );
 
  int k = 0;
 
@@ -1182,11 +1180,11 @@ void MILPSolver::process_modifications() {
   std::function< void( sp_Mod ) > f;
 
   f = [ this, &f ]( const sp_Mod & mod ) {
-   DEBUG_LOG( *mod );
+   // DEBUG_LOG( *mod );
 
    const auto gm = std::dynamic_pointer_cast< GroupModification >( mod );
    if( gm ) {
-    DEBUG_LOG( "GroupModification containing:" << std::endl );
+    // DEBUG_LOG( "GroupModification containing:" << std::endl );
     for( const auto & submod : gm->sub_Modifications() ) {
      f( submod );
     }
@@ -1501,18 +1499,53 @@ void MILPSolver::objective_function_modification( FunctionMod * mod ) {
 void MILPSolver::constraint_function_modification( FunctionMod * mod ) {
 
  if( matval.empty() ) {
-  // throw std::logic_error( "Constraint representation is empty" );
+  throw std::logic_error( "Constraint representation is empty" );
  }
 
  auto * f = mod->function();
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
-  // TODO: update constraint matrix
+ const auto * lf = dynamic_cast<const LinearFunction *> (f);
+ if( lf == nullptr ) {
   return;
  }
 
- // Enabling this will break Polyhedral Functions
- // throw std::invalid_argument( "Unsupported type of Constraint function" );
+ auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
+ auto row = index_of_constraint( con );
+ // TODO: update constraint matrix
+ // C05FunctionModLin
+ // --------------------------------------------------------------------------
+ // if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
+ //
+ //  for( int i = 0; i < modl->vars().size(); ++i ) {
+ //   auto var = static_cast<const ColVariable *>(modl->vars()[ i ]);
+ //   auto col = index_of_variable( var );
+ //
+ //   auto it = lower_bound( matind.begin() + matbeg[ col ],
+ //                          matind.begin() + matbeg[ col + 1 ],
+ //                          row );
+ //   if( *it == row ) {
+ //    matval[ std::distance( matind.begin(), it ) ] += modl->delta()[ i ];
+ //   }
+ //  }
+ // }
+
+ // Fallback method - Reload all coefficients
+ // --------------------------------------------------------------------------
+ // for( auto var : lf->get_v_var() ) {
+ //  auto col = index_of_variable( var.first );
+ //
+ //  auto it = lower_bound( matind.begin() + matbeg[ col ],
+ //                         matind.begin() + matbeg[ col + 1 ],
+ //                         row );
+ //  if( *it == row ) {
+ //   matval[ std::distance( matind.begin(), it ) ] = var.second;
+ //  }
+ // }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1585,14 +1618,27 @@ void MILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
  }
 
  auto * f = mod->function();
-
- if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
-  // TODO: update constraint matrix
+ const auto * lf = dynamic_cast<const LinearFunction *> (f);
+ if( lf == nullptr ) {
   return;
  }
 
- // Enabling this will break Polyhedral Functions
- // throw std::invalid_argument( "Unsupported type of Constraint function" );
+ // Check the modification type
+ if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
+     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr ) {
+  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
+ }
+
+ // Get indices and coefficients
+ auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ // TODO: Is dynamic_cast necessary?
+ if( con == nullptr ) {
+  // TODO: Throw exception?
+  return;
+ }
+ auto row = index_of_constraint( con );
+ // TODO: Update coefficient matrix
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1630,6 +1676,7 @@ void MILPSolver::dynamic_modification( BlockModAD * mod ) {
   return;
  }
 
+ // FIXME: It should be a generic OneVarConstraint!
  auto * addbnd_mod = dynamic_cast<BlockModAdd< LB0Constraint > *>(mod);
  if( addbnd_mod ) {
   for( auto * i : addbnd_mod->added() ) {
@@ -1638,6 +1685,7 @@ void MILPSolver::dynamic_modification( BlockModAD * mod ) {
   return;
  }
 
+ // FIXME: It should be a generic OneVarConstraint!
  auto * rmvbnd_mod = dynamic_cast<BlockModRmv< LB0Constraint > *>(mod);
  if( rmvbnd_mod ) {
   for( const auto & i : rmvbnd_mod->removed() ) {
@@ -1761,6 +1809,8 @@ void MILPSolver::add_dynamic_variable( ColVariable * var ) {
   throw std::logic_error( "Constraint representation is empty" );
  } else {
   // TODO: update constraint matrix
+  // matbeg.push_back( matbeg.back() );
+  // matcnt.push_back( 0 );
  }
 }
 
@@ -2159,8 +2209,6 @@ void MILPSolver::check_status() {
  int scg = 0;
  int dv = 0;
  int dc = 0;
-
- DEBUG_LOG( "Checking MILPSolver dictionaries" << std::endl );
 
  // ------------------ Count everything -------------------
  std::queue< Block * > Q;

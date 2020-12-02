@@ -288,7 +288,7 @@ int CPXMILPSolver::compute( bool changedvars ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::decode_mip_status( int status ) {
- DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
+ // DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
 
  /*
  * The following are the symbols that may represent the status of
@@ -381,7 +381,7 @@ int CPXMILPSolver::decode_mip_status( int status ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::decode_lqp_status( int status ) {
- DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
+ // DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
 
  /*
   * The following are the symbols that may represent the status of
@@ -2382,7 +2382,6 @@ CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 #ifdef MILPSOLVER_DEBUG
 
 void CPXMILPSolver::check_status() {
- DEBUG_LOG( "Checking CPXMILPSolver status" << std::endl );
 
  if( numcols != CPXgetnumcols( env, lp ) ) {
   DEBUG_LOG( "numcols is " << numcols
