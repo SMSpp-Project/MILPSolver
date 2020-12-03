@@ -1344,11 +1344,10 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
   return;
  }
 
- const int cnt = 1;
- std::array< int, cnt > indices{};
- std::array< double, cnt > values{};
- std::array< char, cnt > sense{};
- std::array< double, cnt > rngval{};
+ int index = index_of_constraint( con );
+ char sense;
+ double rhs;
+ double rngval;
 
  RowConstraint::RHSValue con_lhs = NAN;
  RowConstraint::RHSValue con_rhs = NAN;
@@ -1359,11 +1358,10 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
    // In order to relax the constraint all we do is transform it
    // into an inequality with RHS equal to infinity
 
-   sense[ 0 ] = 'G';
-   values[ 0 ] = -CPX_INFBOUND;
-   indices[ 0 ] = index_of_constraint( con );
-   CPXchgrhs( env, lp, cnt, indices.data(), values.data() );
-   CPXchgsense( env, lp, cnt, indices.data(), sense.data() );
+   sense = 'G';
+   rhs = -CPX_INFBOUND;
+   CPXchgrhs( env, lp, 1, &index, &rhs );
+   CPXchgsense( env, lp, 1, &index, &sense );
    break;
 
   case ConstraintMod::eEnforceConst:
@@ -1380,25 +1378,24 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
    con_rhs = con->get_rhs();
 
    if( con_lhs == con_rhs ) {
-    sense[ 0 ] = 'E';
-    values[ 0 ] = con_rhs;
+    sense = 'E';
+    rhs = con_rhs;
    } else if( con_lhs == -Inf< double >() ) {
-    sense[ 0 ] = 'L';
-    values[ 0 ] = con_rhs;
+    sense = 'L';
+    rhs = con_rhs;
    } else if( con_rhs == Inf< double >() ) {
-    sense[ 0 ] = 'G';
-    values[ 0 ] = con_lhs;
+    sense = 'G';
+    rhs = con_lhs;
    } else {
-    sense[ 0 ] = 'R';
-    values[ 0 ] = con_rhs;
-    rngval[ 0 ] = con_rhs - con_lhs;
+    sense = 'R';
+    rhs = con_lhs;
+    rngval = con_rhs - con_lhs;
    }
 
-   indices[ 0 ] = index_of_constraint( con );
-   CPXchgrhs( env, lp, cnt, indices.data(), values.data() );
-   CPXchgsense( env, lp, cnt, indices.data(), sense.data() );
-   if( sense[ 0 ] == 'R' ) {
-    CPXchgrngval( env, lp, cnt, indices.data(), rngval.data() );
+   CPXchgrhs( env, lp, 1, &index, &rhs );
+   CPXchgsense( env, lp, 1, &index, &sense );
+   if( sense == 'R' ) {
+    CPXchgrngval( env, lp, 1, &index, &rngval );
    }
    break;
 
@@ -1707,10 +1704,9 @@ void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * con ) {
  std::vector< int > rmatind( nzcnt );
  std::vector< double > rmatval( nzcnt );
 
- std::array< double, 1 > rhs{};
- std::array< double, 1 > rngval{};
- std::array< int, 1 > indices{};
- std::array< char, 1 > sense{};
+ double rhs;
+ double rngval;
+ char sense;
 
  // Get the coefficients to fill the matrix
  for( int i = 0; i < nzcnt; ++i ) {
@@ -1726,39 +1722,37 @@ void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * con ) {
  }
 
  // Get the bounds
- int new_index = index_of_dynamic_constraint( con );
+ int index = index_of_dynamic_constraint( con );
  auto con_lhs = con->get_lhs();
  auto con_rhs = con->get_rhs();
 
  if( con_lhs == con_rhs ) {
-  sense[ 0 ] = 'E';
-  rhs[ 0 ] = con_rhs;
+  sense = 'E';
+  rhs = con_rhs;
 
  } else if( con_lhs == -Inf< double >() ) {
-  sense[ 0 ] = 'L';
-  rhs[ 0 ] = con_rhs;
+  sense = 'L';
+  rhs = con_rhs;
 
  } else if( con_rhs == Inf< double >() ) {
-  sense[ 0 ] = 'G';
-  rhs[ 0 ] = con_lhs;
+  sense = 'G';
+  rhs = con_lhs;
 
  } else {
-  sense[ 0 ] = 'R';
-  rhs[ 0 ] = con_lhs;
-  rngval[ 0 ] = con_rhs - con_lhs;
-  indices[ 0 ] = new_index;
+  sense = 'R';
+  rhs = con_lhs;
+  rngval = con_rhs - con_lhs;
  }
 
  // Update the CPLEX problem
- CPXaddrows( env, lp, 0, 1, nzcnt, rhs.data(),
-             sense.data(),
+ CPXaddrows( env, lp, 0, 1, nzcnt, &rhs, &sense,
              rmatbeg.data(),
              rmatind.data(),
              rmatval.data(),
              nullptr,
              nullptr );
- if( sense[ 0 ] == 'R' ) {
-  CPXchgrngval( env, lp, 1, indices.data(), rngval.data() );
+ if( sense == 'R' ) {
+  CPXchgrngval( env, lp, 1, &index, &rngval );
  }
 }
 
@@ -1839,8 +1833,8 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * var ) {
   CPXcopyctype( env, lp, old_ctype.data() );
  } else {
   // The problem stays a MIP, update only the one variable
-  std::array< int, 1 > indices = { index_of_dynamic_variable( var ) };
-  CPXchgctype( env, lp, 1, indices.data(), &new_ctype );
+  int index = index_of_dynamic_variable( var );
+  CPXchgctype( env, lp, 1, &index, &new_ctype );
  }
 }
 
