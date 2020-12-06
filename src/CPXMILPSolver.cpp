@@ -204,6 +204,7 @@ double CPXMILPSolver::get_problem_ub( const ColVariable & var ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::compute( bool changedvars ) {
+
  if( MILPSolver::compute( changedvars ) != kOK ) {
   // This should never happen
   throw std::runtime_error( "An error occurred in MILPSolver::compute()" );
@@ -1390,7 +1391,7 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
     values[ 0 ] = con_lhs;
    } else {
     sense[ 0 ] = 'R';
-    values[ 0 ] = con_rhs;
+    values[ 0 ] = con_lhs;
     rngval[ 0 ] = con_rhs - con_lhs;
    }
 
