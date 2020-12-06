@@ -1381,7 +1381,7 @@ void MILPSolver::const_modification( ConstraintMod * mod ) {
     rngval[ idx ] = 0;
    } else {
     sense[ idx ] = 'R';
-    rhs[ idx ] = -Inf< double >();
+    rhs[ idx ] = con_lhs;
     rngval[ idx ] = con_rhs - con_lhs;
    }
 
