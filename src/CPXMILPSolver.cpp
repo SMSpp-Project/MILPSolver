@@ -177,8 +177,7 @@ void CPXMILPSolver::load_problem() {
  }
 
  // The base representation isn't needed anymore
- // TODO: Uncomment this after debug
- // MILPSolver::clear_problem( 15 );
+ MILPSolver::clear_problem( 15 );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -219,31 +218,31 @@ int CPXMILPSolver::compute( bool changedvars ) {
  int probtype = CPXgetprobtype( env, lp );
  switch( probtype ) {
   case CPXPROB_LP :
-   DEBUG_LOG( "CPLEX problem type: LP" << std::endl );
+   // DEBUG_LOG( "CPLEX problem type: LP" << std::endl );
    break;
   case CPXPROB_MILP :
-   DEBUG_LOG( "CPLEX problem type: MILP" << std::endl );
+   // DEBUG_LOG( "CPLEX problem type: MILP" << std::endl );
    break;
   case CPXPROB_FIXEDMILP :
-   DEBUG_LOG( "CPLEX problem type: FIXEDMILP" << std::endl );
+   // DEBUG_LOG( "CPLEX problem type: FIXEDMILP" << std::endl );
    break;
   case CPXPROB_QP :
-   DEBUG_LOG( "CPLEX problem type: QP" << std::endl );
+   // DEBUG_LOG( "CPLEX problem type: QP" << std::endl );
    is_qp = true;
    break;
   case CPXPROB_MIQP :
-   DEBUG_LOG( "CPLEX problem type: MIQP" << std::endl );
+   // DEBUG_LOG( "CPLEX problem type: MIQP" << std::endl );
    is_qp = true;
    break;
   case CPXPROB_FIXEDMIQP :
-   DEBUG_LOG( "CPLEX problem type: FIXEDMIQP" << std::endl );
+   // DEBUG_LOG( "CPLEX problem type: FIXEDMIQP" << std::endl );
    is_qp = true;
    break;
   case CPXPROB_QCP :
-   DEBUG_LOG( "CPLEX problem type: QCP" << std::endl );
+   // DEBUG_LOG( "CPLEX problem type: QCP" << std::endl );
    throw std::runtime_error( "Unsupported CPLEX problem type" );
   case CPXPROB_MIQCP :
-   DEBUG_LOG( "CPLEX problem type: MIQCP" << std::endl );
+   // DEBUG_LOG( "CPLEX problem type: MIQCP" << std::endl );
    throw std::runtime_error( "Unsupported CPLEX problem type" );
   default:
    throw std::runtime_error( "Undefined CPLEX problem type" );
@@ -1469,6 +1468,7 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
 
  auto * f = mod->function();
 
+ // TODO: Avoid fallback reloading - Why this doesn't work?
  // C05FunctionModLin
  // --------------------------------------------------------------------------
  // if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
@@ -1519,6 +1519,7 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
   return;
  }
 
+ // TODO: Avoid fallback reloading - Why this doesn't work?
  // C05FunctionModLin
  // --------------------------------------------------------------------------
  // if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
@@ -1561,7 +1562,6 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
 
  std::vector< int > indices;
  std::vector< double > values;
- std::vector< double > q_values;
 
  indices.reserve( mod->vars().size() );
  values.reserve( mod->vars().size() );
@@ -1569,17 +1569,15 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
   // Linear objective function
 
-  for( auto * it1 : mod->vars() ) {
-   for( auto it2: lf->get_v_var() ) {
-    if( it1 == it2.first ) {
-     indices.push_back( index_of_variable( it2.first ) );
-     if( mod->added() ) {
-      values.push_back( it2.second );
-     } else {
-      values.push_back( 0 );
-     }
-     break;
-    }
+  for( auto * v : mod->vars() ) {
+   auto var = static_cast<const ColVariable *>(v);
+   indices.push_back( index_of_variable( var ) );
+
+   if( mod->added() ) {
+    auto value = lf->get_coefficient( lf->is_active( var ) );
+    values.push_back( value );
+   } else {
+    values.push_back( 0 );
    }
   }
 
@@ -1591,23 +1589,22 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
 
  if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
   // Quadratic objective function
-  q_values.reserve( mod->vars().size() );
 
-  for( auto * it1 : mod->vars() ) {
-   for( auto it2: qf->get_v_var() ) {
-    if( it1 == std::get< 0 >( it2 ) ) {
-     indices.push_back( index_of_variable( std::get< 0 >( it2 ) ) );
-     if( mod->added() ) {
-      values.push_back( std::get< 1 >( it2 ) );
-      q_values.push_back( std::get< 2 >( it2 ) );
-     } else {
-      values.push_back( 0 );
-      q_values.push_back( 0 );
-     }
-     break;
-    }
+  for( auto * v : mod->vars() ) {
+   auto var = static_cast<const ColVariable *>(v);
+   indices.push_back( index_of_variable( var ) );
+   double q_value;
+
+   if( mod->added() ) {
+    auto idx = qf->is_active( var );
+    values.push_back( qf->get_linear_coefficient( idx ) );
+    q_value = qf->get_quadratic_coefficient( idx );
+   } else {
+    values.push_back( 0 );
+    q_value = 0;
    }
-   CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_values.back() );
+
+   CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_value );
   }
 
   if( !indices.empty() ) {
