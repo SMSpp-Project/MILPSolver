@@ -275,8 +275,9 @@ void SCIPMILPSolver::load_problem() {
 
 /*--------------------------------------------------------------------------*/
 
-double SCIPMILPSolver::get_problem_lb( const ColVariable & var ) {
- double b = MILPSolver::get_problem_lb( var );
+double SCIPMILPSolver::get_problem_lb( const ColVariable & var,
+                                       OneVarConstraint * con ) {
+ double b = MILPSolver::get_problem_lb( var, con );
  if( b == -Inf< double >() ) {
   b = -SCIPinfinity( scip );
  }
@@ -285,8 +286,9 @@ double SCIPMILPSolver::get_problem_lb( const ColVariable & var ) {
 
 /*--------------------------------------------------------------------------*/
 
-double SCIPMILPSolver::get_problem_ub( const ColVariable & var ) {
- double b = MILPSolver::get_problem_ub( var );
+double SCIPMILPSolver::get_problem_ub( const ColVariable & var,
+                                       OneVarConstraint * con ) {
+ double b = MILPSolver::get_problem_ub( var, con );
  if( b == Inf< double >() ) {
   b = SCIPinfinity( scip );
  }
@@ -610,8 +612,8 @@ void SCIPMILPSolver::var_modification( VariableMod * mod ) {
  }
  assert( !infeas );
 
- SCIP_Real lb = get_problem_lb( *var );
- SCIP_Real ub = get_problem_ub( *var );
+ SCIP_Real lb = get_problem_lb( *var, nullptr );
+ SCIP_Real ub = get_problem_ub( *var, nullptr );
 
  if( SCIPvarGetLbOriginal( vars[ idx ] ) != lb ) {
   SCIP_CALL_ABORT( SCIPchgVarLb( scip, vars[ idx ], lb ) );
@@ -737,18 +739,18 @@ void SCIPMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
  switch( mod->type() ) {
 
   case RowConstraintMod::eChgLHS:
-   lb = get_problem_lb( *var );
+   lb = get_problem_lb( *var, nullptr );
    SCIP_CALL_ABORT( SCIPchgVarLb( scip, scip_var, lb ) );
    break;
 
   case RowConstraintMod::eChgRHS:
-   ub = get_problem_ub( *var );
+   ub = get_problem_ub( *var, nullptr );
    SCIP_CALL_ABORT( SCIPchgVarUb( scip, scip_var, ub ) );
    break;
 
   case RowConstraintMod::eChgBTS:
-   lb = get_problem_lb( *var );
-   ub = get_problem_ub( *var );
+   lb = get_problem_lb( *var, nullptr );
+   ub = get_problem_ub( *var, nullptr );
    SCIP_CALL_ABORT( SCIPchgVarLb( scip, scip_var, lb ) );
    SCIP_CALL_ABORT( SCIPchgVarUb( scip, scip_var, ub ) );
    break;
@@ -997,8 +999,8 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * var ) {
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
  }
 
- SCIP_Real lb = get_problem_lb( *var );
- SCIP_Real ub = get_problem_ub( *var );
+ SCIP_Real lb = get_problem_lb( *var, nullptr );
+ SCIP_Real ub = get_problem_ub( *var, nullptr );
  SCIP_VARTYPE vartype = SCIP_VARTYPE_BINARY;
 
  // Variable type
@@ -1060,8 +1062,8 @@ SCIPMILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
 
  SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
 
- SCIP_Real lb = get_problem_lb( *var );
- SCIP_Real ub = get_problem_ub( *var );
+ SCIP_Real lb = get_problem_lb( *var, nullptr );
+ SCIP_Real ub = get_problem_ub( *var, nullptr );
  SCIP_CALL_ABORT( SCIPchgVarLb( scip, scip_var, lb ) );
  SCIP_CALL_ABORT( SCIPchgVarUb( scip, scip_var, ub ) );
 }
@@ -1129,8 +1131,8 @@ SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 
  SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
 
- SCIP_Real lb = get_problem_lb( *var );
- SCIP_Real ub = get_problem_ub( *var );
+ SCIP_Real lb = get_problem_lb( *var, nullptr );
+ SCIP_Real ub = get_problem_ub( *var, nullptr );
  SCIP_CALL_ABORT( SCIPchgVarLb( scip, scip_var, lb ) );
  SCIP_CALL_ABORT( SCIPchgVarUb( scip, scip_var, ub ) );
 }

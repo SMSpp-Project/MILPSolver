@@ -182,8 +182,9 @@ void CPXMILPSolver::load_problem() {
 
 /*--------------------------------------------------------------------------*/
 
-double CPXMILPSolver::get_problem_lb( const ColVariable & var ) {
- double b = MILPSolver::get_problem_lb( var );
+double CPXMILPSolver::get_problem_lb( const ColVariable & var,
+                                      OneVarConstraint * con ) {
+ double b = MILPSolver::get_problem_lb( var, con );
  if( b == -Inf< double >() ) {
   b = -CPX_INFBOUND;
  }
@@ -192,8 +193,9 @@ double CPXMILPSolver::get_problem_lb( const ColVariable & var ) {
 
 /*--------------------------------------------------------------------------*/
 
-double CPXMILPSolver::get_problem_ub( const ColVariable & var ) {
- double b = MILPSolver::get_problem_ub( var );
+double CPXMILPSolver::get_problem_ub( const ColVariable & var,
+                                      OneVarConstraint * con ) {
+ double b = MILPSolver::get_problem_ub( var, con );
  if( b == Inf< double >() ) {
   b = CPX_INFBOUND;
  }
@@ -1290,8 +1292,8 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   bd.resize( 2 );
   lu[ 0 ] = 'L';
   lu[ 1 ] = 'U';
-  bd[ 0 ] = get_problem_lb( *var );
-  bd[ 1 ] = get_problem_ub( *var );
+  bd[ 0 ] = get_problem_lb( *var, nullptr );
+  bd[ 1 ] = get_problem_ub( *var, nullptr );
 
   CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
  }
@@ -1429,7 +1431,7 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    lu.resize( 1 );
    bd.resize( 1 );
    lu[ 0 ] = 'L';
-   bd[ 0 ] = get_problem_lb( *var );
+   bd[ 0 ] = get_problem_lb( *var, nullptr );
 
    CPXchgbds( env, lp, 1, indices.data(), lu.data(), bd.data() );
    break;
@@ -1438,7 +1440,7 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    lu.resize( 1 );
    bd.resize( 1 );
    lu[ 0 ] = 'U';
-   bd[ 0 ] = get_problem_ub( *var );
+   bd[ 0 ] = get_problem_ub( *var, nullptr );
 
    CPXchgbds( env, lp, 1, indices.data(), lu.data(), bd.data() );
    break;
@@ -1448,8 +1450,8 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    bd.resize( 2 );
    lu[ 0 ] = 'L';
    lu[ 1 ] = 'U';
-   bd[ 0 ] = get_problem_lb( *var );
-   bd[ 1 ] = get_problem_ub( *var );
+   bd[ 0 ] = get_problem_lb( *var, nullptr );
+   bd[ 1 ] = get_problem_ub( *var, nullptr );
 
    CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
    break;
@@ -1784,8 +1786,8 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * var ) {
  }
 
  // Get the bounds
- double lb = get_problem_lb( *var );
- double ub = get_problem_ub( *var );
+ double lb = get_problem_lb( *var, nullptr );
+ double ub = get_problem_ub( *var, nullptr );
 
  // Update the CPLEX problem
  int nzcnt = cmatind.size();
@@ -1856,8 +1858,8 @@ CPXMILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
 
  lu[ 0 ] = 'L';
  lu[ 1 ] = 'U';
- bd[ 0 ] = get_problem_lb( *var );
- bd[ 1 ] = get_problem_ub( *var );
+ bd[ 0 ] = get_problem_lb( *var, nullptr );
+ bd[ 1 ] = get_problem_ub( *var, nullptr );
 
  CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
 }
@@ -1917,8 +1919,8 @@ CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 
  lu[ 0 ] = 'L';
  lu[ 1 ] = 'U';
- bd[ 0 ] = get_problem_lb( *var );
- bd[ 1 ] = get_problem_ub( *var );
+ bd[ 0 ] = get_problem_lb( *var, nullptr );
+ bd[ 1 ] = get_problem_ub( *var, nullptr );
 
  CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
 }
@@ -2376,20 +2378,20 @@ void CPXMILPSolver::check_status() {
 
  if( numcols != CPXgetnumcols( env, lp ) ) {
   DEBUG_LOG( "numcols is " << numcols
-                           << "but CPXgetnumcols() returns "
+                           << " but CPXgetnumcols() returns "
                            << CPXgetnumcols( env, lp ) << std::endl );
  }
 
  if( numrows != CPXgetnumrows( env, lp ) ) {
   DEBUG_LOG( "numrows is " << numrows
-                           << "but CPXgetnumrows() returns "
+                           << " but CPXgetnumrows() returns "
                            << CPXgetnumrows( env, lp ) << std::endl );
  }
 
  int iv = CPXgetintvars( nullptr );
  if( int_vars != iv ) {
   DEBUG_LOG( "int_vars is " << int_vars
-                            << "but CPLEX has actually " << iv
+                            << " but CPLEX has actually " << iv
                             << " integer variables" << std::endl );
  }
  MILPSolver::check_status();
