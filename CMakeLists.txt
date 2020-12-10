@@ -39,7 +39,7 @@ get_directory_property(hasParent PARENT_DIRECTORY)
 # This creates an ENABLE_TESTING option (default: ON) and enables the testing
 # using the ctest executable.
 # See: https://cmake.org/cmake/help/latest/manual/ctest.1.html
-#include(CTest)
+include(CTest)
 
 # An option is an ON/OFF user-settable cache variable
 option(${modName}_USE_CPLEX "Whether ${modName} will use CPLEX or not." ON)
@@ -149,7 +149,7 @@ add_library(${modNamespace}::${modName} ALIAS ${modName})
 add_subdirectory(tools)
 
 if (BUILD_TESTING)
-    # Just consuming BUILD_TESTING to avoid warnings
+    add_subdirectory(test)
 endif ()
 
 # ----- Install instructions ------------------------------------------------ #
