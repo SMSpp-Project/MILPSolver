@@ -293,7 +293,7 @@ void SimpleMILPBlock::serialize( netCDF::NcGroup & group ) const
 
 /*--------------------------------------------------------------------------*/
 
-void SimpleMILPBlock::guts_of_deserialize( netCDF::NcGroup & group ) 
+void SimpleMILPBlock::guts_of_deserialize(const netCDF::NcGroup & group )
 {
  Block::deserialize( group );  // invoke method of Block
 
