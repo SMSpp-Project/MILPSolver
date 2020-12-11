@@ -1032,15 +1032,15 @@ bool CPXMILPSolver::is_dual_feasible() {
 void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 
  std::vector< double > pi( numrows, 0 );
- std::vector< double > dj( numrows, 0 );
+ std::vector< double > dj( numcols, 0 );
  int status;
 
- status = CPXgetpi( env, lp, pi.data(), 0, numrows - 1 );
+ status = CPXgetpi( env, lp, pi.data(), 0, pi.size() - 1 );
  if( status ) {
   throw std::runtime_error( "Unable to get the dual values with CPXgetpi()" );
  }
 
- status = CPXgetdj( env, lp, dj.data(), 0, numrows - 1 );
+ status = CPXgetdj( env, lp, dj.data(), 0, dj.size() - 1 );
  if( status ) {
   throw std::runtime_error( "Unable to get the dual multipliers with CPXgetdj()" );
  }
