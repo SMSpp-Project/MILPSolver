@@ -1079,52 +1079,35 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 
  for( int i = 0; i < numcols; ++i ) {
 
-  /*
-   * For each variable, save the dual multiplier of the bound.
-   * As we do that, we deal with two issues:
-   *
-   *  1) We want the dual multiplier set to 0 for those bounds that are
-   *     not active.
-   *  2) If two or more identical bounds exist, we want to set the
-   *     same dual multiplier for those.
-   */
-
   auto var = variable_with_index( i );
   auto active_bounds = get_active_bounds( *var );
 
-  double var_lb = var->get_lb();
-  double var_ub = var->get_ub();
-
   // Bounds that will have the dual value set.
-  std::vector< OneVarConstraint * > lhs_cons{};
-  std::vector< OneVarConstraint * > rhs_cons{};
+  OneVarConstraint * lhs_con = nullptr;
+  OneVarConstraint * rhs_con = nullptr;
+
+  auto var_lb = var->get_lb();
+  auto var_ub = var->get_ub();
 
   for( auto b: active_bounds ) {
-   b->set_dual( 0 ); // Reset the dual value
+   b->set_dual( 0 );
 
    if( b->get_lhs() > var_lb ) {
     var_lb = b->get_lhs();
-    lhs_cons.clear();
-    lhs_cons.push_back( b );
-   } else if( b->get_lhs() == var_lb ) {
-    lhs_cons.push_back( b );
+    lhs_con = b;
    }
 
    if( b->get_rhs() < var_ub ) {
     var_ub = b->get_rhs();
-    rhs_cons.clear();
-    rhs_cons.push_back( b );
-   } else if( b->get_lhs() == var_ub ) {
-    rhs_cons.push_back( b );
+    rhs_con = b;
    }
   }
 
-  for( auto c: lhs_cons ) {
-   c->set_dual( dj[ i ] );
+  if( lhs_con ) {
+   lhs_con->set_dual( dj[ i ] );
   }
-
-  for( auto c: rhs_cons ) {
-   c->set_dual( dj[ i ] );
+  if( rhs_con ) {
+   rhs_con->set_dual( dj[ i ] );
   }
  }
 
@@ -1216,15 +1199,6 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
  }
 
  for( int i = 0; i < numcols; ++i ) {
-  /*
- * For each variable, save the dual multiplier of the bound.
- * As we do that, we deal with two issues:
- *
- *  1) We want the dual multiplier set to 0 for those bounds that are
- *     not active.
- *  2) If two or more identical bounds exist, we want to set the
- *     same dual multiplier for those.
- */
 
   auto var = variable_with_index( i );
   auto active_bounds = get_active_bounds( *var );
@@ -1233,35 +1207,28 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   double var_ub = var->get_ub();
 
   // Bounds that will have the dual value set.
-  std::vector< OneVarConstraint * > lhs_cons{};
-  std::vector< OneVarConstraint * > rhs_cons{};
+  OneVarConstraint * lhs_con = nullptr;
+  OneVarConstraint * rhs_con = nullptr;
 
   for( auto b: active_bounds ) {
-   b->set_dual( 0 ); // Reset the dual value
+   b->set_dual( 0 );
 
    if( b->get_lhs() > var_lb ) {
     var_lb = b->get_lhs();
-    lhs_cons.clear();
-    lhs_cons.push_back( b );
-   } else if( b->get_lhs() == var_lb ) {
-    lhs_cons.push_back( b );
+    lhs_con = b;
    }
 
    if( b->get_rhs() < var_ub ) {
     var_ub = b->get_rhs();
-    rhs_cons.clear();
-    rhs_cons.push_back( b );
-   } else if( b->get_lhs() == var_ub ) {
-    rhs_cons.push_back( b );
+    rhs_con = b;
    }
   }
 
-  for( auto c: lhs_cons ) {
-   c->set_dual( v[ i ] );
+  if( lhs_con ) {
+   lhs_con->set_dual( v[ i ] );
   }
-
-  for( auto c: rhs_cons ) {
-   c->set_dual( w[ i ] );
+  if( rhs_con ) {
+   rhs_con->set_dual( w[ i ] );
   }
  }
 
