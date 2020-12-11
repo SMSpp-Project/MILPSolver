@@ -1158,11 +1158,20 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   }
  }
 
- // TODO
- // for( int i = 0; i < numcols; ++i ) {
- //  used_bounds[ i ].first->set_dual( v[ i ] );
- //  used_bounds[ i ].second->set_dual( w[ i ] );
- // }
+ for( int i = 0; i < numcols; ++i ) {
+  OneVarConstraint * lb_con = nullptr;
+  OneVarConstraint * ub_con = nullptr;
+  auto var = variable_with_index( i );
+  auto var_lb = get_problem_lb( *var, lb_con );
+  auto var_ub = get_problem_ub( *var, ub_con );
+
+  if( lb_con ) {
+   lb_con->set_dual( v[ i ] );
+  }
+  if( ub_con ) {
+   lb_con->set_dual( w[ i ] );
+  }
+ }
 
  if( !owned ) {
   f_Block->unlock( f_id );
