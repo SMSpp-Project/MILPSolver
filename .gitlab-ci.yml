@@ -1,0 +1,34 @@
+default:
+  image: registry.gitlab.com/smspp/milpsolver
+
+stages:
+  - build
+#  - test
+#  - deploy
+
+fetch_smspp:
+  stage: .pre
+  script:
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SMSPP_DEPLOY_KEY")
+    - mkdir -p ~/.ssh && ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
+    - git clone --branch develop git@gitlab.com:smspp/smspp.git
+    - cmake -S smspp -B smspp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+    - cmake --build smspp/build
+    - cmake --build smspp/build --target install
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - /usr/local/include/SMS++
+      - /usr/local/lib/libSMSpp*
+      - /usr/local/lib/cmake/SMSpp
+      - /usr/local/share/SMSpp
+
+build:
+  stage: build
+  script:
+    - cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    - cmake --build build
+  artifacts:
+    paths:
+      - build
