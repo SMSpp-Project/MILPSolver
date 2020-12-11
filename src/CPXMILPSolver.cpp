@@ -182,9 +182,8 @@ void CPXMILPSolver::load_problem() {
 
 /*--------------------------------------------------------------------------*/
 
-double CPXMILPSolver::get_problem_lb( const ColVariable & var,
-                                      OneVarConstraint * con ) {
- double b = MILPSolver::get_problem_lb( var, con );
+double CPXMILPSolver::get_problem_lb( const ColVariable & var ) {
+ double b = MILPSolver::get_problem_lb( var );
  if( b == -Inf< double >() ) {
   b = -CPX_INFBOUND;
  }
@@ -193,9 +192,8 @@ double CPXMILPSolver::get_problem_lb( const ColVariable & var,
 
 /*--------------------------------------------------------------------------*/
 
-double CPXMILPSolver::get_problem_ub( const ColVariable & var,
-                                      OneVarConstraint * con ) {
- double b = MILPSolver::get_problem_ub( var, con );
+double CPXMILPSolver::get_problem_ub( const ColVariable & var ) {
+ double b = MILPSolver::get_problem_ub( var );
  if( b == Inf< double >() ) {
   b = CPX_INFBOUND;
  }
@@ -1395,8 +1393,8 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   bd.resize( 2 );
   lu[ 0 ] = 'L';
   lu[ 1 ] = 'U';
-  bd[ 0 ] = get_problem_lb( *var, nullptr );
-  bd[ 1 ] = get_problem_ub( *var, nullptr );
+  bd[ 0 ] = get_problem_lb( *var );
+  bd[ 1 ] = get_problem_ub( *var );
 
   CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
  }
@@ -1534,7 +1532,7 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    lu.resize( 1 );
    bd.resize( 1 );
    lu[ 0 ] = 'L';
-   bd[ 0 ] = get_problem_lb( *var, nullptr );
+   bd[ 0 ] = get_problem_lb( *var );
 
    CPXchgbds( env, lp, 1, indices.data(), lu.data(), bd.data() );
    break;
@@ -1543,7 +1541,7 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    lu.resize( 1 );
    bd.resize( 1 );
    lu[ 0 ] = 'U';
-   bd[ 0 ] = get_problem_ub( *var, nullptr );
+   bd[ 0 ] = get_problem_ub( *var );
 
    CPXchgbds( env, lp, 1, indices.data(), lu.data(), bd.data() );
    break;
@@ -1553,8 +1551,8 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
    bd.resize( 2 );
    lu[ 0 ] = 'L';
    lu[ 1 ] = 'U';
-   bd[ 0 ] = get_problem_lb( *var, nullptr );
-   bd[ 1 ] = get_problem_ub( *var, nullptr );
+   bd[ 0 ] = get_problem_lb( *var );
+   bd[ 1 ] = get_problem_ub( *var );
 
    CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
    break;
@@ -1889,8 +1887,8 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * var ) {
  }
 
  // Get the bounds
- double lb = get_problem_lb( *var, nullptr );
- double ub = get_problem_ub( *var, nullptr );
+ double lb = get_problem_lb( *var );
+ double ub = get_problem_ub( *var );
 
  // Update the CPLEX problem
  int nzcnt = cmatind.size();
@@ -1961,8 +1959,8 @@ CPXMILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
 
  lu[ 0 ] = 'L';
  lu[ 1 ] = 'U';
- bd[ 0 ] = get_problem_lb( *var, nullptr );
- bd[ 1 ] = get_problem_ub( *var, nullptr );
+ bd[ 0 ] = get_problem_lb( *var );
+ bd[ 1 ] = get_problem_ub( *var );
 
  CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
 }
@@ -2022,8 +2020,8 @@ CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 
  lu[ 0 ] = 'L';
  lu[ 1 ] = 'U';
- bd[ 0 ] = get_problem_lb( *var, nullptr );
- bd[ 1 ] = get_problem_ub( *var, nullptr );
+ bd[ 0 ] = get_problem_lb( *var );
+ bd[ 1 ] = get_problem_ub( *var );
 
  CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
 }

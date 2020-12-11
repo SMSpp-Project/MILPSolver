@@ -702,31 +702,11 @@ class MILPSolver : public CDASolver {
   * @{
   */
 
- /// Gets the lower bound for the given variable in the problem
- /**
-  * The method scans the active bounds of the given variable
-  * as well as the lower bound implied by the variable type, returning
-  * the value of the one which is most stringent.
-  *
-  * @param var a variable
-  * @param con a pointer where the valid bound is saved. Can be null.
-  * @return the valid lower bound
-  */
- virtual double
- get_problem_lb( const ColVariable & var, OneVarConstraint * con );
+ /// Gets the LB fot the given variable in the problem
+ virtual double get_problem_lb( const ColVariable & var );
 
- /// Gets the upper bound for the given variable in the problem
- /**
-  * The method scans the active bounds of the given variable
-  * as well as the upper bound implied by the variable type, returning
-  * the value of the one which is most stringent.
-  *
-  * @param var a variable
-  * @param con a pointer where the valid bound is saved. Can be null.
-  * @return the valid upper bound
-  */
- virtual double
- get_problem_ub( const ColVariable & var, OneVarConstraint * con );
+ /// Gets the UB fot the given variable in the problem
+ virtual double get_problem_ub( const ColVariable & var );
  /// @}
 
  /// Gets the active constraints for the specified variable

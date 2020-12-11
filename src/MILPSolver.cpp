@@ -687,15 +687,13 @@ void MILPSolver::load_problem() {
 
 /*--------------------------------------------------------------------------*/
 
-double MILPSolver::get_problem_lb( const ColVariable & var,
-                                   OneVarConstraint * con ) {
+double MILPSolver::get_problem_lb( const ColVariable & var ) {
  double b = var.get_lb();
 
  for( auto * i : var.active_stuff() ) {
   auto * box = dynamic_cast<OneVarConstraint *>(i);
-  if( box != nullptr && box->get_lhs() > b ) {
-   b = box->get_lhs();
-   con = box;
+  if( box != nullptr ) {
+   b = b < box->get_lhs() ? box->get_lhs() : b;
   }
  }
 
@@ -704,15 +702,13 @@ double MILPSolver::get_problem_lb( const ColVariable & var,
 
 /*--------------------------------------------------------------------------*/
 
-double MILPSolver::get_problem_ub( const ColVariable & var,
-                                   OneVarConstraint * con ) {
+double MILPSolver::get_problem_ub( const ColVariable & var ) {
  double b = var.get_ub();
 
  for( auto * i : var.active_stuff() ) {
   auto * box = dynamic_cast<OneVarConstraint *>(i);
-  if( box != nullptr && box->get_rhs() < b ) {
-   b = box->get_rhs();
-   con = box;
+  if( box != nullptr ) {
+   b = b > box->get_rhs() ? box->get_rhs() : b;
   }
  }
 
@@ -1005,8 +1001,8 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
   lb[ col ] = var.get_value();
   ub[ col ] = var.get_value();
  } else {
-  lb[ col ] = get_problem_lb( var, nullptr );
-  ub[ col ] = get_problem_ub( var, nullptr );
+  lb[ col ] = get_problem_lb( var );
+  ub[ col ] = get_problem_ub( var );
  }
 
  if( var.is_integer() ) {
@@ -1311,8 +1307,8 @@ void MILPSolver::var_modification( VariableMod * mod ) {
 
  // Update bounds
  if( !lb.empty() && !ub.empty() ) {
-  lb[ idx ] = get_problem_lb( *var, nullptr );
-  ub[ idx ] = get_problem_ub( *var, nullptr );
+  lb[ idx ] = get_problem_lb( *var );
+  ub[ idx ] = get_problem_ub( *var );
  } else {
   throw std::logic_error( "Bound representation is empty" );
  }
@@ -1424,14 +1420,14 @@ void MILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 
  switch( mod->type() ) {
   case RowConstraintMod::eChgLHS:
-   lb[ idx ] = get_problem_lb( *var, nullptr );
+   lb[ idx ] = get_problem_lb( *var );
    break;
   case RowConstraintMod::eChgRHS:
-   ub[ idx ] = get_problem_ub( *var, nullptr );
+   ub[ idx ] = get_problem_ub( *var );
    break;
   case RowConstraintMod::eChgBTS:
-   lb[ idx ] = get_problem_lb( *var, nullptr );
-   ub[ idx ] = get_problem_ub( *var, nullptr );
+   lb[ idx ] = get_problem_lb( *var );
+   ub[ idx ] = get_problem_ub( *var );
    break;
   default:
    throw std::invalid_argument( "Invalid type of OneVarConstraintMod" );
@@ -1794,8 +1790,8 @@ void MILPSolver::add_dynamic_variable( ColVariable * var ) {
  if( lb.empty() || ub.empty() ) {
   throw std::logic_error( "Bound representation is empty" );
  } else {
-  lb.emplace_back( get_problem_lb( *var, nullptr ) );
-  ub.emplace_back( get_problem_ub( *var, nullptr ) );
+  lb.emplace_back( get_problem_lb( *var ) );
+  ub.emplace_back( get_problem_ub( *var ) );
  }
 
  // Update the variable type vector
@@ -1849,8 +1845,8 @@ void MILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
  }
 
  int idx = index_of_variable( var );
- lb[ idx ] = get_problem_lb( *var, nullptr );
- ub[ idx ] = get_problem_ub( *var, nullptr );
+ lb[ idx ] = get_problem_lb( *var );
+ ub[ idx ] = get_problem_ub( *var );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2015,8 +2011,8 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
  }
 
  int idx = index_of_variable( var );
- lb[ idx ] = get_problem_lb( *var, nullptr );
- ub[ idx ] = get_problem_ub( *var, nullptr );
+ lb[ idx ] = get_problem_lb( *var );
+ ub[ idx ] = get_problem_ub( *var );
 }
 
 /*--------------------------------------------------------------------------*/
