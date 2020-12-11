@@ -734,6 +734,20 @@ MILPSolver::get_active_constraints( const ColVariable & var ) {
 }
 
 /*--------------------------------------------------------------------------*/
+
+std::vector< OneVarConstraint * >
+MILPSolver::get_active_bounds( const ColVariable & var ) {
+ std::vector< OneVarConstraint * > active_bounds;
+ for( auto * i : var.active_stuff() ) {
+  auto * row = dynamic_cast<OneVarConstraint *>(i);
+  if( row != nullptr ) {
+   active_bounds.push_back( row );
+  }
+ }
+ return active_bounds;
+}
+
+/*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/
 

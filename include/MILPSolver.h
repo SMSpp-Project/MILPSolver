@@ -734,6 +734,11 @@ class MILPSolver : public CDASolver {
  static std::vector< FRowConstraint * >
  get_active_constraints( const ColVariable & var );
 
+ /// Gets the active bounds for the specified variable
+ // TODO: This should be temporary
+ static std::vector< OneVarConstraint * >
+ get_active_bounds( const ColVariable & var );
+
 /*--------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */
 /*--------------------------------------------------------------------------*/
