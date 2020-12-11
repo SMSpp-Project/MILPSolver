@@ -8,7 +8,7 @@ FROM registry.gitlab.com/smspp/smspp
 RUN set -ex; \
 		apt-get update; \
 		apt-get install -y --no-install-recommends \
-		libgfortran-7-dev libtbb-dev; \
+		liblapack-dev libgfortran-7-dev libtbb-dev; \
 		rm -rf /var/lib/apt/lists/*;
 
 # Install SCIP
