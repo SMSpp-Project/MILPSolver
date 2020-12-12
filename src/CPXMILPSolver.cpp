@@ -1092,22 +1092,26 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
   for( auto b: active_bounds ) {
    b->set_dual( 0 );
 
-   if( b->get_lhs() > var_lb ) {
+   if( b->get_lhs() >= var_lb ) {
     var_lb = b->get_lhs();
     lhs_con = b;
    }
 
-   if( b->get_rhs() < var_ub ) {
+   if( b->get_rhs() <= var_ub ) {
     var_ub = b->get_rhs();
     rhs_con = b;
    }
   }
 
-  if( lhs_con ) {
+  if( lhs_con && dj[ i ] >= 0 ) {
    lhs_con->set_dual( dj[ i ] );
   }
-  if( rhs_con ) {
+  else if( rhs_con && dj[ i ] <= 0 ) {
    rhs_con->set_dual( dj[ i ] );
+  }
+  else if( lhs_con || rhs_con ) {
+   throw( std::logic_error( "CPXMILPSolver::get_dual_solution: "
+                            "Invalid dual value" ) );
   }
  }
 
