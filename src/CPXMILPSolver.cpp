@@ -1217,12 +1217,12 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   for( auto b: active_bounds ) {
    b->set_dual( 0 );
 
-   if( b->get_lhs() > var_lb ) {
+   if( b->get_lhs() >= var_lb ) {
     var_lb = b->get_lhs();
     lhs_con = b;
    }
 
-   if( b->get_rhs() < var_ub ) {
+   if( b->get_rhs() <= var_ub ) {
     var_ub = b->get_rhs();
     rhs_con = b;
    }
