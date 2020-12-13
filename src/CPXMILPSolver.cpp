@@ -957,6 +957,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  }
 
  int col = 0;
+ int col_dynamic = static_vars;
 
  std::queue< Block * > Q;
 
@@ -964,6 +965,14 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  if( !owned && !f_Block->lock( f_id ) ) {
   throw std::runtime_error( "Unable to lock the Block" );
  }
+
+ auto set = [ &x, &col ]( ColVariable & v ) {
+  v.set_value( x[ col++ ] );
+ };
+
+ auto set_dynamic = [ &x, &col_dynamic ]( ColVariable & v ) {
+  v.set_value( x[ col_dynamic++ ] );
+ };
 
  Q.push( f_Block );
 
@@ -975,16 +984,12 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
    Q.push( i );
   }
 
-  auto set = [ &x, &col ]( ColVariable & v ) {
-   v.set_value( x[ col++ ] );
-  };
-
   for( const auto & i : q_Block->get_static_variables() ) {
    un_any_const_static( i, set, un_any_type< ColVariable >() );
   }
 
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-   un_any_const_dynamic( i, set, un_any_type< ColVariable >() );
+   un_any_const_dynamic( i, set_dynamic, un_any_type< ColVariable >() );
   }
  }
 
