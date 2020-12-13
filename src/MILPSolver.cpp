@@ -998,8 +998,8 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
  }
 
  if( var.is_fixed() ) {
-  lb[ col ] = var.get_value();
-  ub[ col ] = var.get_value();
+  lb[ col ] = std::max( get_problem_lb( var ) , var.get_value() );
+  ub[ col ] = std::min( get_problem_ub( var ) , var.get_value() );
  } else {
   lb[ col ] = get_problem_lb( var );
   ub[ col ] = get_problem_ub( var );
