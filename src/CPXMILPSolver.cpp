@@ -1180,8 +1180,6 @@ bool CPXMILPSolver::has_dual_direction() {
 void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
 
  std::vector< double > y( numrows, 0 );
- std::vector< double > v( numcols, 0 );
- std::vector< double > w( numcols, 0 );
  std::vector< double > dj( numcols, 0 );
  double proof = 0;
  int status;
@@ -1204,26 +1202,23 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   throw std::runtime_error( "An error occurred in CPXdjfrompi()" );
  }
 
- // Dual multipliers for bounds
- for( int i = 0; i < numcols; ++i ) {
-  if( dj[ i ] >= 0 ) { // <?
-   v[ i ] = dj[ i ]; // - objective[i] ?
-   w[ i ] = 0;
-  } else {
-   v[ i ] = 0;
-   w[ i ] = dj[ i ]; // - objective[i] ?
-  }
- }
-
- // ----------------
- int row = 0;
-
- std::queue< Block * > Q;
-
  bool owned = f_Block->is_owned_by( f_id );
  if( !owned && !f_Block->lock( f_id ) ) {
   throw std::runtime_error( "Unable to lock the Block" );
  }
+
+ int row = 0;
+ int row_dynamic = static_cons;
+
+ auto set = [ &y, &row ]( FRowConstraint & c ) {
+  c.set_dual( y[ row++ ] );
+ };
+
+ auto set_dynamic = [ &y, &row_dynamic ]( FRowConstraint & c ) {
+  c.set_dual( y[ row_dynamic++ ] );
+ };
+
+ std::queue< Block * > Q;
 
  Q.push( f_Block );
 
@@ -1235,20 +1230,20 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
    Q.push( i );
   }
 
-  auto set = [ &y, &row ]( FRowConstraint & c ) {
-   c.set_dual( y[ row++ ] );
-  };
-
   for( const auto & i : q_Block->get_static_constraints() ) {
    un_any_const_static( i, set, un_any_type< FRowConstraint >() );
   }
 
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   un_any_const_dynamic( i, set, un_any_type< FRowConstraint >() );
+   un_any_const_dynamic( i, set_dynamic, un_any_type< FRowConstraint >() );
   }
  }
 
  for( int i = 0; i < numcols; ++i ) {
+
+  // Bounds that will have the dual value set.
+  OneVarConstraint * lhs_con = nullptr;
+  OneVarConstraint * rhs_con = nullptr;
 
   auto var = variable_with_index( i );
   auto active_bounds = get_active_bounds( *var );
@@ -1256,29 +1251,66 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   double var_lb = var->get_lb();
   double var_ub = var->get_ub();
 
-  // Bounds that will have the dual value set.
-  OneVarConstraint * lhs_con = nullptr;
-  OneVarConstraint * rhs_con = nullptr;
+  const auto var_is_fixed = var->is_fixed();
+  if( var_is_fixed ) {
+   /* The Variable is fixed. There should be at least one BoxConstraint (for
+    * this Variable) whose lower and upper bounds are equal to the value of
+    * this Variable. If such a BoxConstraint exists, the reduced cost of this
+    * Variable will be dual of that BoxConstraint. If there is no such
+    * BoxConstraint, the reduced cost of this variable will be lost. */
+   var_lb = var->get_value();
+   var_ub = var->get_value();
 
-  for( auto b: active_bounds ) {
-   b->set_dual( 0 );
-
-   if( b->get_lhs() >= var_lb ) {
-    var_lb = b->get_lhs();
-    lhs_con = b;
-   }
-
-   if( b->get_rhs() <= var_ub ) {
-    var_ub = b->get_rhs();
-    rhs_con = b;
+   for( auto b: active_bounds ) {
+    b->set_dual( 0 );
+    if( b->get_lhs() == var_lb && b->get_rhs() == var_lb ) {
+     lhs_con = b;
+     rhs_con = b;
+    }
    }
   }
 
-  if( lhs_con ) {
-   lhs_con->set_dual( v[ i ] );
+  else { // a non-fixed Variable
+   for( auto b: active_bounds ) {
+    b->set_dual( 0 );
+
+    if( b->get_lhs() >= var_lb ) {
+     var_lb = b->get_lhs();
+     lhs_con = b;
+    }
+
+    if( b->get_rhs() <= var_ub ) {
+     var_ub = b->get_rhs();
+     rhs_con = b;
+    }
+   }
   }
-  if( rhs_con ) {
-   rhs_con->set_dual( w[ i ] );
+
+  if( lhs_con && dj[ i ] >= 0 ) {
+   lhs_con->set_dual( dj[ i ] );
+  }
+  else if( rhs_con && dj[ i ] <= 0 ) {
+   rhs_con->set_dual( dj[ i ] );
+  }
+  else if( lhs_con || rhs_con ) {
+   throw( std::logic_error( "CPXMILPSolver::get_dual_direction: "
+                            "invalid dual value." ) );
+  }
+
+  if( var_is_fixed && ( ( ! lhs_con ) || ( ! lhs_con ) ) ) {
+   /* The Variable is fixed but is has no associated BoxConstraint with both
+    * bounds equal to the value of the Variable. */
+
+   assert( ! lhs_con );
+   assert( ! rhs_con );
+
+   if( throw_fixed_var_exception ) {
+    throw( std::logic_error( "CPXMILPSolver::get_dual_direction: variable with "
+                             "index " + std::to_string( i ) + " is fixed to " +
+                             std::to_string( var->get_value() ) + ", but it "
+                             "has no BoxConstraint with both bounds equal to "
+                             "the value of this variable." ) );
+   }
   }
  }
 
