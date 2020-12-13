@@ -1035,7 +1035,6 @@ bool CPXMILPSolver::is_dual_feasible() {
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
-
  std::vector< double > pi( numrows, 0 );
  std::vector< double > dj( numcols, 0 );
  int status;
@@ -1050,14 +1049,23 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
   throw std::runtime_error( "Unable to get the dual multipliers with CPXgetdj()" );
  }
 
- int row = 0;
-
- std::queue< Block * > Q;
-
  bool owned = f_Block->is_owned_by( f_id );
  if( !owned && !f_Block->lock( f_id ) ) {
   throw std::runtime_error( "Unable to lock the Block" );
  }
+
+ int row = 0;
+ int row_dynamic = static_cons;
+
+ auto set = [ &pi, &row ]( FRowConstraint & c ) {
+  c.set_dual( pi[ row++ ] );
+ };
+
+ auto set_dynamic = [ &pi, &row_dynamic ]( FRowConstraint & c ) {
+  c.set_dual( pi[ row_dynamic++ ] );
+ };
+
+ std::queue< Block * > Q;
 
  Q.push( f_Block );
 
@@ -1069,16 +1077,12 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    Q.push( i );
   }
 
-  auto set = [ &pi, &row ]( FRowConstraint & c ) {
-   c.set_dual( pi[ row++ ] );
-  };
-
   for( const auto & i : q_Block->get_static_constraints() ) {
    un_any_const_static( i, set, un_any_type< FRowConstraint >() );
   }
 
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   un_any_const_dynamic( i, set, un_any_type< FRowConstraint >() );
+   un_any_const_dynamic( i, set_dynamic, un_any_type< FRowConstraint >() );
   }
  }
 
@@ -1094,17 +1098,38 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
   auto var_lb = var->get_lb();
   auto var_ub = var->get_ub();
 
-  for( auto b: active_bounds ) {
-   b->set_dual( 0 );
+  const auto var_is_fixed = var->is_fixed();
+  if( var_is_fixed ) {
+   /* The Variable is fixed. There should be at least one BoxConstraint (for
+    * this Variable) whose lower and upper bounds are equal to the value of
+    * this Variable. If such a BoxConstraint exists, the reduced cost of this
+    * Variable will be dual of that BoxConstraint. If there is no such
+    * BoxConstraint, the reduced cost of this variable will be lost. */
+   var_lb = var->get_value();
+   var_ub = var->get_value();
 
-   if( b->get_lhs() >= var_lb ) {
-    var_lb = b->get_lhs();
-    lhs_con = b;
+   for( auto b: active_bounds ) {
+    b->set_dual( 0 );
+    if( b->get_lhs() == var_lb && b->get_rhs() == var_lb ) {
+     lhs_con = b;
+     rhs_con = b;
+    }
    }
+  }
 
-   if( b->get_rhs() <= var_ub ) {
-    var_ub = b->get_rhs();
-    rhs_con = b;
+  else { // a non-fixed Variable
+   for( auto b: active_bounds ) {
+    b->set_dual( 0 );
+
+    if( b->get_lhs() >= var_lb ) {
+     var_lb = b->get_lhs();
+     lhs_con = b;
+    }
+
+    if( b->get_rhs() <= var_ub ) {
+     var_ub = b->get_rhs();
+     rhs_con = b;
+    }
    }
   }
 
@@ -1116,7 +1141,23 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
   }
   else if( lhs_con || rhs_con ) {
    throw( std::logic_error( "CPXMILPSolver::get_dual_solution: "
-                            "Invalid dual value" ) );
+                            "invalid dual value." ) );
+  }
+
+  if( var_is_fixed && ( ( ! lhs_con ) || ( ! lhs_con ) ) ) {
+   /* The Variable is fixed but is has no associated BoxConstraint with both
+    * bounds equal to the value of the Variable. */
+
+   assert( ! lhs_con );
+   assert( ! rhs_con );
+
+   if( throw_fixed_var_exception ) {
+    throw( std::logic_error( "CPXMILPSolver::get_dual_solution: variable with "
+                             "index " + std::to_string( i ) + " is fixed to " +
+                             std::to_string( var->get_value() ) + ", but it "
+                             "has no BoxConstraint with both bounds equal to "
+                             "the value of this variable." ) );
+   }
   }
  }
 
@@ -2019,6 +2060,8 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
   case intLogVerb:
    CPXsetintparam( env, CPXPARAM_ScreenOutput, value );
    return;
+  case intThrowFixedVarException:
+   throw_fixed_var_exception = value;
   default:;
  }
 
@@ -2129,6 +2172,8 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
   case intLogVerb:
    CPXgetintparam( env, CPXPARAM_ScreenOutput, &value );
    return value;
+  case intThrowFixedVarException:
+   return throw_fixed_var_exception;
   default:;
  }
 
@@ -2234,6 +2279,9 @@ int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const {
   CPXinfointparam( env, CPXPARAM_ScreenOutput, &value, nullptr, nullptr );
   return value;
  }
+ if( par == intThrowFixedVarException ) {
+  return 0;
+ }
 
  // CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
@@ -2336,6 +2384,9 @@ CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
 ThinComputeInterface::idx_type
 CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
 
+ if( name == "intThrowFixedVarException" )
+  return intThrowFixedVarException;
+
  // CPLEX parameters
  int cplex_par;
  int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
@@ -2353,6 +2404,10 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
 
 const std::string &
 CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
+
+ static const std::string par = "intThrowFixedVarException";
+ if( idx == intThrowFixedVarException )
+  return par;
 
  // CPLEX parameters
  if( idx >= intFirstCPLEXPar && idx < intLastAlgParCPXS ) {

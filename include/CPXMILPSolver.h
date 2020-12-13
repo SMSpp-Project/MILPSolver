@@ -99,8 +99,10 @@ class CPXMILPSolver : public MILPSolver {
 
  /// Types of integer parameters
  enum int_par_type_CPXS {
+  /// Throws exception if there is inconsistency with a fixed variable
+  intThrowFixedVarException = intLastAlgParMILP,
   /// First CPLEX int/long parameter
-  intFirstCPLEXPar = intLastAlgParMILP,
+  intFirstCPLEXPar,
   /// First allowed new int parameter for derived classes
   intLastAlgParCPXS = intFirstCPLEXPar + CPX_NUM_INT_PARS
  };
@@ -281,6 +283,8 @@ class CPXMILPSolver : public MILPSolver {
 
  CPXENVptr env; ///< CPLEX environment
  CPXLPptr lp;   ///< CPLEX LP problem
+ int throw_fixed_var_exception{};
+ ///< throws exception on fixed variable inconsistency
 
  /** @name Get variable bounds for the problem
   *

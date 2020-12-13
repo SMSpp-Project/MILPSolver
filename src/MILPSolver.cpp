@@ -214,6 +214,7 @@ void MILPSolver::load_problem() {
  numrows = 0;
  numcols = 0;
  static_vars = 0;
+ static_cons = 0;
  nzelements = 0;
 
  std::queue< Block * > Q;
