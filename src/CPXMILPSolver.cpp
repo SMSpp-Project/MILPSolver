@@ -1100,11 +1100,11 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 
   const auto var_is_fixed = var->is_fixed();
   if( var_is_fixed ) {
-   /* The Variable is fixed. There should be at least one BoxConstraint (for
-    * this Variable) whose lower and upper bounds are equal to the value of
-    * this Variable. If such a BoxConstraint exists, the reduced cost of this
-    * Variable will be dual of that BoxConstraint. If there is no such
-    * BoxConstraint, the reduced cost of this variable will be lost. */
+   /* The Variable is fixed. There should be at least one OneVarConstraint
+    * (for this Variable) whose lower and upper bounds are equal to the value
+    * of this Variable. If such OneVarConstraint exists, the reduced cost of
+    * this Variable will be dual of that OneVarConstraint. If there is no such
+    * OneVarConstraint, the reduced cost of this variable will be lost. */
    var_lb = var->get_value();
    var_ub = var->get_value();
 
@@ -1133,6 +1133,9 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    }
   }
 
+  if( var_is_fixed )
+   assert( lhs_con == rhs_con );
+
   if( lhs_con && dj[ i ] >= 0 ) {
    lhs_con->set_dual( dj[ i ] );
   }
@@ -1144,19 +1147,27 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
                             "invalid dual value." ) );
   }
 
-  if( var_is_fixed && ( ( ! lhs_con ) || ( ! lhs_con ) ) ) {
-   /* The Variable is fixed but is has no associated BoxConstraint with both
-    * bounds equal to the value of the Variable. */
+  if( throw_reduced_cost_exception ) {
 
-   assert( ! lhs_con );
-   assert( ! rhs_con );
+   if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
+    /* The Variable is fixed but it has no associated OneVarConstraint with
+     * both bounds equal to the value of the Variable. */
 
-   if( throw_fixed_var_exception ) {
     throw( std::logic_error( "CPXMILPSolver::get_dual_solution: variable with "
                              "index " + std::to_string( i ) + " is fixed to " +
                              std::to_string( var->get_value() ) + ", but it "
-                             "has no BoxConstraint with both bounds equal to "
-                             "the value of this variable." ) );
+                             "has no OneVarConstraint with both bounds equal "
+                             "to the value of this variable." ) );
+   }
+   else if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
+    /* The Variable is not fixed and it has no associated OneVarConstraint. An
+     * exception is thrown if it has a finite nonzero bound. */
+
+    if( ( var_lb != 0 && std::abs( var_lb ) < Inf<double>() ) ||
+        ( var_ub != 0 && std::abs( var_ub ) < Inf<double>() ) )
+     throw( std::logic_error( "CPXMILPSolver::get_dual_solution: variable "
+                              "with index " + std::to_string( i ) +
+                              " has no OneVarConstraint." ) );
    }
   }
  }
@@ -1253,11 +1264,11 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
 
   const auto var_is_fixed = var->is_fixed();
   if( var_is_fixed ) {
-   /* The Variable is fixed. There should be at least one BoxConstraint (for
+   /* The Variable is fixed. There should be at least one OneVarConstraint (for
     * this Variable) whose lower and upper bounds are equal to the value of
-    * this Variable. If such a BoxConstraint exists, the reduced cost of this
-    * Variable will be dual of that BoxConstraint. If there is no such
-    * BoxConstraint, the reduced cost of this variable will be lost. */
+    * this Variable. If such a OneVarConstraint exists, the reduced cost of this
+    * Variable will be dual of that OneVarConstraint. If there is no such
+    * OneVarConstraint, the reduced cost of this variable will be lost. */
    var_lb = var->get_value();
    var_ub = var->get_value();
 
@@ -1286,6 +1297,9 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
    }
   }
 
+  if( var_is_fixed )
+   assert( lhs_con == rhs_con );
+
   if( lhs_con && dj[ i ] >= 0 ) {
    lhs_con->set_dual( dj[ i ] );
   }
@@ -1297,19 +1311,27 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
                             "invalid dual value." ) );
   }
 
-  if( var_is_fixed && ( ( ! lhs_con ) || ( ! lhs_con ) ) ) {
-   /* The Variable is fixed but is has no associated BoxConstraint with both
-    * bounds equal to the value of the Variable. */
+  if( throw_reduced_cost_exception ) {
 
-   assert( ! lhs_con );
-   assert( ! rhs_con );
+   if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
+    /* The Variable is fixed but it has no associated OneVarConstraint with both
+     * bounds equal to the value of the Variable. */
 
-   if( throw_fixed_var_exception ) {
     throw( std::logic_error( "CPXMILPSolver::get_dual_direction: variable with "
                              "index " + std::to_string( i ) + " is fixed to " +
                              std::to_string( var->get_value() ) + ", but it "
-                             "has no BoxConstraint with both bounds equal to "
-                             "the value of this variable." ) );
+                             "has no OneVarConstraint with both bounds equal "
+                             "to the value of this variable." ) );
+   }
+   else if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
+    /* The Variable is not fixed and it has no associated OneVarConstraint. An
+     * exception is thrown if it has a finite nonzero bound. */
+
+    if( ( var_lb != 0 && std::abs( var_lb ) < Inf<double>() ) ||
+        ( var_ub != 0 && std::abs( var_ub ) < Inf<double>() ) )
+     throw( std::logic_error( "CPXMILPSolver::get_dual_direction: variable "
+                              "with index " + std::to_string( i ) +
+                              " has no OneVarConstraint." ) );
    }
   }
  }
@@ -2092,8 +2114,8 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
   case intLogVerb:
    CPXsetintparam( env, CPXPARAM_ScreenOutput, value );
    return;
-  case intThrowFixedVarException:
-   throw_fixed_var_exception = value;
+  case intThrowReducedCostException:
+   throw_reduced_cost_exception = value;
   default:;
  }
 
@@ -2204,8 +2226,8 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
   case intLogVerb:
    CPXgetintparam( env, CPXPARAM_ScreenOutput, &value );
    return value;
-  case intThrowFixedVarException:
-   return throw_fixed_var_exception;
+  case intThrowReducedCostException:
+   return throw_reduced_cost_exception;
   default:;
  }
 
@@ -2311,7 +2333,7 @@ int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const {
   CPXinfointparam( env, CPXPARAM_ScreenOutput, &value, nullptr, nullptr );
   return value;
  }
- if( par == intThrowFixedVarException ) {
+ if( par == intThrowReducedCostException ) {
   return 0;
  }
 
@@ -2416,8 +2438,8 @@ CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
 ThinComputeInterface::idx_type
 CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
 
- if( name == "intThrowFixedVarException" )
-  return intThrowFixedVarException;
+ if( name == "intThrowReducedCostException" )
+  return intThrowReducedCostException;
 
  // CPLEX parameters
  int cplex_par;
@@ -2437,8 +2459,8 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
 const std::string &
 CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
 
- static const std::string par = "intThrowFixedVarException";
- if( idx == intThrowFixedVarException )
+ static const std::string par = "intThrowReducedCostException";
+ if( idx == intThrowReducedCostException )
   return par;
 
  // CPLEX parameters

@@ -99,8 +99,8 @@ class CPXMILPSolver : public MILPSolver {
 
  /// Types of integer parameters
  enum int_par_type_CPXS {
-  /// Throws exception if there is inconsistency with a fixed variable
-  intThrowFixedVarException = intLastAlgParMILP,
+  /// Throws exception if there is inconsistency when storing a reduced cost
+  intThrowReducedCostException = intLastAlgParMILP,
   /// First CPLEX int/long parameter
   intFirstCPLEXPar,
   /// First allowed new int parameter for derived classes
@@ -214,6 +214,30 @@ class CPXMILPSolver : public MILPSolver {
  */
 
  /// Sets an integer parameter with the given value
+ /** Set the "int" paramaters specific of CPXMILPSolver, together with the
+  * paramaters of MILPSolver that CPXMILPSolver actually "listens to" and all
+  * parameters supported by Cplex:
+  *
+  * - intThrowReducedCostException [0]: it indicates whether an exception must
+  *                                     be thrown if there is an inconsistency
+  *   when a reduced cost is being stored during a call to get_dual_solution()
+  *   or get_dual_direction(). The reduced cost of a Variable is stored in at
+  *   most one OneVarConstraint on that Variable. It may happen that a
+  *   Variable has no OneVarConstraint, in which case its reduced cost will
+  *   not be stored and will be lost. Usually, the reduced cost of a Variable
+  *   is of interest if the Variable has a finite nonzero lower or upper
+  *   bound. In this case, if a OneVariableConstraint for that Variable is not
+  *   found, an exception is thrown. More specifically, there are two cases in
+  *   which an exception is thrown:
+  *
+  *   1) The Variable is fixed to a finite nonzero value and there is no
+  *      OneVarConstraint on that Variable whose lower and upper bounds are
+  *      both equal to the value of that Variable.
+  *
+  *   2) The Variable is not fixed, it has a finite nonzero lower or upper
+  *      bound and there is no OneVarConstraint on that Variable whose lower
+  *      or upper bound match the bounds of the Variable.
+  */
  void set_par( idx_type par, int value ) override;
 
  /// Sets a double parameter with the given value
@@ -283,8 +307,27 @@ class CPXMILPSolver : public MILPSolver {
 
  CPXENVptr env; ///< CPLEX environment
  CPXLPptr lp;   ///< CPLEX LP problem
- int throw_fixed_var_exception{};
- ///< throws exception on fixed variable inconsistency
+ int throw_reduced_cost_exception{};
+ ///< throws exception if there is inconsistency when storing a reduced cost
+ /**< This variable indicates whether an exception must be thrown if there is
+  * an inconsistency when a reduced cost is being stored during a call to
+  * get_dual_solution() or get_dual_direction(). The reduced cost of a
+  * Variable is stored in at most one OneVarConstraint on that Variable. It
+  * may happen that a Variable has no OneVarConstraint, in which case its
+  * reduced cost will not be stored and will be lost. Usually, the reduced
+  * cost of a Variable is of interest if the Variable has a finite nonzero
+  * lower or upper bound. In this case, if a OneVariableConstraint for that
+  * Variable is not found, an exception is thrown. More specifically, there
+  * are two cases in which an exception is thrown:
+  *
+  * 1) The Variable is fixed to a finite nonzero value and there is no
+  *    OneVarConstraint on that Variable whose lower and upper bounds are both
+  *    equal to the value of that Variable.
+  *
+  * 2) The Variable is not fixed, it has a finite nonzero lower or upper bound
+  *    and there is no OneVarConstraint on that Variable whose lower or upper
+  *    bound match the bounds of the Variable.
+  */
 
  /** @name Get variable bounds for the problem
   *
