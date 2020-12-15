@@ -255,7 +255,7 @@ public:
   * in their deserialize() is they so need; see comments to
   * Block::deserialize() for a complete discussion. */
 
- virtual void deserialize( netCDF::NcGroup & group ) override
+ void deserialize( const netCDF::NcGroup & group ) override
  {
   guts_of_deserialize( group );
   Block::deserialize( group );
@@ -269,7 +269,7 @@ public:
 
 /*--------------------------------------------------------------------------*/
 
- void guts_of_deserialize( netCDF::NcGroup & group );
+ void guts_of_deserialize( const netCDF::NcGroup & group );
  
 /*--------------------------------------------------------------------------*/
 /*-------------------------- PROTECTED METHODS  ----------------------------*/
