@@ -77,6 +77,10 @@ namespace SMSpp_di_unipi_it {
  * then solves the problem.
  * get_var_solution() retrieves the values of the variables from SCIP, saves
  * them into the Block variables and evaluates the objective function.
+ *
+ * Besides the configuration parameters already present in MILPSolver,
+ * the user can include in the configuration all the parameters
+ * supported by SCIP (See https://www.scipopt.org/doc/html/PARAMETERS.php).
  */
 class SCIPMILPSolver : public MILPSolver {
 
@@ -221,7 +225,12 @@ class SCIPMILPSolver : public MILPSolver {
  /// Gets the default value of the specified double parameter
  [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
- /// Gets the default value of the specified string parameter
+ /** Gets the default value of the specified string parameter
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a SCIP parameter.
+  */
  [[nodiscard]] const std::string &
  get_dflt_str_par( idx_type par ) const override;
 
@@ -231,7 +240,12 @@ class SCIPMILPSolver : public MILPSolver {
  /// Gets the value of the specified double parameter
  [[nodiscard]] double get_dbl_par( idx_type par ) const override;
 
- /// Gets the value of the specified string parameter
+ /** Gets the value of the specified string parameter
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a SCIP parameter.
+  */
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
 
  /// Returns the index of the int parameter with the specified name

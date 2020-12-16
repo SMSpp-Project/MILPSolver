@@ -78,12 +78,13 @@ namespace SMSpp_di_unipi_it {
  * get_var_solution() retrieves the values of the variables from CPLEX, saves
  * them into the Block variables and evaluates the objective function.
  *
- * Besides the configuration parameters already present in Solver, this class
- * adds two string parameters that allow to specify the CPLEX name of the
- * problem and an output file for CPLEX to write out the problem.
+ * Besides the configuration parameters already present in MILPSolver,
+ * this class adds one int parameter that specifies if an exception must be
+ * thrown if there is inconsistency when storing a reduced cost
+ * (See set_par( idx_type, int )).
  * Moreover, the user can include in the configuration all the parameters
- * supported by CPXsetintparam(), CPXsetdblparam() and CPXsetstrparam().
- * (See the CPLEX Callable Library reference manual for all of them)
+ * supported by CPXsetintparam(), CPXsetdblparam() and CPXsetstrparam()
+ * (See the CPLEX Callable Library reference manual for all of them).
  */
 class CPXMILPSolver : public MILPSolver {
 
@@ -214,7 +215,7 @@ class CPXMILPSolver : public MILPSolver {
  */
 
  /// Sets an integer parameter with the given value
- /** Set the "int" paramaters specific of CPXMILPSolver, together with the
+ /** Set the "int" parameters specific of CPXMILPSolver, together with the
   * paramaters of MILPSolver that CPXMILPSolver actually "listens to" and all
   * parameters supported by Cplex:
   *
@@ -261,7 +262,12 @@ class CPXMILPSolver : public MILPSolver {
  /// Gets the default value of the specified double parameter
  [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
- /// Gets the default value of the specified string parameter
+ /** Gets the default value of the specified string parameter
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a CPLEX parameter.
+  */
  [[nodiscard]] const std::string &
  get_dflt_str_par( idx_type par ) const override;
 
@@ -271,14 +277,24 @@ class CPXMILPSolver : public MILPSolver {
  /// Gets the value of the specified double parameter
  [[nodiscard]] double get_dbl_par( idx_type par ) const override;
 
- /// Gets the value of the specified string parameter
+ /** Gets the value of the specified string parameter
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a CPLEX parameter.
+  */
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
 
  /// Returns the index of the int parameter with the specified name
  [[nodiscard]] idx_type
  int_par_str2idx( const std::string & name ) const override;
 
- /// Returns the name of the int parameter with the specified index
+ /** Returns the name of the int parameter with the specified index
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a CPLEX parameter.
+  */
  [[nodiscard]] const std::string &
  int_par_idx2str( idx_type idx ) const override;
 
@@ -286,7 +302,12 @@ class CPXMILPSolver : public MILPSolver {
  [[nodiscard]] idx_type
  dbl_par_str2idx( const std::string & name ) const override;
 
- /// Returns the name of the double parameter with the specified index
+ /** Returns the name of the double parameter with the specified index
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a CPLEX parameter.
+  */
  [[nodiscard]] const std::string &
  dbl_par_idx2str( idx_type idx ) const override;
 
@@ -294,7 +315,12 @@ class CPXMILPSolver : public MILPSolver {
  [[nodiscard]] idx_type
  str_par_str2idx( const std::string & name ) const override;
 
- /// Returns the name of the string parameter with the specified index
+ /** Returns the name of the string parameter with the specified index
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a CPLEX parameter.
+  */
  [[nodiscard]] const std::string &
  str_par_idx2str( idx_type idx ) const override;
  /// @}
@@ -307,27 +333,13 @@ class CPXMILPSolver : public MILPSolver {
 
  CPXENVptr env; ///< CPLEX environment
  CPXLPptr lp;   ///< CPLEX LP problem
- int throw_reduced_cost_exception{};
- ///< throws exception if there is inconsistency when storing a reduced cost
- /**< This variable indicates whether an exception must be thrown if there is
+
+ /**
+  * This variable indicates whether an exception must be thrown if there is
   * an inconsistency when a reduced cost is being stored during a call to
-  * get_dual_solution() or get_dual_direction(). The reduced cost of a
-  * Variable is stored in at most one OneVarConstraint on that Variable. It
-  * may happen that a Variable has no OneVarConstraint, in which case its
-  * reduced cost will not be stored and will be lost. Usually, the reduced
-  * cost of a Variable is of interest if the Variable has a finite nonzero
-  * lower or upper bound. In this case, if a OneVariableConstraint for that
-  * Variable is not found, an exception is thrown. More specifically, there
-  * are two cases in which an exception is thrown:
-  *
-  * 1) The Variable is fixed to a finite nonzero value and there is no
-  *    OneVarConstraint on that Variable whose lower and upper bounds are both
-  *    equal to the value of that Variable.
-  *
-  * 2) The Variable is not fixed, it has a finite nonzero lower or upper bound
-  *    and there is no OneVarConstraint on that Variable whose lower or upper
-  *    bound match the bounds of the Variable.
+  * get_dual_solution() or get_dual_direction().
   */
+ int throw_reduced_cost_exception{};
 
  /** @name Get variable bounds for the problem
   *

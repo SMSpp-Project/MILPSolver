@@ -1360,15 +1360,12 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const {
 
 const std::string &
 SCIPMILPSolver::get_str_par( const idx_type par ) const {
- // TODO: check if all these are necessary
- char char_val;
+ static std::string value;
  char * str_val;
- std::string return_str;
 
  // SCIP parameters
  if( par >= strFirstSCIPPar && par < strLastAlgParSCPS ) {
-  const std::string & scip_par =
-   SMSpp_to_SCIP_str_pars[ par - strFirstSCIPPar ];
+  const auto & scip_par = SMSpp_to_SCIP_str_pars[ par - strFirstSCIPPar ];
 
   // Char and string SCIP parameters are handled as SMS++ string parameters
   SCIP_PARAM * param = SCIPgetParam( scip, scip_par.c_str() );
@@ -1376,13 +1373,13 @@ SCIPMILPSolver::get_str_par( const idx_type par ) const {
 
   switch( type ) {
    case SCIP_PARAMTYPE_CHAR:
-    SCIP_CALL_ABORT( SCIPgetCharParam( scip, scip_par.c_str(), &char_val ) );
-    return std::move( std::to_string( char_val ) );
+    value.resize(1);
+    SCIP_CALL_ABORT( SCIPgetCharParam( scip, scip_par.c_str(), value.data() ) );
+    return value;
    case SCIP_PARAMTYPE_STRING:
     SCIP_CALL_ABORT( SCIPgetStringParam( scip, scip_par.c_str(), &str_val ) );
-    return_str = str_val;
-    delete[] str_val;
-    return std::move( return_str );
+    value = str_val;
+    return value;
    default:;
   }
  }
@@ -1487,10 +1484,8 @@ double SCIPMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
 
 const std::string &
 SCIPMILPSolver::get_dflt_str_par( const idx_type par ) const {
- // TODO: check if all these are necessary
- std::string char_val( 1, '\0' );
+ static std::string value;
  char * str_val;
- std::string return_str;
 
  // SCIP parameters
  if( par >= strFirstSCIPPar && par < strLastAlgParSCPS ) {
@@ -1503,13 +1498,13 @@ SCIPMILPSolver::get_dflt_str_par( const idx_type par ) const {
 
   switch( type ) {
    case SCIP_PARAMTYPE_CHAR:
-    char_val[ 0 ] = SCIPparamGetCharDefault( param );
-    return std::move( char_val );
+    value.resize(1);
+    value[ 0 ] = SCIPparamGetCharDefault( param );
+    return value;
    case SCIP_PARAMTYPE_STRING:
     str_val = SCIPparamGetStringDefault( param );
-    return_str = str_val;
-    delete[] str_val;
-    return std::move( return_str );
+    value = str_val;
+    return value;
    default:;
   }
  }

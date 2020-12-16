@@ -1039,12 +1039,12 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
  std::vector< double > dj( numcols, 0 );
  int status;
 
- status = CPXgetpi( env, lp, pi.data(), 0, pi.size() - 1 );
+ status = CPXgetpi( env, lp, pi.data(), 0, numrows - 1 );
  if( status ) {
   throw std::runtime_error( "Unable to get the dual values with CPXgetpi()" );
  }
 
- status = CPXgetdj( env, lp, dj.data(), 0, dj.size() - 1 );
+ status = CPXgetdj( env, lp, dj.data(), 0, numcols - 1 );
  if( status ) {
   throw std::runtime_error( "Unable to get the dual multipliers with CPXgetdj()" );
  }
@@ -1100,11 +1100,13 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 
   const auto var_is_fixed = var->is_fixed();
   if( var_is_fixed ) {
-   /* The Variable is fixed. There should be at least one OneVarConstraint
+   /*
+    * The Variable is fixed. There should be at least one OneVarConstraint
     * (for this Variable) whose lower and upper bounds are equal to the value
     * of this Variable. If such OneVarConstraint exists, the reduced cost of
     * this Variable will be dual of that OneVarConstraint. If there is no such
-    * OneVarConstraint, the reduced cost of this variable will be lost. */
+    * OneVarConstraint, the reduced cost of this variable will be lost.
+    */
    var_lb = var->get_value();
    var_ub = var->get_value();
 
@@ -1115,9 +1117,11 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
      rhs_con = b;
     }
    }
-  }
 
-  else { // a non-fixed Variable
+   assert( lhs_con == rhs_con );
+
+  } else {
+   // A non-fixed Variable
    for( auto b: active_bounds ) {
     b->set_dual( 0 );
 
@@ -1133,41 +1137,40 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
    }
   }
 
-  if( var_is_fixed )
-   assert( lhs_con == rhs_con );
-
   if( lhs_con && dj[ i ] >= 0 ) {
    lhs_con->set_dual( dj[ i ] );
-  }
-  else if( rhs_con && dj[ i ] <= 0 ) {
+  } else if( rhs_con && dj[ i ] <= 0 ) {
    rhs_con->set_dual( dj[ i ] );
-  }
-  else if( lhs_con || rhs_con ) {
-   throw( std::logic_error( "CPXMILPSolver::get_dual_solution: "
-                            "invalid dual value." ) );
+  } else if( lhs_con || rhs_con ) {
+   throw std::logic_error( "CPXMILPSolver::get_dual_solution: invalid dual value." );
   }
 
   if( throw_reduced_cost_exception ) {
+   if( var_is_fixed && !lhs_con && var_lb != 0 ) {
+    /*
+     * The Variable is fixed but it has no associated OneVarConstraint
+     * with both bounds equal to the value of the Variable.
+     */
 
-   if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
-    /* The Variable is fixed but it has no associated OneVarConstraint with
-     * both bounds equal to the value of the Variable. */
+    throw std::logic_error(
+     "CPXMILPSolver::get_dual_solution: variable with index " +
+     std::to_string( i ) + " is fixed to " +
+     std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
+     "with both bounds equal to the value of this variable." );
 
-    throw( std::logic_error( "CPXMILPSolver::get_dual_solution: variable with "
-                             "index " + std::to_string( i ) + " is fixed to " +
-                             std::to_string( var->get_value() ) + ", but it "
-                             "has no OneVarConstraint with both bounds equal "
-                             "to the value of this variable." ) );
-   }
-   else if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
-    /* The Variable is not fixed and it has no associated OneVarConstraint. An
-     * exception is thrown if it has a finite nonzero bound. */
+   } else if( !var_is_fixed && !lhs_con && !rhs_con ) {
+    /*
+     * The Variable is not fixed and it has no associated OneVarConstraint.
+     * An exception is thrown if it has a finite nonzero bound.
+     */
 
-    if( ( var_lb != 0 && std::abs( var_lb ) < Inf<double>() ) ||
-        ( var_ub != 0 && std::abs( var_ub ) < Inf<double>() ) )
-     throw( std::logic_error( "CPXMILPSolver::get_dual_solution: variable "
-                              "with index " + std::to_string( i ) +
-                              " has no OneVarConstraint." ) );
+    if( ( var_lb != 0 && std::abs( var_lb ) < Inf< double >() ) ||
+        ( var_ub != 0 && std::abs( var_ub ) < Inf< double >() ) ) {
+     throw std::logic_error(
+      "CPXMILPSolver::get_dual_solution: variable with index " +
+      std::to_string( i ) + " has no OneVarConstraint." );
+    }
+
    }
   }
  }
@@ -1264,11 +1267,13 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
 
   const auto var_is_fixed = var->is_fixed();
   if( var_is_fixed ) {
-   /* The Variable is fixed. There should be at least one OneVarConstraint (for
-    * this Variable) whose lower and upper bounds are equal to the value of
-    * this Variable. If such a OneVarConstraint exists, the reduced cost of this
-    * Variable will be dual of that OneVarConstraint. If there is no such
-    * OneVarConstraint, the reduced cost of this variable will be lost. */
+   /*
+    * The Variable is fixed. There should be at least one OneVarConstraint
+    * (for this Variable) whose lower and upper bounds are equal to the value
+    * of this Variable. If such a OneVarConstraint exists, the reduced cost of
+    * this Variable will be dual of that OneVarConstraint. If there is no such
+    * OneVarConstraint, the reduced cost of this variable will be lost.
+    */
    var_lb = var->get_value();
    var_ub = var->get_value();
 
@@ -1279,9 +1284,11 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
      rhs_con = b;
     }
    }
-  }
 
-  else { // a non-fixed Variable
+   assert( lhs_con == rhs_con );
+
+  } else {
+   // A non-fixed Variable
    for( auto b: active_bounds ) {
     b->set_dual( 0 );
 
@@ -1297,41 +1304,39 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
    }
   }
 
-  if( var_is_fixed )
-   assert( lhs_con == rhs_con );
-
   if( lhs_con && dj[ i ] >= 0 ) {
    lhs_con->set_dual( dj[ i ] );
-  }
-  else if( rhs_con && dj[ i ] <= 0 ) {
+  } else if( rhs_con && dj[ i ] <= 0 ) {
    rhs_con->set_dual( dj[ i ] );
-  }
-  else if( lhs_con || rhs_con ) {
-   throw( std::logic_error( "CPXMILPSolver::get_dual_direction: "
-                            "invalid dual value." ) );
+  } else if( lhs_con || rhs_con ) {
+   throw std::logic_error( "CPXMILPSolver::get_dual_direction: invalid dual value." );
   }
 
   if( throw_reduced_cost_exception ) {
+   if( var_is_fixed && ( !lhs_con ) && ( var_lb != 0 ) ) {
+    /*
+     * The Variable is fixed but it has no associated OneVarConstraint
+     * with both bounds equal to the value of the Variable.
+     */
 
-   if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
-    /* The Variable is fixed but it has no associated OneVarConstraint with both
-     * bounds equal to the value of the Variable. */
+    throw std::logic_error(
+     "CPXMILPSolver::get_dual_direction: variable with index " +
+     std::to_string( i ) + " is fixed to " +
+     std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
+     "with both bounds equal to the value of this variable." );
 
-    throw( std::logic_error( "CPXMILPSolver::get_dual_direction: variable with "
-                             "index " + std::to_string( i ) + " is fixed to " +
-                             std::to_string( var->get_value() ) + ", but it "
-                             "has no OneVarConstraint with both bounds equal "
-                             "to the value of this variable." ) );
-   }
-   else if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
-    /* The Variable is not fixed and it has no associated OneVarConstraint. An
-     * exception is thrown if it has a finite nonzero bound. */
+   } else if( !var_is_fixed && !lhs_con && !rhs_con ) {
+    /*
+     * The Variable is not fixed and it has no associated OneVarConstraint.
+     * An exception is thrown if it has a finite nonzero bound.
+     */
 
-    if( ( var_lb != 0 && std::abs( var_lb ) < Inf<double>() ) ||
-        ( var_ub != 0 && std::abs( var_ub ) < Inf<double>() ) )
-     throw( std::logic_error( "CPXMILPSolver::get_dual_direction: variable "
-                              "with index " + std::to_string( i ) +
-                              " has no OneVarConstraint." ) );
+    if( ( var_lb != 0 && std::abs( var_lb ) < Inf< double >() ) ||
+        ( var_ub != 0 && std::abs( var_ub ) < Inf< double >() ) ) {
+     throw std::logic_error(
+      "CPXMILPSolver::get_dual_direction: variable with index " +
+      std::to_string( i ) + " has no OneVarConstraint." );
+    }
    }
   }
  }
@@ -2299,15 +2304,14 @@ double CPXMILPSolver::get_dbl_par( idx_type par ) const {
 /*--------------------------------------------------------------------------*/
 
 const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const {
+ static std::string value;
 
  // CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
-  char value[CPX_STR_PARAM_MAX];
-  CPXgetstrparam( env, cplex_par, value );
-
-  // warning: function returns address of local variable [-Wreturn-local-addr]
-  return std::move( std::string( value ) );
+  value.reserve( CPX_STR_PARAM_MAX );
+  CPXgetstrparam( env, cplex_par, value.data() );
+  return value;
  }
 
  return MILPSolver::get_str_par( par );
@@ -2419,15 +2423,14 @@ double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
 
 const std::string &
 CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
+ static std::string value;
 
  // CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
-  char value[CPX_STR_PARAM_MAX];
-  CPXinfostrparam( env, cplex_par, value );
-
-  // warning: function returns address of local variable [-Wreturn-local-addr]
-  return std::move( std::string( value ) );
+  value.reserve( CPX_STR_PARAM_MAX );
+  CPXinfostrparam( env, cplex_par, value.data() );
+  return value;
  }
 
  return MILPSolver::get_dflt_str_par( par );
@@ -2459,22 +2462,23 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
 const std::string &
 CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
 
- static const std::string par = "intThrowReducedCostException";
- if( idx == intThrowReducedCostException )
-  return par;
+ static const std::string par_trce = "intThrowReducedCostException";
+ if( idx == intThrowReducedCostException ) {
+  return par_trce;
+ }
 
  // CPLEX parameters
+ static std::string par_name;
+
  if( idx >= intFirstCPLEXPar && idx < intLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_int_pars[ idx - intFirstCPLEXPar ];
-  char par_name[CPX_STR_PARAM_MAX];
+  par_name.reserve( CPX_STR_PARAM_MAX );
 #if CPX_VERSION < 12090000
-  int status = CPXgetparamname( env, cplex_par, par_name );
+  int status = CPXgetparamname( env, cplex_par, par_name.data() );
 #else
-  int status = CPXgetparamhiername( env, cplex_par, par_name );
+  int status = CPXgetparamhiername( env, cplex_par, par_name.data() );
 #endif
-
-  // warning: function returns address of local variable [-Wreturn-local-addr]
-  return std::move( std::string( par_name ) );
+  return par_name;
  }
 
  return MILPSolver::int_par_idx2str( idx );
@@ -2502,17 +2506,17 @@ CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const {
 
 const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
  // CPLEX parameters
+ static std::string par_name;
+
  if( idx >= dblFirstCPLEXPar && idx < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ idx - dblFirstCPLEXPar ];
-  char par_name[CPX_STR_PARAM_MAX];
+  par_name.reserve( CPX_STR_PARAM_MAX );
 #if CPX_VERSION < 12090000
-  int status = CPXgetparamname( env, cplex_par, par_name );
+  int status = CPXgetparamname( env, cplex_par, par_name.data() );
 #else
-  int status = CPXgetparamhiername( env, cplex_par, par_name );
+  int status = CPXgetparamhiername( env, cplex_par, par_name.data() );
 #endif
-
-  //warning: function returns address of local variable [-Wreturn-local-addr]
-  return std::move( std::string( par_name ) );
+  return par_name;
  }
 
  return MILPSolver::dbl_par_idx2str( idx );
@@ -2542,17 +2546,19 @@ const std::string &
 CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
 
  // CPLEX parameters
+ static std::string par_name;
+
  if( idx >= strFirstCPLEXPar && idx < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ idx - strFirstCPLEXPar ];
-  char par_name[CPX_STR_PARAM_MAX];
+  par_name.reserve( CPX_STR_PARAM_MAX );
 #if CPX_VERSION < 12090000
-  int status = CPXgetparamname( env, cplex_par, par_name );
+  int status = CPXgetparamname( env, cplex_par, par_name.data() );
 #else
-  int status = CPXgetparamhiername( env, cplex_par, par_name );
+  int status = CPXgetparamhiername( env, cplex_par, par_name.data() );
 #endif
-  //  warning: function returns address of local variable [-Wreturn-local-addr]
-  return std::move( std::string( par_name ) );
+  return par_name;
  }
+
  return MILPSolver::str_par_idx2str( idx );
 }
 
