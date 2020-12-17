@@ -1,6 +1,10 @@
+# GitLab CI/CD pipeline configuration file
+# See: https://docs.gitlab.com/ee/ci/yaml/README.html
+
 default:
   image: registry.gitlab.com/smspp/milpsolver
 
+# This allows to cache the built SMS++ library
 cache:
   key: ${CI_COMMIT_REF_SLUG}
   paths:
@@ -11,13 +15,18 @@ stages:
   - test
 #  - deploy
 
+# This job is executed as first (.pre stage)
 fetch_smspp:
   stage: .pre
   script:
     - eval $(ssh-agent -s)
     - ssh-add <(echo "$SMSPP_DEPLOY_KEY")
     - mkdir -p ~/.ssh && ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
-    - if [ -d smspp ]; then (cd smspp && git pull); else git clone --branch develop git@gitlab.com:smspp/smspp.git; fi
+    # This checks if a branch with the same name as the one being built in the pipeline exists in SMSpp repository
+    - git ls-remote --heads git@gitlab.com:smspp/smspp.git ${CI_COMMIT_REF_NAME} | grep ${CI_COMMIT_REF_NAME} >/dev/null
+    - if [ "$?" == "1" ] ; then BRANCH_TO_USE=${CI_COMMIT_REF_NAME}; else BRANCH_TO_USE="develop"; fi
+    # If the directory already exists (it was cached) just pull, otherwise clone
+    - if [ -d smspp ]; then (cd smspp && git checkout ${BRANCH_TO_USE} && git pull); else git clone --branch ${BRANCH_TO_USE} git@gitlab.com:smspp/smspp.git; fi
     - cmake -S smspp -B smspp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
     - cmake --build smspp/build
 
