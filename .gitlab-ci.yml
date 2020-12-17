@@ -24,7 +24,7 @@ fetch_smspp:
     - mkdir -p ~/.ssh && ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
     # This checks if a branch with the same name as the one being built in the pipeline exists in SMSpp repository
     - git ls-remote --heads git@gitlab.com:smspp/smspp.git ${CI_COMMIT_REF_NAME} | grep ${CI_COMMIT_REF_NAME} >/dev/null
-    - if [ "$?" == "1" ] ; then BRANCH_TO_USE=${CI_COMMIT_REF_NAME}; else BRANCH_TO_USE="develop"; fi
+    - if [ "$?" == "1" ]; then BRANCH_TO_USE="develop"; else BRANCH_TO_USE=${CI_COMMIT_REF_NAME}; fi; echo "Will use ${BRANCH_TO_USE} branch for SMS++"
     # If the directory already exists (it was cached) just pull, otherwise clone
     - if [ -d smspp ]; then (cd smspp && git checkout ${BRANCH_TO_USE} && git pull); else git clone --branch ${BRANCH_TO_USE} git@gitlab.com:smspp/smspp.git; fi
     - cmake -S smspp -B smspp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
