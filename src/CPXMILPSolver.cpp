@@ -287,7 +287,7 @@ int CPXMILPSolver::compute( bool changedvars ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::decode_mip_status( int status ) {
- // DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
+ DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
 
  /*
  * The following are the symbols that may represent the status of
@@ -380,7 +380,7 @@ int CPXMILPSolver::decode_mip_status( int status ) {
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::decode_lqp_status( int status ) {
- // DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
+ DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
 
  /*
   * The following are the symbols that may represent the status of
