@@ -1714,7 +1714,7 @@ void MILPSolver::add_dynamic_constraint( FRowConstraint * con ) {
 
  // Update the dictionaries
  auto it = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(), con,
-                        [ & ]( const_int pair, FRowConstraint * c ) {
+                        [ & ]( con_int pair, FRowConstraint * c ) {
                          return pair.first < c;
                         } );
  dcon_to_idx.insert( it, { con, numrows } );
