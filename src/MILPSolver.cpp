@@ -225,9 +225,11 @@ void MILPSolver::load_problem() {
   throw std::runtime_error( "Unable to lock the Block" );
  }
 
- int num_block = 0; // Counter for the blocks
- int row = 0;       // Counter for the rows
- int col = 0;       // Counter for the columns
+ int num_block = 0;       // Counter for the blocks
+ int row = 0;             // Counter for the rows
+ int col = 0;             // Counter for the columns
+ int static_con_grps = 0; // Counter for static constraint groups
+ int static_var_grps = 0; // Counter for static variable groups
 
  // Count variables and constraints
  // --------------------------------------------------------------------------
@@ -252,6 +254,7 @@ void MILPSolver::load_problem() {
                        {
                         ++numrows;
                         ++static_cons;
+                        ++static_con_grps;
                        }
    ) ) {
     continue;
@@ -261,6 +264,7 @@ void MILPSolver::load_problem() {
                        {
                         numrows += var.size();
                         static_cons += var.size();
+                        ++static_con_grps;
                        }
    ) ) {
     continue;
@@ -270,6 +274,7 @@ void MILPSolver::load_problem() {
                        {
                         numrows += var.num_elements();
                         static_cons += var.num_elements();
+                        ++static_con_grps;
                        }
    ) ) {
     continue;
@@ -314,6 +319,7 @@ void MILPSolver::load_problem() {
                        {
                         ++numcols;
                         ++static_vars;
+                        ++static_var_grps;
                        }
    ) ) {
     continue;
@@ -323,6 +329,7 @@ void MILPSolver::load_problem() {
                        {
                         numcols += var.size();
                         static_vars += var.size();
+                        ++static_var_grps;
                        }
    ) ) {
     continue;
@@ -332,6 +339,7 @@ void MILPSolver::load_problem() {
                        {
                         numcols += var.num_elements();
                         static_vars += var.num_elements();
+                        ++static_var_grps;
                        }
    ) ) {
     continue;
@@ -432,14 +440,14 @@ void MILPSolver::load_problem() {
  dcon_to_idx.clear();
  idx_to_dcon.clear();
 
- svar_to_idx.reserve( numcols );
- idx_to_svar.reserve( numcols );
- dvar_to_idx.reserve( numcols );
- idx_to_dvar.reserve( numcols );
- scon_to_idx.reserve( numrows );
- idx_to_scon.reserve( numrows );
- dcon_to_idx.reserve( numrows );
- idx_to_dcon.reserve( numrows );
+ svar_to_idx.reserve( static_var_grps );
+ idx_to_svar.reserve( static_var_grps );
+ dvar_to_idx.reserve( numcols - static_vars );
+ idx_to_dvar.reserve( numcols - static_vars );
+ scon_to_idx.reserve( static_con_grps );
+ idx_to_scon.reserve( static_con_grps );
+ dcon_to_idx.reserve( numrows - static_cons );
+ idx_to_dcon.reserve( numrows - static_cons );
 
  // Scan the static constraints
  // --------------------------------------------------------------------------
