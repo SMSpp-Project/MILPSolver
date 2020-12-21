@@ -918,19 +918,10 @@ ColVariable * MILPSolver::static_variable_with_index( int i ) {
 /*--------------------------------------------------------------------------*/
 
 ColVariable * MILPSolver::dynamic_variable_with_index( int i ) {
-
- assert( std::is_sorted( idx_to_dvar.begin(), idx_to_dvar.end() ) );
- auto it = lower_bound( idx_to_dvar.begin(), idx_to_dvar.end(),
-                        std::make_pair( i, nullptr ),
-                        [ & ]( auto & p1, auto & p2 ) {
-                         return p1.first < p2.first;
-                        } );
-
- if( it != idx_to_dvar.end() && it->first == i ) {
-  return it->second;
- } else {
-  return nullptr;
+ if( static_vars < i || i < numcols ) {
+  return idx_to_dvar[ i - static_vars ];
  }
+ return nullptr;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -971,19 +962,10 @@ FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
 /*--------------------------------------------------------------------------*/
 
 FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
-
- assert( std::is_sorted( idx_to_dcon.begin(), idx_to_dcon.end() ) );
- auto it = lower_bound( idx_to_dcon.begin(), idx_to_dcon.end(),
-                        std::make_pair( i, nullptr ),
-                        [ & ]( auto & p1, auto & p2 ) {
-                         return p1.first < p2.first;
-                        } );
-
- if( it != idx_to_dcon.end() && it->first == i ) {
-  return it->second;
- } else {
-  return nullptr;
+ if( static_cons < i || i < numrows ) {
+  return idx_to_dcon[ i - static_cons ];
  }
+ return nullptr;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -994,7 +976,7 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
  if( n < 0 ) {
   // DEBUG_LOG( "MILPSolver::scan_variable(): D#" << col << " " << var );
   dvar_to_idx.emplace_back( &var, col );
-  idx_to_dvar.emplace_back( col, &var );
+  idx_to_dvar.emplace_back( &var );
  } else {
   // DEBUG_LOG( "MILPSolver::scan_variable(): S#"
   //             << n << "/" << col << " " << var );
@@ -1080,7 +1062,7 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
  if( n < 0 ) {
   // DEBUG_LOG( "MILPSolver::scan_constraint(): D#" << row << " " << con );
   dcon_to_idx.emplace_back( &con, row );
-  idx_to_dcon.emplace_back( row, &con );
+  idx_to_dcon.emplace_back( &con );
  } else {
   // DEBUG_LOG( "MILPSolver::scan_constraint(): S#"
   //             << n << "/" << row << " " << con );
@@ -1736,7 +1718,7 @@ void MILPSolver::add_dynamic_constraint( FRowConstraint * con ) {
                          return pair.first < c;
                         } );
  dcon_to_idx.insert( it, { con, numrows } );
- idx_to_dcon.emplace_back( numrows, con );
+ idx_to_dcon.emplace_back( con );
 
  // Update the counter
  ++numrows;
@@ -1788,7 +1770,7 @@ void MILPSolver::add_dynamic_variable( ColVariable * var ) {
                         } );
 
  dvar_to_idx.insert( it, { var, numcols } );
- idx_to_dvar.emplace_back( numcols, var );
+ idx_to_dvar.emplace_back( var );
 
  // Update the counters
  ++numcols;
@@ -1866,9 +1848,6 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con ) {
 
  // Update the dictionaries
  int index = 0;
- assert( std::is_sorted( dcon_to_idx.begin(), dcon_to_idx.end() ) );
- assert( std::is_sorted( idx_to_dcon.begin(), idx_to_dcon.end() ) );
-
  auto it1 = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(),
                          std::make_pair( con, 0 ),
                          [ & ]( auto & p1, auto & p2 ) {
@@ -1878,6 +1857,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con ) {
  if( it1 != dcon_to_idx.end() && it1->first == con ) {
   index = it1->second;
   dcon_to_idx.erase( it1 );
+  idx_to_dcon.erase( idx_to_dcon.begin() + index - static_cons );
  } else {
   throw std::runtime_error( "Dynamic constraint not found" );
  }
@@ -1886,21 +1866,6 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con ) {
   if( it.second > index ) {
    it.second--;
   }
- }
-
- auto it2 = lower_bound( idx_to_dcon.begin(), idx_to_dcon.end(),
-                         std::make_pair( index, 0 ),
-                         [ & ]( auto & p1, auto & p2 ) {
-                          return p1.first < p2.first;
-                         } );
-
- if( it2 != idx_to_dcon.end() && it2->second == con ) {
-  for( auto it = it2; it != idx_to_dcon.end(); ++it ) {
-   it->first--;
-  }
-  idx_to_dcon.erase( it2 );
- } else {
-  throw std::runtime_error( "Dynamic constraint not found" );
  }
 
  // Update the counter
@@ -1929,9 +1894,6 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var ) {
 
  // Update the dictionaries
  int index = 0;
- assert( std::is_sorted( dvar_to_idx.begin(), dvar_to_idx.end() ) );
- assert( std::is_sorted( idx_to_dvar.begin(), idx_to_dvar.end() ) );
-
  auto it1 = lower_bound( dvar_to_idx.begin(), dvar_to_idx.end(),
                          std::make_pair( var, 0 ),
                          [ & ]( auto & p1, auto & p2 ) {
@@ -1941,6 +1903,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var ) {
  if( it1 != dvar_to_idx.end() && it1->first == var ) {
   index = it1->second;
   dvar_to_idx.erase( it1 );
+  idx_to_dvar.erase( idx_to_dvar.begin() + index - static_vars );
  } else {
   throw std::runtime_error( "Dynamic variable not found" );
  }
@@ -1949,21 +1912,6 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var ) {
   if( it.second > index ) {
    it.second--;
   }
- }
-
- auto it2 = lower_bound( idx_to_dvar.begin(), idx_to_dvar.end(),
-                         std::make_pair( index, 0 ),
-                         [ & ]( auto & p1, auto & p2 ) {
-                          return p1.first < p2.first;
-                         } );
-
- if( it2 != idx_to_dvar.end() && it2->second == var ) {
-  for( auto it = it2; it != idx_to_dvar.end(); ++it ) {
-   it->first--;
-  }
-  idx_to_dvar.erase( it2 );
- } else {
-  throw std::runtime_error( "Dynamic constraint not found" );
  }
 
  // Update the counters
@@ -2449,12 +2397,9 @@ void MILPSolver::check_status() {
 
  for( auto & i: idx_to_dvar ) {
   auto j = std::find_if( dvar_to_idx.begin(), dvar_to_idx.end(),
-                         [ & ]( auto & pair ) {
-                          return pair.second == i.first &&
-                                 pair.first == i.second;
-                         } );
+                         [ & ]( auto & pair ) { return pair.first == i; } );
   if( j == dvar_to_idx.end() ) {
-   DEBUG_LOG( "Element [" << i.first << ", " << i.second
+   DEBUG_LOG( "Element [" << i
                           << "] of idx_to_dvar was not found in dvar_to_idx"
                           << std::endl );
   }
@@ -2462,10 +2407,7 @@ void MILPSolver::check_status() {
 
  for( auto & i: dvar_to_idx ) {
   auto j = std::find_if( idx_to_dvar.begin(), idx_to_dvar.end(),
-                         [ & ]( auto & pair ) {
-                          return i.first == pair.second &&
-                                 i.second == pair.first;
-                         } );
+                         [ & ]( auto & var ) { return i.first == var; } );
   if( j == idx_to_dvar.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
                           << "] of dvar_to_idx was not found in idx_to_dvar"
@@ -2529,22 +2471,16 @@ void MILPSolver::check_status() {
 
  for( auto & i: idx_to_dcon ) {
   auto j = std::find_if( dcon_to_idx.begin(), dcon_to_idx.end(),
-                         [ & ]( auto & pair ) {
-                          return pair.second == i.first &&
-                                 pair.first == i.second;
-                         } );
+                         [ & ]( auto & pair ) { return pair.first == i; } );
   if( j == dcon_to_idx.end() ) {
-   DEBUG_LOG( "Element [" << i.first << ", " << i.second
+   DEBUG_LOG( "Element [" << i
                           << "] of idx_to_dcon was not found in dcon_to_idx"
                           << std::endl );
   }
  }
  for( auto & i: dcon_to_idx ) {
   auto j = std::find_if( idx_to_dcon.begin(), idx_to_dcon.end(),
-                         [ & ]( auto & pair ) {
-                          return i.first == pair.second &&
-                                 i.second == pair.first;
-                         } );
+                         [ & ]( auto & con ) { return i.first == con; } );
   if( j == idx_to_dcon.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
                           << "] of dcon_to_idx was not found in idx_to_dcon"

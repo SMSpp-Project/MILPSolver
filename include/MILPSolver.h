@@ -504,8 +504,8 @@ class MILPSolver : public CDASolver {
 
  typedef std::pair< ColVariable *, int > var_int;
  typedef std::pair< int, ColVariable * > int_var;
- typedef std::pair< FRowConstraint *, int > const_int;
- typedef std::pair< int, FRowConstraint * > int_const;
+ typedef std::pair< FRowConstraint *, int > con_int;
+ typedef std::pair< int, FRowConstraint * > int_con;
  typedef std::tuple< ColVariable *, int, int > var_int_int;
  typedef std::tuple< FRowConstraint *, int, int > con_int_int;
 
@@ -530,10 +530,10 @@ class MILPSolver : public CDASolver {
   *    address of the corresponding (group of) static variables and constraints.
   *    Vectors are kept sorted in ascending order by index.
   *
-  *  - idx_to_dvar, idx_to_dcon : vectors of pairs that store the indices of
-  *    columns and rows, respectively, of the constraint matrix and the
-  *    address of the corresponding dynamic variables and constraints.
-  *    Vectors are kept sorted in ascending order by index.
+  *  - idx_to_dvar, idx_to_dcon : vectors that store the addresses of
+  *    dynamic variables and constraints, respectively.
+  *    The element at idx_to_d*[i] has index (i + static_*s),
+  *    that is, it is the column/row (i + static_*s) of the constraint matrix.
   *
   * Using these vectors of pair we can at any time locate the index
   * of each constraint and variable within the constraint matrix, and viceversa.
@@ -548,13 +548,17 @@ class MILPSolver : public CDASolver {
  std::vector< int_var > idx_to_svar;     ///< From index to static variable
 
  std::vector< con_int_int > scon_to_idx; ///< From static constraint to index
- std::vector< int_const > idx_to_scon;   ///< From index to static constraint
+ std::vector< int_con> idx_to_scon;      ///< From index to static constraint
 
- std::vector< var_int > dvar_to_idx;     ///< From dynamic variable to index
- std::vector< int_var > idx_to_dvar;     ///< From index to dynamic variable
+ std::vector< var_int > dvar_to_idx;
+ ///< From dynamic variable to index
+ std::vector< ColVariable * > idx_to_dvar;
+ ///< From index to dynamic variable
 
- std::vector< const_int > dcon_to_idx;   ///< From dynamic constraint to index
- std::vector< int_const > idx_to_dcon;   ///< From index to dynamic constraint
+ std::vector< con_int > dcon_to_idx;
+ ///< From dynamic constraint to index
+ std::vector< FRowConstraint * > idx_to_dcon;
+ ///< From index to dynamic constraint
  /// @}
 
 /*--------------------------------------------------------------------------*/
