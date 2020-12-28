@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
  if( !sconf_file.empty() ) {
   s_config = get_blocksolverconfig( sconf_file );
   if( s_config == nullptr ) {
-   std::cerr << exe << ": Block configuration not valid" << std::endl;
+   std::cerr << exe << ": Solver configuration not valid" << std::endl;
    exit( 1 );
   }
  } else {
