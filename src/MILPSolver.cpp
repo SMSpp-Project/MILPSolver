@@ -997,7 +997,7 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
   ub[ col ] = get_problem_ub( var );
  }
 
- if( var.is_integer() ) {
+ if( var.is_integer() && !relax_int_vars ) {
   ++int_vars;
   if( var.is_unitary() && var.is_positive() ) {
    xctype[ col ] = 'B'; // Binary
@@ -1307,7 +1307,7 @@ void MILPSolver::var_modification( VariableMod * mod ) {
 
  // Update variable type
  if( !xctype.empty() ) {
-  if( var->is_integer() ) {
+  if( var->is_integer() && !relax_int_vars ) {
    if( var->is_unitary() && var->is_positive() ) {
     xctype[ idx ] = 'B';
    } else {
@@ -1790,7 +1790,7 @@ void MILPSolver::add_dynamic_variable( ColVariable * var ) {
  if( xctype.empty() ) {
   throw std::logic_error( "Variable type representation is empty" );
  } else {
-  if( var->is_integer() ) {
+  if( var->is_integer() && !relax_int_vars ) {
    if( var->is_unitary() && var->is_positive() ) {
     xctype.emplace_back( 'B' );
    } else {
@@ -1982,6 +1982,11 @@ void MILPSolver::set_par( idx_type par, int value ) {
   use_custom_names = bool( value );
   return;
  }
+ if( par == intRelaxIntVars ) {
+  relax_int_vars = bool( value );
+  return;
+ }
+
  CDASolver::set_par( par, value );
 }
 
@@ -2002,6 +2007,7 @@ void MILPSolver::set_par( idx_type par, const std::string & value ) {
   output_file = value;
   return;
  }
+
  CDASolver::set_par( par, value );
 }
 
@@ -2025,6 +2031,10 @@ int MILPSolver::get_dflt_int_par( idx_type par ) const {
  if( par == intUseCustomNames ) {
   return 1;
  }
+ if( par == intRelaxIntVars ) {
+  return 0;
+ }
+
  return CDASolver::get_dflt_int_par( par );
 }
 
@@ -2045,6 +2055,7 @@ const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const {
  if( par == strOutputFile ) {
   return vals[ 1 ];
  }
+
  return CDASolver::get_dflt_str_par( par );
 }
 
@@ -2054,6 +2065,10 @@ int MILPSolver::get_int_par( idx_type par ) const {
  if( par == intUseCustomNames ) {
   return use_custom_names;
  }
+ if( par == intRelaxIntVars ) {
+  return relax_int_vars;
+ }
+
  return CDASolver::get_int_par( par );
 }
 
@@ -2072,6 +2087,7 @@ const std::string & MILPSolver::get_str_par( idx_type par ) const {
  if( par == strOutputFile ) {
   return output_file;
  }
+
  return CDASolver::get_str_par( par );
 }
 
@@ -2082,16 +2098,26 @@ MILPSolver::int_par_str2idx( const std::string & name ) const {
  if( name == "intUseCustomNames" ) {
   return intUseCustomNames;
  }
+ if( name == "intRelaxIntVars" ) {
+  return intRelaxIntVars;
+ }
+
  return CDASolver::int_par_str2idx( name );
 }
 
 /*--------------------------------------------------------------------------*/
 
 const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const {
- static const std::string par = "intUseCustomNames";
+ static const std::vector< std::string > pars = { "intUseCustomNames",
+                                                  "intRelaxIntVars" };
  if( idx == intUseCustomNames ) {
-  return par;
+  return pars[ 0 ];
  }
+
+ if( idx == intRelaxIntVars ) {
+  return pars[ 1 ];
+ }
+
  return CDASolver::int_par_idx2str( idx );
 }
 
@@ -2113,10 +2139,13 @@ MILPSolver::dbl_par_idx2str( idx_type idx ) const {
 
 ThinComputeInterface::idx_type
 MILPSolver::str_par_str2idx( const std::string & name ) const {
- if( name == "strProblemName" )
+ if( name == "strProblemName" ) {
   return strProblemName;
- if( name == "strOutputFile" )
+ }
+ if( name == "strOutputFile" ) {
   return strOutputFile;
+ }
+
  return CDASolver::str_par_str2idx( name );
 }
 
@@ -2128,10 +2157,10 @@ const std::string & MILPSolver::str_par_idx2str( idx_type idx ) const {
  if( idx == strProblemName ) {
   return pars[ 0 ];
  }
-
  if( idx == strOutputFile ) {
   return pars[ 1 ];
  }
+
  return CDASolver::str_par_idx2str( idx );
 }
 

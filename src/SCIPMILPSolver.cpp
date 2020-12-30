@@ -589,7 +589,7 @@ void SCIPMILPSolver::var_modification( VariableMod * mod ) {
   );
   assert( fixed );
 
- } else if( var->is_integer() ) {
+ } else if( var->is_integer() && !relax_int_vars ) {
   // Unfix or refresh the variable
   // TODO: Check this, it seems unnecessary
   if( var->is_unitary() && var->is_positive() ) {
@@ -1003,7 +1003,7 @@ void SCIPMILPSolver::add_dynamic_variable( ColVariable * var ) {
 
  // Variable type
 
- if( var->is_integer() ) {
+ if( var->is_integer() && !relax_int_vars ) {
   if( var->is_unitary() && var->is_positive() ) {
    vartype = SCIP_VARTYPE_BINARY;
   } else {
@@ -1373,7 +1373,7 @@ SCIPMILPSolver::get_str_par( const idx_type par ) const {
 
   switch( type ) {
    case SCIP_PARAMTYPE_CHAR:
-    value.resize(1);
+    value.resize( 1 );
     SCIP_CALL_ABORT( SCIPgetCharParam( scip, scip_par.c_str(), value.data() ) );
     return value;
    case SCIP_PARAMTYPE_STRING:
@@ -1498,7 +1498,7 @@ SCIPMILPSolver::get_dflt_str_par( const idx_type par ) const {
 
   switch( type ) {
    case SCIP_PARAMTYPE_CHAR:
-    value.resize(1);
+    value.resize( 1 );
     value[ 0 ] = SCIPparamGetCharDefault( param );
     return value;
    case SCIP_PARAMTYPE_STRING:

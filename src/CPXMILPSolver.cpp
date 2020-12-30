@@ -1399,7 +1399,7 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
 
  // Read new variable type
  char new_ctype;
- if( var->is_integer() ) {
+ if( var->is_integer() && !relax_int_vars ) {
   // The variable to be changed will be integer, increase the number
   ++is_mip;
   if( var->is_unitary() && var->is_positive() ) {
@@ -1977,7 +1977,7 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * var ) {
  std::vector< char > old_ctype;
  int is_mip = CPXgetintvars( &old_ctype );
 
- if( var->is_integer() ) {
+ if( var->is_integer() && !relax_int_vars ) {
   ++is_mip;
   if( var->is_unitary() && var->is_positive() ) {
    new_ctype = 'B'; // Binary

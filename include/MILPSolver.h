@@ -118,6 +118,8 @@ class MILPSolver : public CDASolver {
  enum int_par_type_MILP {
   /// Use custom names for rows/columns
   intUseCustomNames = intLastParCDAS,
+  /// Relax [M]ILP by removing integrality constraints for integer variables
+  intRelaxIntVars,
   /// First allowed new int parameter for derived classes
   intLastAlgParMILP
  };
@@ -676,8 +678,11 @@ class MILPSolver : public CDASolver {
  std::vector< char > xctype;
 
 
- /// Use Variable/Constraint custom names
+ /// If true, use Variable/Constraint custom names
  bool use_custom_names = true;
+
+ /// If true, relax [M]ILP by removing integrality constraints for integer variables
+ bool relax_int_vars = false;
 
  /**
   * An array of length at least numcols containing pointers to character
