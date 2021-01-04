@@ -54,9 +54,9 @@ MILPSolver::MILPSolver() : CDASolver() {}
 
 MILPSolver::~MILPSolver() {
  for( auto & i: colname )
-  delete i;
+  delete[] i;
  for( auto & i: rowname )
-  delete i;
+  delete[] i;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -183,9 +183,9 @@ void MILPSolver::clear_problem( unsigned int what ) {
   xctype.clear();
 
   for( auto & i: colname )
-   delete i;
+   delete[] i;
   for( auto & i: rowname )
-   delete i;
+   delete[] i;
   colname.clear();
   rowname.clear();
  }
