@@ -201,6 +201,12 @@ void SCIPMILPSolver::load_problem() {
 
   for( int i = 0; i < numcols; ++i ) {
 
+   if (q_objective[i] == 0) {
+    aux_vars[i] = nullptr;
+    aux_cons[i] = nullptr;
+    continue;
+   }
+
    // Add auxiliary variables
    SCIP_Real z_lb = ( lb[ i ] == -Inf< double >() ) ?
                     -SCIPinfinity( scip ) : lb[ i ];
@@ -249,9 +255,17 @@ void SCIPMILPSolver::load_problem() {
    }
 
    SCIP_CONS * con = nullptr;
-   SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip, &con, nullptr, 0,
-                                                  nullptr, nullptr, 0,
-                                                  nullptr, nullptr, nullptr,
+   SCIP_VAR * linvar = aux_vars[ i ];
+   SCIP_VAR * quadvar = vars[ i ];
+   const char * name = "aux_con";
+   SCIP_Real lincoef = 1;
+   SCIP_Real quadcoef = -1;
+
+   // z - xˆ2 >= 0
+
+   SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip, &con, name,
+                                                  1, &linvar, &lincoef,
+                                                  1, &quadvar, &quadvar, &quadcoef,
                                                   con_lhs, con_rhs ) );
    SCIP_CALL_ABORT( SCIPaddCons( scip, con ) );
    aux_cons[ i ] = con;
@@ -259,15 +273,15 @@ void SCIPMILPSolver::load_problem() {
 
 
    // Add constraint coefficients
-   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip,
-                                       aux_cons[ i ],
-                                       aux_vars[ i ],
-                                       1 ) );
-   SCIP_CALL_ABORT( SCIPaddQuadVarQuadratic( scip,
-                                             aux_cons[ i ],
-                                             aux_vars[ i ],
-                                             0,
-                                             -1 ) );
+   // SCIP_CALL_ABORT( SCIPaddCoefLinear( scip,
+   //                                     aux_cons[ i ],
+   //                                     aux_vars[ i ],
+   //                                     1 ) );
+   // SCIP_CALL_ABORT( SCIPaddQuadVarQuadratic( scip,
+   //                                           aux_cons[ i ],
+   //                                           aux_vars[ i ],
+   //                                           0,
+   //                                           -1 ) );
   }
  }
 }
