@@ -1954,6 +1954,8 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * var ) {
   if( f == nullptr ) {
    throw std::invalid_argument( "The Constraint is not linear" );
   }
+
+  // get_active_constraints() already checks that the index exists
   cmatind.push_back( index_of_constraint( con ) );
   auto it = find_if( f->get_v_var().begin(), f->get_v_var().end(),
                      [ & ]( LinearFunction::coeff_pair pair ) {

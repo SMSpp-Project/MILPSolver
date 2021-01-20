@@ -733,7 +733,11 @@ MILPSolver::get_active_constraints( const ColVariable & var ) {
  for( auto * i : var.active_stuff() ) {
   auto * row = dynamic_cast<FRowConstraint *>(i);
   if( row != nullptr ) {
-   active_constraints.push_back( row );
+   // We check for index_of_constraint() to skip the constraints
+   // that do not belong to the problem (e.g. they belong to superblocks).
+   if( index_of_constraint( row ) < Inf< int >() ) {
+    active_constraints.push_back( row );
+   }
   }
  }
  return active_constraints;
