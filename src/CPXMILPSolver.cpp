@@ -1783,7 +1783,7 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
     q_value = 0;
    }
 
-   CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_value );
+   CPXchgqpcoef( env, lp, indices.back(), indices.back(), 2 * q_value );
   }
 
   if( !indices.empty() ) {
@@ -2735,7 +2735,7 @@ void CPXMILPSolver::reload_objective( Function * f ) {
    double q_value = std::get< 2 >( el );
 
    // Quadratic coefficients can be changed one at a time
-   CPXchgqpcoef( env, lp, indices.back(), indices.back(), q_value );
+   CPXchgqpcoef( env, lp, indices.back(), indices.back(), 2 * q_value );
   }
 
   if( !indices.empty() ) {
