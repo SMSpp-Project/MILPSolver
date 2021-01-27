@@ -2446,6 +2446,17 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
  if( name == "intThrowReducedCostException" )
   return intThrowReducedCostException;
 
+ /*
+  * In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
+  * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
+  * is not found.
+  */
+
+ idx_type idx = MILPSolver::int_par_str2idx( name );
+ if( idx < Inf< idx_type >() ) {
+  return idx;
+ }
+
  // CPLEX parameters
  int cplex_par;
  int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
@@ -2456,7 +2467,8 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
   return it->second;
  }
 
- return MILPSolver::int_par_str2idx( name );
+ return Inf< idx_type >();
+ // return MILPSolver::int_par_str2idx( name );
 }
 
 /*----------------------------- ---------------------------------------------*/
@@ -2490,6 +2502,16 @@ CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
 
 ThinComputeInterface::idx_type
 CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const {
+ /*
+ * In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
+ * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
+ * is not found.
+ */
+
+ idx_type idx = MILPSolver::dbl_par_str2idx( name );
+ if( idx < Inf< idx_type >() ) {
+  return idx;
+ }
 
  // CPLEX parameters
  int cplex_par;
@@ -2501,7 +2523,8 @@ CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const {
   return it->second;
  }
 
- return MILPSolver::dbl_par_str2idx( name );
+ return Inf< idx_type >();
+ // return MILPSolver::dbl_par_str2idx( name );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2528,6 +2551,16 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
 
 ThinComputeInterface::idx_type
 CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
+ /*
+  * In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
+  * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
+  * is not found.
+  */
+
+ idx_type idx = MILPSolver::str_par_str2idx( name );
+ if( idx < Inf< idx_type >() ) {
+  return idx;
+ }
 
  // CPLEX parameters
  int cplex_par;
@@ -2539,7 +2572,8 @@ CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
   return it->second;
  }
 
- return MILPSolver::str_par_str2idx( name );
+ return Inf< idx_type >();
+ // return MILPSolver::str_par_str2idx( name );
 }
 
 /*--------------------------------------------------------------------------*/
