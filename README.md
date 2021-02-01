@@ -1,6 +1,7 @@
 # MILPSolver
 
-A MILP Solver for SMS++ using IBM® ILOG® CPLEX® Optimization Studio.
+A MILP Solver for SMS++ that uses [IBM® ILOG® CPLEX® Optimization Studio] and
+[SCIP].
 
 ## Getting started
 
@@ -9,7 +10,13 @@ These instructions will let you build MILPSolver on your system.
 ### Requirements
 
 - [SMS++ core library](https://gitlab.com/smspp/smspp)
-- IBM® ILOG® CPLEX® Optimization Studio
+- [IBM® ILOG® CPLEX® Optimization Studio]
+- [SCIP]
+
+Both CPLEX and SCIP are optional but you will need at least one of them to
+build a solver that actually solves problems.
+Without either of them, you can still build a solver that loads the problem
+from the SMS++ blocks and makes it available as a set of vectors.
 
 ### Build and install with CMake
 
@@ -47,7 +54,8 @@ target_link_libraries(<my_target> SMS++::MILPSolver)
 
 ## Contributing
 
-This section is not ready yet.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of
+conduct, and the process for submitting merge requests to us.
 
 ## Authors
 
@@ -78,3 +86,6 @@ the code cannot be considered liable, either directly or indirectly, for
 any damage or loss that anybody could suffer for having used it. More
 details about the non-warranty attached to this code are available in the
 license description file.
+
+[IBM® ILOG® CPLEX® Optimization Studio]: https://www.ibm.com/products/ilog-cplex-optimization-studio
+[SCIP]: https://scipopt.org/index.php
