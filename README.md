@@ -79,7 +79,7 @@ see the [LICENSE](LICENSE) file for details.
 
 ## Disclaimer
 
-The code is currently provided free of charge for academic purposes only.
+The code is currently provided free of charge under an open-source license.
 As such, it is provided "*as is*", without any explicit or implicit warranty
 that it will properly behave or it will suit your needs. The Authors of
 the code cannot be considered liable, either directly or indirectly, for
