@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Full support for CPLEX parameters.
+- Full support for CPLEX and SCIP parameters.
+- Support for dual solution and dual direction.
+- Tools.
+
+### Fixed
+
+- Too many individual fixes to list.
 
 ## [0.3.0] - 2020-09-16
 
