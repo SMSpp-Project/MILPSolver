@@ -119,6 +119,12 @@ conduct, and the process for submitting merge requests to us.
   Dipartimento di Informatica  
   Università di Pisa
 
+### Contributors
+
+- **Rafael Durbano Lobato**  
+  Department of Applied Mathematics  
+  State University of Campinas, Brazil
+
 ## License
 
 This code is provided free of charge under the [GNU Lesser General Public
