@@ -100,6 +100,11 @@ such headers can be generated with the `cpx_pars` and `scip_pars` tools.
 > We provide header files for the versions we already support, so you will
 > need these tools only if you have an unsupported version of either CPLEX or SCIP.
 
+## Getting help
+
+If you need support, you want to submit bugs or propose a new feature, you can
+[open a new issue](https://gitlab.com/smspp/milpsolver/-/issues/new).
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of
