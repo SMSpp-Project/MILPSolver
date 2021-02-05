@@ -1,5 +1,5 @@
 /** @file
- * Configuration header of the MILPSolver library.
+ * Configuration header for @modName@.
  *
  * \author Niccolò Iardella \n
  *         Operations Research Group \n
@@ -9,12 +9,12 @@
  * \copyright &copy; Niccolò Iardella
  */
 
-#ifndef __MILPSOLVER_CONFIG_H
-#define __MILPSOLVER_CONFIG_H
+#ifndef __@modName@_CONFIG_H
+#define __@modName@_CONFIG_H
 
-#define MILPSolver_VERSION       "@MILPSolver_VERSION@"
-#define MILPSolver_VERSION_MAJOR "@MILPSolver_VERSION_MAJOR@"
-#define MILPSolver_VERSION_MINOR "@MILPSolver_VERSION_MINOR@"
-#define MILPSolver_VERSION_PATCH "@MILPSolver_VERSION_PATCH@"
+#define @modName@_VERSION       "@PROJECT_VERSION@"
+#define @modName@_VERSION_MAJOR "@PROJECT_VERSION_MAJOR@"
+#define @modName@_VERSION_MINOR "@PROJECT_VERSION_MINOR@"
+#define @modName@_VERSION_PATCH "@PROJECT_VERSION_PATCH@"
 
 #endif

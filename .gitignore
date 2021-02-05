@@ -1,3 +1,6 @@
+### Makefile-generated binaries
+tools/cpx_pars
+
 ### C/C++ template
 # Prerequisites
 *.d
@@ -64,7 +67,7 @@ CMakeCache.txt
 CMakeFiles
 CMakeScripts
 Testing
-Makefile
+#Makefile
 cmake_install.cmake
 install_manifest.txt
 compile_commands.json
