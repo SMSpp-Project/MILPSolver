@@ -201,9 +201,9 @@ void SCIPMILPSolver::load_problem() {
 
   for( int i = 0; i < numcols; ++i ) {
 
-   if (q_objective[i] == 0) {
-    aux_vars[i] = nullptr;
-    aux_cons[i] = nullptr;
+   if( q_objective[ i ] == 0 ) {
+    aux_vars[ i ] = nullptr;
+    aux_cons[ i ] = nullptr;
     continue;
    }
 
@@ -1532,9 +1532,11 @@ ThinComputeInterface::idx_type
 SCIPMILPSolver::int_par_str2idx( const std::string & name ) const {
 
  // SCIP parameters
- auto it = lower_bound( SCIP_to_SMSpp_int_pars.begin(),
-                        SCIP_to_SMSpp_int_pars.end(),
-                        std::make_pair( name, 0 ) );
+ auto it = find_if( SCIP_to_SMSpp_int_pars.begin(),
+                    SCIP_to_SMSpp_int_pars.end(),
+                    [ & ]( const std::pair< std::string, int > & pair ) {
+                     return pair.first == name;
+                    } );
 
  if( it != SCIP_to_SMSpp_int_pars.end() && it->first == name ) {
   return it->second;
@@ -1562,9 +1564,11 @@ ThinComputeInterface::idx_type
 SCIPMILPSolver::dbl_par_str2idx( const std::string & name ) const {
 
  // SCIP parameters
- auto it = lower_bound( SCIP_to_SMSpp_dbl_pars.begin(),
-                        SCIP_to_SMSpp_dbl_pars.end(),
-                        std::make_pair( name, 0 ) );
+ auto it = find_if( SCIP_to_SMSpp_dbl_pars.begin(),
+                    SCIP_to_SMSpp_dbl_pars.end(),
+                    [ & ]( const std::pair< std::string, int > & pair ) {
+                     return pair.first == name;
+                    } );
 
  if( it != SCIP_to_SMSpp_dbl_pars.end() && it->first == name ) {
   return it->second;
@@ -1593,9 +1597,11 @@ ThinComputeInterface::idx_type
 SCIPMILPSolver::str_par_str2idx( const std::string & name ) const {
 
  // SCIP parameters
- auto it = lower_bound( SCIP_to_SMSpp_str_pars.begin(),
-                        SCIP_to_SMSpp_str_pars.end(),
-                        std::make_pair( name, 0 ) );
+ auto it = find_if( SCIP_to_SMSpp_str_pars.begin(),
+                    SCIP_to_SMSpp_str_pars.end(),
+                    [ & ]( const std::pair< std::string, int > & pair ) {
+                     return pair.first == name;
+                    } );
 
  if( it != SCIP_to_SMSpp_str_pars.end() && it->first == name ) {
   return it->second;
