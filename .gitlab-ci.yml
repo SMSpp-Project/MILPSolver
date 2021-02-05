@@ -40,6 +40,18 @@ build:
   artifacts:
     paths:
       - build
+  only:
+    refs:
+      - master
+      - develop
+      - tags
+    changes:
+      - cmake/*
+      - include/*
+      - src/*
+      - test/*
+      - tools/*
+      - CMakeLists.txt
 
 test:
   stage: test
@@ -47,6 +59,18 @@ test:
     - cmake --build smspp/build --target install
   script:
     - cmake --build build --target test
+  only:
+    refs:
+      - master
+      - develop
+      - tags
+    changes:
+      - cmake/*
+      - include/*
+      - src/*
+      - test/*
+      - tools/*
+      - CMakeLists.txt
 
 #deploy:
 #  stage: deploy
