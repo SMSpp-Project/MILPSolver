@@ -30,7 +30,7 @@ make
 ```
 
 The library has the same configuration options of
-[SMS++](https://gitlab.com/smspp/smspp/wikis/custom).
+[SMS++](https://gitlab.com/smspp/smspp-project/-/wikis/Customize-the-configuration).
 Moreover, you can use the following configuration options:
 
 | Variable               | Description | Default value |
