@@ -127,8 +127,9 @@ conduct, and the process for submitting merge requests to us.
 ### Contributors
 
 - **Rafael Durbano Lobato**  
-  Department of Applied Mathematics  
-  State University of Campinas, Brazil
+  *Operations Research Group*  
+  Dipartimento di Informatica  
+  Università di Pisa
 
 ## License
 
