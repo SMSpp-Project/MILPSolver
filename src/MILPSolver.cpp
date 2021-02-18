@@ -379,9 +379,27 @@ void MILPSolver::load_problem() {
   }
 
   auto counter = [ this ]( ColVariable & var ) {
+   const auto var_block = var.get_Block();
+
    for( auto * i : var.active_stuff() ) {
     auto * row = dynamic_cast<FRowConstraint *>(i);
-    if( row != nullptr ) {
+
+    if( row == nullptr ) {
+     continue;
+    }
+
+    bool is_mine = false;
+    auto b = row->get_Block();
+    do {
+     if( b == var_block ) {
+      is_mine = true;
+      break;
+     } else {
+      b = b->get_f_Block();
+     }
+    } while( b );
+
+    if( is_mine ) {
      ++nzelements;
     }
    }
@@ -730,14 +748,28 @@ double MILPSolver::get_problem_ub( const ColVariable & var ) {
 std::vector< FRowConstraint * >
 MILPSolver::get_active_constraints( const ColVariable & var ) {
  std::vector< FRowConstraint * > active_constraints;
+ const auto var_block = var.get_Block();
+
  for( auto * i : var.active_stuff() ) {
   auto * row = dynamic_cast<FRowConstraint *>(i);
-  if( row != nullptr ) {
-   // We check for index_of_constraint() to skip the constraints
-   // that do not belong to the problem (e.g. they belong to superblocks).
-   if( index_of_constraint( row ) < Inf< int >() ) {
-    active_constraints.push_back( row );
+
+  if( row == nullptr ) {
+   continue;
+  }
+
+  bool is_mine = false;
+  auto b = row->get_Block();
+  do {
+   if( b == var_block ) {
+    is_mine = true;
+    break;
+   } else {
+    b = b->get_f_Block();
    }
+  } while( b );
+
+  if( is_mine ) {
+   active_constraints.push_back( row );
   }
  }
  return active_constraints;
