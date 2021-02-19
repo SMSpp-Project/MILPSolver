@@ -379,8 +379,6 @@ void MILPSolver::load_problem() {
   }
 
   auto counter = [ this ]( ColVariable & var ) {
-   const auto var_block = var.get_Block();
-
    for( auto * i : var.active_stuff() ) {
     auto * row = dynamic_cast<FRowConstraint *>(i);
 
@@ -391,7 +389,7 @@ void MILPSolver::load_problem() {
     bool is_mine = false;
     auto b = row->get_Block();
     do {
-     if( b == var_block ) {
+     if( b == f_Block ) {
       is_mine = true;
       break;
      } else {
@@ -748,8 +746,6 @@ double MILPSolver::get_problem_ub( const ColVariable & var ) {
 std::vector< FRowConstraint * >
 MILPSolver::get_active_constraints( const ColVariable & var ) {
  std::vector< FRowConstraint * > active_constraints;
- const auto var_block = var.get_Block();
-
  for( auto * i : var.active_stuff() ) {
   auto * row = dynamic_cast<FRowConstraint *>(i);
 
@@ -760,7 +756,7 @@ MILPSolver::get_active_constraints( const ColVariable & var ) {
   bool is_mine = false;
   auto b = row->get_Block();
   do {
-   if( b == var_block ) {
+   if( b == f_Block ) {
     is_mine = true;
     break;
    } else {
