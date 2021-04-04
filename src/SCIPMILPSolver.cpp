@@ -1149,18 +1149,18 @@ SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
-
+void SCIPMILPSolver::set_par( idx_type par , int value )
+{
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case intMaxIter:
-   SCIP_CALL_ABORT( SCIPsetLongintParam( scip, "limits/nodes", value ) );
+   SCIP_CALL_ABORT( SCIPsetLongintParam( scip , "limits/nodes" , value ) );
    return;
   case intMaxSol:
-   SCIP_CALL_ABORT( SCIPsetIntParam( scip, "limits/solutions", value ) );
+   SCIP_CALL_ABORT( SCIPsetIntParam( scip , "limits/solutions" , value ) );
    return;
   case intLogVerb:
-   SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", value ) );
+   SCIP_CALL_ABORT( SCIPsetIntParam( scip , "display/verblevel" , value ) );
    return;
   default:;
  }
@@ -1184,17 +1184,17 @@ void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
   return;
  }
 
- MILPSolver::set_par( par, value );
-}
+ MILPSolver::set_par( par , value );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::set_par( idx_type par, const double value ) {
-
+void SCIPMILPSolver::set_par( idx_type par , double value )
+{
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case dblMaxTime:
-   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/time", value ) );
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip , "limits/time" , value ) );
    return;
    // case dblRelAcc: // TODO
    //  return;
@@ -1211,16 +1211,16 @@ void SCIPMILPSolver::set_par( idx_type par, const double value ) {
    //  }
    //  return;
   case dblRAccSol:
-   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/gap", value ) );
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip , "limits/gap" , value ) );
    return;
   case dblAAccSol:
-   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "limits/absgap", value ) );
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip , "limits/absgap" , value ) );
    return;
   case dblFAccSol:
-   SCIP_CALL_ABORT( SCIPsetRealParam( scip, "numerics/feastol", value ) );
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip , "numerics/feastol" , value ) );
    return;
   default:;
- }
+  }
 
  // SCIP parameters
  if( par >= dblFirstSCIPPar && par < dblLastAlgParSCPS ) {
@@ -1228,15 +1228,15 @@ void SCIPMILPSolver::set_par( idx_type par, const double value ) {
    SMSpp_to_SCIP_dbl_pars[ par - dblFirstSCIPPar ];
   SCIP_CALL_ABORT( SCIPsetRealParam( scip, scip_par.c_str(), value ) );
   return;
- }
+  }
 
- MILPSolver::set_par( par, value );
-}
+ MILPSolver::set_par( par , value );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::set_par( idx_type par, const std::string & value ) {
-
+void SCIPMILPSolver::set_par( idx_type par , std::string && value )
+{
  // SCIP parameters
  if( par >= strFirstSCIPPar && par < strLastAlgParSCPS ) {
   const std::string & scip_par =
@@ -1253,10 +1253,10 @@ void SCIPMILPSolver::set_par( idx_type par, const std::string & value ) {
                                         value.c_str() ) );
   }
   return;
- }
+  }
 
- MILPSolver::set_par( par, value );
-}
+ MILPSolver::set_par( par , std::move( value ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
