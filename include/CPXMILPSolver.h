@@ -239,13 +239,13 @@ class CPXMILPSolver : public MILPSolver {
   *      bound and there is no OneVarConstraint on that Variable whose lower
   *      or upper bound match the bounds of the Variable.
   */
- void set_par( idx_type par , int value ) override;
+ void set_par( idx_type par, int value ) override;
 
  /// Sets a double parameter with the given value
- void set_par( idx_type par , double value ) override;
+ void set_par( idx_type par, double value ) override;
 
  /// Sets a string parameter with the given value
- void set_par( idx_type par , std::string && value ) override;
+ void set_par( idx_type par, std::string && value ) override;
 
  /// Gets the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par() const override;

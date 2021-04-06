@@ -208,7 +208,7 @@ class SCIPMILPSolver : public MILPSolver {
  void set_par( idx_type par, double value ) override;
 
  /// Sets a string parameter with the given value
- void set_par( idx_type par , std::string && value ) override;
+ void set_par( idx_type par, std::string && value ) override;
 
  /// Gets the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par() const override;

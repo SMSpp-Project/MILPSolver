@@ -2108,23 +2108,22 @@ CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_par( idx_type par , int value )
-{
+void CPXMILPSolver::set_par( idx_type par, int value ) {
  // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
   case intMaxIter:
-   CPXsetlongparam( env , CPXPARAM_MIP_Limits_Nodes , value );
+   CPXsetlongparam( env, CPXPARAM_MIP_Limits_Nodes, value );
    return;
   case intMaxSol:
-   CPXsetintparam( env , CPXPARAM_MIP_Pool_Capacity , value );
+   CPXsetintparam( env, CPXPARAM_MIP_Pool_Capacity, value );
    return;
   case intLogVerb:
-   CPXsetintparam( env , CPXPARAM_ScreenOutput , value );
+   CPXsetintparam( env, CPXPARAM_ScreenOutput, value );
    return;
   case intThrowReducedCostException:
    throw_reduced_cost_exception = value;
   default:;
-  }
+ }
 
  // CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
@@ -2134,74 +2133,72 @@ void CPXMILPSolver::set_par( idx_type par , int value )
   int type;
   CPXgetparamtype( env, cplex_par, &type );
 
-  if( type == CPX_PARAMTYPE_INT )
+  if( type == CPX_PARAMTYPE_INT ) {
    CPXsetintparam( env, cplex_par, value );
-  else
-   if( type == CPX_PARAMTYPE_LONG )
-    CPXsetlongparam( env, cplex_par, value );
-
-  return;
+  } else if( type == CPX_PARAMTYPE_LONG ) {
+   CPXsetlongparam( env, cplex_par, value );
   }
 
- MILPSolver::set_par( par , value );
+  return;
  }
+
+ MILPSolver::set_par( par, value );
+}
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_par( idx_type par, double value )
-{
+void CPXMILPSolver::set_par( idx_type par, double value ) {
  // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
   case dblMaxTime:
-   CPXsetdblparam( env , CPXPARAM_TimeLimit , value );
+   CPXsetdblparam( env, CPXPARAM_TimeLimit, value );
    return;
   case dblRelAcc:
-   CPXsetdblparam( env , CPXPARAM_MIP_Tolerances_RelObjDifference , value );
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_RelObjDifference, value );
    return;
   case dblAbsAcc:
-   CPXsetdblparam( env , CPXPARAM_MIP_Tolerances_ObjDifference , value );
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_ObjDifference, value );
    return;
   case dblUpCutOff:
-   CPXsetdblparam( env , CPXPARAM_MIP_Tolerances_UpperCutoff , value );
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_UpperCutoff, value );
    return;
   case dblLwCutOff:
-   CPXsetdblparam( env , CPXPARAM_MIP_Tolerances_LowerCutoff , value );
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, value );
    return;
   case dblRAccSol:
-   CPXsetdblparam( env , CPXPARAM_MIP_Tolerances_MIPGap , value );
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_MIPGap, value );
    return;
   case dblAAccSol:
-   CPXsetdblparam( env , CPXPARAM_MIP_Tolerances_AbsMIPGap , value );
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap, value );
    return;
   case dblFAccSol:
-   CPXsetdblparam( env , CPXPARAM_Simplex_Tolerances_Feasibility , value );
+   CPXsetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, value );
    return;
   default:;
-  }
+ }
 
  // CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
-  CPXsetdblparam( env , cplex_par , value );
+  CPXsetdblparam( env, cplex_par, value );
   return;
-  }
-
- MILPSolver::set_par( par , value );
  }
+
+ MILPSolver::set_par( par, value );
+}
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_par( idx_type par , std::string && value )
-{
+void CPXMILPSolver::set_par( idx_type par, std::string && value ) {
  // CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
-  CPXsetstrparam( env , cplex_par , value.c_str() );
+  CPXsetstrparam( env, cplex_par, value.c_str() );
   return;
-  }
-
- MILPSolver::set_par( par , std::move( value ) );
  }
+
+ MILPSolver::set_par( par, std::move( value ) );
+}
 
 /*--------------------------------------------------------------------------*/
 

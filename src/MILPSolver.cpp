@@ -2009,42 +2009,39 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 /*------------------------------- PARAMETERS -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::set_par( idx_type par , int value )
-{
+void MILPSolver::set_par( idx_type par, int value ) {
  if( par == intUseCustomNames ) {
   use_custom_names = bool( value );
   return;
-  }
+ }
  if( par == intRelaxIntVars ) {
   relax_int_vars = bool( value );
   return;
-  }
-
- CDASolver::set_par( par , value );
  }
+
+ CDASolver::set_par( par, value );
+}
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::set_par( idx_type par , double value )
-{
- CDASolver::set_par( par , value );
- }
+void MILPSolver::set_par( idx_type par, double value ) {
+ CDASolver::set_par( par, value );
+}
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::set_par( idx_type par , std::string && value )
-{
+void MILPSolver::set_par( idx_type par, std::string && value ) {
  if( par == strProblemName ) {
   prob_name = std::move( value );
   return;
-  }
+ }
  if( par == strOutputFile ) {
   output_file = std::move( value );
   return;
-  }
-
- CDASolver::set_par( par , std::move( value ) );
  }
+
+ CDASolver::set_par( par, std::move( value ) );
+}
 
 /*--------------------------------------------------------------------------*/
 
