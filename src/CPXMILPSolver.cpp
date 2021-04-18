@@ -2423,14 +2423,17 @@ double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
 
 const std::string &
 CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
- static std::string value;
+ static std::vector< std::string > value( strLastAlgParCPXS - strFirstCPLEXPar );
 
- // CPLEX parameters
+// CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
-  value.reserve( CPX_STR_PARAM_MAX );
-  CPXinfostrparam( env, cplex_par, value.data() );
-  return value;
+  auto i = par - strFirstCPLEXPar;
+  if( value[ i ].empty() ) {
+   value[ i ].reserve( CPX_STR_PARAM_MAX );
+   CPXinfostrparam( env , SMSpp_to_CPLEX_str_pars[ i ] , value[ i ].data() );
+  }
+
+  return value[ i ];
  }
 
  return MILPSolver::get_dflt_str_par( par );
