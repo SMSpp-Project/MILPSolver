@@ -109,6 +109,7 @@ void CPXMILPSolver::load_problem() {
 
  std::vector< double > cpx_lb = lb;
  std::vector< double > cpx_ub = ub;
+ std::vector< double > cpx_rhs = rhs;
 
  for( int i = 0; i < numcols; ++i ) {
   if( cpx_lb[ i ] == -Inf< double >() ) {
@@ -119,13 +120,21 @@ void CPXMILPSolver::load_problem() {
   }
  }
 
+ for( int i = 0; i < numrows; ++i ) {
+  if( cpx_rhs[ i ] == -Inf< double >() ) {
+   cpx_rhs[ i ] = -CPX_INFBOUND;
+  } else if( cpx_rhs[ i ] == Inf< double >() ) {
+   cpx_rhs[ i ] = CPX_INFBOUND;
+  }
+ }
+
  if( use_custom_names ) {
   CPXcopylpwnames( env, lp,
                    numcols,
                    numrows,
                    objsense,
                    objective.data(),
-                   rhs.data(),
+                   cpx_rhs.data(),
                    sense.data(),
                    matbeg.data(),
                    matcnt.data(),
@@ -142,7 +151,7 @@ void CPXMILPSolver::load_problem() {
              numrows,
              objsense,
              objective.data(),
-             rhs.data(),
+             cpx_rhs.data(),
              sense.data(),
              matbeg.data(),
              matcnt.data(),
