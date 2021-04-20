@@ -46,9 +46,9 @@ option(${modName}_USE_CPLEX "Whether ${modName} will use CPLEX or not." ON)
 option(${modName}_USE_SCIP "Whether ${modName} will use SCIP or not." ON)
 
 # A lot of debug prints
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    add_compile_definitions(MILPSOLVER_DEBUG)
-endif ()
+#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+#    add_compile_definitions(MILPSOLVER_DEBUG)
+#endif ()
 
 # ----- Requirements -------------------------------------------------------- #
 # This adds the cmake directory to the find module search paths,
