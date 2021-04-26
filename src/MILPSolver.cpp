@@ -1294,6 +1294,14 @@ void MILPSolver::process_modifications() {
  for( auto mod = front(); mod; mod = front() ) {
   f( mod );
   pop_front();
+
+  if( std::dynamic_pointer_cast< NBModification >( mod ) ) {
+   // An NBModification has just been handled.
+   // All the remaining Modifications must be ignored.
+   while( front() )
+    pop_front();
+   break;
+  }
  }
 
 #ifdef MILPSOLVER_DEBUG
