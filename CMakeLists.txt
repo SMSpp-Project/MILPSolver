@@ -51,11 +51,15 @@ option(${modName}_USE_SCIP "Whether ${modName} will use SCIP or not." ON)
 #endif ()
 
 # ----- Requirements -------------------------------------------------------- #
+# If it's not being called by the umbrella, we need to
+# look for the system-installed libraries.
+if (NOT hasParent)
+    find_package(SMSpp REQUIRED)
+endif()
+
 # This adds the cmake directory to the find module search paths,
 # allowing us to use our find modules.
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-
-find_package(SMSpp REQUIRED)
 
 if (MILPSolver_USE_CPLEX)
     find_package(CPLEX 12.8) # Needed for CPXMILPSolver
@@ -247,16 +251,17 @@ if (CMAKE_EXPORT_PACKAGE_REGISTRY)
         configure_file(${findMod} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
     endforeach ()
 
-    # Add the binary directory to RPATH, so executables that use
-    # dynamic loading will look into it.
-    if (hasParent)
-        set(SMSPP_BUILD_RPATH
-            "${SMSPP_BUILD_RPATH};${CMAKE_CURRENT_BINARY_DIR}"
-            PARENT_SCOPE)
-    endif ()
-
     # Export the package in user's package registry
     export(PACKAGE ${modName})
+endif()
+
+# ----- Add the build tree to RPATH------------------------------------------ #
+# Add the binary directory to RPATH, so executables that use
+# dynamic loading will look into it.
+if (hasParent)
+    set(SMSPP_BUILD_RPATH
+        "${SMSPP_BUILD_RPATH};${CMAKE_CURRENT_BINARY_DIR}"
+        PARENT_SCOPE)
 endif ()
 
 # ----- Packaging support --------------------------------------------------- #
