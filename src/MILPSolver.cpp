@@ -1211,88 +1211,87 @@ void MILPSolver::process_modifications() {
   * e.g., OneVarConstraintMod before RowConstraintMod before ConstraintMod,
   * otherwise the generic case will intercept the more specialized Mods.
   */
+
+ // A function like this is needed to be called
+ // recursively with GroupModifications
+ std::function< void( sp_Mod ) > f;
+
+ f = [ this, &f ]( const sp_Mod & mod ) {
+  // DEBUG_LOG( *mod );
+
+  const auto gm = std::dynamic_pointer_cast< GroupModification >( mod );
+  if( gm ) {
+   // DEBUG_LOG( "GroupModification containing:" << std::endl );
+   for( const auto & submod : gm->sub_Modifications() ) {
+    f( submod );
+   }
+   return;
+  }
+
+  const auto vm = std::dynamic_pointer_cast< VariableMod >( mod );
+  if( vm ) {
+   var_modification( vm.get() );
+   return;
+  }
+
+  const auto om = std::dynamic_pointer_cast< ObjectiveMod >( mod );
+  if( om ) {
+   objective_modification( om.get() );
+   return;
+  }
+
+  const auto bm = std::dynamic_pointer_cast< OneVarConstraintMod >( mod );
+  if( bm ) {
+   bound_modification( bm.get() );
+   return;
+  }
+
+  const auto tmod = std::dynamic_pointer_cast< RowConstraintMod >( mod );
+  if( tmod ) {
+   const_modification( tmod.get() );
+   return;
+  }
+
+  const auto cm = std::dynamic_pointer_cast< ConstraintMod >( mod );
+  if( cm ) {
+   const_modification( cm.get() );
+   return;
+  }
+
+  const auto fm = std::dynamic_pointer_cast< FunctionMod >( mod );
+  if( fm ) {
+   if( is_of( fm->function() ) ) {
+    objective_function_modification( fm.get() );
+   } else {
+    constraint_function_modification( fm.get() );
+   }
+   return;
+  }
+
+  const auto fvm = std::dynamic_pointer_cast< FunctionModVars >( mod );
+  if( fvm ) {
+   if( is_of( fvm->function() ) ) {
+    objective_fvars_modification( fvm.get() );
+   } else {
+    constraint_fvars_modification( fvm.get() );
+   }
+   return;
+  }
+
+  const auto dm = std::dynamic_pointer_cast< BlockModAD >( mod );
+  if( dm ) {
+   dynamic_modification( dm.get() );
+   return;
+  }
+
+  const auto nm = std::dynamic_pointer_cast< NBModification >( mod );
+  if( nm ) {
+   load_problem();
+  }
+ };
+
+ // Process the Modifications
  for( auto mod = front(); mod; mod = front() ) {
-
-  // A function like this is needed to be called
-  // recursively with GroupModifications
-  std::function< void( sp_Mod ) > f;
-
-  f = [ this, &f ]( const sp_Mod & mod ) {
-   // DEBUG_LOG( *mod );
-
-   const auto gm = std::dynamic_pointer_cast< GroupModification >( mod );
-   if( gm ) {
-    // DEBUG_LOG( "GroupModification containing:" << std::endl );
-    for( const auto & submod : gm->sub_Modifications() ) {
-     f( submod );
-    }
-    return;
-   }
-
-   const auto vm = std::dynamic_pointer_cast< VariableMod >( mod );
-   if( vm ) {
-    var_modification( vm.get() );
-    return;
-   }
-
-   const auto om = std::dynamic_pointer_cast< ObjectiveMod >( mod );
-   if( om ) {
-    objective_modification( om.get() );
-    return;
-   }
-
-
-   const auto bm = std::dynamic_pointer_cast< OneVarConstraintMod >( mod );
-   if( bm ) {
-    bound_modification( bm.get() );
-    return;
-   }
-
-
-   const auto tmod = std::dynamic_pointer_cast< RowConstraintMod >( mod );
-   if( tmod ) {
-    const_modification( tmod.get() );
-    return;
-   }
-
-   const auto cm = std::dynamic_pointer_cast< ConstraintMod >( mod );
-   if( cm ) {
-    const_modification( cm.get() );
-    return;
-   }
-
-   const auto fm = std::dynamic_pointer_cast< FunctionMod >( mod );
-   if( fm ) {
-    if( is_of( fm->function() ) ) {
-     objective_function_modification( fm.get() );
-    } else {
-     constraint_function_modification( fm.get() );
-    }
-    return;
-   }
-
-   const auto fvm = std::dynamic_pointer_cast< FunctionModVars >( mod );
-   if( fvm ) {
-    if( is_of( fvm->function() ) ) {
-     objective_fvars_modification( fvm.get() );
-    } else {
-     constraint_fvars_modification( fvm.get() );
-    }
-    return;
-   }
-
-   const auto dm = std::dynamic_pointer_cast< BlockModAD >( mod );
-   if( dm ) {
-    dynamic_modification( dm.get() );
-    return;
-   }
-
-   const auto nm = std::dynamic_pointer_cast< NBModification >( mod );
-   if( nm ) {
-    load_problem();
-   }
-  };
-
   f( mod );
   pop_front();
  }
