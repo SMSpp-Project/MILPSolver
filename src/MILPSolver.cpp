@@ -2086,8 +2086,7 @@ double MILPSolver::get_dflt_dbl_par( idx_type par ) const {
 /*--------------------------------------------------------------------------*/
 
 const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const {
- static const std::vector< std::string > vals = { "MILPSolver_prob",
-                                                  "output.lp" };
+ static const std::vector< std::string > vals = { "MILPSolver_prob", "" };
  if( par == strProblemName ) {
   return vals[ 0 ];
  }
