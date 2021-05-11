@@ -17,7 +17,7 @@ if (MILPSolver_USE_SCIP)
 endif ()
 
 # ----- MILP Solver tool ---------------------------------------------------- #
-add_executable(milp_solver solver.cpp ../test/SimpleMILPBlock.cpp)
+add_executable(milp_solver solver.cpp)
 target_link_libraries(milp_solver PRIVATE SMS++::MILPSolver)
 
 # Since we are using the block factory, objects from linked libraries

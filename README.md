@@ -68,10 +68,10 @@ The repository contains some tools that are built with the library.
 
 ### Solver
 
-The `milp_solver` tool reads MILP problems from text files and solves them.
+The `milp_solver` tool reads MILP problems from MPS files and solves them.
 Optionally, it writes back the problem in netCDF format.
 
-You can find some example input files in the [`test`](test) directory.
+You can find some example MPS files in the [`test`](test) directory.
 For the block and solver configuration file format,
 see the [SMS++ core library](https://gitlab.com/smspp/smspp).
 

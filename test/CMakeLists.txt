@@ -43,7 +43,7 @@ if (NOT googletest_POPULATED)
 endif ()
 
 # ----- MILPSolver_test ----------------------------------------------------- #
-add_executable(MILPSolver_test test.cpp SimpleMILPBlock.cpp)
+add_executable(MILPSolver_test test.cpp)
 target_link_libraries(MILPSolver_test PRIVATE
                       SMS++::MILPSolver
                       gtest)

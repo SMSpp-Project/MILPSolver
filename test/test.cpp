@@ -3,7 +3,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include <gtest/gtest.h>
-#include "SimpleMILPBlock.h"
+#include <AbstractBlock.h>
 #include "CPXMILPSolver.h"
 
 /*--------------------------------------------------------------------------*/
@@ -34,19 +34,16 @@ class MILPSolverTest :
  ~MILPSolverTest() override = default;
 
  void SetUp() override {
-  block = new SimpleMILPBlock();
+  block = new AbstractBlock();
   EXPECT_TRUE( block != nullptr );
-
-  std::ifstream file( std::get< 0 >( GetParam() ) );
-  ASSERT_TRUE( file.is_open() );
-  file >> *block;
+  block->read( std::get< 0 >( GetParam() ) );
  }
 
  void TearDown() override {
   delete block;
  }
 
- SimpleMILPBlock * block{};
+ AbstractBlock * block{};
 };
 
 /*--------------------------------------------------------------------------*/
@@ -63,8 +60,10 @@ TEST_P( MILPSolverTest, SimpleSolve ) {
  // Check the variable values
  solver->get_var_solution();
  const auto & opt_vars = std::get< 1 >( GetParam() );
- for( int i = 0; i < block->get_x().size(); ++i ) {
-  auto x = block->get_x()[ i ].get_value();
+ for( int i = 0;
+      i < block->get_static_variable_v< ColVariable >( 0 )->size(); ++i ) {
+  auto x = ( *block->get_static_variable_v< ColVariable >( 0 ) )[ i ]
+   .get_value();
   ASSERT_NEAR( x, opt_vars[ i ], 1e-6 );
  }
 
@@ -82,10 +81,10 @@ TEST_P( MILPSolverTest, SimpleSolve ) {
 INSTANTIATE_TEST_SUITE_P( CPXMILPSolverTests,
                           MILPSolverTest,
                           ::testing::Values(
-                           TestParameter( TestFile( "test0.milp" ),
+                           TestParameter( TestFile( "test0.mps" ),
                                           OptVars{ 4, 1 },
                                           OptSolution( -22 ) ),
-                           TestParameter( TestFile( "test1.milp" ),
+                           TestParameter( TestFile( "test1.mps" ),
                                           OptVars{ 0.333333, 0, 0.333333, 2 },
                                           OptSolution( 3.33333333e+00 ) ) ) );
 
