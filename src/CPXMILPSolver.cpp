@@ -774,6 +774,8 @@ Solver::OFValue CPXMILPSolver::get_lb() {
      break;
 
     case kOK:
+    case kStopIter:
+    case kStopTime:
      switch( probtype ) {
       case CPXPROB_MILP:
       case CPXPROB_MIQP:
@@ -809,6 +811,15 @@ Solver::OFValue CPXMILPSolver::get_lb() {
     case kInfeasible:
      lower_bound = -Inf< OFValue >();
      break;
+
+    // if the algorithm has been stopped, the bound only exists if a
+    // feasible solution has been generated
+    case kStopIter:
+    case kStopTime:
+     if( ! has_var_solution() ) {
+      lower_bound = - Inf< OFValue >();
+      break;
+      }
 
     case kOK:
      CPXgetobjval( env, lp, &lower_bound );
@@ -851,6 +862,15 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      upper_bound = Inf< OFValue >();
      break;
 
+    // if the algorithm has been stopped, the bound only exists if a
+    // feasible solution has been generated
+    case kStopIter:
+    case kStopTime:
+     if( ! has_var_solution() ) {
+      upper_bound = Inf< OFValue >();
+      break;
+      }
+
     case kOK:
      CPXgetobjval( env, lp, &upper_bound );
      break;
@@ -879,6 +899,8 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      break;
 
     case kOK:
+    case kStopIter:
+    case kStopTime:
      switch( probtype ) {
       case CPXPROB_MILP:
       case CPXPROB_MIQP:
