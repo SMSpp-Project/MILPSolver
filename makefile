@@ -22,6 +22,7 @@
 #           $(SMS++INC)    = the -I$( core SMS++ directory )                 #
 #           $(SMS++OBJ)    = the core SMS++ library                          #
 #           $(libCPLEXINC) = the -I$( Cplex library )                        #
+#           $(libSCIPINC)  = the -I$( SCIP library )                         #
 #           $(MILPSSDR)    = the directory where the source is               #
 #                                                                            #
 #   Output: $(MILPSOBJ)    = the final object(s) / library                   #

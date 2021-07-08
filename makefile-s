@@ -1,0 +1,64 @@
+##############################################################################
+################################ makefile-s ##################################
+##############################################################################
+#									     #
+#   makefile of MILPSolver and its dependencies, excluding SMS++             #
+#									     #
+#   The makefile defines internally all external libraries required by       #
+#   MILPSolver, exluding the SMS++ core ones whose symbols are assumed to    #
+#   have been defined yet (typically by including SMS++/lib/makefile).       #
+#   Accordingly, all necessary OBJ, H, -I directives, external libraries     #
+#   + -L<libdirs> are added to the corresponding MILPS* macros.              #
+#                                                                            #
+#   Input:  $(CC)       = compiler command                                   #
+#           $(SW)       = compiler options                                   #
+#           $(SMS++INC)    = the -I$( core SMS++ directory )                 #
+#           $(SMS++OBJ)    = the core SMS++ library                          #
+#           $(MILPSSDR) = the directory where MILPSolver source is           #
+#           $(MILPSODR) = the directory where the objects have to be put     #
+#                                                                            #
+#   Output: $(MILPSOBJ) = the final object(s) / library                      #
+#           $(MILPSLIB) = external libraries + -L<libdirs>                   #
+#           $(MILPSH)   = the .h files to include for MILPSolver             #
+#           $(MILPSINC) = the -I$( MILPSolver directory )                    #
+#                                                                            #
+#                                VERSION 1.00                                #
+#                               06 - 07 - 2021                               #
+#                                                                            #
+#                              Antonio Frangioni                             #
+#                          Operations Research Group                         #
+#                         Dipartimento di Informatica                        #
+#                             Universita' di Pisa                            #
+#									     #
+##############################################################################
+
+# define & include the necessary modules- - - - - - - - - - - - - - - - - - -
+# if a module is not used in the current configuration, just comment out the
+# corresponding include line
+# each module outputs some macros to be used here:
+# *OBJ is the final object/library
+# *H   is the list of all include files
+# *INC is the -I<include directories>
+
+# define input macros for libCPLEX complete makefile, then include it
+libCPLEXDIR = $(MILPSSDR)../extlib/
+include $(libCPLEXDIR)makefile-libCPLEX
+
+# define input macros for libSCIP complete makefile, then include it
+libSCIPDIR = $(MILPSSDR)../extlib/
+include $(libSCIPDIR)makefile-libSCIP
+
+# include the makefile requiring all external modules in input
+include $(MILPSSDR)/makefile
+
+# macroes to be exported- - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# append external -I directives to MILPSINC, MILPSOBJ and MILPSH as defined
+# by the makefile, thus the := assignment has to be used (use GNU make)
+MILPSOBJ := $(MILPSOBJ)
+MILPSINC := $(MILPSINC) $(libCPLEXINC) $(libSCIPINC)
+
+# external libreries for MILPSolver
+MILPSLIB = $(libCPLEXLIB) $(libSCIPLIB)
+
+########################### End of makefile-s ################################
