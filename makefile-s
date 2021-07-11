@@ -6,7 +6,7 @@
 #									     #
 #   The makefile defines internally all external libraries required by       #
 #   MILPSolver, exluding the SMS++ core ones whose symbols are assumed to    #
-#   have been defined yet (typically by including SMS++/lib/makefile).       #
+#   have been defined already (typically by including SMS++/lib/makefile).   #
 #   Accordingly, all necessary OBJ, H, -I directives, external libraries     #
 #   + -L<libdirs> are added to the corresponding MILPS* macros.              #
 #                                                                            #
