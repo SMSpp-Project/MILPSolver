@@ -1,5 +1,6 @@
 ### Makefile-generated binaries
 tools/cpx_pars
+tools/scip_pars
 
 ### C/C++ template
 # Prerequisites
