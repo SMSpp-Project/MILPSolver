@@ -1421,18 +1421,9 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
  std::vector< char > ctype;
  int is_mip = CPXgetintvars( &ctype );
 
- if( is_mip > 0 ) {
-  if( ctype[ idx ] == 'B' || ctype[ idx ] == 'I' ) {
-   // The variable to be changed was integer, decrease the number
-   --is_mip;
-  }
- }
-
  // Read new variable type
  char new_ctype;
  if( var->is_integer() && !relax_int_vars ) {
-  // The variable to be changed will be integer, increase the number
-  ++is_mip;
   if( var->is_unitary() && var->is_positive() ) {
    new_ctype = 'B'; // Binary
   } else {
@@ -1441,7 +1432,16 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
  } else {
   new_ctype = 'C';  // Continuous
  }
-
+ 
+ // if the variable type has changed
+ if( new_ctype != ctype[ idx ] ){ 
+  if( ctype[ idx ] == 'C' && ( new_ctype == 'B' || new_ctype == 'I' ) ){
+   ++is_mip; 
+  }
+  if( new_ctype == 'C' && ( ctype[ idx ] == 'B' || ctype[ idx ] == 'I' ) ){
+   --is_mip; 
+  }
+ 
  // Update problem type
  if( is_mip == 0 ) {
   // The last integer variable was removed, or the problem stays continuous
@@ -1466,14 +1466,15 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   // The first integer variable was added
   // All ctype values must be [re]added to the problem
   switch( CPXgetprobtype( env, lp ) ) {
-   case CPXPROB_LP :
+   case CPXPROB_LP : 
     CPXchgprobtype( env, lp, CPXPROB_MILP );
     break;
    case CPXPROB_QP :
     CPXchgprobtype( env, lp, CPXPROB_MIQP );
     break;
-   default:
+   default:{
     throw std::runtime_error( "Wrong CPLEX problem type" );
+  }
   }
 
   ctype[ idx ] = new_ctype;
@@ -1483,6 +1484,8 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   // The problem stays a MIP, update only the one variable
   CPXchgctype( env, lp, 1, indices.data(), &new_ctype );
  }
+
+} // end( if( new_ctype != ctype[ idx ] ) )
 
  // Update bounds
  std::vector< char > lu;

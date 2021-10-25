@@ -1326,12 +1326,12 @@ void MILPSolver::var_modification( VariableMod * mod ) {
  }
 
  // Update the number of integer variables
- if( var->is_integer( mod->old_state() ) ) {
-  --int_vars;
- }
+ if( var->is_integer( mod->old_state() ) != var->is_integer( mod->new_state() ) ) {
 
- if( var->is_integer() ) {
-  ++int_vars;
+  if( var->is_integer( mod->new_state() ) )
+   ++int_vars;
+  else    
+   --int_vars;
  }
 
  int idx = index_of_variable( var );
