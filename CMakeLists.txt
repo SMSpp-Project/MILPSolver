@@ -19,7 +19,8 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.12)
+cmake_policy(VERSION 3.12)
 project(MILPSolver
         VERSION 0.4.0
         DESCRIPTION "SMS++ MILPSolver module"
@@ -29,11 +30,13 @@ project(MILPSolver
 # These variables make the code harder to read but easier to change.
 set(modName ${PROJECT_NAME})
 set(modNamespace "SMS++")
-set(modHeader "${modName}Config.h")
-set(modTargets "${modName}Targets")
 
 # Find out if it's being called by the umbrella.
 get_directory_property(hasParent PARENT_DIRECTORY)
+
+# This adds the cmake directory to the module search paths,
+# allowing us to use our modules.
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # ----- Settings ------------------------------------------------------------ #
 # This creates an ENABLE_TESTING option (default: ON) and enables the testing
@@ -41,9 +44,13 @@ get_directory_property(hasParent PARENT_DIRECTORY)
 # See: https://cmake.org/cmake/help/latest/manual/ctest.1.html
 include(CTest)
 
+# Sets the default build type (if none was specified).
+# See: https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html
+include(BuildType)
+
 # An option is an ON/OFF user-settable cache variable
-option(${modName}_USE_CPLEX "Whether ${modName} will use CPLEX or not." ON)
-option(${modName}_USE_SCIP "Whether ${modName} will use SCIP or not." ON)
+option(MILPSolver_USE_CPLEX "Whether MILPSolver will use CPLEX or not." ON)
+option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." ON)
 
 # A lot of debug prints
 #if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -54,37 +61,28 @@ option(${modName}_USE_SCIP "Whether ${modName} will use SCIP or not." ON)
 # If it's not being called by the umbrella, we need to
 # look for the system-installed libraries.
 if (NOT hasParent)
-    find_package(SMSpp REQUIRED)
-endif()
-
-# This adds the cmake directory to the find module search paths,
-# allowing us to use our find modules.
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+    find_package(SMS++ REQUIRED)
+endif ()
 
 if (MILPSolver_USE_CPLEX)
-    find_package(CPLEX 12.8) # Needed for CPXMILPSolver
+    # Needed for CPXMILPSolver
+    find_package(CPLEX 12.8)
+    if (NOT CPLEX_FOUND)
+        set(MILPSolver_USE_CPLEX OFF)
+    endif ()
 endif ()
 
 if (MILPSolver_USE_SCIP)
-    find_package(SCIP) # Needed for SCIPMILPSolver
-endif ()
-
-# This removes from the search paths the cmake directory we added above.
-list(REMOVE_AT CMAKE_MODULE_PATH -1)
-
-# Update cache variables
-# FIXME: Not sure if this is a best practice
-if (NOT CPLEX_FOUND)
-    set(MILPSolver_USE_CPLEX OFF)
-endif ()
-
-if (NOT SCIP_FOUND)
-    set(MILPSolver_USE_SCIP OFF)
+    # Needed for SCIPMILPSolver
+    find_package(SCIP)
+    if (NOT SCIP_FOUND)
+        set(MILPSolver_USE_SCIP OFF)
+    endif ()
 endif ()
 
 # ----- Configuration header ------------------------------------------------ #
 # This will generate a *Config.h header in the build directory.
-configure_file(cmake/${modHeader}.in ${modHeader})
+configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
 
 # ----- Library ------------------------------------------------------------- #
 # With the BUILD_SHARED_LIBS variable we can specify if the library will
@@ -98,8 +96,7 @@ target_compile_features(${modName} PUBLIC cxx_std_17)
 # INTERFACE can be used for sources that should not be added to this library
 # but should be added to anything that links to it.
 # Note: do not GLOB files here.
-target_sources(${modName} PRIVATE
-               src/MILPSolver.cpp)
+target_sources(${modName} PRIVATE src/MILPSolver.cpp)
 
 # When using target_include_directories(), PUBLIC means that any targets
 # that link to this target also need that include directory.
@@ -121,26 +118,17 @@ target_include_directories(
 # PUBLIC means they will be linked also to the targets that depend on this
 # library, INTERFACE means they will be linked only to the targets that depend
 # on this library.
-target_link_libraries(${modName} PUBLIC
-                      ${modNamespace}::SMSpp)
+target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
 
-if (${modName}_USE_CPLEX)
-    message(STATUS "${modName}: CPLEX found, configuring CPX${modName}")
-
-    target_sources(${modName} PRIVATE
-                   src/CPX${modName}.cpp)
-
-    target_link_libraries(${modName} PUBLIC
-                          CPLEX::Cplex)
+if (MILPSolver_USE_CPLEX)
+    message(STATUS "MILPSolver: CPLEX found, configuring CPXMILPSolver")
+    target_sources(${modName} PRIVATE  src/CPXMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC CPLEX::Cplex)
 endif ()
 
-if (${modName}_USE_SCIP)
-    message(STATUS "${modName}: SCIP found, configuring SCIP${modName}")
-
-    target_sources(${modName} PRIVATE
-                   src/SCIP${modName}.cpp)
-
-    # SCIP configuration file doesn't define a target
+if (MILPSolver_USE_SCIP)
+    message(STATUS "MILPSolver: SCIP found, configuring SCIPMILPSolver")
+    target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC ${SCIP_LIBRARIES})
     target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
 endif ()
@@ -165,7 +153,7 @@ include(GNUInstallDirs)
 
 # Install the library
 install(TARGETS ${modName}
-        EXPORT ${modTargets}
+        EXPORT ${modName}Targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
@@ -174,13 +162,13 @@ install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/include/MILPSolver.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace})
 
-if (${modName}_USE_CPLEX)
+if (MILPSolver_USE_CPLEX)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "CPX*")
 endif ()
 
-if (${modName}_USE_SCIP)
+if (MILPSolver_USE_SCIP)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "SCIP*")
@@ -192,7 +180,7 @@ install(FILES ${PROJECT_BINARY_DIR}/${modName}Config.h
 
 # (Generate and) install the target import file, that allows other
 # CMake projects to import the target.
-install(EXPORT ${modTargets}
+install(EXPORT ${modName}Targets
         NAMESPACE ${modNamespace}::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${modName})
 
@@ -229,32 +217,6 @@ install(FILES
         ${CMAKE_CURRENT_LIST_DIR}/LICENSE
         DESTINATION ${CMAKE_INSTALL_DATADIR}/${modName})
 
-# ----- Export from the build tree ------------------------------------------ #
-# The following commands are needed so other projects can find the library
-# in a local build directory. They use CMake's User Package Registry
-# (located in ~/.cmake/registry) to do so.
-# See: https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html
-# They don't affect the installation.
-
-# CMAKE_EXPORT_PACKAGE_REGISTRY is OFF by default.
-# It may be ON if the project is included by the SMS++ umbrella project.
-if (CMAKE_EXPORT_PACKAGE_REGISTRY)
-
-    # Generate the target import file, that allows other
-    # CMake projects to import the target.
-    export(EXPORT ${modTargets}
-           FILE ${CMAKE_CURRENT_BINARY_DIR}/${modTargets}.cmake
-           NAMESPACE ${modNamespace}::)
-
-    # Export the find modules for the local configuration file to use them.
-    foreach (findMod ${findMods})
-        configure_file(${findMod} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
-    endforeach ()
-
-    # Export the package in user's package registry
-    export(PACKAGE ${modName})
-endif()
-
 # ----- Add the build tree to RPATH------------------------------------------ #
 # Add the binary directory to RPATH, so executables that use
 # dynamic loading will look into it.
@@ -281,5 +243,9 @@ if (NOT hasParent)
         \\\\.gitattributes$)
     include(CPack)
 endif ()
+
+# --------------------------------------------------------------------------- #
+# Remove from the search paths the cmake directory we added at the beginning.
+list(REMOVE_AT CMAKE_MODULE_PATH -1)
 
 # --------------------------------------------------------------------------- #
