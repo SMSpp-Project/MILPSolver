@@ -25,7 +25,7 @@ include(FetchContent)
 fetchcontent_declare(
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG master)
+        GIT_TAG main)
 
 # Fetch GoogleTest, if not already fetched
 fetchcontent_getproperties(googletest)
