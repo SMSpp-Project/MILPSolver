@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## Added
+### Added
 
 - MPS support in tool and unit test.
+- set_par( idx_type , std::string && ).
+
+### Fixed
+
+- Bug in SCIPMILPSolver with fixed binary variables.
+- Block ownership check while scanning active Constraints.
+- SMS++ to CPLEX conversion of Inf values in RHS vector.
+- Variable type change handling.
 
 ## [0.4.0] - 2021-05-02
 
