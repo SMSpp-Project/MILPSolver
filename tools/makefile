@@ -17,7 +17,7 @@
 ##############################################################################
 
 # module name
-NAME = cpx_pars
+NAME = scip_pars
 
 # basic directory
 DIR = ./
@@ -52,13 +52,17 @@ clean::
 libCPLEXDIR = $(MILPSSDR)../../extlib/
 include $(libCPLEXDIR)makefile-libCPLEX
 
+# define input macros for libSCIP complete makefile, then include it
+libSCIPDIR = $(MILPSSDR)../../extlib/
+include $(libSCIPDIR)makefile-libSCIP
+
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
 # object files
 MOBJ =  
 
 # libreries
-MLIB =  $(libCPLEXLIB)
+MLIB =  $(libCPLEXLIB) $(libSCIPLIB)
 
 $(NAME): $(MOBJ) $(DIR)$(NAME).o
 	$(CC) -o $(NAME) $(DIR)$(NAME).o $(MOBJ) $(MLIB) $(SW)
@@ -66,7 +70,7 @@ $(NAME): $(MOBJ) $(DIR)$(NAME).o
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
 # include directives
-MINC =  $(libCPLEXINC)
+MINC =  $(libCPLEXINC) $(libSCIPINC)
 
 # includes
 MH =    

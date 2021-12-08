@@ -115,8 +115,6 @@ void SCIPMILPSolver::load_problem() {
     vartype = SCIP_VARTYPE_CONTINUOUS;
     break;
    case 'B':
-    collb = 0;
-    colub = 1;
     vartype = SCIP_VARTYPE_BINARY;
     break;
    case 'I':
@@ -219,8 +217,6 @@ void SCIPMILPSolver::load_problem() {
      z_type = SCIP_VARTYPE_CONTINUOUS;
      break;
     case 'B':
-     z_lb = 0;
-     z_ub = 1;
      z_type = SCIP_VARTYPE_BINARY;
      break;
     case 'I':
@@ -1153,8 +1149,7 @@ SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
-
+void SCIPMILPSolver::set_par( idx_type par, int value ) {
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case intMaxIter:
@@ -1193,8 +1188,7 @@ void SCIPMILPSolver::set_par( const idx_type par, const int value ) {
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::set_par( idx_type par, const double value ) {
-
+void SCIPMILPSolver::set_par( idx_type par, double value ) {
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case dblMaxTime:
@@ -1239,8 +1233,7 @@ void SCIPMILPSolver::set_par( idx_type par, const double value ) {
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::set_par( idx_type par, const std::string & value ) {
-
+void SCIPMILPSolver::set_par( idx_type par, std::string && value ) {
  // SCIP parameters
  if( par >= strFirstSCIPPar && par < strLastAlgParSCPS ) {
   const std::string & scip_par =
@@ -1259,7 +1252,7 @@ void SCIPMILPSolver::set_par( idx_type par, const std::string & value ) {
   return;
  }
 
- MILPSolver::set_par( par, value );
+ MILPSolver::set_par( par, std::move( value ) );
 }
 
 /*--------------------------------------------------------------------------*/

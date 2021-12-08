@@ -20,35 +20,26 @@
 #include <iomanip>
 
 #include <CPXMILPSolver.h>
+#include <AbstractBlock.h>
 #include <BlockSolverConfig.h>
 
 #include "solver_utils.h"
-// TODO: Remove SimpleMILPBlock
-#include "../test/SimpleMILPBlock.h"
 
 using namespace SMSpp_di_unipi_it;
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-
-int main(int argc, char** argv) {
+int main( int argc, char ** argv ) {
 
  // Manage options and help, see common_utils.h
  docopt_desc = "SMS++ MILP solver.\n";
  exe = get_filename( argv[ 0 ] );
  process_args( argc, argv );
 
- std::ifstream file(filename);
- if (!file.is_open()) {
-  std::cerr << exe << ": cannot open file " << filename << std::endl;
-  exit (1);
- }
-
  // Read block
- auto block = new SimpleMILPBlock();
- file >> *block;
- std::cout << *block;
+ auto block = new AbstractBlock();
+ block->read( filename );
 
  // Configure block
  BlockConfig * b_config;
@@ -91,7 +82,7 @@ int main(int argc, char** argv) {
   if( solver->compute() == Solver::kOK ) {
    solver->get_var_solution();
    std::string s = "[";
-   for( auto & i : block->get_x() ) {
+   for( auto & i : *block->get_static_variable_v< ColVariable >( 0 ) ) {
     auto x = i.get_value();
     s += " " + std::to_string( x );
    }

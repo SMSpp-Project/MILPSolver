@@ -30,7 +30,7 @@ make
 ```
 
 The library has the same configuration options of
-[SMS++](https://gitlab.com/smspp/smspp/wikis/custom).
+[SMS++](https://gitlab.com/smspp/smspp-project/-/wikis/Customize-the-configuration).
 Moreover, you can use the following configuration options:
 
 | Variable               | Description | Default value |
@@ -68,10 +68,10 @@ The repository contains some tools that are built with the library.
 
 ### Solver
 
-The `milp_solver` tool reads MILP problems from text files and solves them.
+The `milp_solver` tool reads MILP problems from MPS files and solves them.
 Optionally, it writes back the problem in netCDF format.
 
-You can find some example input files in the [`test`](test) directory.
+You can find some example MPS files in the [`test`](test) directory.
 For the block and solver configuration file format,
 see the [SMS++ core library](https://gitlab.com/smspp/smspp).
 
@@ -127,8 +127,9 @@ conduct, and the process for submitting merge requests to us.
 ### Contributors
 
 - **Rafael Durbano Lobato**  
-  Department of Applied Mathematics  
-  State University of Campinas, Brazil
+  *Operations Research Group*  
+  Dipartimento di Informatica  
+  Università di Pisa
 
 ## License
 

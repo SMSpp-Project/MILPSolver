@@ -109,6 +109,7 @@ void CPXMILPSolver::load_problem() {
 
  std::vector< double > cpx_lb = lb;
  std::vector< double > cpx_ub = ub;
+ std::vector< double > cpx_rhs = rhs;
 
  for( int i = 0; i < numcols; ++i ) {
   if( cpx_lb[ i ] == -Inf< double >() ) {
@@ -119,13 +120,21 @@ void CPXMILPSolver::load_problem() {
   }
  }
 
+ for( int i = 0; i < numrows; ++i ) {
+  if( cpx_rhs[ i ] == -Inf< double >() ) {
+   cpx_rhs[ i ] = -CPX_INFBOUND;
+  } else if( cpx_rhs[ i ] == Inf< double >() ) {
+   cpx_rhs[ i ] = CPX_INFBOUND;
+  }
+ }
+
  if( use_custom_names ) {
   CPXcopylpwnames( env, lp,
                    numcols,
                    numrows,
                    objsense,
                    objective.data(),
-                   rhs.data(),
+                   cpx_rhs.data(),
                    sense.data(),
                    matbeg.data(),
                    matcnt.data(),
@@ -142,7 +151,7 @@ void CPXMILPSolver::load_problem() {
              numrows,
              objsense,
              objective.data(),
-             rhs.data(),
+             cpx_rhs.data(),
              sense.data(),
              matbeg.data(),
              matcnt.data(),
@@ -765,6 +774,8 @@ Solver::OFValue CPXMILPSolver::get_lb() {
      break;
 
     case kOK:
+    case kStopIter:
+    case kStopTime:
      switch( probtype ) {
       case CPXPROB_MILP:
       case CPXPROB_MIQP:
@@ -800,6 +811,15 @@ Solver::OFValue CPXMILPSolver::get_lb() {
     case kInfeasible:
      lower_bound = -Inf< OFValue >();
      break;
+
+    // if the algorithm has been stopped, the bound only exists if a
+    // feasible solution has been generated
+    case kStopIter:
+    case kStopTime:
+     if( ! has_var_solution() ) {
+      lower_bound = - Inf< OFValue >();
+      break;
+      }
 
     case kOK:
      CPXgetobjval( env, lp, &lower_bound );
@@ -842,6 +862,15 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      upper_bound = Inf< OFValue >();
      break;
 
+    // if the algorithm has been stopped, the bound only exists if a
+    // feasible solution has been generated
+    case kStopIter:
+    case kStopTime:
+     if( ! has_var_solution() ) {
+      upper_bound = Inf< OFValue >();
+      break;
+      }
+
     case kOK:
      CPXgetobjval( env, lp, &upper_bound );
      break;
@@ -870,6 +899,8 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      break;
 
     case kOK:
+    case kStopIter:
+    case kStopTime:
      switch( probtype ) {
       case CPXPROB_MILP:
       case CPXPROB_MIQP:
@@ -1390,18 +1421,9 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
  std::vector< char > ctype;
  int is_mip = CPXgetintvars( &ctype );
 
- if( is_mip > 0 ) {
-  if( ctype[ idx ] == 'B' || ctype[ idx ] == 'I' ) {
-   // The variable to be changed was integer, decrease the number
-   --is_mip;
-  }
- }
-
  // Read new variable type
  char new_ctype;
  if( var->is_integer() && !relax_int_vars ) {
-  // The variable to be changed will be integer, increase the number
-  ++is_mip;
   if( var->is_unitary() && var->is_positive() ) {
    new_ctype = 'B'; // Binary
   } else {
@@ -1410,7 +1432,16 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
  } else {
   new_ctype = 'C';  // Continuous
  }
-
+ 
+ // if the variable type has changed
+ if( new_ctype != ctype[ idx ] ){ 
+  if( ctype[ idx ] == 'C' && ( new_ctype == 'B' || new_ctype == 'I' ) ){
+   ++is_mip; 
+  }
+  if( new_ctype == 'C' && ( ctype[ idx ] == 'B' || ctype[ idx ] == 'I' ) ){
+   --is_mip; 
+  }
+ 
  // Update problem type
  if( is_mip == 0 ) {
   // The last integer variable was removed, or the problem stays continuous
@@ -1435,14 +1466,15 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   // The first integer variable was added
   // All ctype values must be [re]added to the problem
   switch( CPXgetprobtype( env, lp ) ) {
-   case CPXPROB_LP :
+   case CPXPROB_LP : 
     CPXchgprobtype( env, lp, CPXPROB_MILP );
     break;
    case CPXPROB_QP :
     CPXchgprobtype( env, lp, CPXPROB_MIQP );
     break;
-   default:
+   default:{
     throw std::runtime_error( "Wrong CPLEX problem type" );
+  }
   }
 
   ctype[ idx ] = new_ctype;
@@ -1452,6 +1484,8 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   // The problem stays a MIP, update only the one variable
   CPXchgctype( env, lp, 1, indices.data(), &new_ctype );
  }
+
+} // end( if( new_ctype != ctype[ idx ] ) )
 
  // Update bounds
  std::vector< char > lu;
@@ -2108,8 +2142,7 @@ CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_par( const idx_type par, const int value ) {
-
+void CPXMILPSolver::set_par( idx_type par, int value ) {
  // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
   case intMaxIter:
@@ -2139,6 +2172,7 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
   } else if( type == CPX_PARAMTYPE_LONG ) {
    CPXsetlongparam( env, cplex_par, value );
   }
+
   return;
  }
 
@@ -2147,8 +2181,7 @@ void CPXMILPSolver::set_par( const idx_type par, const int value ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_par( idx_type par, const double value ) {
-
+void CPXMILPSolver::set_par( idx_type par, double value ) {
  // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
   case dblMaxTime:
@@ -2190,8 +2223,7 @@ void CPXMILPSolver::set_par( idx_type par, const double value ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_par( idx_type par, const std::string & value ) {
-
+void CPXMILPSolver::set_par( idx_type par, std::string && value ) {
  // CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
@@ -2199,7 +2231,7 @@ void CPXMILPSolver::set_par( idx_type par, const std::string & value ) {
   return;
  }
 
- MILPSolver::set_par( par, value );
+ MILPSolver::set_par( par, std::move( value ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2425,14 +2457,17 @@ double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
 
 const std::string &
 CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
- static std::string value;
+ static std::vector< std::string > value( strLastAlgParCPXS - strFirstCPLEXPar );
 
- // CPLEX parameters
+// CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
-  value.reserve( CPX_STR_PARAM_MAX );
-  CPXinfostrparam( env, cplex_par, value.data() );
-  return value;
+  auto i = par - strFirstCPLEXPar;
+  if( value[ i ].empty() ) {
+   value[ i ].reserve( CPX_STR_PARAM_MAX );
+   CPXinfostrparam( env , SMSpp_to_CPLEX_str_pars[ i ] , value[ i ].data() );
+  }
+
+  return value[ i ];
  }
 
  return MILPSolver::get_dflt_str_par( par );

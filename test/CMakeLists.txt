@@ -25,7 +25,7 @@ include(FetchContent)
 fetchcontent_declare(
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG release-1.10.0)
+        GIT_TAG main)
 
 # Fetch GoogleTest, if not already fetched
 fetchcontent_getproperties(googletest)
@@ -43,7 +43,7 @@ if (NOT googletest_POPULATED)
 endif ()
 
 # ----- MILPSolver_test ----------------------------------------------------- #
-add_executable(MILPSolver_test test.cpp SimpleMILPBlock.cpp)
+add_executable(MILPSolver_test test.cpp)
 target_link_libraries(MILPSolver_test PRIVATE
                       SMS++::MILPSolver
                       gtest)
