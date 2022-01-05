@@ -259,14 +259,17 @@ void SCIPMILPSolver::load_problem() {
 
    // z - xˆ2 >= 0
 
-   SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip, &con, name,
-                                                  1, &linvar, &lincoef,
-                                                  1, &quadvar, &quadvar, &quadcoef,
-                                                  con_lhs, con_rhs ) );
-   SCIP_CALL_ABORT( SCIPaddCons( scip, con ) );
-   aux_cons[ i ] = con;
-   SCIP_CALL_ABORT( SCIPreleaseCons( scip, &con ) );
+   #if SCIP_VERSION < 800
+    SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip, &con, name,
+   #else
+    SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip, &con, name,
+   #endif
+                     1 , &linvar , &lincoef , 1 , &quadvar , &quadvar ,
+		     &quadcoef , con_lhs , con_rhs ) );
 
+   SCIP_CALL_ABORT( SCIPaddCons( scip , con ) );
+   aux_cons[ i ] = con;
+   SCIP_CALL_ABORT( SCIPreleaseCons( scip , &con ) );
 
    // Add constraint coefficients
    // SCIP_CALL_ABORT( SCIPaddCoefLinear( scip,
