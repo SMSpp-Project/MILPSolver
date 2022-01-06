@@ -8,38 +8,28 @@
  * MILP problem expressed by a Block using IBM CLPEX.
  *
  * \author Antonio Frangioni \n
- *         Operations Research Group \n
- *         Dipartimento di Informatica \n
- *         Università di Pisa \n
- *
- * \author Niccolò Iardella \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Niccolò Iardella
+ * \author Niccolo' Iardella \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #ifndef __CPXMILPSOLVER_H
-#define __CPXMILPSOLVER_H
+ #define __CPXMILPSOLVER_H
+                      /* self-identification: #endif at the end of the file */
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #include <ilcplex/cplex.h>
-
-#include <SMSTypedefs.h>
-#include <Observer.h>
-#include <Block.h>
-#include <Solver.h>
-#include <ColVariable.h>
-#include <FRealObjective.h>
-#include <FRowConstraint.h>
-#include <OneVarConstraint.h>
 
 #include "MILPSolver.h"
 
@@ -60,10 +50,8 @@ namespace SMSpp_di_unipi_it {
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-
-/// Class for solving MILP problems via CPLEX.
-/**
- * The CPXMILPSolver class derives from MILPSolver and extends the
+/// class for solving MILP problems via CPLEX
+/** The CPXMILPSolver class derives from MILPSolver and extends the
  * base class to solve MILP problems using CPLEX.
  *
  * The CPXMILPSolver can be registered to any kind of Block (assuming that
@@ -106,7 +94,7 @@ class CPXMILPSolver : public MILPSolver {
   intFirstCPLEXPar,
   /// First allowed new int parameter for derived classes
   intLastAlgParCPXS = intFirstCPLEXPar + CPX_NUM_INT_PARS
- };
+  };
 
  /// Types of double parameters
  enum dbl_par_type_CPXS {
@@ -114,7 +102,7 @@ class CPXMILPSolver : public MILPSolver {
   dblFirstCPLEXPar = dblLastAlgParMILP,
   /// First allowed new double parameter for derived classes
   dblLastAlgParCPXS = dblFirstCPLEXPar + CPX_NUM_DBL_PARS
- };
+  };
 
  /// Types of string parameters
  enum str_par_type_CPXS {
@@ -122,95 +110,86 @@ class CPXMILPSolver : public MILPSolver {
   strFirstCPLEXPar = strLastAlgParMILP,
   /// First allowed new string parameter for derived classes
   strLastAlgParCPXS = strFirstCPLEXPar + CPX_NUM_STR_PARS
- };
+  };
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
-
-/**
- * @name Constructor and Destructor
+/** @name Constructor and Destructor
  * @{
  */
 
- CPXMILPSolver();
+ CPXMILPSolver( void );
 
  ~CPXMILPSolver() override;
- /// @}
 
-/*--------------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
-
-/**
- * @name Public Methods derived from base classes
+/** @name Public Methods derived from base classes
  * @{
  */
 
- /// It sets the Block that the Solver has to solve and initializes CPLEX
+ /// sets the Block that the Solver has to solve and initializes CPLEX
  void set_Block( Block * block ) override;
 
- /// Optimizes the problem with CPLEX
+ /// optimizes the problem with CPLEX
  int compute( bool changedvars = false ) override;
 
- /// Returns a valid lower bound on the optimal objective function value
- OFValue get_lb() override;
+ /// returns a valid lower bound on the optimal objective function value
+ OFValue get_lb( void ) override;
 
- /// Returns a valid upper bound on the optimal objective function value
- OFValue get_ub() override;
+ /// returns a valid upper bound on the optimal objective function value
+ OFValue get_ub( void ) override;
 
- /// Returns the value of the current solution, if any
- OFValue get_var_value() override;
+ /// returns the value of the current solution, if any
+ OFValue get_var_value( void ) override;
 
- /// Tells whether a solution is available
- bool has_var_solution() override;
+ /// tells whether a solution is available
+ bool has_var_solution( void ) override;
 
- /// Tells whether the current solution is feasible
- bool is_var_feasible() override;
+ /// tells whether the current solution is feasible
+ bool is_var_feasible( void ) override;
 
- /// Writes the current solution in the Block
+ /// writes the current solution in the Block
  void get_var_solution( Configuration * solc = nullptr ) override;
 
- /// Tells whether a dual solution is available
- bool has_dual_solution() override;
+ /// tells whether a dual solution is available
+ bool has_dual_solution( void ) override;
 
- /// Tells whether the current dual solution is feasible
- bool is_dual_feasible() override;
+ /// tells whether the current dual solution is feasible
+ bool is_dual_feasible( void ) override;
 
- /// Writes the current dual solution in the Block
+ /// writes the current dual solution in the Block
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
- /// Tells whether a dual unbounded direction is available
- bool has_dual_direction() override;
+ /// tells whether a dual unbounded direction is available
+ bool has_dual_direction( void ) override;
 
- /// Writes the current dual unbounded direction in the Block
+ /// writes the current dual unbounded direction in the Block
  void get_dual_direction( Configuration * dirc = nullptr ) override;
 
- /// Writes the LP on the specified file
+ /// writes the LP on the specified file
  void write_lp( const std::string & filename ) override;
 
- /// Returns the number of nodes used to solve a MIP
- [[nodiscard]] int get_nodes() const override;
+ /// returns the number of nodes used to solve a MIP
+ [[nodiscard]] int get_nodes( void ) const override;
 
- /// It clears the CPLEX environment
+ /// clears the CPLEX environment
  void clear_problem( unsigned int what ) override;
 
- /// It loads the problem into CPLEX
- void load_problem() override;
+ /// loads the problem into CPLEX
+ void load_problem( void ) override;
 
-#ifdef MILPSOLVER_DEBUG
-
- /// Check the dictionaries for inconsistencies
- void check_status() override;
-
-#endif
- /// @}
-
-/*--------------------------------------------------------------------------*/
+ #ifdef MILPSOLVER_DEBUG
+  /// check the dictionaries for inconsistencies
+  void check_status( void ) override;
+ #endif
+ 
+/** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
-/**
- * @name Methods for handling parameters
+/** @name Methods for handling parameters
  * @{
  */
 
@@ -237,8 +216,8 @@ class CPXMILPSolver : public MILPSolver {
   *
   *   2) The Variable is not fixed, it has a finite nonzero lower or upper
   *      bound and there is no OneVarConstraint on that Variable whose lower
-  *      or upper bound match the bounds of the Variable.
-  */
+  *      or upper bound match the bounds of the Variable. */
+
  void set_par( idx_type par, int value ) override;
 
  /// Sets a double parameter with the given value
@@ -248,13 +227,13 @@ class CPXMILPSolver : public MILPSolver {
  void set_par( idx_type par, std::string && value ) override;
 
  /// Gets the number of integer parameters
- [[nodiscard]] idx_type get_num_int_par() const override;
+ [[nodiscard]] idx_type get_num_int_par( void ) const override;
 
  /// Gets the number of double parameters
- [[nodiscard]] idx_type get_num_dbl_par() const override;
+ [[nodiscard]] idx_type get_num_dbl_par( void ) const override;
 
  /// Gets the number of string parameters
- [[nodiscard]] idx_type get_num_str_par() const override;
+ [[nodiscard]] idx_type get_num_str_par( void ) const override;
 
  /// Gets the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
@@ -266,10 +245,9 @@ class CPXMILPSolver : public MILPSolver {
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
-  * par as a CPLEX parameter.
-  */
+  * par as a CPLEX parameter. */
  [[nodiscard]] const std::string &
- get_dflt_str_par( idx_type par ) const override;
+  get_dflt_str_par( idx_type par ) const override;
 
  /// Gets the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
@@ -281,66 +259,67 @@ class CPXMILPSolver : public MILPSolver {
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
-  * par as a CPLEX parameter.
-  */
+  * par as a CPLEX parameter. */
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
 
  /// Returns the index of the int parameter with the specified name
  [[nodiscard]] idx_type
- int_par_str2idx( const std::string & name ) const override;
+  int_par_str2idx( const std::string & name ) const override;
 
  /** Returns the name of the int parameter with the specified index
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
-  * par as a CPLEX parameter.
-  */
+  * par as a CPLEX parameter. */
  [[nodiscard]] const std::string &
- int_par_idx2str( idx_type idx ) const override;
+  int_par_idx2str( idx_type idx ) const override;
 
  /// Returns the index of the double parameter with the specified name
  [[nodiscard]] idx_type
- dbl_par_str2idx( const std::string & name ) const override;
+  dbl_par_str2idx( const std::string & name ) const override;
 
  /** Returns the name of the double parameter with the specified index
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
-  * par as a CPLEX parameter.
-  */
+  * par as a CPLEX parameter. */
  [[nodiscard]] const std::string &
- dbl_par_idx2str( idx_type idx ) const override;
+  dbl_par_idx2str( idx_type idx ) const override;
 
  /// Returns the index of the string parameter with the specified name
  [[nodiscard]] idx_type
- str_par_str2idx( const std::string & name ) const override;
+  str_par_str2idx( const std::string & name ) const override;
 
  /** Returns the name of the string parameter with the specified index
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
-  * par as a CPLEX parameter.
-  */
+  * par as a CPLEX parameter. */
  [[nodiscard]] const std::string &
- str_par_idx2str( idx_type idx ) const override;
- /// @}
+  str_par_idx2str( idx_type idx ) const override;
 
 /*--------------------------------------------------------------------------*/
-/*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
+
+ double up_cut_off( void ) const { return( UpCutOff ); }
+
+ double lw_cut_off( void ) const { return( LwCutOff ); }
+
+/*--------------------------------------------------------------------------*/
+/*-------------------------------- FRIENDS ---------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ //friend int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
+ //				    CPXLONG contextid , void * userhandle );
+
+/** @} ---------------------------------------------------------------------*/
+/*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
  protected:
 
- CPXENVptr env; ///< CPLEX environment
- CPXLPptr lp;   ///< CPLEX LP problem
-
- /**
-  * This variable indicates whether an exception must be thrown if there is
-  * an inconsistency when a reduced cost is being stored during a call to
-  * get_dual_solution() or get_dual_direction().
-  */
- int throw_reduced_cost_exception{};
-
+/*--------------------------------------------------------------------------*/
+/*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
+/*--------------------------------------------------------------------------*/
  /** @name Get variable bounds for the problem
   *
   * The following two methods retrieve the upper and lower bound for the
@@ -353,38 +332,12 @@ class CPXMILPSolver : public MILPSolver {
 
  /// Gets the UB fot the given variable in the problem
  double get_problem_ub( const ColVariable & var ) override;
- /// @}
 
- /** @name Handling of CPLEX parameters
-  *
-  * The following maps are used to keep a relationship between SMS++ parameter
-  * system and CPLEX parameters. This allows us to use CPLEX parameters
-  * (See CPLEX Parameters Reference Manual from IBM) as they were SMS++
-  * parameters with the same names, for example in configuration files.
-  *
-  * Note: since SMS++ does not support long parameters, both int and
-  * long CPLEX parameters are handled as SMS++ int parameters.
-  *
-  * @{
-  */
-
- const static std::array< int, CPX_NUM_INT_PARS > SMSpp_to_CPLEX_int_pars;
- const static std::array< int, CPX_NUM_DBL_PARS > SMSpp_to_CPLEX_dbl_pars;
- const static std::array< int, CPX_NUM_STR_PARS > SMSpp_to_CPLEX_str_pars;
-
- const static std::array< std::pair< int, int >, CPX_NUM_INT_PARS > CPLEX_to_SMSpp_int_pars;
- const static std::array< std::pair< int, int >, CPX_NUM_DBL_PARS > CPLEX_to_SMSpp_dbl_pars;
- const static std::array< std::pair< int, int >, CPX_NUM_STR_PARS > CPLEX_to_SMSpp_str_pars;
-
- /// @}
-
-/*--------------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
 /*--------------------------------------------------------------------------*/
-
-/**
- * @name Methods for modifying the constructed CPLEX problem
- * @{
+/** @name Methods for modifying the constructed CPLEX problem
+ *  @{
  */
 
  /// It handles a variable modification
@@ -431,62 +384,104 @@ class CPXMILPSolver : public MILPSolver {
 
  /// It removes a single dynamic bound
  void remove_dynamic_bound( const OneVarConstraint * con ) override;
+
+/** @} ---------------------------------------------------------------------*/
+/*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
+/*--------------------------------------------------------------------------*/
+
+ CPXENVptr env; ///< CPLEX environment
+ CPXLPptr lp;   ///< CPLEX LP problem
+
+ /** This variable indicates whether an exception must be thrown if there is
+  * an inconsistency when a reduced cost is being stored during a call to
+  * get_dual_solution() or get_dual_direction(). */
+ int throw_reduced_cost_exception{};
+
+ /** @name Handling of CPLEX parameters
+  *
+  * The following maps are used to keep a relationship between SMS++ parameter
+  * system and CPLEX parameters. This allows us to use CPLEX parameters
+  * (See CPLEX Parameters Reference Manual from IBM) as they were SMS++
+  * parameters with the same names, for example in configuration files.
+  *
+  * Note: since SMS++ does not support long parameters, both int and
+  * long CPLEX parameters are handled as SMS++ int parameters.
+  *
+  * @{
+  */
+
+ const static std::array< int , CPX_NUM_INT_PARS > SMSpp_to_CPLEX_int_pars;
+ const static std::array< int , CPX_NUM_DBL_PARS > SMSpp_to_CPLEX_dbl_pars;
+ const static std::array< int , CPX_NUM_STR_PARS > SMSpp_to_CPLEX_str_pars;
+
+ const static std::array< std::pair< int , int > , CPX_NUM_INT_PARS >
+  CPLEX_to_SMSpp_int_pars;
+ const static std::array< std::pair< int , int > , CPX_NUM_DBL_PARS >
+  CPLEX_to_SMSpp_dbl_pars;
+ const static std::array< std::pair< int , int > , CPX_NUM_STR_PARS >
+  CPLEX_to_SMSpp_str_pars;
+
  /// @}
 
+ double UpCutOff;  ///< externally set upper cutoff to terinate
+
+ double LwCutOff;  ///< externally set lower cutoff to terinate
+ 
 /*--------------------------------------------------------------------------*/
-/*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
+/*---------------------- PRIVATE PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
+
  private:
 
-/**
-  * Gets the number of CPLEX integer vars.
+ /** Gets the number of CPLEX integer vars.
   * Optionally, the read CPLEX variable types can be saved in a vector.
   * Such vector is automatically resized and filled.
   *
-  * @param ctype A vector where CPLEX variable types are saved
-  */
+  * @param ctype A vector where CPLEX variable types are saved */
  int CPXgetintvars( std::vector< char > * ctype = nullptr );
 
- /**
-  * Returns the SMS++ status corresponding to the given
+ /** Returns the SMS++ status corresponding to the given
   * CPLEX status returned by CPXgetstat() in case of a LP/QP,
-  * or by CPXgetsubstat() in case of a subproblem of a MIP.
-  */
+  * or by CPXgetsubstat() in case of a subproblem of a MIP. */
  static int decode_lqp_status( int status );
 
- /**
-  * Returns the SMS++ status corresponding to the given
-  * CPLEX status returned by CPXgetstat() in case of a MIP.
-  */
+ /** Returns the SMS++ status corresponding to the given
+  * CPLEX status returned by CPXgetstat() in case of a MIP. */
  static int decode_mip_status( int status );
 
- /**
-  * Returns the SMS++ status corresponding to the given
-  * CPLEX error returned by CPXmipopt(), CPXlpopt() or CPXqpopt().
-  */
+ /** Returns the SMS++ status corresponding to the given
+  * CPLEX error returned by CPXmipopt(), CPXlpopt() or CPXqpopt(). */
  static int decode_cpx_error( int error );
 
- /**
-  * Reloads a constraint.
-  * To be used as fallback method for constraint FunctionMods.
-  */
+ /** Reloads a constraint.
+  * To be used as fallback method for constraint FunctionMods. */
  void reload_constraint( Function * f );
 
- /**
-  * Reloads the objective.
-  * To be used as fallback method for objective FunctionMods.
-  */
+ /** Reloads the objective.
+  * To be used as fallback method for objective FunctionMods. */
  void reload_objective( Function * f );
 
- /**
-  * Update problem type.
-  * To be used with objective FunctionMods.
-  */
+ /** Update problem type.
+  * To be used with objective FunctionMods. */
  void update_problem_type( Function * f );
 
+/*--------------------------------------------------------------------------*/
+
  SMSpp_insert_in_factory_h;
-};
 
-}
+/*--------------------------------------------------------------------------*/
 
-#endif
+ };  // end( class( CPXMILPSolver ) )
+
+/*--------------------------------------------------------------------------*/
+
+}  // end( namespace SMSpp_di_unipi_it )
+
+/*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+#endif  /* CPXMILPSolver.h included */
+
+/*--------------------------------------------------------------------------*/
+/*------------------------ End File CPXMILPSolver.h ------------------------*/
+/*--------------------------------------------------------------------------*/

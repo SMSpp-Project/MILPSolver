@@ -5,46 +5,43 @@
  * Implementation of the CPXMILPSolver class.
  *
  * \author Antonio Frangioni \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Niccolò Iardella \n
- *         Operations Research Group \n
+ * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
  * \author Kostas Tavlaridis-Gyparakis \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy by Antonio Frangioni, Kostas Tavlaridis-Gyparakis, Niccolò Iardella
+ * \copyright &copy by Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
 /*--------------------------------------------------------------------------*/
-
-/*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include <functional>
 #include <queue>
-#include <iomanip>
 
-#include <Block.h>
-#include <MILPSolver.h>
-#include <OneVarConstraint.h>
 #include <LinearFunction.h>
+
 #include <DQuadFunction.h>
 
 #include "CPXMILPSolver.h"
 
-// Include the proper CPLEX parameter mapping
+#ifdef MILPSOLVER_DEBUG
+ #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
+#else
+ #define DEBUG_LOG( stuff )
+#endif
+
+// include the proper CPLEX parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX, CPX_VERSION ), _maps.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX , CPX_VERSION ) , _maps.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -52,56 +49,113 @@
 
 using namespace SMSpp_di_unipi_it;
 
+/*--------------------------------------------------------------------------*/
+/*-------------------------- FACTORY MANAGEMENT ----------------------------*/
+/*--------------------------------------------------------------------------*/
+
 SMSpp_insert_in_factory_cpp_0( CPXMILPSolver );
+
+/*--------------------------------------------------------------------------*/
+/*----------------------------- FUNCTIONS ----------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
+			    CPXLONG contextid , void * userhandle )
+{
+ if( contextid != CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS )
+  return( 0 );
+
+ double solv;
+ CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_SOL , & solv );
+
+ double bndv;
+ CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_BND , & bndv );
+
+ auto CMS = static_cast< CPXMILPSolver * >( userhandle );
+
+ if( CMS->get_objsense() == 1 ) {
+  // a minimization problem: solv is an upper bound and bndv is a lower bound
+  if( solv >= 1e+75 )
+   solv = Inf< double >();
+
+  if( bndv <= - 1e+75 )
+   bndv = - Inf< double >();
+  
+  if( ( bndv >= CMS->up_cut_off() ) || ( solv <= CMS->lw_cut_off() ) )
+   CPXcallbackabort( context );
+  }
+ else {
+  // a maximization problem: solv is a lower bound and bndv is an upper bound
+  if( solv <= -1e+75 )
+   solv = - Inf< double >();
+
+  if( bndv >= 1e+75 )
+   bndv = Inf< double >();
+  
+  if( ( solv >= CMS->up_cut_off() ) || ( bndv <= CMS->lw_cut_off() ) )
+   CPXcallbackabort( context );
+  }
+
+ return( 0 );
+ }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-CPXMILPSolver::CPXMILPSolver() : MILPSolver() {
+CPXMILPSolver::CPXMILPSolver( void ) : MILPSolver() ,
+  UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
+{
  int status = 0;
- env = CPXopenCPLEX( &status );
- if( env == nullptr ) {
-  throw std::runtime_error( "CPXopenCPLEX returned with status " +
-                            std::to_string( status ) );
- }
- lp = nullptr;
-#ifdef MILPSOLVER_DEBUG
- CPXsetintparam( env, CPXPARAM_Read_DataCheck, CPX_DATACHECK_WARN );
-#endif
-}
+ env = CPXopenCPLEX( & status );
+ if( env == nullptr )
+  throw( std::runtime_error( "CPXopenCPLEX returned with status " +
+			     std::to_string( status ) ) );
 
-CPXMILPSolver::~CPXMILPSolver() {
- if( lp ) {
-  CPXfreeprob( env, &lp );
+ lp = nullptr;
+ #ifdef MILPSOLVER_DEBUG
+  CPXsetintparam( env , CPXPARAM_Read_DataCheck , CPX_DATACHECK_WARN );
+ #endif
  }
+
+/*--------------------------------------------------------------------------*/
+
+CPXMILPSolver::~CPXMILPSolver()
+{
+ if( lp )
+  CPXfreeprob( env, &lp );
+
  CPXcloseCPLEX( &env );
-}
+ }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_Block( Block * block ) {
- if( block == f_Block ) {
+void CPXMILPSolver::set_Block( Block * block )
+{
+ if( block == f_Block )
   return;
- }
+
  MILPSolver::set_Block( block );
-}
+ UpCutOff = Inf< double >();
+ LwCutOff = - Inf< double >();
+ }
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::clear_problem( unsigned int what ) {
+void CPXMILPSolver::clear_problem( unsigned int what )
+{
  MILPSolver::clear_problem( 0 );
 
- if( lp ) {
+ if( lp )
   CPXfreeprob( env, &lp );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::load_problem() {
+void CPXMILPSolver::load_problem( void )
+{
  MILPSolver::load_problem();
 
  int status = 0;
@@ -112,199 +166,184 @@ void CPXMILPSolver::load_problem() {
  std::vector< double > cpx_rhs = rhs;
 
  for( int i = 0; i < numcols; ++i ) {
-  if( cpx_lb[ i ] == -Inf< double >() ) {
+  if( cpx_lb[ i ] == -Inf< double >() )
    cpx_lb[ i ] = -CPX_INFBOUND;
-  }
-  if( cpx_ub[ i ] == Inf< double >() ) {
+  if( cpx_ub[ i ] == Inf< double >() )
    cpx_ub[ i ] = CPX_INFBOUND;
   }
- }
 
  for( int i = 0; i < numrows; ++i ) {
-  if( cpx_rhs[ i ] == -Inf< double >() ) {
+  if( cpx_rhs[ i ] == -Inf< double >() )
    cpx_rhs[ i ] = -CPX_INFBOUND;
-  } else if( cpx_rhs[ i ] == Inf< double >() ) {
-   cpx_rhs[ i ] = CPX_INFBOUND;
+  else
+   if( cpx_rhs[ i ] == Inf< double >() )
+    cpx_rhs[ i ] = CPX_INFBOUND;
   }
- }
 
- if( use_custom_names ) {
-  CPXcopylpwnames( env, lp,
-                   numcols,
-                   numrows,
-                   objsense,
-                   objective.data(),
-                   cpx_rhs.data(),
-                   sense.data(),
-                   matbeg.data(),
-                   matcnt.data(),
-                   matind.data(),
-                   matval.data(),
-                   cpx_lb.data(),
-                   cpx_ub.data(),
-                   rngval.data(),
-                   colname.data(),
-                   rowname.data() );
- } else {
-  CPXcopylp( env, lp,
-             numcols,
-             numrows,
-             objsense,
-             objective.data(),
-             cpx_rhs.data(),
-             sense.data(),
-             matbeg.data(),
-             matcnt.data(),
-             matind.data(),
-             matval.data(),
-             cpx_lb.data(),
-             cpx_ub.data(),
+ if( use_custom_names )
+  CPXcopylpwnames( env , lp , numcols , numrows , objsense ,
+                   objective.data(), cpx_rhs.data() , sense.data() ,
+                   matbeg.data() , matcnt.data() , matind.data() ,
+                   matval.data() , cpx_lb.data() , cpx_ub.data() ,
+                   rngval.data() , colname.data() , rowname.data() );
+ else
+  CPXcopylp( env , lp , numcols , numrows , objsense ,
+             objective.data() , cpx_rhs.data() , sense.data() ,
+             matbeg.data() , matcnt.data() , matind.data() ,
+             matval.data() , cpx_lb.data() , cpx_ub.data() ,
              rngval.data() );
- }
 
- bool is_qp = std::any_of( q_objective.begin(),
-                           q_objective.end(),
+ bool is_qp = std::any_of( q_objective.begin() ,
+                           q_objective.end() ,
                            []( double d ) { return d != 0; } );
-
  if( is_qp ) {
   // CPLEX evaluates the corresponding objective with a factor
   // of 0.5 in front of the quadratic objective term.
   std::vector< double > double_q_obj = q_objective;
-  for( auto & i: double_q_obj ) {
+  for( auto & i : double_q_obj ) {
    i = i * 2;
-  }
+   }
 
   // Adding q_objective information automatically changes the problem type
   // from linear to quadratic
-  CPXcopyqpsep( env, lp, double_q_obj.data() );
- }
+  CPXcopyqpsep( env , lp , double_q_obj.data() );
+  }
 
- if( int_vars > 0 ) {
-  // Adding ctype information automatically changes the problem type
-  // from continuous to mixed integer
+ // Adding ctype information automatically changes the problem type
+ // from continuous to mixed integer
+ if( int_vars > 0 )
   CPXcopyctype( env, lp, xctype.data() );
- }
 
  // The base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
-}
+
+ UpCutOff = Inf< double >();
+ LwCutOff = - Inf< double >();
+ }
 
 /*--------------------------------------------------------------------------*/
 
-double CPXMILPSolver::get_problem_lb( const ColVariable & var ) {
+double CPXMILPSolver::get_problem_lb( const ColVariable & var )
+{
  double b = MILPSolver::get_problem_lb( var );
- if( b == -Inf< double >() ) {
+ if( b == -Inf< double >() )
   b = -CPX_INFBOUND;
+
+ return( b );
  }
- return b;
-}
 
 /*--------------------------------------------------------------------------*/
 
-double CPXMILPSolver::get_problem_ub( const ColVariable & var ) {
+double CPXMILPSolver::get_problem_ub( const ColVariable & var )
+{
  double b = MILPSolver::get_problem_ub( var );
- if( b == Inf< double >() ) {
+ if( b == Inf< double >() )
   b = CPX_INFBOUND;
+
+ return( b );
  }
- return b;
-}
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::compute( bool changedvars ) {
- if( MILPSolver::compute( changedvars ) != kOK ) {
-  // This should never happen
-  throw std::runtime_error( "An error occurred in MILPSolver::compute()" );
- }
+int CPXMILPSolver::compute( bool changedvars )
+{
+ if( MILPSolver::compute( changedvars ) != kOK )
+  throw( std::runtime_error( "An error occurred in MILPSolver::compute()" ) );
 
  int status = 0;
  bool is_qp = false;
 
- if( !output_file.empty() ) {
-  CPXwriteprob( env, lp, output_file.c_str(), "LP" );
- }
+ if( ! output_file.empty() )
+  CPXwriteprob( env , lp , output_file.c_str() , "LP" );
 
  int probtype = CPXgetprobtype( env, lp );
  switch( probtype ) {
-  case CPXPROB_LP :
+  case( CPXPROB_LP ):
    // DEBUG_LOG( "CPLEX problem type: LP" << std::endl );
    break;
-  case CPXPROB_MILP :
+  case( CPXPROB_MILP ):
    // DEBUG_LOG( "CPLEX problem type: MILP" << std::endl );
    break;
-  case CPXPROB_FIXEDMILP :
+  case( CPXPROB_FIXEDMILP ):
    // DEBUG_LOG( "CPLEX problem type: FIXEDMILP" << std::endl );
    break;
-  case CPXPROB_QP :
+  case( CPXPROB_QP ):
    // DEBUG_LOG( "CPLEX problem type: QP" << std::endl );
    is_qp = true;
    break;
-  case CPXPROB_MIQP :
+  case( CPXPROB_MIQP ):
    // DEBUG_LOG( "CPLEX problem type: MIQP" << std::endl );
    is_qp = true;
    break;
-  case CPXPROB_FIXEDMIQP :
+  case( CPXPROB_FIXEDMIQP ):
    // DEBUG_LOG( "CPLEX problem type: FIXEDMIQP" << std::endl );
    is_qp = true;
    break;
-  case CPXPROB_QCP :
+  case( CPXPROB_QCP ):
    // DEBUG_LOG( "CPLEX problem type: QCP" << std::endl );
    throw std::runtime_error( "Unsupported CPLEX problem type" );
-  case CPXPROB_MIQCP :
+  case( CPXPROB_MIQCP ):
    // DEBUG_LOG( "CPLEX problem type: MIQCP" << std::endl );
-   throw std::runtime_error( "Unsupported CPLEX problem type" );
+   throw( std::runtime_error( "Unsupported CPLEX problem type" ) );
   default:
-   throw std::runtime_error( "Undefined CPLEX problem type" );
- }
+   throw( std::runtime_error( "Undefined CPLEX problem type" ) );
+  }
 
- if( int_vars > 0 ) {
-  status = CPXmipopt( env, lp );
-  if( status ) {
-   // Error
+ if( int_vars > 0 ) {  // the MIP case - - - - - - - - - - - - - - - - - - - -
+
+  if( ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) )
+   CPXcallbacksetfunc( env , lp , CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ,
+		       & CPXMILPSolver_callback , this );
+  else
+   CPXcallbacksetfunc( env , lp , CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ,
+		       nullptr , this );
+
+  status = CPXmipopt( env , lp );
+  if( status ) {  // Error
    if( status == CPXERR_SUBPROB_SOLVE ) {
-    int substatus = CPXgetsubstat( env, lp );
+    int substatus = CPXgetsubstat( env , lp );
     sol_status = decode_lqp_status( substatus );
-   } else {
+    }
+   else
     sol_status = decode_cpx_error( status );
+
+   return( sol_status );
    }
-   return sol_status;
-  }
 
-  status = CPXgetstat( env, lp );
+  status = CPXgetstat( env , lp );
   sol_status = decode_mip_status( status );
-  return sol_status;
-
- } else {
-  if( is_qp ) {
-   status = CPXqpopt( env, lp );
-  } else {
-   status = CPXlpopt( env, lp );
+  return( sol_status );
   }
 
-  if( status ) {
-   // Error
-   sol_status = decode_cpx_error( status );
-   return sol_status;
+ // the continuous case- - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ if( is_qp )
+  status = CPXqpopt( env , lp );
+ else
+  status = CPXlpopt( env , lp );
+
+ if( status ) {  // Error
+  sol_status = decode_cpx_error( status );
+  return( sol_status );
   }
 
-  status = CPXgetstat( env, lp );
-  sol_status = decode_lqp_status( status );
-  return sol_status;
- }
-}
+ status = CPXgetstat( env , lp );
+ sol_status = decode_lqp_status( status );
+ return( sol_status );
+
+ }  // end( CPXMILPSolver::compute )
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::decode_mip_status( int status ) {
+int CPXMILPSolver::decode_mip_status( int status )
+{
  DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
 
- /*
- * The following are the symbols that may represent the status of
+ /* The following are the symbols that may represent the status of
  * a CPLEX solution as returned by CPXgetstat() in case of a a MIP,
  * as listed in CPLEX Callable Library API manual.
  * Some cases are commented out as they should never occur in the
- * conditions posed by CPXMILPSolver.
- */
+ * conditions posed by CPXMILPSolver. */
+
  switch( status ) {
   case CPXMIP_ABORT_FEAS:
    // Stopped, but an integer solution exists.
@@ -380,25 +419,25 @@ int CPXMILPSolver::decode_mip_status( int status ) {
    // case CPXMIP_OPTIMAL_RELAXED_QUAD:
    // case CPXMIP_OPTIMAL_RELAXED_SUM:
   default:;
- }
+  }
 
- throw std::runtime_error( "CPXgetstat() returned an unknown status: " +
-                           std::to_string( status ) );
-}
+ throw( std::runtime_error( "CPXgetstat() returned an unknown status: " +
+			    std::to_string( status ) ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::decode_lqp_status( int status ) {
+int CPXMILPSolver::decode_lqp_status( int status )
+{
  DEBUG_LOG( "CPXgetstat() returned " << status << std::endl );
 
- /*
-  * The following are the symbols that may represent the status of
+ /* The following are the symbols that may represent the status of
   * a CPLEX solution as returned by CPXgetstat() in case of a LP/QP,
   * or by CPXgetsubstat() in case of a subproblem of a MIP,
   * as listed in CPLEX Callable Library API manual.
   * Some cases are commented out as they should never occur in the
-  * conditions posed by CPXMILPSolver.
-  */
+  * conditions posed by CPXMILPSolver. */
+
  switch( status ) {
   case CPX_STAT_ABORT_DETTIME_LIM:
    // Stopped due to a deterministic time limit.
@@ -744,12 +783,11 @@ int CPXMILPSolver::decode_cpx_error( int error ) {
    // case CPXERR_WORK_FILE_READ:
    // case CPXERR_WORK_FILE_WRITE:
    // case CPXERR_XMLPARSE:
-  default:;
- }
+  }
 
- throw std::runtime_error( "CPLEX returned an unmanaged error: " +
-                           std::to_string( error ) );
-}
+ throw( std::runtime_error( "CPLEX returned an unmanaged error: " +
+			    std::to_string( error ) ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -842,13 +880,12 @@ Solver::OFValue CPXMILPSolver::get_lb() {
 
 /*--------------------------------------------------------------------------*/
 
-Solver::OFValue CPXMILPSolver::get_ub() {
-
+Solver::OFValue CPXMILPSolver::get_ub( void )
+{
  OFValue upper_bound = 0;
- int probtype = CPXgetprobtype( env, lp );
+ int probtype = CPXgetprobtype( env , lp );
 
  switch( CPXgetobjsen( env, lp ) ) {
-
   // Minimization problem
   case CPX_MIN:
 
@@ -882,7 +919,7 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      // Therefore, in this case, the upper bound should be +Inf.
      upper_bound = Inf< OFValue >();
      break;
-   }
+    }
    break;
 
    // Maximization problem
@@ -918,74 +955,69 @@ Solver::OFValue CPXMILPSolver::get_ub() {
      // Same as above
      upper_bound = Inf< OFValue >();
      break;
-   }
+    }
    break;
 
    // Sense not defined
-  default:
-   throw std::runtime_error( "Objective type not yet defined" );
-   break;
+ default: throw( std::runtime_error( "Objective type not yet defined" ) );
  }
 
- return upper_bound;
-}
+ return( upper_bound );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-bool CPXMILPSolver::has_var_solution() {
+bool CPXMILPSolver::has_var_solution( void )
+{
  int solnmethod, solntype, pfeasind, dfeasind;
- int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
-                           &pfeasind, &dfeasind );
- if( status ) {
-  throw std::runtime_error( "An error occurred in CPXsolninfo()" );
- }
+ int status = CPXsolninfo( env , lp , & solnmethod , & solntype ,
+                           & pfeasind , & dfeasind );
+ if( status )
+  throw( std::runtime_error( "An error occurred in CPXsolninfo()" ) );
 
  switch( solntype ) {
   case CPX_BASIC_SOLN:    // The problem has a simplex basis
   case CPX_NONBASIC_SOLN: // Primal and dual solution but no basis
-  case CPX_PRIMAL_SOLN:   // Primal solution but no corresponding dual solution
-   return true;
-  case CPX_NO_SOLN:       // No solution
-  default:
-   return false;
+  case CPX_PRIMAL_SOLN:   // Primal solution but no dual solution
+   return( true );
+   // case CPX_NO_SOLN:   No solution
+  }
+
+ return( false );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-bool CPXMILPSolver::is_var_feasible() {
+bool CPXMILPSolver::is_var_feasible( void )
+{
  int solnmethod, solntype, pfeasind, dfeasind;
- int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
-                           &pfeasind, &dfeasind );
- if( status ) {
-  throw std::runtime_error( "An error occurred in CPXsolninfo()" );
- }
+ int status = CPXsolninfo( env , lp , & solnmethod , & solntype ,
+                           & pfeasind , & dfeasind );
+ if( status )
+  throw( std::runtime_error( "An error occurred in CPXsolninfo()" ) );
 
- return bool( pfeasind );
-}
+ return( bool( pfeasind ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-Solver::OFValue CPXMILPSolver::get_var_value() {
- switch( CPXgetobjsen( env, lp ) ) {
-  case CPX_MIN:
-   return get_ub();
-  case CPX_MAX:
-   return get_lb();
-  default:
-   throw std::runtime_error( "Objective type not yet defined" );
+Solver::OFValue CPXMILPSolver::get_var_value( void )
+{
+ switch( CPXgetobjsen( env , lp ) ) {
+  case( CPX_MIN ): return( get_ub() );
+  case( CPX_MAX ): return( get_lb() );
+  default: throw( std::runtime_error( "Objective type not yet defined" ) );
+  }
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::get_var_solution( Configuration * solc ) {
-
- std::vector< double > x( numcols, 0 );
- int status = CPXgetx( env, lp, x.data(), 0, numcols - 1 );
- if( status ) {
-  throw std::runtime_error( "Unable to get the solution values with CPXgetx()" );
- }
+void CPXMILPSolver::get_var_solution( Configuration * solc )
+{
+ std::vector< double > x( numcols , 0 );
+ int status = CPXgetx( env , lp , x.data() , 0 , numcols - 1 );
+ if( status )
+  throw( std::runtime_error( "Unable to get the solution with CPXgetx()" ) );
 
  int col = 0;
  int col_dynamic = static_vars;
@@ -993,75 +1025,70 @@ void CPXMILPSolver::get_var_solution( Configuration * solc ) {
  std::queue< Block * > Q;
 
  bool owned = f_Block->is_owned_by( f_id );
- if( !owned && !f_Block->lock( f_id ) ) {
-  throw std::runtime_error( "Unable to lock the Block" );
- }
+ if( ! owned && ! f_Block->lock( f_id ) )
+  throw( std::runtime_error( "Unable to lock the Block" ) );
 
  auto set = [ &x, &col ]( ColVariable & v ) {
   v.set_value( x[ col++ ] );
- };
+  };
 
  auto set_dynamic = [ &x, &col_dynamic ]( ColVariable & v ) {
   v.set_value( x[ col_dynamic++ ] );
- };
+  };
 
  Q.push( f_Block );
 
- while( !Q.empty() ) {
+ while( ! Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto * i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
-  for( const auto & i : q_Block->get_static_variables() ) {
+  for( const auto & i : q_Block->get_static_variables() )
    un_any_const_static( i, set, un_any_type< ColVariable >() );
-  }
 
-  for( const auto & i : q_Block->get_dynamic_variables() ) {
+  for( const auto & i : q_Block->get_dynamic_variables() )
    un_any_const_dynamic( i, set_dynamic, un_any_type< ColVariable >() );
   }
- }
 
- if( !owned ) {
+ if( ! owned )
   f_Block->unlock( f_id );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-bool CPXMILPSolver::has_dual_solution() {
+bool CPXMILPSolver::has_dual_solution( void )
+{
  int solnmethod, solntype, pfeasind, dfeasind;
- int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
-                           &pfeasind, &dfeasind );
- if( status ) {
-  throw std::runtime_error( "An error occurred in CPXsolninfo()" );
- }
+ int status = CPXsolninfo( env , lp , & solnmethod , & solntype ,
+                           & pfeasind , & dfeasind );
+ if( status )
+  throw( std::runtime_error( "An error occurred in CPXsolninfo()" ) );
 
  switch( solntype ) {
   case CPX_BASIC_SOLN:    // The problem has a simplex basis
   case CPX_NONBASIC_SOLN: // Primal and dual solution but no basis
-   return true;
-  case CPX_PRIMAL_SOLN:   // Primal solution but no corresponding dual solution
-  case CPX_NO_SOLN:       // No solution
-  default:
-   return false;
+   return( true );
+   // case CPX_PRIMAL_SOLN:   Primal solution but no dual solution
+   // case CPX_NO_SOLN:       No solution
+  }
+
+ return( false );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-bool CPXMILPSolver::is_dual_feasible() {
+bool CPXMILPSolver::is_dual_feasible()
+{
  int solnmethod, solntype, pfeasind, dfeasind;
- int status = CPXsolninfo( env, lp, &solnmethod, &solntype,
-                           &pfeasind, &dfeasind );
- if( status ) {
-  throw std::runtime_error( "An error occurred in CPXsolninfo()" );
- }
+ int status = CPXsolninfo( env , lp , & solnmethod , & solntype ,
+                           & pfeasind , & dfeasind );
+ if( status )
+  throw( std::runtime_error( "An error occurred in CPXsolninfo()" ) );
 
- return bool( dfeasind );
-}
+ return( bool( dfeasind ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -1206,24 +1233,24 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
   }
  }
 
- if( !owned ) {
+ if( ! owned )
   f_Block->unlock( f_id );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-bool CPXMILPSolver::has_dual_direction() {
+bool CPXMILPSolver::has_dual_direction( void )
+{
  std::vector< double > y( numrows, 0 );
  double proof = 0;
- int status = CPXdualfarkas( env, lp, y.data(), &proof );
- return !bool( status );
-}
+ int status = CPXdualfarkas( env , lp , y.data() , & proof );
+ return( ! bool( status ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
-
+void CPXMILPSolver::get_dual_direction( Configuration * dirc )
+{
  std::vector< double > y( numrows, 0 );
  std::vector< double > dj( numcols, 0 );
  double proof = 0;
@@ -1372,31 +1399,36 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc ) {
   }
  }
 
- if( !owned ) {
+ if( !owned )
   f_Block->unlock( f_id );
+
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::write_lp( const std::string & filename ) {
- CPXwriteprob( env, lp, filename.c_str(), "LP" );
-}
+void CPXMILPSolver::write_lp( const std::string & filename )
+{
+ CPXwriteprob( env , lp , filename.c_str() , "LP" );
+ }
 
-int CPXMILPSolver::get_nodes() const {
- return CPXgetnodecnt( env, lp );
-}
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::get_nodes() const
+{
+ return( CPXgetnodecnt( env , lp ) );
+ }
+
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::var_modification( VariableMod * mod ) {
+void CPXMILPSolver::var_modification( VariableMod * mod )
+{
  try {
   MILPSolver::var_modification( mod );
- } catch( std::logic_error & e ) {}
+  } catch( std::logic_error & e ) {}
 
- /*
-  * VariableMod class does not include any modification types, so we "refresh"
+ /* VariableMod class does not include any modification types, so we "refresh"
   * all the CPLEX information for the variable. In particular we:
   *
   *  - reset the ctype (binary, integer, continuous)
@@ -1404,8 +1436,7 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
   *  - if the variable is not fixed, we reset LHS and RHS values
   *
   * The CPLEX problem type must also be updated if we remove the last integer
-  * variable of a MIP or add a integer variable to a LP/QP.
-  */
+  * variable of a MIP or add a integer variable to a LP/QP. */
 
  auto * var = dynamic_cast<ColVariable *>(mod->variable());
  // TODO: Is dynamic_cast necessary?
@@ -1512,16 +1543,15 @@ void CPXMILPSolver::var_modification( VariableMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::objective_modification( ObjectiveMod * mod ) {
+void CPXMILPSolver::objective_modification( ObjectiveMod * mod )
+{
  try {
   MILPSolver::objective_modification( mod );
- } catch( std::logic_error & e ) {}
+  } catch( std::logic_error & e ) {}
 
- /*
-  * ObjectiveMod class does not include any modification types except
+ /* ObjectiveMod class does not include any modification types except
   * for eSetMin and eSetMax.
-  * To change OF coefficents, a FunctionMod must be used.
-  */
+  * To change OF coefficents, a FunctionMod must be used. */
 
  switch( mod->type() ) {
 
@@ -1540,10 +1570,11 @@ void CPXMILPSolver::objective_modification( ObjectiveMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
+void CPXMILPSolver::const_modification( ConstraintMod * mod )
+{
  try {
   MILPSolver::const_modification( mod );
- } catch( std::logic_error & e ) {}
+  } catch( std::logic_error & e ) {}
 
  /*
   * To change the coefficents, a FunctionMod must be used.
@@ -1618,16 +1649,15 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
+void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod )
+{
  try {
   MILPSolver::bound_modification( mod );
- } catch( std::logic_error & e ) {}
+  } catch( std::logic_error & e ) {}
 
- /*
-  * The same ColVariable can have more active OneVarConstraints,
+ /* The same ColVariable can have more active OneVarConstraints,
   * so each time we modify one of them we have to check if LHS and RHS
-  * of the Variable change.
-  */
+  * of the Variable change. */
 
  auto * con = static_cast<OneVarConstraint *>(mod->constraint());
  auto * var = static_cast<ColVariable *>(con->get_active_var( 0 ));
@@ -1674,10 +1704,11 @@ void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
+void CPXMILPSolver::objective_function_modification( FunctionMod * mod )
+{
  try {
   MILPSolver::objective_function_modification( mod );
- } catch( std::logic_error & e ) {}
+  } catch( std::logic_error & e ) {}
 
  auto * f = mod->function();
 
@@ -1710,27 +1741,25 @@ void CPXMILPSolver::objective_function_modification( FunctionMod * mod ) {
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------
  reload_objective( f );
-}
+ }
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
+void CPXMILPSolver::constraint_function_modification( FunctionMod * mod )
+{
  try {
   MILPSolver::constraint_function_modification( mod );
- } catch( std::logic_error & e ) {}
+  } catch( std::logic_error & e ) {}
 
  auto * f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (f);
- if( lf == nullptr ) {
+ const auto * lf = dynamic_cast< const LinearFunction * >( f );
+ if( ! lf )
   return;
- }
 
- auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ auto * con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
  // TODO: Is dynamic_cast necessary?
- if( con == nullptr ) {
-  // TODO: Throw exception?
+ if( ! con )  // TODO: Throw exception?
   return;
- }
 
  // TODO: Avoid fallback reloading - Why this doesn't work?
  // C05FunctionModLin
@@ -1754,24 +1783,26 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod ) {
 
  // Fallback method - Reload all coefficients
  // --------------------------------------------------------------------------
+
  reload_constraint( f );
-}
+ }
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
+void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod )
+{
  try {
   MILPSolver::objective_fvars_modification( mod );
- } catch( std::logic_error & e ) {}
+  } catch( std::logic_error & e ) {}
 
  auto * f = mod->function();
 
  // Check the modification type
- if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
-     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
-     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr ) {
+ if( dynamic_cast< C05FunctionModVarsAddd * >( mod ) == nullptr &&
+     dynamic_cast< C05FunctionModVarsRngd * >( mod ) == nullptr &&
+     dynamic_cast< C05FunctionModVarsSbst * >( mod ) == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
- }
+  }
 
  std::vector< int > indices;
  std::vector< double > values;
@@ -1789,22 +1820,22 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
    if( mod->added() ) {
     auto value = lf->get_coefficient( lf->is_active( var ) );
     values.push_back( value );
-   } else {
+    }
+   else
     values.push_back( 0 );
    }
-  }
 
-  if( !indices.empty() ) {
-   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-  }
+  if( indices.empty() )
+   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
+
   return;
- }
+  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
+ if( const auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
   // Quadratic objective function
 
   for( auto * v : mod->vars() ) {
-   auto var = static_cast<const ColVariable *>(v);
+   auto var = static_cast< const ColVariable * >( v );
    indices.push_back( index_of_variable( var ) );
    double q_value;
 
@@ -1812,43 +1843,44 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod ) {
     auto idx = qf->is_active( var );
     values.push_back( qf->get_linear_coefficient( idx ) );
     q_value = qf->get_quadratic_coefficient( idx );
-   } else {
+    }
+   else {
     values.push_back( 0 );
     q_value = 0;
+    }
+
+   CPXchgqpcoef( env , lp , indices.back() , indices.back() , 2 * q_value );
    }
 
-   CPXchgqpcoef( env, lp, indices.back(), indices.back(), 2 * q_value );
-  }
+  if( ! indices.empty() )
+   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
 
-  if( !indices.empty() ) {
-   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-  }
   return;
- }
+  }
 
  // This should never happen
- throw std::invalid_argument( "Unknown type of Objective Function" );
-}
+ throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::constraint_fvars_modification( FunctionModVars * mod ) {
+void CPXMILPSolver::constraint_fvars_modification( FunctionModVars * mod )
+{
  try {
   MILPSolver::constraint_fvars_modification( mod );
- } catch( std::logic_error & e ) {}
+  } catch( std::logic_error & e ) {}
 
  auto * f = mod->function();
- const auto * lf = dynamic_cast<const LinearFunction *> (f);
- if( lf == nullptr ) {
+ const auto * lf = dynamic_cast< const LinearFunction * >( f );
+ if( ! lf )
   return;
- }
 
  // Check the modification type
- if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
-     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
-     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr ) {
+ if( dynamic_cast< C05FunctionModVarsAddd * >( mod ) == nullptr &&
+     dynamic_cast< C05FunctionModVarsRngd * >( mod ) == nullptr &&
+     dynamic_cast< C05FunctionModVarsSbst * >( mod ) == nullptr ) {
   throw std::invalid_argument( "This type of FunctionModVars is not handled" );
- }
+  }
 
  std::vector< int > indices;
  std::vector< double > values;
@@ -2145,19 +2177,18 @@ CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 void CPXMILPSolver::set_par( idx_type par, int value ) {
  // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
-  case intMaxIter:
-   CPXsetlongparam( env, CPXPARAM_MIP_Limits_Nodes, value );
+ case( intMaxIter ):
+   CPXsetlongparam( env , CPXPARAM_MIP_Limits_Nodes, value );
    return;
-  case intMaxSol:
-   CPXsetintparam( env, CPXPARAM_MIP_Pool_Capacity, value );
+  case( intMaxSol ):
+   CPXsetintparam( env , CPXPARAM_MIP_Pool_Capacity, value );
    return;
-  case intLogVerb:
-   CPXsetintparam( env, CPXPARAM_ScreenOutput, value );
+  case( intLogVerb ):
+   CPXsetintparam( env , CPXPARAM_ScreenOutput, value );
    return;
-  case intThrowReducedCostException:
+  case( intThrowReducedCostException ):
    throw_reduced_cost_exception = value;
-  default:;
- }
+  }
 
  // CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
@@ -2181,45 +2212,41 @@ void CPXMILPSolver::set_par( idx_type par, int value ) {
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_par( idx_type par, double value ) {
+void CPXMILPSolver::set_par( idx_type par , double value )
+{
  // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
-  case dblMaxTime:
-   CPXsetdblparam( env, CPXPARAM_TimeLimit, value );
+  case( dblMaxTime ):
+   CPXsetdblparam( env , CPXPARAM_TimeLimit , value );
    return;
-  case dblRelAcc:
-   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_RelObjDifference, value );
+  case( dblRelAcc ):
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_MIPGap , value );
    return;
-  case dblAbsAcc:
-   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_ObjDifference, value );
+  case( dblAbsAcc ):
+   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap , value );
    return;
-  case dblUpCutOff:
-   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_UpperCutoff, value );
+  case( dblUpCutOff ): UpCutOff = value; return;
+  case( dblLwCutOff ): LwCutOff = value; return;
+  case( dblRAccSol ):
+   CPXsetdblparam( env, CPXPARAM_MIP_Pool_RelGap , value );
    return;
-  case dblLwCutOff:
-   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, value );
+  case( dblAAccSol ):
+   CPXsetdblparam( env, CPXPARAM_MIP_Pool_AbsGap , value );
    return;
-  case dblRAccSol:
-   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_MIPGap, value );
-   return;
-  case dblAAccSol:
-   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap, value );
-   return;
-  case dblFAccSol:
+  case( dblFAccSol ):
    CPXsetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, value );
    return;
-  default:;
- }
+  }
 
  // CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
   CPXsetdblparam( env, cplex_par, value );
   return;
- }
+  }
 
- MILPSolver::set_par( par, value );
-}
+ MILPSolver::set_par( par , value );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -2229,46 +2256,46 @@ void CPXMILPSolver::set_par( idx_type par, std::string && value ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   CPXsetstrparam( env, cplex_par, value.c_str() );
   return;
- }
+  }
 
  MILPSolver::set_par( par, std::move( value ) );
-}
+ }
 
 /*--------------------------------------------------------------------------*/
 
 ThinComputeInterface::idx_type CPXMILPSolver::get_num_int_par() const {
  return MILPSolver::get_num_int_par() + intLastAlgParCPXS - intLastAlgParMILP;
-}
+ }
 
 ThinComputeInterface::idx_type CPXMILPSolver::get_num_dbl_par() const {
  return MILPSolver::get_num_dbl_par() + dblLastAlgParCPXS - dblLastAlgParMILP;
-}
+ }
 
 ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
  return MILPSolver::get_num_str_par() + strLastAlgParCPXS - strLastAlgParMILP;
-}
+ }
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::get_int_par( idx_type par ) const {
+int CPXMILPSolver::get_int_par( idx_type par ) const
+{
  int value;
  CPXLONG long_value;
 
  // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
-  case intMaxIter:
+  case( intMaxIter ):
    CPXgetlongparam( env, CPXPARAM_MIP_Limits_Nodes, &long_value );
-   return ( int ) long_value;
-  case intMaxSol:
+   return( ( int ) long_value );
+  case( intMaxSol ):
    CPXgetintparam( env, CPXPARAM_MIP_Pool_Capacity, &value );
-   return value;
-  case intLogVerb:
+   return( value );
+  case( intLogVerb ):
    CPXgetintparam( env, CPXPARAM_ScreenOutput, &value );
-   return value;
-  case intThrowReducedCostException:
-   return throw_reduced_cost_exception;
-  default:;
- }
+   return( value );
+  case( intThrowReducedCostException ):
+   return( throw_reduced_cost_exception );
+  }
 
  // CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
@@ -2276,68 +2303,65 @@ int CPXMILPSolver::get_int_par( idx_type par ) const {
 
   // Both int and long CPLEX parameters are handled as SMS++ int parameters
   int type;
-  CPXgetparamtype( env, cplex_par, &type );
+  CPXgetparamtype( env , cplex_par , & type );
 
-  switch( type ) {
-   case CPX_PARAMTYPE_INT:
-    CPXgetintparam( env, cplex_par, &value );
-    return value;
-   case CPX_PARAMTYPE_LONG:
-    CPXgetlongparam( env, cplex_par, &long_value );
-    return ( int ) long_value;
-   default:;
+  if( type == CPX_PARAMTYPE_INT ) {
+    CPXgetintparam( env , cplex_par , &value );
+    return( value );
+    }
+  else {
+   CPXgetlongparam( env , cplex_par , & long_value );
+   return( ( int ) long_value );
+   }
   }
- }
 
- return MILPSolver::get_int_par( par );
-}
+ return( MILPSolver::get_int_par( par ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-double CPXMILPSolver::get_dbl_par( idx_type par ) const {
+double CPXMILPSolver::get_dbl_par( idx_type par ) const
+{
  double value;
 
  // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
-  case dblMaxTime:
-   CPXgetdblparam( env, CPXPARAM_TimeLimit, &value );
-   return value;
-  case dblRelAcc:
-   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_RelObjDifference, &value );
-   return value;
-  case dblAbsAcc:
-   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_ObjDifference, &value );
-   return value;
-  case dblUpCutOff:
-   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_UpperCutoff, &value );
-   return value;
-  case dblLwCutOff:
-   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, &value );
-   return value;
-  case dblRAccSol:
-   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_MIPGap, &value );
-   return value;
-  case dblAAccSol:
-   CPXgetdblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap, &value );
-   return value;
-  case dblFAccSol:
-   CPXgetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, &value );
-   return value;
-  default:;
- }
+  case( dblMaxTime ):
+   CPXgetdblparam( env , CPXPARAM_TimeLimit , & value );
+   return( value );
+  case( dblRelAcc ):
+   CPXgetdblparam( env , CPXPARAM_MIP_Tolerances_MIPGap , & value );
+   return( value );
+  case( dblAbsAcc ):
+   CPXgetdblparam( env , CPXPARAM_MIP_Tolerances_AbsMIPGap , & value );
+   return( value );
+  case( dblUpCutOff ): return( UpCutOff );
+  case( dblLwCutOff ): return( LwCutOff );
+  case( dblRAccSol ):
+   CPXgetdblparam( env , CPXPARAM_MIP_Pool_RelGap , & value );
+   return( value );
+  case( dblAAccSol ):
+   CPXgetdblparam( env , CPXPARAM_MIP_Pool_AbsGap , & value );
+   return( value );
+  case( dblFAccSol ):
+   CPXgetdblparam( env , CPXPARAM_Simplex_Tolerances_Feasibility , & value );
+   return( value );
+  }
 
  // CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
-  CPXgetdblparam( env, cplex_par, &value );
- }
+  CPXgetdblparam( env , cplex_par , & value );
+  return( value );
+  }
 
- return MILPSolver::get_dbl_par( par );
-}
+ return( MILPSolver::get_dbl_par( par ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const {
+const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const
+{
  static std::string value;
 
  // CPLEX parameters
@@ -2345,35 +2369,36 @@ const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   value.reserve( CPX_STR_PARAM_MAX );
   CPXgetstrparam( env, cplex_par, value.data() );
-  return value;
- }
+  return( value );
+  }
 
- return MILPSolver::get_str_par( par );
-}
+ return( MILPSolver::get_str_par( par ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const {
+int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const
+{
  int value;
  CPXLONG long_value;
 
  // Solver parameters explicitly mapped in CPLEX
- if( par == intMaxIter ) {
-  CPXinfolongparam( env, CPXPARAM_MIP_Limits_Nodes, &long_value,
-                    nullptr, nullptr );
-  return ( int ) long_value;
- }
- if( par == intMaxSol ) {
-  CPXinfointparam( env, CPXPARAM_MIP_Pool_Capacity, &value, nullptr, nullptr );
-  return value;
- }
- if( par == intLogVerb ) {
-  CPXinfointparam( env, CPXPARAM_ScreenOutput, &value, nullptr, nullptr );
-  return value;
- }
- if( par == intThrowReducedCostException ) {
-  return 0;
- }
+ switch( par ) {
+  case( intMaxIter ):
+   CPXinfolongparam( env , CPXPARAM_MIP_Limits_Nodes , & long_value ,
+		     nullptr , nullptr );
+   return( ( int ) long_value );
+  case( intMaxSol ):
+   CPXinfointparam( env , CPXPARAM_MIP_Pool_Capacity , & value ,
+		    nullptr , nullptr );
+   return( value );
+  case( intLogVerb ):
+   CPXinfointparam( env , CPXPARAM_ScreenOutput , & value ,
+		    nullptr , nullptr );
+   return( value );
+  case( intThrowReducedCostException ):
+   return( 0 );
+  }
 
  // CPLEX parameters
  if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
@@ -2381,140 +2406,124 @@ int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const {
 
   // Both int and long CPLEX parameters are handled as SMS++ int parameters
   int type;
-  CPXgetparamtype( env, cplex_par, &type );
+  CPXgetparamtype( env , cplex_par , & type );
 
-  switch( type ) {
-   case CPX_PARAMTYPE_INT:
-    CPXinfointparam( env, cplex_par, &value, nullptr, nullptr );
-    return value;
-   case CPX_PARAMTYPE_LONG:
-    CPXinfolongparam( env, cplex_par, &long_value, nullptr, nullptr );
-    return ( int ) long_value;
-   default:
-    break;
+  if( type == CPX_PARAMTYPE_INT ) {
+   CPXinfointparam( env, cplex_par, &value, nullptr, nullptr );
+   return( value );
+   }
+  else {
+   CPXinfolongparam( env, cplex_par, &long_value, nullptr, nullptr );
+   return( ( int ) long_value );
+   }
   }
+
+ return( MILPSolver::get_dflt_int_par( par ) );
  }
 
- return MILPSolver::get_dflt_int_par( par );
-}
-
 /*--------------------------------------------------------------------------*/
-double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const {
+
+double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const
+{
  double value;
 
  // Solver parameters explicitly mapped in CPLEX
- if( par == dblMaxTime ) {
-  CPXinfodblparam( env, CPXPARAM_TimeLimit, &value, nullptr, nullptr );
-  return value;
- }
- if( par == dblRelAcc ) {
-  CPXinfodblparam( env, CPXPARAM_MIP_Tolerances_RelObjDifference, &value,
-                   nullptr, nullptr );
-  return value;
- }
- if( par == dblAbsAcc ) {
-  CPXinfodblparam( env, CPXPARAM_MIP_Tolerances_ObjDifference, &value,
-                   nullptr, nullptr );
-  return value;
- }
- if( par == dblUpCutOff ) {
-  CPXinfodblparam( env, CPXPARAM_MIP_Tolerances_UpperCutoff, &value,
-                   nullptr, nullptr );
-  return value;
- }
- if( par == dblLwCutOff ) {
-  CPXinfodblparam( env, CPXPARAM_MIP_Tolerances_LowerCutoff, &value,
-                   nullptr, nullptr );
-  return value;
- }
- if( par == dblRAccSol ) {
-  CPXinfodblparam( env, CPXPARAM_MIP_Tolerances_MIPGap, &value,
-                   nullptr, nullptr );
-  return value;
- }
- if( par == dblAAccSol ) {
-  CPXinfodblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap, &value,
-                   nullptr, nullptr );
-  return value;
- }
- if( par == dblFAccSol ) {
-  CPXinfodblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, &value,
-                   nullptr, nullptr );
-  return value;
- }
+ switch( par ) {
+  case( dblMaxTime ):
+   CPXinfodblparam( env , CPXPARAM_TimeLimit , & value , nullptr , nullptr );
+   return( value );
+  case( dblRelAcc ):
+   CPXinfodblparam( env , CPXPARAM_MIP_Tolerances_MIPGap , & value ,
+		    nullptr , nullptr );
+   return( value );
+  case( dblAbsAcc ):
+   CPXinfodblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap , & value ,
+		    nullptr , nullptr );
+   return( value );
+  case( dblUpCutOff ): return( Inf< double >() );
+  case( dblLwCutOff ): return( - Inf< double >() );
+  case( dblRAccSol ):
+   CPXinfodblparam( env , CPXPARAM_MIP_Pool_RelGap , & value ,
+		    nullptr , nullptr );
+   return( value );
+  case( dblAAccSol ):
+   CPXinfodblparam( env , CPXPARAM_MIP_Pool_AbsGap , & value ,
+		    nullptr , nullptr );
+   return( value );
+  case( dblFAccSol ):
+   CPXinfodblparam( env , CPXPARAM_Simplex_Tolerances_Feasibility , & value ,
+                   nullptr , nullptr );
+   return( value );
+  }
 
  // CPLEX parameters
  if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
-  CPXinfodblparam( env, cplex_par, &value, nullptr, nullptr );
-  return value;
- }
+  CPXinfodblparam( env , cplex_par , & value , nullptr , nullptr );
+  return( value );
+  }
 
- return MILPSolver::get_dflt_dbl_par( par );
-}
+ return( MILPSolver::get_dflt_dbl_par( par ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
 const std::string &
-CPXMILPSolver::get_dflt_str_par( const idx_type par ) const {
- static std::vector< std::string > value( strLastAlgParCPXS - strFirstCPLEXPar );
+CPXMILPSolver::get_dflt_str_par( const idx_type par ) const
+{
+ static std::vector< std::string > value( strLastAlgParCPXS -
+					  strFirstCPLEXPar );
 
-// CPLEX parameters
+ // CPLEX parameters
  if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
   auto i = par - strFirstCPLEXPar;
   if( value[ i ].empty() ) {
    value[ i ].reserve( CPX_STR_PARAM_MAX );
    CPXinfostrparam( env , SMSpp_to_CPLEX_str_pars[ i ] , value[ i ].data() );
+   }
+
+  return( value[ i ] );
   }
 
-  return value[ i ];
+ return( MILPSolver::get_dflt_str_par( par ) );
  }
-
- return MILPSolver::get_dflt_str_par( par );
-}
 
 /*--------------------------------------------------------------------------*/
 
 ThinComputeInterface::idx_type
-CPXMILPSolver::int_par_str2idx( const std::string & name ) const {
-
+CPXMILPSolver::int_par_str2idx( const std::string & name ) const
+{
  if( name == "intThrowReducedCostException" )
-  return intThrowReducedCostException;
+  return( intThrowReducedCostException );
 
- /*
-  * In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
+ /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
-  * is not found.
-  */
+  * is not found. */
 
  idx_type idx = MILPSolver::int_par_str2idx( name );
- if( idx < Inf< idx_type >() ) {
-  return idx;
- }
+ if( idx < Inf< idx_type >() )
+  return( idx );
 
  // CPLEX parameters
  int cplex_par;
- int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
+ int status = CPXgetparamnum( env , name.c_str() , & cplex_par );
  if( status == 0 ) {
   auto it = lower_bound( CPLEX_to_SMSpp_int_pars.begin(),
                          CPLEX_to_SMSpp_int_pars.end(),
                          std::make_pair( cplex_par, 0 ) );
-  return it->second;
- }
+  return( it->second );
+  }
 
- return Inf< idx_type >();
- // return MILPSolver::int_par_str2idx( name );
-}
+ return( Inf< idx_type >() );
+ }
 
 /*----------------------------- ---------------------------------------------*/
 
-const std::string &
-CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
-
+const std::string & CPXMILPSolver::int_par_idx2str( const idx_type idx ) const
+{
  static const std::string par_trce = "intThrowReducedCostException";
- if( idx == intThrowReducedCostException ) {
-  return par_trce;
- }
+ if( idx == intThrowReducedCostException )
+  return( par_trce );
 
  // CPLEX parameters
  static std::string par_name;
@@ -2522,199 +2531,190 @@ CPXMILPSolver::int_par_idx2str( const idx_type idx ) const {
  if( idx >= intFirstCPLEXPar && idx < intLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_int_pars[ idx - intFirstCPLEXPar ];
   par_name.reserve( CPX_STR_PARAM_MAX );
-#if CPX_VERSION < 12090000
-  int status = CPXgetparamname( env, cplex_par, par_name.data() );
-#else
-  int status = CPXgetparamhiername( env, cplex_par, par_name.data() );
-#endif
-  return par_name;
- }
+  #if CPX_VERSION < 12090000
+   int status = CPXgetparamname( env , cplex_par, par_name.data() );
+  #else
+   int status = CPXgetparamhiername( env , cplex_par, par_name.data() );
+  #endif
+  return( par_name );
+  }
 
- return MILPSolver::int_par_idx2str( idx );
-}
+ return( MILPSolver::int_par_idx2str( idx ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
 ThinComputeInterface::idx_type
-CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const {
- /*
- * In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
+CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const
+{
+ /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
  * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
- * is not found.
- */
+ * is not found. */
 
  idx_type idx = MILPSolver::dbl_par_str2idx( name );
- if( idx < Inf< idx_type >() ) {
-  return idx;
- }
+ if( idx < Inf< idx_type >() )
+  return( idx );
 
  // CPLEX parameters
  int cplex_par;
- int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
+ int status = CPXgetparamnum( env , name.c_str(), &cplex_par );
  if( status == 0 ) {
   auto it = lower_bound( CPLEX_to_SMSpp_dbl_pars.begin(),
                          CPLEX_to_SMSpp_dbl_pars.end(),
                          std::make_pair( cplex_par, 0 ) );
-  return it->second;
- }
+  return( it->second );
+  }
 
- return Inf< idx_type >();
- // return MILPSolver::dbl_par_str2idx( name );
-}
+ return( Inf< idx_type >() );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const {
+const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const
+{
  // CPLEX parameters
  static std::string par_name;
 
  if( idx >= dblFirstCPLEXPar && idx < dblLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ idx - dblFirstCPLEXPar ];
   par_name.reserve( CPX_STR_PARAM_MAX );
-#if CPX_VERSION < 12090000
-  int status = CPXgetparamname( env, cplex_par, par_name.data() );
-#else
-  int status = CPXgetparamhiername( env, cplex_par, par_name.data() );
-#endif
-  return par_name;
- }
+  #if CPX_VERSION < 12090000
+   int status = CPXgetparamname( env, cplex_par, par_name.data() );
+  #else
+   int status = CPXgetparamhiername( env, cplex_par, par_name.data() );
+  #endif
+  return( par_name );
+  }
 
- return MILPSolver::dbl_par_idx2str( idx );
-}
+ return( MILPSolver::dbl_par_idx2str( idx ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
 ThinComputeInterface::idx_type
 CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
- /*
-  * In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
+ /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
-  * is not found.
-  */
+  * is not found. */
 
  idx_type idx = MILPSolver::str_par_str2idx( name );
- if( idx < Inf< idx_type >() ) {
-  return idx;
- }
+ if( idx < Inf< idx_type >() )
+  return( idx );
 
  // CPLEX parameters
  int cplex_par;
- int status = CPXgetparamnum( env, name.c_str(), &cplex_par );
+ int status = CPXgetparamnum( env , name.c_str() , & cplex_par );
  if( status == 0 ) {
   auto it = lower_bound( CPLEX_to_SMSpp_str_pars.begin(),
                          CPLEX_to_SMSpp_str_pars.end(),
                          std::make_pair( cplex_par, 0 ) );
-  return it->second;
- }
+  return( it->second );
+  }
 
- return Inf< idx_type >();
- // return MILPSolver::str_par_str2idx( name );
-}
+ return( Inf< idx_type >() );
+ }
 
 /*--------------------------------------------------------------------------*/
 
 const std::string &
-CPXMILPSolver::str_par_idx2str( const idx_type idx ) const {
-
+CPXMILPSolver::str_par_idx2str( const idx_type idx ) const
+{
  // CPLEX parameters
  static std::string par_name;
 
  if( idx >= strFirstCPLEXPar && idx < strLastAlgParCPXS ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ idx - strFirstCPLEXPar ];
   par_name.reserve( CPX_STR_PARAM_MAX );
-#if CPX_VERSION < 12090000
-  int status = CPXgetparamname( env, cplex_par, par_name.data() );
-#else
-  int status = CPXgetparamhiername( env, cplex_par, par_name.data() );
-#endif
-  return par_name;
- }
+  #if CPX_VERSION < 12090000
+   int status = CPXgetparamname( env , cplex_par , par_name.data() );
+  #else
+   int status = CPXgetparamhiername( env , cplex_par , par_name.data() );
+  #endif
+  return( par_name );
+  }
 
- return MILPSolver::str_par_idx2str( idx );
-}
+ return( MILPSolver::str_par_idx2str( idx ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
 #ifdef MILPSOLVER_DEBUG
 
-void CPXMILPSolver::check_status() {
-
- if( numcols != CPXgetnumcols( env, lp ) ) {
+void CPXMILPSolver::check_status( void )
+{
+ if( numcols != CPXgetnumcols( env, lp ) )
   DEBUG_LOG( "numcols is " << numcols
                            << " but CPXgetnumcols() returns "
                            << CPXgetnumcols( env, lp ) << std::endl );
- }
 
- if( numrows != CPXgetnumrows( env, lp ) ) {
+ if( numrows != CPXgetnumrows( env, lp ) )
   DEBUG_LOG( "numrows is " << numrows
                            << " but CPXgetnumrows() returns "
                            << CPXgetnumrows( env, lp ) << std::endl );
- }
 
  int iv = CPXgetintvars( nullptr );
- if( int_vars != iv ) {
+ if( int_vars != iv )
   DEBUG_LOG( "int_vars is " << int_vars
                             << " but CPLEX has actually " << iv
                             << " integer variables" << std::endl );
- }
+
  MILPSolver::check_status();
-}
+ }
 
 #endif
 
 /*--------------------------------------------------------------------------*/
-/*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
+/*-------------------- PRIVATE METHODS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::CPXgetintvars( std::vector< char > * ctype ) {
+int CPXMILPSolver::CPXgetintvars( std::vector< char > * ctype )
+{
  int n;
  int current_cols = CPXgetnumcols( env, lp );
  std::vector< char > * good_ctype = nullptr;
 
  // Create a new vector if needed
- if( ctype == nullptr ) {
+ if( ctype == nullptr )
   good_ctype = new std::vector< char >( current_cols );
- } else {
+ else {
   good_ctype = ctype;
   good_ctype->resize( current_cols, 'C' );
- }
+  }
 
  // Retrieve the ctype array
- int status = CPXgetctype( env, lp, good_ctype->data(), 0, current_cols - 1 );
-
- if( status == 0 ) {
+ int status = CPXgetctype( env , lp , good_ctype->data() , 0 ,
+			   current_cols - 1 );
+ if( ! status ) {
   // Problem is MIP, get the number of integer variables
   n = std::count_if( good_ctype->begin(),
                      good_ctype->end(),
                      []( char c ) { return c != 'C'; } );
- } else if( status == CPXERR_NOT_MIP ) {
-  // Problem is not MIP
-  n = 0;
- } else {
-  throw std::runtime_error( "CPXgetctype() returned " +
-                            std::to_string( status ) );
- }
+  }
+ else
+  if( status == CPXERR_NOT_MIP )  // Problem is not MIP
+   n = 0;
+  else
+   throw( std::runtime_error( "CPXgetctype() returned " +
+			      std::to_string( status ) ) );
 
- if( ctype == nullptr ) {
+ if( ctype == nullptr )
   delete good_ctype;
+
+ return( n );
  }
- return n;
-}
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::reload_constraint( Function * f ) {
- const auto * lf = dynamic_cast<const LinearFunction *> (f);
- if( lf == nullptr ) {
+void CPXMILPSolver::reload_constraint( Function * f )
+{
+ const auto * lf = dynamic_cast< const LinearFunction * >( f );
+ if( ! lf )
   return;
- }
 
- auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
+ auto * con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
  // TODO: Is dynamic_cast necessary?
- if( con == nullptr ) {
-  // TODO: Throw exception?
+ if( ! con )  // TODO: Throw exception?
   return;
- }
 
  std::vector< double > vals;
  std::vector< int > cols;
@@ -2728,38 +2728,37 @@ void CPXMILPSolver::reload_constraint( Function * f ) {
  for( auto var : lf->get_v_var() ) {
   cols.push_back( index_of_variable( var.first ) );
   vals.push_back( var.second );
- }
+  }
 
- if( !cols.empty() ) {
-  CPXchgcoeflist( env, lp, cols.size(), rows.data(), cols.data(), vals.data() );
+ if( ! cols.empty() )
+  CPXchgcoeflist( env , lp , cols.size() , rows.data() , cols.data() ,
+		  vals.data() );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::reload_objective( Function * f ) {
-
+void CPXMILPSolver::reload_objective( Function * f )
+{
  std::vector< int > indices;
  std::vector< double > values;
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+ if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
   indices.reserve( lf->get_num_active_var() );
   values.reserve( lf->get_num_active_var() );
 
   for( auto el : lf->get_v_var() ) {
    indices.push_back( index_of_variable( el.first ) );
    values.push_back( el.second );
-  }
+   }
 
-  if( !indices.empty() ) {
-   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-  }
+  if( ! indices.empty() )
+   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
 
   update_problem_type( f );
   return;
- }
+  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
+ if( const auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
   indices.reserve( qf->get_num_active_var() );
   values.reserve( qf->get_num_active_var() );
 
@@ -2769,73 +2768,73 @@ void CPXMILPSolver::reload_objective( Function * f ) {
    values.push_back( std::get< 1 >( el ) );
    double q_value = std::get< 2 >( el );
 
-   // Quadratic coefficients can be changed one at a time
-   CPXchgqpcoef( env, lp, indices.back(), indices.back(), 2 * q_value );
-  }
+   // Quadratic coefficients need be changed one at a time
+   CPXchgqpcoef( env , lp , indices.back() , indices.back() , 2 * q_value );
+   }
 
-  if( !indices.empty() ) {
-   CPXchgobj( env, lp, indices.size(), indices.data(), values.data() );
-  }
+  if( ! indices.empty() )
+   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
 
   update_problem_type( f );
   return;
- }
+  }
 
  // This should never happen
- throw std::invalid_argument( "Unknown type of Objective Function" );
-}
+ throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::update_problem_type( Function * f ) {
- // TODO: I'm not really sure if this is done automatically by CPLEX, check.
+void CPXMILPSolver::update_problem_type( Function * f )
+{
+ // TODO: I'm not really sure if this is done automatically by CPLEX, check
 
- if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+ if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
   // Update problem type, if needed
-  switch( CPXgetprobtype( env, lp ) ) {
-   case CPXPROB_LP :
-   case CPXPROB_MILP :
-   case CPXPROB_FIXEDMILP :
+  switch( CPXgetprobtype( env , lp ) ) {
+   case( CPXPROB_LP ):
+   case( CPXPROB_MILP ):
+   case( CPXPROB_FIXEDMILP ):
     break;
-   case CPXPROB_QP :
-    CPXchgprobtype( env, lp, CPXPROB_LP );
+   case( CPXPROB_QP ):
+    CPXchgprobtype( env , lp , CPXPROB_LP );
     break;
-   case CPXPROB_MIQP :
-    CPXchgprobtype( env, lp, CPXPROB_MILP );
+   case( CPXPROB_MIQP ):
+    CPXchgprobtype( env , lp , CPXPROB_MILP );
     break;
-   case CPXPROB_FIXEDMIQP :
-    CPXchgprobtype( env, lp, CPXPROB_FIXEDMILP );
+   case( CPXPROB_FIXEDMIQP ):
+    CPXchgprobtype( env , lp , CPXPROB_FIXEDMILP );
     break;
    default:
-    throw std::runtime_error( "Wrong CPLEX problem type" );
-  }
+    throw( std::runtime_error( "Wrong CPLEX problem type" ) );
+   }
   return;
- }
+  }
 
- if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
-  switch( CPXgetprobtype( env, lp ) ) {
-   case CPXPROB_LP :
-    CPXchgprobtype( env, lp, CPXPROB_QP );
+ if( const auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+  switch( CPXgetprobtype( env , lp ) ) {
+   case( CPXPROB_LP ):
+    CPXchgprobtype( env , lp , CPXPROB_QP );
     break;
-   case CPXPROB_MILP :
-    CPXchgprobtype( env, lp, CPXPROB_MIQP );
+   case( CPXPROB_MILP ):
+    CPXchgprobtype( env , lp , CPXPROB_MIQP );
     break;
-   case CPXPROB_FIXEDMILP :
-    CPXchgprobtype( env, lp, CPXPROB_FIXEDMIQP );
+   case( CPXPROB_FIXEDMILP ):
+    CPXchgprobtype( env , lp , CPXPROB_FIXEDMIQP );
     break;
-   case CPXPROB_QP :
-   case CPXPROB_MIQP :
-   case CPXPROB_FIXEDMIQP :
+   case( CPXPROB_QP ):
+   case( CPXPROB_MIQP ):
+   case( CPXPROB_FIXEDMIQP ):
     break;
    default:
-    throw std::runtime_error( "Wrong CPLEX problem type" );
-  }
+    throw( std::runtime_error( "Wrong CPLEX problem type" ) );
+   }
   return;
- }
+  }
 
  // This should never happen
- throw std::invalid_argument( "Unknown type of Objective Function" );
-}
+ throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- End File CPXMILPSolver.cpp -------------------------*/

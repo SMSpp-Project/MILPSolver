@@ -26,25 +26,22 @@
 /*--------------------------------------------------------------------------*/
 
 #ifndef __MILPSolver
-#define __MILPSolver
-
-#ifdef MILPSOLVER_DEBUG
-#define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
-#else
-#define DEBUG_LOG( stuff )
-#endif
+ #define __MILPSolver /* self-identification: #endif at the end of the file */
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include <SMSTypedefs.h>
-#include <Observer.h>
 #include <Block.h>
+
 #include <CDASolver.h>
+
 #include <ColVariable.h>
+
 #include <FRealObjective.h>
+
 #include <FRowConstraint.h>
+
 #include <OneVarConstraint.h>
 
 /*--------------------------------------------------------------------------*/
@@ -53,8 +50,6 @@
 
 /// namespace for the Structured Modeling System++ (SMS++)
 namespace SMSpp_di_unipi_it {
-
-class Block;
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- CLASS MILPSolver -------------------------------*/
@@ -142,19 +137,22 @@ class MILPSolver : public CDASolver {
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
-/*--------------------------------------------------------------------------*/
-
-/**
- * @name Constructor and destructor
+/*--------------------------------------------------------------------------*//** @name Constructor and destructor
  * @{
  */
 
- MILPSolver();
-
- ~MILPSolver() override;
- /// @}
+ MILPSolver( void ) : CDASolver() {}
 
 /*--------------------------------------------------------------------------*/
+
+ ~MILPSolver() override {
+  for( auto & i : colname )
+   delete[] i;
+  for( auto & i : rowname )
+   delete[] i;
+  }
+
+/** @} ---------------------------------------------------------------------*/
 /*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
  /** @name Clear and load the problem
@@ -169,8 +167,7 @@ class MILPSolver : public CDASolver {
   * @{
   */
 
- /**
-  * It clears the LP vectors.
+ /** It clears the LP vectors.
   *
   * The input parameter is a bitwise value that allows to specify which
   * vectors should be cleared. From the LSB to the MSB:
@@ -184,15 +181,14 @@ class MILPSolver : public CDASolver {
   *
   * Note: this method is provided so the user can clear the stuff that
   * she is sure IT WILL NOT BE CHANGED. If some vectors are cleared and
-  * a method tries to change them, it will throw exception!
-  */
+  * a method tries to change them, it will throw exception! */
+
  virtual void clear_problem( unsigned int what );
 
  /// It loads the problem from the Block into the LP vectors
  virtual void load_problem();
 
- /// @}
-
+/// @}
 /** @name Getters for the vectors of the LP problem.
  *
  * The following methods return the data that define the LP problem as
@@ -203,61 +199,88 @@ class MILPSolver : public CDASolver {
  */
 
  /// Returns the number of variables/columns
- [[nodiscard]] int get_numcols() const;
+ [[nodiscard]] int get_numcols( void ) const { return( numcols ); }
 
  /// Returns the number of constraints/rows
- [[nodiscard]] int get_numrows() const;
+ [[nodiscard]] int get_numrows( void ) const { return( numrows ); }
 
  /// Returns the number of non-zero elements
- [[nodiscard]] int get_nzelements() const;
+ [[nodiscard]] int get_nzelements( void ) const { return( nzelements ); }
 
  /// Returns the sense of the objective function, see CPXchgobjsen()
- [[nodiscard]] int get_objsense() const;
+ [[nodiscard]] int get_objsense( void ) const { return( objsense ); }
 
  /// Returns the linear cofficients of the objective function
- [[nodiscard]] const std::vector< double > & get_objective() const;
+ [[nodiscard]] const std::vector< double > & get_objective( void ) const {
+  return( objective );
+  }
 
  /// Returns the quadratic cofficients of the objective function
- [[nodiscard]] const std::vector< double > & get_q_objective() const;
+ [[nodiscard]] const std::vector< double > & get_q_objective( void ) const {
+  return( q_objective );
+  }
 
  /// Returns the RHS values of the constraints
- [[nodiscard]] const std::vector< double > & get_rhs() const;
+ [[nodiscard]] const std::vector< double > & get_rhs( void ) const {
+  return( rhs );
+  }
 
  /// Returns the range values of the ranged constraints
- [[nodiscard]] const std::vector< double > & get_rngval() const;
+ [[nodiscard]] const std::vector< double > & get_rngval( void ) const {
+  return( rngval );
+  }
 
  /// Returns the sense of the constraints, see  CPXchgsense()
- [[nodiscard]] const std::vector< char > & get_sense() const;
+ [[nodiscard]] const std::vector< char > & get_sense( void ) const {
+  return( sense );
+  }
 
  /// Returns matbeg, one of the arrays that define the constraint matrix
- [[nodiscard]] const std::vector< int > & get_matbeg() const;
+ [[nodiscard]] const std::vector< int > & get_matbeg( void ) const {
+  return( matbeg );
+  }
 
  /// Returns matcnt, one of the arrays that define the constraint matrix
- [[nodiscard]] const std::vector< int > & get_matcnt() const;
+ [[nodiscard]] const std::vector< int > & get_matcnt( void ) const {
+  return( matcnt );
+  }
 
  /// Returns matind, one of the arrays that define the constraint matrix
- [[nodiscard]] const std::vector< int > & get_matind() const;
+ [[nodiscard]] const std::vector< int > & get_matind( void ) const {
+  return( matind );
+  }
 
  /// Returns matval, one of the arrays that define the constraint matrix
- [[nodiscard]] const std::vector< double > & get_matval() const;
+ [[nodiscard]] const std::vector< double > & get_matval( void ) const {
+  return( matval );
+  }
 
  /// Returns the lower bounds on the variables
- [[nodiscard]] const std::vector< double > & get_var_lb() const;
+ [[nodiscard]] const std::vector< double > & get_var_lb( void ) const {
+  return( lb );
+  }
 
  /// Returns the upper bounds on the variables
- [[nodiscard]] const std::vector< double > & get_var_ub() const;
+ [[nodiscard]] const std::vector< double > & get_var_ub( void ) const {
+  return( ub );
+  }
 
  /// Returns the types of the variables, see CPXcopyctype()
- [[nodiscard]] const std::vector< char > & get_xctype() const;
+ [[nodiscard]] const std::vector< char > & get_xctype( void ) const {
+  return( xctype );
+  }
 
  /// Returns the names of the constraints/rows
- [[nodiscard]] const std::vector< char * > & get_rowname() const;
+ [[nodiscard]] const std::vector< char * > & get_rowname( void ) const {
+  return( rowname );
+  }
 
  /// Returns the names of the variables/columns
- [[nodiscard]] const std::vector< char * > & get_colname() const;
+ [[nodiscard]] const std::vector< char * > & get_colname( void ) const {
+  return( colname );
+  }
 
  /// @}
-
  /** @name Methods that use the dictionaries
   *
   * The following methods use the dictionaries to get the indices of the
@@ -269,8 +292,7 @@ class MILPSolver : public CDASolver {
   * @{
   */
 
- /**
-  * It returns the matrix column index of a given variable.
+ /** It returns the matrix column index of a given variable.
   *
   * @param var a pointer to a ColVariable
   * @return the corresponding matrix column index
@@ -278,8 +300,7 @@ class MILPSolver : public CDASolver {
   */
  int index_of_variable( const ColVariable * var );
 
- /**
-  * It returns the matrix column index of a given static variable.
+ /** It returns the matrix column index of a given static variable.
   *
   * @param var a pointer to a ColVariable
   * @return the corresponding matrix column index
@@ -287,8 +308,7 @@ class MILPSolver : public CDASolver {
   */
  int index_of_static_variable( const ColVariable * var );
 
- /**
-  * It returns the matrix column index of a given dynamic variable.
+ /** It returns the matrix column index of a given dynamic variable.
   *
   * @param var a pointer to a ColVariable
   * @return the corresponding matrix column index
@@ -296,16 +316,14 @@ class MILPSolver : public CDASolver {
   */
  int index_of_dynamic_variable( const ColVariable * var );
 
- /**
-  * It returns the matrix row index of the given constraint.
+ /** It returns the matrix row index of the given constraint.
   *
   * @param con a pointer to a FRowConstraint
   * @return the corresponding matrix row index
   */
  int index_of_constraint( const FRowConstraint * con );
 
- /**
-  * It returns the matrix row index of the given static constraint.
+ /** It returns the matrix row index of the given static constraint.
   *
   * @param con a pointer to a FRowConstraint
   * @return the corresponding matrix row index
@@ -313,8 +331,7 @@ class MILPSolver : public CDASolver {
   */
  int index_of_static_constraint( const FRowConstraint * con );
 
- /**
-  * It returns the matrix row index of the given dynamic constraint.
+ /** It returns the matrix row index of the given dynamic constraint.
   *
   * @param con a pointer to a FRowConstraint
   * @return the corresponding matrix row index
@@ -322,8 +339,7 @@ class MILPSolver : public CDASolver {
   */
  int index_of_dynamic_constraint( const FRowConstraint * con );
 
- /**
-  * It returns the variable corresponding to a variable matrix column index.
+ /** It returns the variable corresponding to a variable matrix column index.
   *
   * @param i a constraint matrix column index
   * @return a pointer to the corresponding ColVariable
@@ -331,8 +347,7 @@ class MILPSolver : public CDASolver {
   */
  ColVariable * variable_with_index( int i );
 
- /**
-  * It returns the static variable corresponding to the given variable
+ /** It returns the static variable corresponding to the given variable
   * matrix column index.
   *
   * @param i a constraint matrix column index
@@ -342,8 +357,7 @@ class MILPSolver : public CDASolver {
   */
  ColVariable * static_variable_with_index( int i );
 
- /**
-  * It returns the dynamic variable corresponding to the given variable
+ /** It returns the dynamic variable corresponding to the given variable
   * matrix column index.
   *
   * @param i a constraint matrix column index
@@ -353,8 +367,7 @@ class MILPSolver : public CDASolver {
   */
  ColVariable * dynamic_variable_with_index( int i );
 
- /**
-  * It returns the constraint corresponding to a constraint matrix row index.
+ /** It returns the constraint corresponding to a constraint matrix row index.
   *
   * @param i a constraint matrix row index
   * @return a pointer to the corresponding FRowConstraint
@@ -363,8 +376,7 @@ class MILPSolver : public CDASolver {
   */
  FRowConstraint * constraint_with_index( int i );
 
- /**
-  * It returns the static constraint corresponding to the given constraint
+ /** It returns the static constraint corresponding to the given constraint
   * matrix row index.
   *
   * @param i a constraint matrix row index
@@ -374,8 +386,7 @@ class MILPSolver : public CDASolver {
   */
  FRowConstraint * static_constraint_with_index( int i );
 
- /**
- * It returns the dynamic constraint corresponding to the given constraint
+ /** It returns the dynamic constraint corresponding to the given constraint
  * matrix row index.
  *
  * @param i a constraint matrix row index
@@ -383,24 +394,24 @@ class MILPSolver : public CDASolver {
  * @throws std::invalid_argument if the index doesn't correspond to
  *                               a dynamic constraint
  */
+
  FRowConstraint * dynamic_constraint_with_index( int i );
+
  /// @}
 
  /// Writes the LP on the specified file
  virtual void write_lp( const std::string & filename ) {}
 
  /// Returns the number of nodes used to solve a MIP
- [[nodiscard]] virtual int get_nodes() const { return 0; }
+ [[nodiscard]] virtual int get_nodes( void ) const { return( 0 ); }
 
  /// Returns the number of integer variables
- [[nodiscard]] int get_num_integer_vars() const;
+ [[nodiscard]] int get_num_integer_vars( void ) const { return( int_vars ); }
 
-#ifdef MILPSOLVER_DEBUG
-
- /// Check the dictionaries for inconsistencies
- virtual void check_status();
-
-#endif
+ #ifdef MILPSOLVER_DEBUG
+  /// Check the dictionaries for inconsistencies
+  virtual void check_status( void );
+ #endif
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
@@ -422,79 +433,76 @@ class MILPSolver : public CDASolver {
 
  /// It does nothing as there is nothing to do.
  void get_dual_solution( Configuration * solc ) override {}
- /// @}
 
- /*--------------------------------------------------------------------------*/
+/** @} --------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
-/**
- * @name Methods for handling parameters
+/** @name Methods for handling parameters
  * @{
  */
 
  /// Sets an integer parameter with the given value
- void set_par( idx_type par, int value ) override;
+ void set_par( idx_type par , int value ) override;
 
- /// Sets a double parameter with the given value
- void set_par( idx_type par, double value ) override;
+ // Sets a double parameter with the given value
+ // void set_par( idx_type par , double value ) override;
 
  /// Sets a string parameter with the given value
- void set_par( idx_type par, std::string && value ) override;
+ void set_par( idx_type par , std::string && value ) override;
 
  /// Gets the number of integer parameters
- [[nodiscard]] idx_type get_num_int_par() const override;
+ [[nodiscard]] idx_type get_num_int_par( void ) const override;
 
  /// Gets the number of double parameters
- [[nodiscard]] idx_type get_num_dbl_par() const override;
+ [[nodiscard]] idx_type get_num_dbl_par( void ) const override;
 
  /// Gets the number of string parameters
- [[nodiscard]] idx_type get_num_str_par() const override;
+ [[nodiscard]] idx_type get_num_str_par( void ) const override;
 
  /// Gets the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- /// Gets the default value of the specified double parameter
- [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
+ // Gets the default value of the specified double parameter
+ // [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
  /// Gets the default value of the specified string parameter
  [[nodiscard]] const std::string &
- get_dflt_str_par( idx_type par ) const override;
+  get_dflt_str_par( idx_type par ) const override;
 
  /// Gets the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
 
- /// Gets the value of the specified double parameter
- [[nodiscard]] double get_dbl_par( idx_type par ) const override;
+ // Gets the value of the specified double parameter
+ // [[nodiscard]] double get_dbl_par( idx_type par ) const override;
 
  /// Gets the value of the specified string parameter
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
 
  /// Returns the index of the int parameter with the specified name
  [[nodiscard]] idx_type
- int_par_str2idx( const std::string & name ) const override;
+  int_par_str2idx( const std::string & name ) const override;
 
  /// Returns the name of the int parameter with the specified index
  [[nodiscard]] const std::string &
- int_par_idx2str( idx_type idx ) const override;
+  int_par_idx2str( idx_type idx ) const override;
 
- /// Returns the index of the double parameter with the specified name
- [[nodiscard]] idx_type
- dbl_par_str2idx( const std::string & name ) const override;
+ // Returns the index of the double parameter with the specified name
+ // [[nodiscard]] idx_type
+ // dbl_par_str2idx( const std::string & name ) const override;
 
- /// Returns the name of the double parameter with the specified index
- [[nodiscard]] const std::string &
- dbl_par_idx2str( idx_type idx ) const override;
+ // Returns the name of the double parameter with the specified index
+ // [[nodiscard]] const std::string &
+ // dbl_par_idx2str( idx_type idx ) const override;
 
  /// Returns the index of the string parameter with the specified name
  [[nodiscard]] idx_type
- str_par_str2idx( const std::string & name ) const override;
+  str_par_str2idx( const std::string & name ) const override;
 
  /// Returns the name of the string parameter with the specified index
  [[nodiscard]] const std::string &
- str_par_idx2str( idx_type idx ) const override;
- /// @}
+  str_par_idx2str( idx_type idx ) const override;
 
-/*--------------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -857,13 +865,23 @@ class MILPSolver : public CDASolver {
  void scan_objective( const FRealObjective * obj );
  /// @}
 
+/*--------------------------------------------------------------------------*/
+
  SMSpp_insert_in_factory_h;
-};
 
-}
+/*--------------------------------------------------------------------------*/
+ 
+ };  // end( class( MILPSolver ) )
+
+/*--------------------------------------------------------------------------*/
+
+}  // end( namespace SMSpp_di_unipi_it )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#endif
+#endif  /* MILPSolver.h included */
 
+/*--------------------------------------------------------------------------*/
+/*------------------------- End File MILPSolver.h --------------------------*/
+/*--------------------------------------------------------------------------*/

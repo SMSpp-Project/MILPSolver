@@ -20,15 +20,19 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include <functional>
 #include <queue>
 
-#include <Block.h>
-#include <OneVarConstraint.h>
 #include <LinearFunction.h>
+
 #include <DQuadFunction.h>
 
 #include "MILPSolver.h"
+
+#ifdef MILPSOLVER_DEBUG
+ #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
+#else
+ #define DEBUG_LOG( stuff )
+#endif
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -36,8 +40,14 @@
 
 using namespace SMSpp_di_unipi_it;
 
+/*--------------------------------------------------------------------------*/
+/*-------------------------- FACTORY MANAGEMENT ----------------------------*/
+/*--------------------------------------------------------------------------*/
+
 SMSpp_insert_in_factory_cpp_0( MILPSolver );
 
+/*--------------------------------------------------------------------------*/
+/*----------------------------- FUNCTIONS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 template< typename T >
@@ -47,134 +57,39 @@ template<>
 std::string log_vector( const std::vector< char > & v, int limit );
 
 /*--------------------------------------------------------------------------*/
-/*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
-/*--------------------------------------------------------------------------*/
-
-MILPSolver::MILPSolver() : CDASolver() {}
-
-MILPSolver::~MILPSolver() {
- for( auto & i: colname )
-  delete[] i;
- for( auto & i: rowname )
-  delete[] i;
-}
-
-/*--------------------------------------------------------------------------*/
-/*------------------------------- GETTERS ----------------------------------*/
-/*--------------------------------------------------------------------------*/
-
-int MILPSolver::get_numcols() const {
- return numcols;
-}
-
-int MILPSolver::get_numrows() const {
- return numrows;
-}
-
-int MILPSolver::get_nzelements() const {
- return nzelements;
-}
-
-int MILPSolver::get_objsense() const {
- return objsense;
-}
-
-const std::vector< double > & MILPSolver::get_objective() const {
- return objective;
-}
-
-const std::vector< double > & MILPSolver::get_q_objective() const {
- return q_objective;
-}
-
-const std::vector< double > & MILPSolver::get_rhs() const {
- return rhs;
-}
-
-const std::vector< double > & MILPSolver::get_rngval() const {
- return rngval;
-}
-
-const std::vector< char > & MILPSolver::get_sense() const {
- return sense;
-}
-
-const std::vector< int > & MILPSolver::get_matbeg() const {
- return matbeg;
-}
-
-const std::vector< int > & MILPSolver::get_matcnt() const {
- return matcnt;
-}
-
-const std::vector< int > & MILPSolver::get_matind() const {
- return matind;
-}
-
-const std::vector< double > & MILPSolver::get_matval() const {
- return matval;
-}
-
-const std::vector< double > & MILPSolver::get_var_lb() const {
- return lb;
-}
-
-const std::vector< double > & MILPSolver::get_var_ub() const {
- return ub;
-}
-
-const std::vector< char > & MILPSolver::get_xctype() const {
- return xctype;
-}
-
-const std::vector< char * > & MILPSolver::get_rowname() const {
- return rowname;
-}
-
-const std::vector< char * > & MILPSolver::get_colname() const {
- return colname;
-}
-
-int MILPSolver::get_num_integer_vars() const {
- return int_vars;
-}
-
-/*--------------------------------------------------------------------------*/
 /*-------------------------------- SET_BLOCK -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::set_Block( Block * block ) {
+void MILPSolver::set_Block( Block * block )
+{
  if( f_Block == block )  // registering to the same Block
   return;                // cowardly and silently return
 
  Solver::set_Block( block );
 
  if( block ) {
-
   bool owned = block->is_owned_by( f_id );
-  if( !owned && !block->lock( f_id ) ) {
-   throw std::runtime_error( "Unable to lock the Block" );
-  }
+  if( ( ! owned ) && ( ! block->lock( f_id ) ) )
+   throw( std::runtime_error( "Unable to lock the Block" ) );
 
   // Generate abstract representation
   block->generate_abstract_variables( nullptr );
   block->generate_abstract_constraints( nullptr );
   block->generate_objective( nullptr );
 
-  if( !owned ) {
+  if( ! owned )
    block->unlock( f_id );
-  }
 
   load_problem();
+  }
  }
-}
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------- CLEAR/LOAD -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::clear_problem( unsigned int what ) {
-
+void MILPSolver::clear_problem( unsigned int what )
+{
  if( what & 1u ) {
   matbeg.clear();
   matcnt.clear();
@@ -209,8 +124,8 @@ void MILPSolver::clear_problem( unsigned int what ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::load_problem() {
-
+void MILPSolver::load_problem( void )
+{
  numrows = 0;
  numcols = 0;
  static_vars = 0;
@@ -221,9 +136,8 @@ void MILPSolver::load_problem() {
 
  // Locking the Block
  bool owned = f_Block->is_owned_by( f_id );
- if( !owned && !f_Block->read_lock() ) {
-  throw std::runtime_error( "Unable to lock the Block" );
- }
+ if( ( ! owned ) && ( ! f_Block->read_lock() ) )
+  throw( std::runtime_error( "Unable to lock the Block" ) );
 
  int num_block = 0;       // Counter for the blocks
  int row = 0;             // Counter for the rows
@@ -235,18 +149,17 @@ void MILPSolver::load_problem() {
  // --------------------------------------------------------------------------
 
  Q.push( f_Block );
- while( !Q.empty() ) {
+ while( ! Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
-#ifdef MILPSOLVER_DEBUG
-  DEBUG_LOG( "Processing Block " << num_block << " ["
-                                 << q_Block << "]" << std::endl );
-  DEBUG_LOG( *q_Block << std::endl );
-#endif
+  #ifdef MILPSOLVER_DEBUG
+   DEBUG_LOG( "Processing Block " << num_block << " ["
+                                  << q_Block << "]" << std::endl );
+   DEBUG_LOG( *q_Block << std::endl );
+  #endif
 
-  for( auto * i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
   for( const auto & i : q_Block->get_static_constraints() ) {
    // Singles
@@ -403,13 +316,12 @@ void MILPSolver::load_problem() {
    }
   };
 
-  for( const auto & i : q_Block->get_static_variables() ) {
+  for( const auto & i : q_Block->get_static_variables() )
    un_any_const_static( i, counter, un_any_type< ColVariable >() );
-  }
 
-  for( const auto & i : q_Block->get_dynamic_variables() ) {
+  for( const auto & i : q_Block->get_dynamic_variables() )
    un_any_const_dynamic( i, counter, un_any_type< ColVariable >() );
-  }
+
   ++num_block;
  }
 
@@ -444,8 +356,8 @@ void MILPSolver::load_problem() {
  lb.resize( numcols, 0 );
  ub.resize( numcols, 0 );
  xctype.resize( numcols, 0 );
- colname.resize( numcols, nullptr );
- rowname.resize( numrows, nullptr );
+ colname.resize( numcols , nullptr );
+ rowname.resize( numrows , nullptr );
 
  svar_to_idx.clear();
  idx_to_svar.clear();
@@ -470,13 +382,12 @@ void MILPSolver::load_problem() {
 
  num_block = 0;
  Q.push( f_Block );
- while( !Q.empty() ) {
+ while( ! Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto i : q_Block->get_nested_Blocks() ) {
+  for( auto i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
   int set = 0; // Counter for the constraint groups
 
@@ -520,13 +431,12 @@ void MILPSolver::load_problem() {
 
  num_block = 0;
  Q.push( f_Block );
- while( !Q.empty() ) {
+ while( ! Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto i : q_Block->get_nested_Blocks() ) {
+  for( auto i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
   int set = 0; // Counter for the constraint groups
 
@@ -560,7 +470,7 @@ void MILPSolver::load_problem() {
   num_block++;
  }
 
- std::sort( dcon_to_idx.begin(), dcon_to_idx.end() );
+ std::sort( dcon_to_idx.begin() , dcon_to_idx.end() );
 
  // Scan the static variables
  // --------------------------------------------------------------------------
@@ -568,13 +478,12 @@ void MILPSolver::load_problem() {
  num_block = 0;
  Q.push( f_Block );
 
- while( !Q.empty() ) {
+ while( ! Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto * i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
   int set = 0;   // Counter for the variable groups
 
@@ -611,20 +520,19 @@ void MILPSolver::load_problem() {
   num_block++;
  }
 
- std::sort( svar_to_idx.begin(), svar_to_idx.end() );
+ std::sort( svar_to_idx.begin() , svar_to_idx.end() );
 
-// Scan the dynamic variables
+ // Scan the dynamic variables
  // --------------------------------------------------------------------------
 
  num_block = 0;
  Q.push( f_Block );
- while( !Q.empty() ) {
+ while( ! Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto * i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
   int set = 0;   // Counter for the variable groups
 
@@ -658,37 +566,29 @@ void MILPSolver::load_problem() {
   num_block++;
  }
 
- std::sort( dvar_to_idx.begin(), dvar_to_idx.end() );
+ std::sort( dvar_to_idx.begin() , dvar_to_idx.end() );
 
  // Scan the objective
  // --------------------------------------------------------------------------
 
  switch( f_Block->get_objective_sense() ) {
-  case ( Objective::eMax ):
-   objsense = -1;
-   break;
-  case ( Objective::eMin ):
-   objsense = 1;
-   break;
-  default:
-   objsense = 0;
-   break;
- }
+  case( Objective::eMax ): objsense = -1; break;
+  case( Objective::eMin ): objsense = 1;  break;
+  default:                 objsense = 0;
+  }
 
  Q.push( f_Block );
- while( !Q.empty() ) {
+ while( ! Q.empty() ) {
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto * i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
   auto * obj = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
-  if( obj ) {
+  if( obj )
    scan_objective( obj );
   }
- }
 
 #ifdef MILPSOLVER_DEBUG
  DEBUG_LOG( "objective   = " << log_vector( objective ) << std::endl );
@@ -706,105 +606,92 @@ void MILPSolver::load_problem() {
 #endif
 
  // Unlock the Block
- if( !owned ) {
+ if( ! owned )
   f_Block->read_unlock();
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-double MILPSolver::get_problem_lb( const ColVariable & var ) {
+double MILPSolver::get_problem_lb( const ColVariable & var )
+{
  double b = var.get_lb();
 
- for( auto * i : var.active_stuff() ) {
-  auto * box = dynamic_cast<OneVarConstraint *>(i);
-  if( box != nullptr ) {
-   b = b < box->get_lhs() ? box->get_lhs() : b;
-  }
- }
+ for( auto * i : var.active_stuff() )
+  if( auto * box = dynamic_cast< OneVarConstraint * >( i ) )
+   b = std::max( b , box->get_lhs() );
 
- return b;
-}
+ return( b );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-double MILPSolver::get_problem_ub( const ColVariable & var ) {
+double MILPSolver::get_problem_ub( const ColVariable & var )
+{
  double b = var.get_ub();
 
- for( auto * i : var.active_stuff() ) {
-  auto * box = dynamic_cast<OneVarConstraint *>(i);
-  if( box != nullptr ) {
-   b = b > box->get_rhs() ? box->get_rhs() : b;
-  }
- }
+ for( auto * i : var.active_stuff() )
+  if( auto * box = dynamic_cast< OneVarConstraint *>( i ) )
+   b = std::min( b , box->get_rhs() );
 
- return b;
-}
+ return( b );
+ }
 
 /*--------------------------------------------------------------------------*/
 
 std::vector< FRowConstraint * >
-MILPSolver::get_active_constraints( const ColVariable & var ) {
+MILPSolver::get_active_constraints( const ColVariable & var )
+{
  std::vector< FRowConstraint * > active_constraints;
- for( auto * i : var.active_stuff() ) {
-  auto * row = dynamic_cast<FRowConstraint *>(i);
+ for( auto * i : var.active_stuff() )
+  if( auto * row = dynamic_cast<FRowConstraint *>( i ) ) {
+   bool is_mine = false;
+   auto b = row->get_Block();
+   do {
+    if( b == f_Block ) {
+     is_mine = true;
+     break;
+     }
+    else
+     b = b->get_f_Block();
 
-  if( row == nullptr ) {
-   continue;
-  }
+    } while( b );
 
-  bool is_mine = false;
-  auto b = row->get_Block();
-  do {
-   if( b == f_Block ) {
-    is_mine = true;
-    break;
-   } else {
-    b = b->get_f_Block();
+   if( is_mine )
+    active_constraints.push_back( row );
    }
-  } while( b );
-
-  if( is_mine ) {
-   active_constraints.push_back( row );
-  }
+ 
+ return( active_constraints );
  }
- return active_constraints;
-}
 
 /*--------------------------------------------------------------------------*/
 
 std::vector< OneVarConstraint * >
-MILPSolver::get_active_bounds( const ColVariable & var ) {
+MILPSolver::get_active_bounds( const ColVariable & var )
+{
  std::vector< OneVarConstraint * > active_bounds;
- for( auto * i : var.active_stuff() ) {
-  auto * row = dynamic_cast<OneVarConstraint *>(i);
-  if( row != nullptr ) {
+ for( auto * i : var.active_stuff() )
+  if( auto * row = dynamic_cast< OneVarConstraint * >( i ) )
    active_bounds.push_back( row );
-  }
+
+ return( active_bounds );
  }
- return active_bounds;
-}
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_variable( const ColVariable * var ) {
+int MILPSolver::index_of_variable( const ColVariable * var )
+{
  auto i = index_of_static_variable( var );
- if( i < Inf< int >() ) {
-  return i;
- } else {
-  return index_of_dynamic_variable( var );
+ return( i < Inf< int >() ? i : index_of_dynamic_variable( var ) );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_static_variable( const ColVariable * var ) {
-
- if( svar_to_idx.empty() ) {
-  return Inf< int >();
- }
+int MILPSolver::index_of_static_variable( const ColVariable * var )
+{
+ if( svar_to_idx.empty() )
+  return( Inf< int >() );
 
  assert( std::is_sorted( svar_to_idx.begin(), svar_to_idx.end() ) );
  auto it = upper_bound( svar_to_idx.begin(), svar_to_idx.end(),
@@ -814,27 +701,27 @@ int MILPSolver::index_of_static_variable( const ColVariable * var ) {
                         } );
 
  // Now it refers to the first (group of) element(s) greater than var
- if( it == svar_to_idx.begin() ) {
-  return Inf< int >();
- }
+ if( it == svar_to_idx.begin() )
+  return( Inf< int >() );
+
  --it;
 
  // First element of the variable group
- auto first = const_cast<const ColVariable *>(std::get< 0 >( *it ));
- int distance = std::distance( first, var );
+ auto first = const_cast< const ColVariable * >( std::get< 0 >( *it ) );
+ int distance = std::distance( first , var );
 
- if( distance >= 0 && distance < std::get< 2 >( *it ) ) {
+ if( ( distance >= 0 ) && ( distance < std::get< 2 >( *it ) ) )
   // The element belongs to this group
-  return std::get< 1 >( *it ) + distance;
- }
+  return( std::get< 1 >( *it ) + distance );
+
  // The element doesn't exist
- return Inf< int >();
-}
+ return( Inf< int >() );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_dynamic_variable( const ColVariable * var ) {
-
+int MILPSolver::index_of_dynamic_variable( const ColVariable * var )
+{
  assert( std::is_sorted( dvar_to_idx.begin(), dvar_to_idx.end() ) );
  auto it = lower_bound( dvar_to_idx.begin(), dvar_to_idx.end(),
                         std::make_pair( var, 0 ),
@@ -842,31 +729,26 @@ int MILPSolver::index_of_dynamic_variable( const ColVariable * var ) {
                          return p1.first < p2.first;
                         } );
 
- if( it != dvar_to_idx.end() && it->first == var ) {
-  return it->second;
- } else {
-  return Inf< int >();
+ if( it != dvar_to_idx.end() && it->first == var )
+  return( it->second );
+
+ return( Inf< int >() );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_constraint( const FRowConstraint * con ) {
+int MILPSolver::index_of_constraint( const FRowConstraint * con )
+{
  auto i = index_of_static_constraint( con );
- if( i < Inf< int >() ) {
-  return i;
- } else {
-  return index_of_dynamic_constraint( con );
+ return( i < Inf< int >() ? i : index_of_dynamic_constraint( con ) );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) {
-
- if( scon_to_idx.empty() ) {
-  return Inf< int >();
- }
+int MILPSolver::index_of_static_constraint( const FRowConstraint * con )
+{
+ if( scon_to_idx.empty() )
+  return( Inf< int >() );
 
  assert( std::is_sorted( scon_to_idx.begin(), scon_to_idx.end() ) );
  auto it = upper_bound( scon_to_idx.begin(), scon_to_idx.end(),
@@ -876,28 +758,27 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) {
                         } );
 
  // Now it refers to the first (group of) element(s) greater than var
- if( it == scon_to_idx.begin() ) {
-  return Inf< int >();
- }
+ if( it == scon_to_idx.begin() )
+  return( Inf< int >() );
+
  --it;
 
  // First element of the constraint group
  auto first = const_cast<const FRowConstraint *>(std::get< 0 >( *it ));
- int distance = std::distance( first, con );
+ int distance = std::distance( first , con );
 
- if( distance >= 0 && distance < std::get< 2 >( *it ) ) {
+ if( ( distance >= 0 ) && ( distance < std::get< 2 >( *it ) ) )
   // The element belongs to this group
-  return std::get< 1 >( *it ) + distance;
- }
+  return( std::get< 1 >( *it ) + distance );
 
  // The element doesn't exist
- return Inf< int >();
-}
+ return( Inf< int >() );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * con ) {
-
+int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * con )
+{
  assert( std::is_sorted( dcon_to_idx.begin(), dcon_to_idx.end() ) );
  auto it = lower_bound( dcon_to_idx.begin(), dcon_to_idx.end(),
                         std::make_pair( con, 0 ),
@@ -905,30 +786,28 @@ int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * con ) {
                          return p1.first < p2.first;
                         } );
 
- if( it != dcon_to_idx.end() && it->first == con ) {
-  return it->second;
- } else {
-  return Inf< int >();
+ if( it != dcon_to_idx.end() && it->first == con )
+  return( it->second );
+
+ return( Inf< int >() );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-ColVariable * MILPSolver::variable_with_index( int i ) {
- if( i < static_vars ) {
-  return static_variable_with_index( i );
- } else {
-  return dynamic_variable_with_index( i );
+ColVariable * MILPSolver::variable_with_index( int i )
+{
+ if( i < static_vars )
+  return( static_variable_with_index( i ) );
+
+ return( dynamic_variable_with_index( i ) );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-ColVariable * MILPSolver::static_variable_with_index( int i ) {
-
- if( idx_to_svar.empty() ) {
-  return nullptr;
- }
+ColVariable * MILPSolver::static_variable_with_index( int i )
+{
+ if( idx_to_svar.empty() )
+  return( nullptr );
 
  assert( std::is_sorted( idx_to_svar.begin(), idx_to_svar.end() ) );
  auto it = upper_bound( idx_to_svar.begin(), idx_to_svar.end(),
@@ -938,41 +817,41 @@ ColVariable * MILPSolver::static_variable_with_index( int i ) {
                         } );
 
  // Now it refers to the first (group of) element(s) greater than i
- if( it == idx_to_svar.begin() ) {
-  return nullptr;
- }
+ if( it == idx_to_svar.begin() )
+  return( nullptr );
+
  --it;
 
  int distance = i - it->first;
- return it->second + distance;
-}
+ return( it->second + distance );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-ColVariable * MILPSolver::dynamic_variable_with_index( int i ) {
- if( static_vars < i || i < numcols ) {
-  return idx_to_dvar[ i - static_vars ];
+ColVariable * MILPSolver::dynamic_variable_with_index( int i )
+{
+ if( ( static_vars < i ) || ( i < numcols ) )
+  return( idx_to_dvar[ i - static_vars ] );
+
+ return( nullptr );
  }
- return nullptr;
-}
 
 /*--------------------------------------------------------------------------*/
 
-FRowConstraint * MILPSolver::constraint_with_index( int i ) {
- if( i < static_cons ) {
-  return static_constraint_with_index( i );
- } else {
-  return dynamic_constraint_with_index( i );
+FRowConstraint * MILPSolver::constraint_with_index( int i )
+{
+ if( i < static_cons )
+  return( static_constraint_with_index( i ) );
+
+ return( dynamic_constraint_with_index( i ) );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
-
- if( idx_to_scon.empty() ) {
-  return nullptr;
- }
+FRowConstraint * MILPSolver::static_constraint_with_index( int i )
+{
+ if( idx_to_scon.empty() )
+  return( nullptr );
 
  assert( std::is_sorted( idx_to_scon.begin(), idx_to_scon.end() ) );
  auto it = upper_bound( idx_to_scon.begin(), idx_to_scon.end(),
@@ -982,29 +861,31 @@ FRowConstraint * MILPSolver::static_constraint_with_index( int i ) {
                         } );
 
  // Now it refers to the first (group of) element(s) greater than i
- if( it == idx_to_scon.begin() ) {
-  return nullptr;
- }
+ if( it == idx_to_scon.begin() )
+  return( nullptr );
+
  --it;
 
  int distance = i - it->first;
- return it->second + distance;
-}
+ return( it->second + distance );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i ) {
- if( static_cons < i || i < numrows ) {
-  return idx_to_dcon[ i - static_cons ];
+FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
+{
+ if( ( static_cons < i ) || ( i < numrows ) )
+  return( idx_to_dcon[ i - static_cons ] );
+
+ return( nullptr );
  }
- return nullptr;
-}
 
 /*--------------------------------------------------------------------------*/
 /*------------- AUXILIARY METHODS FOR POPULATING THE PROBLEM  --------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
+void MILPSolver::scan_variable( ColVariable & var , int & n , int & col )
+{
  if( n < 0 ) {
   // DEBUG_LOG( "MILPSolver::scan_variable(): D#" << col << " " << var );
   dvar_to_idx.emplace_back( &var, col );
@@ -1057,11 +938,10 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
  int nz_elements = active_constraints.size();
  matcnt[ col ] = nz_elements;
 
- if( col == 0 ) {
+ if( col == 0 )
   matbeg[ col ] = 0;
- } else {
+ else
   matbeg[ col ] = matbeg[ col - 1 ] + matcnt[ col - 1 ];
- }
 
  for( int j = 0; j < nz_elements; ++j ) {
   auto * con = active_constraints[ j ];
@@ -1090,7 +970,8 @@ void MILPSolver::scan_variable( ColVariable & var, int & n, int & col ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
+void MILPSolver::scan_constraint( FRowConstraint & con , int & n , int & row )
+{
  if( n < 0 ) {
   // DEBUG_LOG( "MILPSolver::scan_constraint(): D#" << row << " " << con );
   dcon_to_idx.emplace_back( &con, row );
@@ -1165,7 +1046,8 @@ void MILPSolver::scan_constraint( FRowConstraint & con, int & n, int & row ) {
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_objective( const FRealObjective * obj ) {
+void MILPSolver::scan_objective( const FRealObjective * obj )
+{
  // DEBUG_LOG( "MILPSolver::scan_objective() " << *obj );
 
  int k = 0;
@@ -1191,17 +1073,17 @@ void MILPSolver::scan_objective( const FRealObjective * obj ) {
  }
 
  throw ( std::invalid_argument( "Unknown type of Objective Function" ) );
-}
-
+ }
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- MODIFICATIONS ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::compute( bool changedvars ) {
+int MILPSolver::compute( bool changedvars )
+{
  MILPSolver::process_modifications();
- return kOK;
-}
+ return( kOK );
+ }
 
 void MILPSolver::process_modifications() {
  /*
@@ -2016,191 +1898,195 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
 /*------------------------------- PARAMETERS -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::set_par( idx_type par, int value ) {
+void MILPSolver::set_par( idx_type par , int value )
+{
  if( par == intUseCustomNames ) {
   use_custom_names = bool( value );
   return;
- }
+  }
  if( par == intRelaxIntVars ) {
   relax_int_vars = bool( value );
   return;
+  }
+
+ CDASolver::set_par( par, value );
  }
 
+/*----------------------------------------------------------------------------
+
+void MILPSolver::set_par( idx_type par , double value )
+{
  CDASolver::set_par( par, value );
-}
+ }
 
-/*--------------------------------------------------------------------------*/
+----------------------------------------------------------------------------*/
 
-void MILPSolver::set_par( idx_type par, double value ) {
- CDASolver::set_par( par, value );
-}
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::set_par( idx_type par, std::string && value ) {
+void MILPSolver::set_par( idx_type par , std::string && value )
+{
  if( par == strProblemName ) {
   prob_name = std::move( value );
   return;
- }
+  }
  if( par == strOutputFile ) {
   output_file = std::move( value );
   return;
- }
+  }
 
  CDASolver::set_par( par, std::move( value ) );
-}
-
-/*--------------------------------------------------------------------------*/
-
-ThinComputeInterface::idx_type MILPSolver::get_num_int_par() const {
- return CDASolver::get_num_int_par() + intLastAlgParMILP - intLastParCDAS;
-}
-
-ThinComputeInterface::idx_type MILPSolver::get_num_dbl_par() const {
- return CDASolver::get_num_dbl_par() + dblLastAlgParMILP - dblLastParCDAS;
-}
-
-ThinComputeInterface::idx_type MILPSolver::get_num_str_par() const {
- return CDASolver::get_num_str_par() + strLastAlgParMILP - strLastParCDAS;
-}
-
-/*--------------------------------------------------------------------------*/
-
-int MILPSolver::get_dflt_int_par( idx_type par ) const {
- if( par == intUseCustomNames ) {
-  return 1;
- }
- if( par == intRelaxIntVars ) {
-  return 0;
  }
 
- return CDASolver::get_dflt_int_par( par );
-}
+/*--------------------------------------------------------------------------*/
+
+ThinComputeInterface::idx_type MILPSolver::get_num_int_par( void ) const {
+ return( CDASolver::get_num_int_par() + intLastAlgParMILP - intLastParCDAS );
+ }
+
+ThinComputeInterface::idx_type MILPSolver::get_num_dbl_par( void ) const {
+ return( CDASolver::get_num_dbl_par() + dblLastAlgParMILP - dblLastParCDAS );
+ }
+
+ThinComputeInterface::idx_type MILPSolver::get_num_str_par( void ) const {
+ return( CDASolver::get_num_str_par() + strLastAlgParMILP - strLastParCDAS );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-double MILPSolver::get_dflt_dbl_par( idx_type par ) const {
- return CDASolver::get_dflt_dbl_par( par );
-}
+int MILPSolver::get_dflt_int_par( idx_type par ) const
+{
+ if( par == intUseCustomNames )
+  return( 1 );
 
-/*--------------------------------------------------------------------------*/
+ if( par == intRelaxIntVars )
+  return( 0 );
 
-const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const {
+ return( CDASolver::get_dflt_int_par( par ) );
+ }
+
+/*----------------------------------------------------------------------------
+
+double MILPSolver::get_dflt_dbl_par( idx_type par ) const
+{
+ return( CDASolver::get_dflt_dbl_par( par ) );
+ }
+
+----------------------------------------------------------------------------*/
+
+const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const
+{
  static const std::vector< std::string > vals = { "MILPSolver_prob", "" };
- if( par == strProblemName ) {
-  return vals[ 0 ];
- }
- if( par == strOutputFile ) {
-  return vals[ 1 ];
- }
+ if( par == strProblemName )
+  return( vals[ 0 ] );
 
- return CDASolver::get_dflt_str_par( par );
-}
+ if( par == strOutputFile )
+  return( vals[ 1 ] );
+
+ return( CDASolver::get_dflt_str_par( par ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::get_int_par( idx_type par ) const {
- if( par == intUseCustomNames ) {
-  return use_custom_names;
- }
- if( par == intRelaxIntVars ) {
-  return relax_int_vars;
- }
+int MILPSolver::get_int_par( idx_type par ) const
+{
+ if( par == intUseCustomNames )
+  return( use_custom_names );
 
- return CDASolver::get_int_par( par );
-}
+ if( par == intRelaxIntVars )
+  return( relax_int_vars );
 
-/*--------------------------------------------------------------------------*/
-
-double MILPSolver::get_dbl_par( idx_type par ) const {
- return CDASolver::get_dbl_par( par );
-}
-
-/*--------------------------------------------------------------------------*/
-
-const std::string & MILPSolver::get_str_par( idx_type par ) const {
- if( par == strProblemName ) {
-  return prob_name;
- }
- if( par == strOutputFile ) {
-  return output_file;
+ return( CDASolver::get_int_par( par ) );
  }
 
- return CDASolver::get_str_par( par );
-}
+/*----------------------------------------------------------------------------
+
+double MILPSolver::get_dbl_par( idx_type par ) const
+{
+ return( CDASolver::get_dbl_par( par ) );
+ }
+
+----------------------------------------------------------------------------*/
+
+const std::string & MILPSolver::get_str_par( idx_type par ) const
+{
+ if( par == strProblemName )
+  return( prob_name );
+
+ if( par == strOutputFile )
+  return( output_file );
+
+ return( CDASolver::get_str_par( par ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
 ThinComputeInterface::idx_type
-MILPSolver::int_par_str2idx( const std::string & name ) const {
- if( name == "intUseCustomNames" ) {
-  return intUseCustomNames;
- }
- if( name == "intRelaxIntVars" ) {
-  return intRelaxIntVars;
- }
+MILPSolver::int_par_str2idx( const std::string & name ) const
+{
+ if( name == "intUseCustomNames" )
+  return( intUseCustomNames );
 
- return CDASolver::int_par_str2idx( name );
-}
+ if( name == "intRelaxIntVars" )
+  return( intRelaxIntVars );
+
+ return( CDASolver::int_par_str2idx( name ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const {
+const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
+{
  static const std::vector< std::string > pars = { "intUseCustomNames",
                                                   "intRelaxIntVars" };
- if( idx == intUseCustomNames ) {
-  return pars[ 0 ];
+ if( idx == intUseCustomNames )
+  return( pars[ 0 ] );
+
+ if( idx == intRelaxIntVars )
+  return( pars[ 1 ] );
+
+ return( CDASolver::int_par_idx2str( idx ) );
  }
 
- if( idx == intRelaxIntVars ) {
-  return pars[ 1 ];
- }
-
- return CDASolver::int_par_idx2str( idx );
-}
-
-/*--------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------
 
 ThinComputeInterface::idx_type
 MILPSolver::dbl_par_str2idx( const std::string & name ) const {
- return CDASolver::dbl_par_str2idx( name );
-}
+ return( CDASolver::dbl_par_str2idx( name ) );
+ }
 
-/*--------------------------------------------------------------------------*/
+------------------------------------------------------------------------------
 
 const std::string &
 MILPSolver::dbl_par_idx2str( idx_type idx ) const {
- return CDASolver::dbl_par_idx2str( idx );
-}
+ return( CDASolver::dbl_par_idx2str( idx ) );
+ }
 
-/*--------------------------------------------------------------------------*/
+----------------------------------------------------------------------------*/
 
 ThinComputeInterface::idx_type
-MILPSolver::str_par_str2idx( const std::string & name ) const {
- if( name == "strProblemName" ) {
-  return strProblemName;
- }
- if( name == "strOutputFile" ) {
-  return strOutputFile;
- }
+MILPSolver::str_par_str2idx( const std::string & name ) const
+{
+ if( name == "strProblemName" )
+  return( strProblemName );
 
- return CDASolver::str_par_str2idx( name );
-}
+ if( name == "strOutputFile" )
+  return( strOutputFile );
+
+ return( CDASolver::str_par_str2idx( name ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
-const std::string & MILPSolver::str_par_idx2str( idx_type idx ) const {
- static const std::vector< std::string > pars = { "strProblemName",
+const std::string & MILPSolver::str_par_idx2str( idx_type idx ) const
+{
+ static const std::vector< std::string > pars = { "strProblemName" ,
                                                   "strOutputFile" };
- if( idx == strProblemName ) {
-  return pars[ 0 ];
- }
- if( idx == strOutputFile ) {
-  return pars[ 1 ];
- }
+ if( idx == strProblemName )
+  return( pars[ 0 ] );
 
- return CDASolver::str_par_idx2str( idx );
-}
+ if( idx == strOutputFile )
+  return( pars[ 1 ] );
+
+ return( CDASolver::str_par_idx2str( idx ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------------- DEBUG ---------------------------------*/
