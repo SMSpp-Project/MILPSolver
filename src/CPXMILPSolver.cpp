@@ -2107,56 +2107,52 @@ CPXMILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
  bd[ 1 ] = get_problem_ub( *var );
 
  CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
-}
+ }
 
 /*--------------------------------------------------------------------------*/
 
-void
-CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * con ) {
-
+void CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
+{
  int index = index_of_dynamic_constraint( con );
  if( index < Inf< int >() ) {
-  CPXdelrows( env, lp, index, index );
+  CPXdelrows( env , lp , index , index );
 
   try {
    MILPSolver::remove_dynamic_constraint( con );
-  } catch( std::logic_error & e ) {}
- } else {
-  throw std::runtime_error( "Dynamic constraint not found" );
+   } catch( std::logic_error & e ) {}
+  }
+ else
+  throw( std::runtime_error( "Dynamic constraint not found" ) );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-void
-CPXMILPSolver::remove_dynamic_variable( const ColVariable * var ) {
-
+void CPXMILPSolver::remove_dynamic_variable( const ColVariable * var )
+{
  int index = index_of_dynamic_variable( var );
  if( index < Inf< int >() ) {
-  CPXdelcols( env, lp, index, index );
+  CPXdelcols( env , lp , index , index );
 
   try {
    MILPSolver::remove_dynamic_variable( var );
-  } catch( std::logic_error & e ) {}
- } else {
-  throw std::runtime_error( "Dynamic variable not found" );
+   } catch( std::logic_error & e ) {}
+  }
+ else
+  throw( std::runtime_error( "Dynamic variable not found" ) );
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-void
-CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
+void CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
+{
  try {
   MILPSolver::remove_dynamic_bound( con );
- } catch( std::logic_error & e ) {}
+  } catch( std::logic_error & e ) {}
 
- auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
+ auto * var = dynamic_cast< ColVariable * >( con->get_active_var( 0 ) );
  // TODO: Is dynamic_cast necessary?
- if( var == nullptr ) {
-  // TODO: Throw exception?
+ if( var == nullptr )
   return;
- }
 
  std::vector< int > indices( 2, index_of_variable( var ) );
  std::vector< char > lu( 2 );
@@ -2167,92 +2163,105 @@ CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con ) {
  bd[ 0 ] = get_problem_lb( *var );
  bd[ 1 ] = get_problem_ub( *var );
 
- CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
-}
+ CPXchgbds( env , lp , 2 , indices.data() , lu.data() , bd.data() );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::cpx_int_par_map( int par ) const
+{
+ switch( par ) {
+  case( intMaxIter ): return( - CPXPARAM_MIP_Limits_Nodes );
+  case( intMaxSol ):  return( CPXPARAM_MIP_Pool_Capacity );
+  case( intLogVerb ): return( CPXPARAM_ScreenOutput );
+  }
+
+ // CPLEX parameters
+ if( ( par >= intFirstCPLEXPar ) && ( par < intLastAlgParCPXS ) ) {
+  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
+
+  // both int and long CPLEX parameters are handled as SMS++ int parameters
+  int type;
+  CPXgetparamtype( env , cplex_par , & type );
+
+  if( type == CPX_PARAMTYPE_INT )
+   return( cplex_par );
+  else
+   if( type == CPX_PARAMTYPE_LONG )
+    return( - cplex_par );
+   else
+    throw( std::invalid_argument( std::to_string( par ) +
+				  " is not a int/long Cplex parameter" ) );
+  }
+
+ return( 0 );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::cpx_dbl_par_map( int par ) const
+{
+ switch( par ) {
+  case( dblMaxTime ): return( CPXPARAM_TimeLimit );
+  case( dblRelAcc ):  return( CPXPARAM_MIP_Tolerances_MIPGap );
+  case( dblAbsAcc ):  return( CPXPARAM_MIP_Tolerances_AbsMIPGap );
+  case( dblRAccSol ): return( CPXPARAM_MIP_Pool_RelGap );
+  case( dblAAccSol ): return( CPXPARAM_MIP_Pool_AbsGap );
+  case( dblFAccSol ): return( CPXPARAM_Simplex_Tolerances_Feasibility );
+  }
+
+ if( ( par >= dblFirstCPLEXPar ) && ( par < dblLastAlgParCPXS ) ) 
+  return( SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ] );
+
+ return( 0 );
+ }
 
 /*--------------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_par( idx_type par, int value ) {
- // Solver parameters explicitly mapped in CPLEX
- switch( par ) {
- case( intMaxIter ):
-   CPXsetlongparam( env , CPXPARAM_MIP_Limits_Nodes, value );
-   return;
-  case( intMaxSol ):
-   CPXsetintparam( env , CPXPARAM_MIP_Pool_Capacity, value );
-   return;
-  case( intLogVerb ):
-   CPXsetintparam( env , CPXPARAM_ScreenOutput, value );
-   return;
-  case( intThrowReducedCostException ):
-   throw_reduced_cost_exception = value;
-  }
-
- // CPLEX parameters
- if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
-
-  // Both int and long CPLEX parameters are handled as SMS++ int parameters
-  int type;
-  CPXgetparamtype( env, cplex_par, &type );
-
-  if( type == CPX_PARAMTYPE_INT ) {
-   CPXsetintparam( env, cplex_par, value );
-  } else if( type == CPX_PARAMTYPE_LONG ) {
-   CPXsetlongparam( env, cplex_par, value );
-  }
-
+void CPXMILPSolver::set_par( idx_type par , int value )
+{
+ if( par == intThrowReducedCostException ) {
+  throw_reduced_cost_exception = value;
   return;
- }
+  }
+
+ if( int cp = cpx_int_par_map( par ) ) {
+  if( cp > 0 )
+   CPXsetintparam( env , cp , value );
+  else
+   CPXsetlongparam( env , - cp , value );
+  return;
+  }
 
  MILPSolver::set_par( par, value );
-}
+ }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
 void CPXMILPSolver::set_par( idx_type par , double value )
 {
  // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
-  case( dblMaxTime ):
-   CPXsetdblparam( env , CPXPARAM_TimeLimit , value );
-   return;
-  case( dblRelAcc ):
-   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_MIPGap , value );
-   return;
-  case( dblAbsAcc ):
-   CPXsetdblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap , value );
-   return;
   case( dblUpCutOff ): UpCutOff = value; return;
   case( dblLwCutOff ): LwCutOff = value; return;
-  case( dblRAccSol ):
-   CPXsetdblparam( env, CPXPARAM_MIP_Pool_RelGap , value );
-   return;
-  case( dblAAccSol ):
-   CPXsetdblparam( env, CPXPARAM_MIP_Pool_AbsGap , value );
-   return;
-  case( dblFAccSol ):
-   CPXsetdblparam( env, CPXPARAM_Simplex_Tolerances_Feasibility, value );
-   return;
   }
 
- // CPLEX parameters
- if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
-  CPXsetdblparam( env, cplex_par, value );
+ if( int cp = cpx_int_par_map( par ) ) {
+  CPXsetdblparam( env , cp , value );
   return;
   }
 
  MILPSolver::set_par( par , value );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-void CPXMILPSolver::set_par( idx_type par, std::string && value ) {
+void CPXMILPSolver::set_par( idx_type par , std::string && value )
+{
  // CPLEX parameters
- if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
+ if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   CPXsetstrparam( env, cplex_par, value.c_str() );
   return;
@@ -2264,111 +2273,75 @@ void CPXMILPSolver::set_par( idx_type par, std::string && value ) {
 /*--------------------------------------------------------------------------*/
 
 ThinComputeInterface::idx_type CPXMILPSolver::get_num_int_par() const {
- return MILPSolver::get_num_int_par() + intLastAlgParCPXS - intLastAlgParMILP;
+ return( MILPSolver::get_num_int_par()
+	 + intLastAlgParCPXS - intLastAlgParMILP );
  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
 ThinComputeInterface::idx_type CPXMILPSolver::get_num_dbl_par() const {
- return MILPSolver::get_num_dbl_par() + dblLastAlgParCPXS - dblLastAlgParMILP;
+ return( MILPSolver::get_num_dbl_par()
+	 + dblLastAlgParCPXS - dblLastAlgParMILP );
  }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
 ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
- return MILPSolver::get_num_str_par() + strLastAlgParCPXS - strLastAlgParMILP;
+ return( MILPSolver::get_num_str_par()
+	 + strLastAlgParCPXS - strLastAlgParMILP );
  }
 
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::get_int_par( idx_type par ) const
 {
- int value;
- CPXLONG long_value;
+ if( par == intThrowReducedCostException )
+  return( throw_reduced_cost_exception );
 
- // Solver parameters explicitly mapped in CPLEX
- switch( par ) {
-  case( intMaxIter ):
-   CPXgetlongparam( env, CPXPARAM_MIP_Limits_Nodes, &long_value );
-   return( ( int ) long_value );
-  case( intMaxSol ):
-   CPXgetintparam( env, CPXPARAM_MIP_Pool_Capacity, &value );
+ if( int cp = cpx_int_par_map( par ) ) {
+  if( cp > 0 ) {
+   int value;
+   CPXgetintparam( env , cp , & value );
    return( value );
-  case( intLogVerb ):
-   CPXgetintparam( env, CPXPARAM_ScreenOutput, &value );
-   return( value );
-  case( intThrowReducedCostException ):
-   return( throw_reduced_cost_exception );
-  }
-
- // CPLEX parameters
- if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
-
-  // Both int and long CPLEX parameters are handled as SMS++ int parameters
-  int type;
-  CPXgetparamtype( env , cplex_par , & type );
-
-  if( type == CPX_PARAMTYPE_INT ) {
-    CPXgetintparam( env , cplex_par , &value );
-    return( value );
-    }
+   }
   else {
-   CPXgetlongparam( env , cplex_par , & long_value );
-   return( ( int ) long_value );
+   CPXLONG value;
+   CPXgetlongparam( env , - cp , & value );
+   return( ( int ) value );
    }
   }
 
  return( MILPSolver::get_int_par( par ) );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
 double CPXMILPSolver::get_dbl_par( idx_type par ) const
 {
- double value;
-
- // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
-  case( dblMaxTime ):
-   CPXgetdblparam( env , CPXPARAM_TimeLimit , & value );
-   return( value );
-  case( dblRelAcc ):
-   CPXgetdblparam( env , CPXPARAM_MIP_Tolerances_MIPGap , & value );
-   return( value );
-  case( dblAbsAcc ):
-   CPXgetdblparam( env , CPXPARAM_MIP_Tolerances_AbsMIPGap , & value );
-   return( value );
   case( dblUpCutOff ): return( UpCutOff );
   case( dblLwCutOff ): return( LwCutOff );
-  case( dblRAccSol ):
-   CPXgetdblparam( env , CPXPARAM_MIP_Pool_RelGap , & value );
-   return( value );
-  case( dblAAccSol ):
-   CPXgetdblparam( env , CPXPARAM_MIP_Pool_AbsGap , & value );
-   return( value );
-  case( dblFAccSol ):
-   CPXgetdblparam( env , CPXPARAM_Simplex_Tolerances_Feasibility , & value );
-   return( value );
   }
 
- // CPLEX parameters
- if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
-  CPXgetdblparam( env , cplex_par , & value );
+ if( int cp = cpx_dbl_par_map( par ) ) {
+  double value;
+  CPXgetdblparam( env , cp , & value );
   return( value );
   }
 
  return( MILPSolver::get_dbl_par( par ) );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const
+const std::string & CPXMILPSolver::get_str_par( idx_type par ) const
 {
  static std::string value;
 
- // CPLEX parameters
- if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
+ if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
   value.reserve( CPX_STR_PARAM_MAX );
-  CPXgetstrparam( env, cplex_par, value.data() );
+  CPXgetstrparam( env , cplex_par , value.data() );
   return( value );
   }
 
@@ -2377,105 +2350,57 @@ const std::string & CPXMILPSolver::get_str_par( const idx_type par ) const
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::get_dflt_int_par( const idx_type par ) const
+int CPXMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- int value;
- CPXLONG long_value;
+ if( par == intThrowReducedCostException )
+  return( 0 );
 
- // Solver parameters explicitly mapped in CPLEX
- switch( par ) {
-  case( intMaxIter ):
-   CPXinfolongparam( env , CPXPARAM_MIP_Limits_Nodes , & long_value ,
-		     nullptr , nullptr );
-   return( ( int ) long_value );
-  case( intMaxSol ):
-   CPXinfointparam( env , CPXPARAM_MIP_Pool_Capacity , & value ,
-		    nullptr , nullptr );
-   return( value );
-  case( intLogVerb ):
-   CPXinfointparam( env , CPXPARAM_ScreenOutput , & value ,
-		    nullptr , nullptr );
-   return( value );
-  case( intThrowReducedCostException ):
-   return( 0 );
-  }
-
- // CPLEX parameters
- if( par >= intFirstCPLEXPar && par < intLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_int_pars[ par - intFirstCPLEXPar ];
-
-  // Both int and long CPLEX parameters are handled as SMS++ int parameters
-  int type;
-  CPXgetparamtype( env , cplex_par , & type );
-
-  if( type == CPX_PARAMTYPE_INT ) {
-   CPXinfointparam( env, cplex_par, &value, nullptr, nullptr );
+ if( int cp = cpx_int_par_map( par ) ) {
+  if( cp > 0 ) {
+   int value;
+   CPXinfointparam( env , cp , & value , nullptr , nullptr );
    return( value );
    }
   else {
-   CPXinfolongparam( env, cplex_par, &long_value, nullptr, nullptr );
-   return( ( int ) long_value );
+   CPXLONG value;
+   CPXinfolongparam( env , - cp , & value , nullptr , nullptr );
+   return( ( int ) value );
    }
   }
 
  return( MILPSolver::get_dflt_int_par( par ) );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-double CPXMILPSolver::get_dflt_dbl_par( const idx_type par ) const
+double CPXMILPSolver::get_dflt_dbl_par( idx_type par ) const
 {
- double value;
-
- // Solver parameters explicitly mapped in CPLEX
  switch( par ) {
-  case( dblMaxTime ):
-   CPXinfodblparam( env , CPXPARAM_TimeLimit , & value , nullptr , nullptr );
-   return( value );
-  case( dblRelAcc ):
-   CPXinfodblparam( env , CPXPARAM_MIP_Tolerances_MIPGap , & value ,
-		    nullptr , nullptr );
-   return( value );
-  case( dblAbsAcc ):
-   CPXinfodblparam( env, CPXPARAM_MIP_Tolerances_AbsMIPGap , & value ,
-		    nullptr , nullptr );
-   return( value );
   case( dblUpCutOff ): return( Inf< double >() );
   case( dblLwCutOff ): return( - Inf< double >() );
-  case( dblRAccSol ):
-   CPXinfodblparam( env , CPXPARAM_MIP_Pool_RelGap , & value ,
-		    nullptr , nullptr );
-   return( value );
-  case( dblAAccSol ):
-   CPXinfodblparam( env , CPXPARAM_MIP_Pool_AbsGap , & value ,
-		    nullptr , nullptr );
-   return( value );
-  case( dblFAccSol ):
-   CPXinfodblparam( env , CPXPARAM_Simplex_Tolerances_Feasibility , & value ,
-                   nullptr , nullptr );
-   return( value );
   }
 
- // CPLEX parameters
- if( par >= dblFirstCPLEXPar && par < dblLastAlgParCPXS ) {
-  int cplex_par = SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ];
-  CPXinfodblparam( env , cplex_par , & value , nullptr , nullptr );
+ if( int cp = cpx_dbl_par_map( par ) ) {
+  double value;
+  CPXinfodblparam( env , cp , & value , nullptr , nullptr );
   return( value );
   }
 
  return( MILPSolver::get_dflt_dbl_par( par ) );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-const std::string &
-CPXMILPSolver::get_dflt_str_par( const idx_type par ) const
+const std::string & CPXMILPSolver::get_dflt_str_par( idx_type par ) const
 {
+ // note: this implementation is not thread safe and it may lead to elements
+ //       of value[] to be allocated more than once with some memory being
+ //       lost, but the chances are too slim and the potential drawback too
+ //       limted to warrant even a humble std::atomic_flag
  static std::vector< std::string > value( strLastAlgParCPXS -
 					  strFirstCPLEXPar );
 
- // CPLEX parameters
- if( par >= strFirstCPLEXPar && par < strLastAlgParCPXS ) {
+ if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
   auto i = par - strFirstCPLEXPar;
   if( value[ i ].empty() ) {
    value[ i ].reserve( CPX_STR_PARAM_MAX );
@@ -2506,10 +2431,9 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const
 
  // CPLEX parameters
  int cplex_par;
- int status = CPXgetparamnum( env , name.c_str() , & cplex_par );
- if( status == 0 ) {
-  auto it = lower_bound( CPLEX_to_SMSpp_int_pars.begin(),
-                         CPLEX_to_SMSpp_int_pars.end(),
+ if( ! CPXgetparamnum( env , name.c_str() , & cplex_par ) ) {
+  auto it = lower_bound( CPLEX_to_SMSpp_int_pars.begin() ,
+                         CPLEX_to_SMSpp_int_pars.end() ,
                          std::make_pair( cplex_par, 0 ) );
   return( it->second );
   }
@@ -2517,18 +2441,20 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const
  return( Inf< idx_type >() );
  }
 
-/*----------------------------- ---------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
-const std::string & CPXMILPSolver::int_par_idx2str( const idx_type idx ) const
+const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
 {
  static const std::string par_trce = "intThrowReducedCostException";
  if( idx == intThrowReducedCostException )
   return( par_trce );
 
- // CPLEX parameters
+ // note: this implementation is not thread safe and it requires that the
+ //       result is used immediately after the call (prior to any other call
+ //       to int_par_idx2str()), this may have to be improved upon
  static std::string par_name;
 
- if( idx >= intFirstCPLEXPar && idx < intLastAlgParCPXS ) {
+ if( ( idx >= intFirstCPLEXPar ) && ( idx < intLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_int_pars[ idx - intFirstCPLEXPar ];
   par_name.reserve( CPX_STR_PARAM_MAX );
   #if CPX_VERSION < 12090000
@@ -2548,8 +2474,8 @@ ThinComputeInterface::idx_type
 CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const
 {
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
- * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
- * is not found. */
+  * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
+  * is not found. */
 
  idx_type idx = MILPSolver::dbl_par_str2idx( name );
  if( idx < Inf< idx_type >() )
@@ -2557,11 +2483,10 @@ CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const
 
  // CPLEX parameters
  int cplex_par;
- int status = CPXgetparamnum( env , name.c_str(), &cplex_par );
- if( status == 0 ) {
-  auto it = lower_bound( CPLEX_to_SMSpp_dbl_pars.begin(),
-                         CPLEX_to_SMSpp_dbl_pars.end(),
-                         std::make_pair( cplex_par, 0 ) );
+ if( ! CPXgetparamnum( env , name.c_str() , & cplex_par ) ) {
+  auto it = lower_bound( CPLEX_to_SMSpp_dbl_pars.begin() ,
+                         CPLEX_to_SMSpp_dbl_pars.end() ,
+                         std::make_pair( cplex_par , 0 ) );
   return( it->second );
   }
 
@@ -2570,18 +2495,20 @@ CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const
 
 /*--------------------------------------------------------------------------*/
 
-const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const
+const std::string & CPXMILPSolver::dbl_par_idx2str( idx_type idx ) const
 {
- // CPLEX parameters
+ // note: this implementation is not thread safe and it requires that the
+ //       result is used immediately after the call (prior to any other call
+ //       to int_par_idx2str()), this may have to be improved upon
  static std::string par_name;
 
- if( idx >= dblFirstCPLEXPar && idx < dblLastAlgParCPXS ) {
+ if( ( idx >= dblFirstCPLEXPar ) && ( idx < dblLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ idx - dblFirstCPLEXPar ];
   par_name.reserve( CPX_STR_PARAM_MAX );
   #if CPX_VERSION < 12090000
-   int status = CPXgetparamname( env, cplex_par, par_name.data() );
+   int status = CPXgetparamname( env , cplex_par , par_name.data() );
   #else
-   int status = CPXgetparamhiername( env, cplex_par, par_name.data() );
+   int status = CPXgetparamhiername( env , cplex_par , par_name.data() );
   #endif
   return( par_name );
   }
@@ -2592,7 +2519,8 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( const idx_type idx ) const
 /*--------------------------------------------------------------------------*/
 
 ThinComputeInterface::idx_type
-CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
+CPXMILPSolver::str_par_str2idx( const std::string & name ) const
+{
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
   * is not found. */
@@ -2603,11 +2531,10 @@ CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
 
  // CPLEX parameters
  int cplex_par;
- int status = CPXgetparamnum( env , name.c_str() , & cplex_par );
- if( status == 0 ) {
-  auto it = lower_bound( CPLEX_to_SMSpp_str_pars.begin(),
-                         CPLEX_to_SMSpp_str_pars.end(),
-                         std::make_pair( cplex_par, 0 ) );
+ if( ! CPXgetparamnum( env , name.c_str() , & cplex_par ) ) {
+  auto it = lower_bound( CPLEX_to_SMSpp_str_pars.begin() ,
+                         CPLEX_to_SMSpp_str_pars.end() ,
+                         std::make_pair( cplex_par , 0 ) );
   return( it->second );
   }
 
@@ -2616,10 +2543,11 @@ CPXMILPSolver::str_par_str2idx( const std::string & name ) const {
 
 /*--------------------------------------------------------------------------*/
 
-const std::string &
-CPXMILPSolver::str_par_idx2str( const idx_type idx ) const
+const std::string & CPXMILPSolver::str_par_idx2str( const idx_type idx ) const
 {
- // CPLEX parameters
+ // note: this implementation is not thread safe and it requires that the
+ //       result is used immediately after the call (prior to any other call
+ //       to int_par_idx2str()), this may have to be improved upon
  static std::string par_name;
 
  if( idx >= strFirstCPLEXPar && idx < strLastAlgParCPXS ) {
@@ -2670,7 +2598,7 @@ void CPXMILPSolver::check_status( void )
 int CPXMILPSolver::CPXgetintvars( std::vector< char > * ctype )
 {
  int n;
- int current_cols = CPXgetnumcols( env, lp );
+ int current_cols = CPXgetnumcols( env , lp );
  std::vector< char > * good_ctype = nullptr;
 
  // Create a new vector if needed
@@ -2794,40 +2722,30 @@ void CPXMILPSolver::update_problem_type( Function * f )
   switch( CPXgetprobtype( env , lp ) ) {
    case( CPXPROB_LP ):
    case( CPXPROB_MILP ):
-   case( CPXPROB_FIXEDMILP ):
-    break;
-   case( CPXPROB_QP ):
-    CPXchgprobtype( env , lp , CPXPROB_LP );
-    break;
-   case( CPXPROB_MIQP ):
-    CPXchgprobtype( env , lp , CPXPROB_MILP );
-    break;
-   case( CPXPROB_FIXEDMIQP ):
-    CPXchgprobtype( env , lp , CPXPROB_FIXEDMILP );
-    break;
-   default:
-    throw( std::runtime_error( "Wrong CPLEX problem type" ) );
+   case( CPXPROB_FIXEDMILP ): break;
+   case( CPXPROB_QP ):        CPXchgprobtype( env , lp , CPXPROB_LP );
+                              break;
+   case( CPXPROB_MIQP ):      CPXchgprobtype( env , lp , CPXPROB_MILP );
+                              break;
+   case( CPXPROB_FIXEDMIQP ): CPXchgprobtype( env , lp , CPXPROB_FIXEDMILP );
+                              break;
+   default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
    }
   return;
   }
 
  if( const auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
   switch( CPXgetprobtype( env , lp ) ) {
-   case( CPXPROB_LP ):
-    CPXchgprobtype( env , lp , CPXPROB_QP );
-    break;
-   case( CPXPROB_MILP ):
-    CPXchgprobtype( env , lp , CPXPROB_MIQP );
-    break;
-   case( CPXPROB_FIXEDMILP ):
-    CPXchgprobtype( env , lp , CPXPROB_FIXEDMIQP );
-    break;
+   case( CPXPROB_LP ):        CPXchgprobtype( env , lp , CPXPROB_QP );
+                              break;
+   case( CPXPROB_MILP ):      CPXchgprobtype( env , lp , CPXPROB_MIQP );
+                              break;
+   case( CPXPROB_FIXEDMILP ): CPXchgprobtype( env , lp , CPXPROB_FIXEDMIQP );
+                              break;
    case( CPXPROB_QP ):
    case( CPXPROB_MIQP ):
-   case( CPXPROB_FIXEDMIQP ):
-    break;
-   default:
-    throw( std::runtime_error( "Wrong CPLEX problem type" ) );
+   case( CPXPROB_FIXEDMIQP ): break;
+   default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
    }
   return;
   }

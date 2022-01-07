@@ -340,52 +340,64 @@ class CPXMILPSolver : public MILPSolver {
  *  @{
  */
 
- /// It handles a variable modification
+ /// handles a variable modification
  void var_modification( VariableMod * mod ) override;
 
- /// It handles an objective modification
+ /// handles an objective modification
  void objective_modification( ObjectiveMod * mod ) override;
 
- /// It handles a constraint modification
+ /// handles a constraint modification
  void const_modification( ConstraintMod * mod ) override;
 
- /// It handles a bound modification
+ /// handles a bound modification
  void bound_modification( OneVarConstraintMod * mod ) override;
 
- /// It handles a function modification applied to the objective
+ /// handles a function modification applied to the objective
  void objective_function_modification( FunctionMod * mod ) override;
 
- /// It handles a function modification applied to a constraint
+ /// handles a function modification applied to a constraint
  void constraint_function_modification( FunctionMod * mod ) override;
 
- /// It handles a function vars modification to the objective
+ /// handles a function vars modification to the objective
  void objective_fvars_modification( FunctionModVars * mod ) override;
 
- /// It handles a function vars modification to a constraint
+ /// handles a function vars modification to a constraint
  void constraint_fvars_modification( FunctionModVars * mod ) override;
 
- /// It handles a dynamic modification
+ /// handles a dynamic modification
  void dynamic_modification( BlockModAD * mod ) override;
 
- /// It adds a single new dynamic constraint
+ /// adds a single new dynamic constraint
  void add_dynamic_constraint( FRowConstraint * con ) override;
 
- /// It adds a single new dynamic bound
+ /// adds a single new dynamic bound
  void add_dynamic_bound( OneVarConstraint * con ) override;
 
- /// It adds a single new dynamic variable
+ /// adds a single new dynamic variable
  void add_dynamic_variable( ColVariable * var ) override;
 
- /// It removes a single dynamic constraint
+ /// removes a single dynamic constraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
 
- /// It removes a single dynamic variable
+ /// removes a single dynamic variable
  void remove_dynamic_variable( const ColVariable * var ) override;
 
- /// It removes a single dynamic bound
+ /// removes a single dynamic bound
  void remove_dynamic_bound( const OneVarConstraint * con ) override;
 
 /** @} ---------------------------------------------------------------------*/
+
+ /// maps a Solver integer parameter into a Cplex one
+ /** Maps the Solver integer parameter \p par into a Cplex one;
+  * returns a positive number of it is an int parameter and a negative
+  * number if it is a long one. Returns 0 if not a Cplex paameter. */
+
+ int cpx_int_par_map( int par ) const;
+ 
+ /// maps a Solver double parameter into a Cplex one (or 0)
+ int cpx_dbl_par_map( int par ) const;
+
+/*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
