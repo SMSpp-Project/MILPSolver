@@ -2248,7 +2248,7 @@ void CPXMILPSolver::set_par( idx_type par , double value )
   case( dblLwCutOff ): LwCutOff = value; return;
   }
 
- if( int cp = cpx_int_par_map( par ) ) {
+ if( int cp = cpx_dbl_par_map( par ) ) {
   CPXsetdblparam( env , cp , value );
   return;
   }
