@@ -155,8 +155,16 @@ void MILPSolver::load_problem( void )
  int static_con_grps = 0; // Counter for static constraint groups
  int static_var_grps = 0; // Counter for static variable groups
 
- // Count variables and constraints
- // --------------------------------------------------------------------------
+ // count variables and constraints - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // note that we only count FRowConstraint, but we also allow
+ // OneVarConstraint which are used to set bounds but do not produce any row
+ // in the coefficient matrix. for this reason we don't throw exception if
+ // the constraint is not a FRowConstraint (we should check if it is a
+ // OneVarConstraint and throw exception if not, but this is pesky because
+ // we'd need to check all derived classes to OneVarConstraint so we avoid
+ // it). conversely we only allow ColVariable, so we immediately throw
+ // exception if any Variable, be it static or dynamic, is not a ColVariable
 
  Q.push( f_Block );
  while( ! Q.empty() ) {
@@ -257,6 +265,9 @@ void MILPSolver::load_problem( void )
                         }
 		       ) )
     continue;
+
+   // if none of the above this is not a ColVariable
+   throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
    }
 
   for( const auto & i : q_Block->get_dynamic_variables() ) {
@@ -268,7 +279,7 @@ void MILPSolver::load_problem( void )
    // Vectors of lists
    if( un_any_thing_1( std::list< ColVariable > , i ,
                        {
-                        for( auto & el: var )
+                        for( auto & el : var )
                          numcols += el.size();
                         }
 		       ) )
@@ -283,6 +294,9 @@ void MILPSolver::load_problem( void )
                         }
 		       ) )
     continue;
+
+   // if none of the above this is not a ColVariable
+   throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
    }
 
   auto counter = [ this ]( ColVariable & var ) {
@@ -323,8 +337,8 @@ void MILPSolver::load_problem( void )
 	    << "/D:" << numcols - static_vars << ")" << std::endl );
  DEBUG_LOG( "nzelements            = " << nzelements << std::endl );
 
- // LP vector allocation
- // --------------------------------------------------------------------------
+ // LP vector allocation- - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  // The +1 is needed by generic interface
  matbeg.resize( numcols + 1, 0 );
@@ -362,8 +376,8 @@ void MILPSolver::load_problem( void )
  dcon_to_idx.reserve( numrows - static_cons );
  idx_to_dcon.reserve( numrows - static_cons );
 
- // Scan the static constraints
- // --------------------------------------------------------------------------
+ // Scan the static constraints - - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  num_block = 0;
  Q.push( f_Block );
@@ -380,8 +394,8 @@ void MILPSolver::load_problem( void )
    int elements = 0; // Counter for group elements
    int start = row;
 
-   auto scan = [ this, &elements, &row ]( FRowConstraint & c ) {
-    scan_constraint( c, elements, row );
+   auto scan = [ this , & elements , & row ]( FRowConstraint & c ) {
+    scan_constraint( c , elements , row );
     };
    un_any_const_static( i , scan , un_any_type< FRowConstraint >() );
 
@@ -409,8 +423,8 @@ void MILPSolver::load_problem( void )
 
  std::sort( scon_to_idx.begin() , scon_to_idx.end() );
 
- // Scan the dynamic constraints
- // --------------------------------------------------------------------------
+ // Scan the dynamic constraints- - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  num_block = 0;
  Q.push( f_Block );
@@ -427,7 +441,7 @@ void MILPSolver::load_problem( void )
    int elements = -1;
    int start = row;
 
-   auto scan = [ this , &elements , &row ]( FRowConstraint & c ) {
+   auto scan = [ this , & elements , & row ]( FRowConstraint & c ) {
     scan_constraint( c , elements , row );
     };
    un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
@@ -454,8 +468,8 @@ void MILPSolver::load_problem( void )
 
  std::sort( dcon_to_idx.begin() , dcon_to_idx.end() );
 
- // Scan the static variables
- // --------------------------------------------------------------------------
+ // Scan the static variables - - - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  num_block = 0;
  Q.push( f_Block );
@@ -473,7 +487,7 @@ void MILPSolver::load_problem( void )
    int elements = 0; // Counter for group elements
    int start = col;
 
-   auto scan = [ this , &elements , &col ]( ColVariable & v ) {
+   auto scan = [ this , & elements , & col ]( ColVariable & v ) {
     scan_variable( v , elements , col );
     };
    un_any_const_static( i , scan , un_any_type< ColVariable >() );
@@ -502,8 +516,8 @@ void MILPSolver::load_problem( void )
 
  std::sort( svar_to_idx.begin() , svar_to_idx.end() );
 
- // Scan the dynamic variables
- // --------------------------------------------------------------------------
+ // Scan the dynamic variables- - - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  num_block = 0;
  Q.push( f_Block );
@@ -520,8 +534,8 @@ void MILPSolver::load_problem( void )
    int elements = -1;
    int start = col;
 
-   auto scan = [ this , &elements , &col ]( ColVariable & v ) {
-    scan_variable( v, elements, col );
+   auto scan = [ this , & elements , & col ]( ColVariable & v ) {
+    scan_variable( v , elements , col );
     };
    un_any_const_dynamic( i , scan , un_any_type< ColVariable >() );
 
@@ -547,8 +561,8 @@ void MILPSolver::load_problem( void )
 
  std::sort( dvar_to_idx.begin() , dvar_to_idx.end() );
 
- // Scan the objective
- // --------------------------------------------------------------------------
+ // Scan the objective- - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  switch( f_Block->get_objective_sense() ) {
   case( Objective::eMax ): objsense = -1; break;
@@ -1634,7 +1648,6 @@ void MILPSolver::add_dynamic_constraint( FRowConstraint * con )
     rngval.emplace_back( con_rhs - con_lhs );
     }
 
-
  if( matval.empty() )
   throw( std::logic_error( "Constraint representation is empty" ) );
 
@@ -1723,7 +1736,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  auto it1 = lower_bound( dcon_to_idx.begin() , dcon_to_idx.end() ,
                          std::make_pair( con , 0 ) ,
                          []( auto & p1 , auto & p2 ) {
-                          return p1.first < p2.first;
+                          return( p1.first < p2.first );
                           } );
 
  if( ( it1 != dcon_to_idx.end() ) && ( it1->first == con ) ) {
@@ -1749,7 +1762,6 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  rhs.erase( rhs.begin() + index );
  rngval.erase( rngval.begin() + index );
 
-
  if( matval.empty() )
   throw( std::logic_error( "Constraint representation is empty" ) );
 
@@ -1769,7 +1781,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
  auto it1 = lower_bound( dvar_to_idx.begin() , dvar_to_idx.end() ,
                          std::make_pair( var , 0 ),
                          []( auto & p1 , auto & p2 ) {
-                          return p1.first < p2.first;
+                          return( p1.first < p2.first );
                           } );
 
  if( ( it1 != dvar_to_idx.end() ) && ( it1->first == var ) ) {

@@ -10,16 +10,14 @@
  * CPLEX.
  *
  * \author Antonio Frangioni \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Università di Pisa \n
  *
- * \author Niccolò Iardella \n
- *         Operations Research Group \n
+ * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Università di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Niccolò Iardella
+ * \copyright &copy; Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -49,56 +47,57 @@
 /*--------------------------------------------------------------------------*/
 
 /// namespace for the Structured Modeling System++ (SMS++)
-namespace SMSpp_di_unipi_it {
-
+namespace SMSpp_di_unipi_it
+{
 /*--------------------------------------------------------------------------*/
 /*------------------------- CLASS MILPSolver -------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-
-/// Class for describing MILP problems.
-/**
- * The MILPSolver class derives from Solver and extends the
- * interface of the base class to be able to efficiently handle MILP problems.
- * This class alone does not solve problems, but it serves as base class to
- * other solvers like CPXMILPSolver. Nonetheless it can be used by itself
- * wherever a description of the LP problem in matricial form is needed.
+/// base class for solving MILP problems.
+/** The MILPSolver class derives from Solver and extends the interface of
+ * the base class to be able to efficiently handle MILP problems. This class
+ * alone does not solve problems, but it serves as base class to other
+ * solvers, to be implemented in derived classes. Nonetheless it can be used
+ * by itself wherever a description of the LP problem in matricial form is
+ * needed.
  *
- * The MILPSolver can be registered to any kind of Block (assuming that
- * it contains a MILP formulation) and it generates a collection of vectors
- * that describes the LP problem and can be used by an external framework,
- * e.g., CPLEX. Moreover, MILPSolver provides an interface that derived classes
- * can implement to process modifications that may have occured to the Block.
+ * The MILPSolver can be registered to any kind of Block (assuming that it
+ * containss a MILP formulation) and it generates a collection of vectors
+ * that describes the LP problem in the usual form "sparse matrix as a
+ * vector of doubles + two vectors of int, plus vectors for costs, bounds
+ * and lhs/rhs of constraints". This makes it easy to construct derived
+ * classes thay interface with standard solvers.
  *
- * The main thing that this class has to take care is the correspondance between
- * the Constraints and Variables of the Block and the constraint matrix.
- * The corrispondance is built via set_Block(), that conducts a Breadth
- * First Search is conducted, scanning the Block and all its children, if any,
+ * The main thing that this class has to take care is the correspondance
+ * between the Constraints and Variables of the Block and the constraint
+ * matrix. The corrispondance is built via set_Block(), that conducts a
+ * Breadth First Search, scanning the Block and all its children, if any,
  * populating the vectors needed to define the LP problem.
  *
- * Following the Block structure we build the constraint matrix
- * in two steps:
- * 1. We build the static part, i.e. the part of the rows (Constraints) and
- *    columns (Variables) that is not going to be deleted for all the lifecycle
- *    of the problem.
+ * Following the Block structure we build the constraint matrix in two
+ * steps:
+ *
+ * 1. We build the static part, i.e. the part of the rows (Constraints)
+ *    and columns (Variables) that is not going to be deleted for all the
+ *    lifecycle of the problem.
+ *
  * 2. Then, the dynamic part, i.e. the part of the rows (Constraints) and
  *    columns (Variables) that can potentially change or stop existing.
  *
- * After set_Block() has been called, the constraint matrix is assumed to have
- * all the information needed from the Block to solve the problem.
- * The information can be retrieved by a library of getters.
- * The methods compute(), get_var_solution() and new_var_solution(), derived
- * from the Solver class, do nothing and should be implemented by derived
- * classes.
+ * After set_Block() has been called, the constraint matrix is assumed to
+ * have all the information needed from the Block to solve the problem.
+ * The information can be retrieved by a library of getters. The methods
+ * compute(), get_var_solution() and new_var_solution(), derived from the
+ * Solver class, do nothing and should be implemented by derived classes.
  *
- * The class defines also an interface that the derived classes should implement
- * to support modifications. The method process_modifications() is already
- * implemented and it is the one that dispatches the modifications to the other
- * methods accordingly.
- */
-class MILPSolver : public CDASolver {
+ * The class defines also an interface that the derived classes should
+ * implement to support Modification. The method process_modifications() is
+ * already implemented and it is the one that dispatches the Modifications
+ * to the other methods accordingly. */
 
+class MILPSolver : public CDASolver
+{
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -112,28 +111,28 @@ class MILPSolver : public CDASolver {
  /// Types of integer parameters
  enum int_par_type_MILP {
   /// Use custom names for rows/columns
-  intUseCustomNames = intLastParCDAS,
+  intUseCustomNames = intLastParCDAS ,
   /// Relax [M]ILP by removing integrality constraints for integer variables
-  intRelaxIntVars,
+  intRelaxIntVars ,
   /// First allowed new int parameter for derived classes
   intLastAlgParMILP
- };
+  };
 
  /// Types of double parameters
  enum dbl_par_type_MILP {
   /// First allowed new double parameter for derived classes
   dblLastAlgParMILP = dblLastParCDAS
- };
+  };
 
  /// Types of string parameters
  enum str_par_type_MILP {
   /// Problem name
-  strProblemName = strLastParCDAS,
+  strProblemName = strLastParCDAS ,
   /// Output file
-  strOutputFile,
+  strOutputFile ,
   /// First allowed new string parameter for derived classes
   strLastAlgParMILP
- };
+  };
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
@@ -157,17 +156,16 @@ class MILPSolver : public CDASolver {
 /*--------------------------------------------------------------------------*/
  /** @name Clear and load the problem
   *
-  * The following two methods include the main logic of the class.
-  * They are called in the set_Block() method to build the problem when the
-  * Solver is [re]registered to a Block, but also when a NBModification is
-  * processed.
+  * The following two methods include the main logic of the class. They are
+  * called in the set_Block() method to build the problem when the Solver is
+  * [re]registered to a Block, but also when a NBModification is processed.
   * Note: A derived class can override these methods but should call the base
-  * versions if it wants to use the LP vectors (see CPXMILPSolver).
+  * versions if it wants to use the LP vectors.
   *
-  * @{
-  */
+  * @{ */
 
- /** It clears the LP vectors.
+ /// clears the description of the MILP
+ /** It clears the MILP vectors.
   *
   * The input parameter is a bitwise value that allows to specify which
   * vectors should be cleared. From the LSB to the MSB:
@@ -185,18 +183,17 @@ class MILPSolver : public CDASolver {
 
  virtual void clear_problem( unsigned int what );
 
- /// It loads the problem from the Block into the LP vectors
- virtual void load_problem();
+/*--------------------------------------------------------------------------*/
+ /// It loads the problem from the Block into the MILP vectors
+ virtual void load_problem( void );
 
-/// @}
+/** @} ---------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 /** @name Getters for the vectors of the LP problem.
  *
- * The following methods return the data that define the LP problem as
- * specified in the CPLEX CPXcopylp(), CPXcopyctype(),  CPXcopyqpsep() and
- * CPXcopylpwnames() documentation.
+ * The following methods return the data that define the MILP problem.
  *
- * @{
- */
+ * @{ */
 
  /// Returns the number of variables/columns
  [[nodiscard]] int get_numcols( void ) const { return( numcols ); }
@@ -280,7 +277,8 @@ class MILPSolver : public CDASolver {
   return( colname );
   }
 
- /// @}
+/** @} ---------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
  /** @name Methods that use the dictionaries
   *
   * The following methods use the dictionaries to get the indices of the
@@ -289,125 +287,144 @@ class MILPSolver : public CDASolver {
   * We provide separate methods for looking into static, dynamic or both parts
   * of the problem, so we can reduce searching time when possible.
   *
-  * @{
-  */
+  * @{ */
 
- /** It returns the matrix column index of a given variable.
+ /** Returns the matrix column index of a given variable.
   *
   * @param var a pointer to a ColVariable
   * @return the corresponding matrix column index
-  * @throws std::invalid_argument if no indices are associated to that variable
-  */
+  * @throws std::invalid_argument if no indices are associated to that
+  *                               variable */
+
  int index_of_variable( const ColVariable * var );
 
- /** It returns the matrix column index of a given static variable.
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the matrix column index of a given static variable.
   *
   * @param var a pointer to a ColVariable
   * @return the corresponding matrix column index
-  * @throws std::invalid_argument if no indices are associated to the variable
-  */
+  * @throws std::invalid_argument if no indices are associated to the
+  *                               variable */
+
  int index_of_static_variable( const ColVariable * var );
 
- /** It returns the matrix column index of a given dynamic variable.
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the matrix column index of a given dynamic variable.
   *
   * @param var a pointer to a ColVariable
   * @return the corresponding matrix column index
-  * @throws std::invalid_argument if no indices are associated to the variable
-  */
+  * @throws std::invalid_argument if no indices are associated to the
+  *                               variable */
+
  int index_of_dynamic_variable( const ColVariable * var );
 
- /** It returns the matrix row index of the given constraint.
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the matrix row index of the given constraint.
   *
   * @param con a pointer to a FRowConstraint
-  * @return the corresponding matrix row index
-  */
+  * @return the corresponding matrix row index */
+
  int index_of_constraint( const FRowConstraint * con );
 
- /** It returns the matrix row index of the given static constraint.
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the matrix row index of the given static constraint.
   *
   * @param con a pointer to a FRowConstraint
   * @return the corresponding matrix row index
-  * @throws std::invalid_argument if no indices are associated to the constraint
-  */
+  * @throws std::invalid_argument if no indices are associated to the
+  *                               constraint */
+
  int index_of_static_constraint( const FRowConstraint * con );
 
- /** It returns the matrix row index of the given dynamic constraint.
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the matrix row index of the given dynamic constraint.
   *
   * @param con a pointer to a FRowConstraint
   * @return the corresponding matrix row index
-  * @throws std::invalid_argument if no indices are associated to the constraint
-  */
+  * @throws std::invalid_argument if no indices are associated to the
+  *                               constraint */
+
  int index_of_dynamic_constraint( const FRowConstraint * con );
 
- /** It returns the variable corresponding to a variable matrix column index.
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the variable corresponding to a variable matrix column index.
   *
   * @param i a constraint matrix column index
   * @return a pointer to the corresponding ColVariable
-  * @throws std::invalid_argument if the index doesn't correspond to a variable
-  */
+  * @throws std::invalid_argument if the index doesn't correspond to a
+  *                               variable */
+
  ColVariable * variable_with_index( int i );
 
- /** It returns the static variable corresponding to the given variable
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the static variable corresponding to the given variable
   * matrix column index.
   *
   * @param i a constraint matrix column index
   * @return a pointer to the corresponding static ColVariable
   * @throws std::invalid_argument if the index doesn't correspond to
-  *                               a static variable
-  */
+  *                               a static variable */
+
  ColVariable * static_variable_with_index( int i );
 
- /** It returns the dynamic variable corresponding to the given variable
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the dynamic variable corresponding to the given variable
   * matrix column index.
   *
   * @param i a constraint matrix column index
   * @return a pointer to the corresponding dynamic ColVariable
   * @throws std::invalid_argument if the index doesn't correspond to
-  *                               a dynamic variable.
-  */
+  *                               a dynamic variable. */
+
  ColVariable * dynamic_variable_with_index( int i );
 
- /** It returns the constraint corresponding to a constraint matrix row index.
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the constraint corresponding to a constraint matrix row index.
   *
   * @param i a constraint matrix row index
   * @return a pointer to the corresponding FRowConstraint
   * @throws std::invalid_argument if the index doesn't correspond to
-  *                               a constraint
-  */
+  *                               a constraint */
+
  FRowConstraint * constraint_with_index( int i );
 
- /** It returns the static constraint corresponding to the given constraint
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the static constraint corresponding to the given constraint
   * matrix row index.
   *
   * @param i a constraint matrix row index
   * @return a pointer to the corresponding FRowConstraint
   * @throws std::invalid_argument if the index doesn't correspond to
-  *                               a static constraint
-  */
+  *                               a static constraint */
+
  FRowConstraint * static_constraint_with_index( int i );
 
- /** It returns the dynamic constraint corresponding to the given constraint
- * matrix row index.
- *
- * @param i a constraint matrix row index
- * @return a pointer to the corresponding FRowConstraint
- * @throws std::invalid_argument if the index doesn't correspond to
- *                               a dynamic constraint
- */
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the dynamic constraint corresponding to the given constraint
+  * matrix row index.
+  *
+  * @param i a constraint matrix row index
+  * @return a pointer to the corresponding FRowConstraint
+  * @throws std::invalid_argument if the index doesn't correspond to
+  *                               a dynamic constraint  */
 
  FRowConstraint * dynamic_constraint_with_index( int i );
 
- /// @}
+/** @} ---------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
  /// Writes the LP on the specified file
  virtual void write_lp( const std::string & filename ) {}
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// Returns the number of nodes used to solve a MIP
  [[nodiscard]] virtual int get_nodes( void ) const { return( 0 ); }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// Returns the number of integer variables
  [[nodiscard]] int get_num_integer_vars( void ) const { return( int_vars ); }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  #ifdef MILPSOLVER_DEBUG
   /// Check the dictionaries for inconsistencies
   virtual void check_status( void );
