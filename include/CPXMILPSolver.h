@@ -116,8 +116,7 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Constructor and Destructor
- * @{
- */
+ * @{ */
 
  CPXMILPSolver( void );
 
@@ -127,8 +126,7 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Public Methods derived from base classes
- * @{
- */
+ * @{ */
 
  /// sets the Block that the Solver has to solve and initializes CPLEX
  void set_Block( Block * block ) override;
@@ -190,8 +188,7 @@ class CPXMILPSolver : public MILPSolver {
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for handling parameters
- * @{
- */
+ * @{ */
 
  /// Sets an integer parameter with the given value
  /** Set the "int" parameters specific of CPXMILPSolver, together with the
@@ -324,13 +321,12 @@ class CPXMILPSolver : public MILPSolver {
   *
   * The following two methods retrieve the upper and lower bound for the
   * given variable considering both the Variable bounds and all the active
-  * OneVarConstraints active for that Variable.
-  */
+  * OneVarConstraints active for that Variable. */
 
- /// Gets the LB fot the given variable in the problem
+ /// Gets the LB for the given variable in the problem
  double get_problem_lb( const ColVariable & var ) override;
 
- /// Gets the UB fot the given variable in the problem
+ /// Gets the UB for the given variable in the problem
  double get_problem_ub( const ColVariable & var ) override;
 
 /** @} ---------------------------------------------------------------------*/
@@ -341,40 +337,43 @@ class CPXMILPSolver : public MILPSolver {
  */
 
  /// handles a variable modification
- void var_modification( VariableMod * mod ) override;
+ void var_modification( const VariableMod * mod ) override;
 
  /// handles an objective modification
- void objective_modification( ObjectiveMod * mod ) override;
+ void objective_modification( const ObjectiveMod * mod ) override;
 
  /// handles a constraint modification
- void const_modification( ConstraintMod * mod ) override;
+ void const_modification( const ConstraintMod * mod ) override;
 
  /// handles a bound modification
- void bound_modification( OneVarConstraintMod * mod ) override;
+ void bound_modification( const OneVarConstraintMod * mod ) override;
 
  /// handles a function modification applied to the objective
- void objective_function_modification( FunctionMod * mod ) override;
+ void objective_function_modification( const FunctionMod * mod ) override;
 
  /// handles a function modification applied to a constraint
- void constraint_function_modification( FunctionMod * mod ) override;
+ void constraint_function_modification( const FunctionMod * mod ) override;
 
  /// handles a function vars modification to the objective
- void objective_fvars_modification( FunctionModVars * mod ) override;
+ void objective_fvars_modification( const FunctionModVars * mod )
+  override;
 
  /// handles a function vars modification to a constraint
- void constraint_fvars_modification( FunctionModVars * mod ) override;
+ void constraint_fvars_modification( const FunctionModVars * mod )
+  override;
 
- /// handles a dynamic modification
- void dynamic_modification( BlockModAD * mod ) override;
+ // handles a dynamic modification
+ // no point in defining it, just calls the base class method
+ // void dynamic_modification( const BlockModAD * mod ) override;
 
  /// adds a single new dynamic constraint
- void add_dynamic_constraint( FRowConstraint * con ) override;
+ void add_dynamic_constraint( const FRowConstraint * con ) override;
 
  /// adds a single new dynamic bound
- void add_dynamic_bound( OneVarConstraint * con ) override;
+ void add_dynamic_bound( const OneVarConstraint * con ) override;
 
  /// adds a single new dynamic variable
- void add_dynamic_variable( ColVariable * var ) override;
+ void add_dynamic_variable( const ColVariable * var ) override;
 
  /// removes a single dynamic constraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
@@ -392,10 +391,10 @@ class CPXMILPSolver : public MILPSolver {
   * returns a positive number of it is an int parameter and a negative
   * number if it is a long one. Returns 0 if not a Cplex paameter. */
 
- int cpx_int_par_map( int par ) const;
+ int cpx_int_par_map( idx_type par ) const;
  
  /// maps a Solver double parameter into a Cplex one (or 0)
- int cpx_dbl_par_map( int par ) const;
+ int cpx_dbl_par_map( idx_type par ) const;
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
@@ -418,9 +417,7 @@ class CPXMILPSolver : public MILPSolver {
   *
   * Note: since SMS++ does not support long parameters, both int and
   * long CPLEX parameters are handled as SMS++ int parameters.
-  *
-  * @{
-  */
+  * @{ */
 
  const static std::array< int , CPX_NUM_INT_PARS > SMSpp_to_CPLEX_int_pars;
  const static std::array< int , CPX_NUM_DBL_PARS > SMSpp_to_CPLEX_dbl_pars;
@@ -433,11 +430,12 @@ class CPXMILPSolver : public MILPSolver {
  const static std::array< std::pair< int , int > , CPX_NUM_STR_PARS >
   CPLEX_to_SMSpp_str_pars;
 
- /// @}
+/** @} ---------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
- double UpCutOff;  ///< externally set upper cutoff to terinate
+ double UpCutOff;  ///< externally set upper cutoff to terminate
 
- double LwCutOff;  ///< externally set lower cutoff to terinate
+ double LwCutOff;  ///< externally set lower cutoff to terminate
  
 /*--------------------------------------------------------------------------*/
 /*---------------------- PRIVATE PART OF THE CLASS -------------------------*/
@@ -467,15 +465,14 @@ class CPXMILPSolver : public MILPSolver {
 
  /** Reloads a constraint.
   * To be used as fallback method for constraint FunctionMods. */
- void reload_constraint( Function * f );
+ void reload_constraint( const LinearFunction * lf );
 
  /** Reloads the objective.
   * To be used as fallback method for objective FunctionMods. */
  void reload_objective( Function * f );
 
- /** Update problem type.
-  * To be used with objective FunctionMods. */
- void update_problem_type( Function * f );
+ /// Update problem type: falso for a linear one, true for a quadratic one
+ void update_problem_type( bool quad
 
 /*--------------------------------------------------------------------------*/
 

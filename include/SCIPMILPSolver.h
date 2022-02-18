@@ -1,49 +1,40 @@
 /*--------------------------------------------------------------------------*/
-/*--------------------------- File SCIPMILPSolver.h -------------------------*/
+/*--------------------------- File SCIPMILPSolver.h ------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
  * Header file for the SCIPMILPSolver class.
  *
- * SCIPMILPSolver implements a general purpose solver that is able to tackle a
- * MILP problem expressed by a Block using ZIB SCIP.
+ * SCIPMILPSolver derives from MILPSolver and it uses the facilities
+ * provided by the base class to implements a general purpose MILP solver
+ * using calls to the ZIB SCIP API.
  *
  * \author Antonio Frangioni \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Università di Pisa \n
  *
- * \author Niccolò Iardella \n
- *         Operations Research Group \n
+ * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Niccolò Iardella
+ * \copyright &copy; Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #ifndef __SCIPMILPSOLVER_H
-#define __SCIPMILPSOLVER_H
+ #define __SCIPMILPSOLVER_H
+                      /* self-identification: #endif at the end of the file */
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include <scip/scip.h>
-
-#include <SMSTypedefs.h>
-#include <Observer.h>
-#include <Block.h>
-#include <Solver.h>
-#include <ColVariable.h>
-#include <FRealObjective.h>
-#include <FRowConstraint.h>
-#include <OneVarConstraint.h>
-
 #include "MILPSolver.h"
 
-// Include the proper CPLEX parameter mapping
+#include <scip/scip.h>
+
+// Include the proper SCIP parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( SCIP, SCIP_VERSION ), _defs.h ) )
@@ -53,17 +44,16 @@
 /*--------------------------------------------------------------------------*/
 
 /// namespace for the Structured Modeling System++ (SMS++)
-namespace SMSpp_di_unipi_it {
-
+namespace SMSpp_di_unipi_it
+{
 /*--------------------------------------------------------------------------*/
-/*----------------------- CLASS SCIPMILPSolver ------------------------------*/
+/*----------------------- CLASS SCIPMILPSolver -----------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/// Class for solving MILP problems via SCIP.
-/**
- * The SCIPMILPSolver class derives from MILPSolver and extends the
+/// class for solving MILP problems via SCIP.
+/** The SCIPMILPSolver class derives from MILPSolver and extends the
  * base class to solve MILP problems using SCIP.
  *
  * The SCIPMILPSolver can be registered to any kind of Block (assuming that
@@ -72,18 +62,19 @@ namespace SMSpp_di_unipi_it {
  * using SCIP. Moreover, it implements the interface that MILPSolver provides
  * for processing modifications.
  *
- * The main logic is in compute(). This method copies the vectors that decribe
- * the LP problem into a SCIP environment, it processes the modifications and
- * then solves the problem.
- * get_var_solution() retrieves the values of the variables from SCIP, saves
- * them into the Block variables and evaluates the objective function.
+ * The main logic is in compute(). This method copies the vectors that
+ * decribe the MILP problem into a SCIP environment, it processes the
+ * modifications and then solves the problem. get_var_solution() retrieves
+ * the values of the variables from SCIP, saves them into the Block
+ * variables and evaluates the objective function.
  *
  * Besides the configuration parameters already present in MILPSolver,
  * the user can include in the configuration all the parameters
  * supported by SCIP (See https://www.scipopt.org/doc/html/PARAMETERS.php).
  */
-class SCIPMILPSolver : public MILPSolver {
 
+class SCIPMILPSolver : public MILPSolver
+{
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -97,187 +88,181 @@ class SCIPMILPSolver : public MILPSolver {
  /// Types of integer parameters
  enum int_par_type_SCPS {
   /// First SCIP int/long parameter
-  intFirstSCIPPar = intLastAlgParMILP,
+  intFirstSCIPPar = intLastAlgParMILP ,
   /// First allowed new int parameter for derived classes
   intLastAlgParSCPS = intFirstSCIPPar + SCIP_NUM_INT_PARS
- };
+  };
 
  /// Types of double parameters
  enum dbl_par_type_SCPS {
   /// First SCIP double parameter
-  dblFirstSCIPPar = dblLastAlgParMILP,
+  dblFirstSCIPPar = dblLastAlgParMILP ,
   /// First allowed new double parameter for derived classes
   dblLastAlgParSCPS = dblFirstSCIPPar + SCIP_NUM_DBL_PARS
- };
+  };
 
  /// Types of string parameters
  enum str_par_type_SCPS {
   /// First SCIP string parameter
-  strFirstSCIPPar = strLastAlgParMILP,
+  strFirstSCIPPar = strLastAlgParMILP ,
   /// First allowed new string parameter for derived classes
   strLastAlgParSCPS = strFirstSCIPPar + SCIP_NUM_STR_PARS
- };
+  };
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
-
-/**
- * @name Constructor and Destructor
- * @{
- */
+/** @name Constructor and Destructor
+ *  @{ */
 
  SCIPMILPSolver();
 
  ~SCIPMILPSolver() override;
- /// @}
 
-/*--------------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
+/** @name Public Methods derived from base classes
+ *  @{ */
 
-/**
- * @name Public Methods derived from base classes
- * @{
- */
-
- /// It sets the Block that the Solver has to solve and initializes CPLEX.
+ /// sets the Block that the Solver has to solve and initializes CPLEX.
  void set_Block( Block * block ) override;
 
- /// Optimizes the problem with SCIP
+ /// optimizes the problem with SCIP
  int compute( bool changedvars = false ) override;
 
- /// Returns a valid lower bound on the optimal objective function value
- OFValue get_lb() override;
+ /// returns a valid lower bound on the optimal objective function value
+ OFValue get_lb( void ) override;
 
- /// Returns a valid upper bound on the optimal objective function value
- OFValue get_ub() override;
+ /// returns a valid upper bound on the optimal objective function value
+ OFValue get_ub( void ) override;
 
- /// Returns the value of the current solution, if any
- OFValue get_var_value() override;
+ /// returns the value of the current solution, if any
+ OFValue get_var_value( void ) override;
 
- /// Tells whether a solution is available
- bool has_var_solution() override;
+ /// tells whether a solution is available
+ bool has_var_solution( void ) override;
 
- /// Tells whether the current solution is feasible
- bool is_var_feasible() override;
+ /// tells whether the current solution is feasible
+ bool is_var_feasible( void ) override;
 
- /// Writes the current solution in the Block
+ /// writes the current solution in the Block
  void get_var_solution( Configuration * solc = nullptr ) override;
 
- /// Tells whether a dual solution is available
- bool has_dual_solution() override;
+ /// tells whether a dual solution is available
+ bool has_dual_solution( void ) override;
 
- /// Tells whether the current dual solution is feasible
- bool is_dual_feasible() override;
+ /// tells whether the current dual solution is feasible
+ bool is_dual_feasible( void ) override;
 
- /// Writes the current dual solution in the Block
+ /// writes the current dual solution in the Block
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
- /// Tells whether a dual unbounded direction is available
- bool has_dual_direction() override;
+ /// tells whether a dual unbounded direction is available
+ bool has_dual_direction( void ) override;
 
- /// Writes the current dual unbounded direction in the Block
+ /// writes the current dual unbounded direction in the Block
  void get_dual_direction( Configuration * dirc = nullptr ) override;
 
- /// Writes the LP on the specified file
+ /// writes the LP on the specified file
  void write_lp( const std::string & filename ) override;
 
- /// Returns the number of nodes used to solve a MIP
- [[nodiscard]] int get_nodes() const override;
+ /// returns the number of nodes used to solve a MIP
+ [[nodiscard]] int get_nodes( void ) const override;
 
- /// It clears the SCIP environment
+ /// clears the SCIP environment
  void clear_problem( unsigned int what ) override;
 
- /// It loads the problem into SCIP
- void load_problem() override;
- /// @}
+ /// loads the problem into SCIP
+ void load_problem( void ) override;
 
-/*--------------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
-/**
- * @name Methods for handling parameters
- * @{
- */
+/** @name Methods for handling parameters
+ *  @{ */
 
- /// Sets an integer parameter with the given value
- void set_par( idx_type par, int value ) override;
+ /// sets an integer parameter with the given value
+ void set_par( idx_type par , int value ) override;
 
- /// Sets a double parameter with the given value
- void set_par( idx_type par, double value ) override;
+ /// sets a double parameter with the given value
+ void set_par( idx_type par , double value ) override;
 
- /// Sets a string parameter with the given value
- void set_par( idx_type par, std::string && value ) override;
+ /// sets a string parameter with the given value
+ void set_par( idx_type par , std::string && value ) override;
 
- /// Gets the number of integer parameters
- [[nodiscard]] idx_type get_num_int_par() const override;
+ /// gets the number of integer parameters
+ [[nodiscard]] idx_type get_num_int_par( void ) const override;
 
- /// Gets the number of double parameters
- [[nodiscard]] idx_type get_num_dbl_par() const override;
+ /// gets the number of double parameters
+ [[nodiscard]] idx_type get_num_dbl_par( void ) const override;
 
- /// Gets the number of string parameters
- [[nodiscard]] idx_type get_num_str_par() const override;
+ /// gets the number of string parameters
+ [[nodiscard]] idx_type get_num_str_par( void ) const override;
 
- /// Gets the default value of the specified integer parameter
+ /// gets the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- /// Gets the default value of the specified double parameter
+ /// gets the default value of the specified double parameter
  [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
  /** Gets the default value of the specified string parameter
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
-  * par as a SCIP parameter.
-  */
- [[nodiscard]] const std::string &
- get_dflt_str_par( idx_type par ) const override;
+  * par as a SCIP parameter. */
 
- /// Gets the value of the specified integer parameter
+ [[nodiscard]] const std::string & get_dflt_str_par( idx_type par )
+  const override;
+
+ /// gets the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
 
- /// Gets the value of the specified double parameter
+ /// gets the value of the specified double parameter
  [[nodiscard]] double get_dbl_par( idx_type par ) const override;
 
  /** Gets the value of the specified string parameter
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
-  * par as a SCIP parameter.
-  */
+  * par as a SCIP parameter. */
+ 
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
 
- /// Returns the index of the int parameter with the specified name
- [[nodiscard]] idx_type
- int_par_str2idx( const std::string & name ) const override;
+ /// returns the index of the int parameter with the specified name
+ [[nodiscard]] idx_type int_par_str2idx( const std::string & name )
+  const override;
 
- /// Returns the name of the int parameter with the specified index
- [[nodiscard]] const std::string &
- int_par_idx2str( idx_type idx ) const override;
+ /// returns the name of the int parameter with the specified index
+ [[nodiscard]] const std::string & int_par_idx2str( idx_type idx )
+  const override;
 
- /// Returns the index of the double parameter with the specified name
- [[nodiscard]] idx_type
- dbl_par_str2idx( const std::string & name ) const override;
+ /// returns the index of the double parameter with the specified name
+ [[nodiscard]] idx_type dbl_par_str2idx( const std::string & name )
+  const override;
 
- /// Returns the name of the double parameter with the specified index
- [[nodiscard]] const std::string &
- dbl_par_idx2str( idx_type idx ) const override;
+ /// returns the name of the double parameter with the specified index
+ [[nodiscard]] const std::string & dbl_par_idx2str( idx_type idx )
+  const override;
 
- /// Returns the index of the string parameter with the specified name
- [[nodiscard]] idx_type
- str_par_str2idx( const std::string & name ) const override;
+ /// returns the index of the string parameter with the specified name
+ [[nodiscard]] idx_type str_par_str2idx( const std::string & name )
+  const override;
 
- /// Returns the name of the string parameter with the specified index
- [[nodiscard]] const std::string &
- str_par_idx2str( idx_type idx ) const override;
- /// @}
+ /// returns the name of the string parameter with the specified index
+ [[nodiscard]] const std::string & str_par_idx2str( idx_type idx )
+  const override;
+
+/** @} ---------------------------------------------------------------------*/
+/*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ protected:
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
- protected:
  /// SCIP environment
  SCIP * scip{};
 
@@ -289,22 +274,81 @@ class SCIPMILPSolver : public MILPSolver {
  /// SCIP auxiliary constraints for QPs
  std::vector< SCIP_CONS * > aux_cons;
 
+/*--------------------------------------------------------------------------*/
+/*------------------- PROTECTED METHODS OF THE CLASS -----------------------*/
+/*--------------------------------------------------------------------------*/
  /** @name Get variable bounds for the problem
   *
   * The following two methods retrieve the upper and lower bound for the
   * given variable considering both the Variable bounds and all the active
   * OneVarConstraints active for that Variable.
-  *
-  * @{
-  */
+  * @{ */
 
  /// Gets the LB fot the given variable in the problem
  double get_problem_lb( const ColVariable & var ) override;
 
  /// Gets the UB fot the given variable in the problem
  double get_problem_ub( const ColVariable & var ) override;
- /// @}
 
+ /** @} --------------------------------------------------------------------*/
+/*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Methods for modifying the constructed SCIP problem
+ *  @{ */
+
+ /// handles a variable modification
+ void var_modification( VariableMod * mod ) override;
+
+ /// handles an objective modification
+ void objective_modification( ObjectiveMod * mod ) override;
+
+ /// handles a constraint modification
+ void const_modification( ConstraintMod * mod ) override;
+
+ /// handles a bound modification
+ void bound_modification( OneVarConstraintMod * mod ) override;
+
+ /// handles a function modification applied to the objective
+ void objective_function_modification( FunctionMod * mod ) override;
+
+ /// handles a function modification applied to a constraint
+ void constraint_function_modification( FunctionMod * mod ) override;
+
+ /// handles a function vars modification to the objective
+ void objective_fvars_modification( FunctionModVars * mod ) override;
+
+ /// handles a function vars modification to a constraint
+ void constraint_fvars_modification( FunctionModVars * mod ) override;
+
+ /// handles a dynamic modification
+ // no point in defining it, just calls the base class method
+ // void dynamic_modification( const BlockModAD * mod ) override;
+
+ /// It adds a single new dynamic constraint
+ void add_dynamic_constraint( FRowConstraint * con ) override;
+
+ /// adds a single new dynamic bound
+ void add_dynamic_bound( OneVarConstraint * con ) override;
+
+ /// adds a single new dynamic variable
+ void add_dynamic_variable( ColVariable * var ) override;
+
+ /// removes a single dynamic constraint
+ void remove_dynamic_constraint( const FRowConstraint * con ) override;
+
+ /// removes a single dynamic variable
+ void remove_dynamic_variable( const ColVariable * var ) override;
+
+ /// removes a single dynamic bound
+ void remove_dynamic_bound( const OneVarConstraint * con ) override;
+
+/** @} ---------------------------------------------------------------------*/
+/*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ private:
+ 
+/*--------------------------------------------------------------------------*/
  /** @name Handling of SCIP parameters
  *
  * The following maps are used to keep a relationship between SMS++ parameter
@@ -315,83 +359,44 @@ class SCIPMILPSolver : public MILPSolver {
  * Bool, int and long SCIP parameters are handled as SMS++ int parameters.
  * Real SCIP parameters are handled as SMS++ double parameters.
  * Char and string SCIP parameters are handled as SMS++ string parameters.
- *
- * @{
- */
+ * @{ */
 
- const static std::array< std::string, SCIP_NUM_INT_PARS > SMSpp_to_SCIP_int_pars;
- const static std::array< std::string, SCIP_NUM_DBL_PARS > SMSpp_to_SCIP_dbl_pars;
- const static std::array< std::string, SCIP_NUM_STR_PARS > SMSpp_to_SCIP_str_pars;
+ const static std::array< std::string , SCIP_NUM_INT_PARS >
+  SMSpp_to_SCIP_int_pars;
 
- const static std::array< std::pair< std::string, int >, SCIP_NUM_INT_PARS > SCIP_to_SMSpp_int_pars;
- const static std::array< std::pair< std::string, int >, SCIP_NUM_DBL_PARS > SCIP_to_SMSpp_dbl_pars;
- const static std::array< std::pair< std::string, int >, SCIP_NUM_STR_PARS > SCIP_to_SMSpp_str_pars;
+ const static std::array< std::string , SCIP_NUM_DBL_PARS >
+  SMSpp_to_SCIP_dbl_pars;
+ 
+ const static std::array< std::string , SCIP_NUM_STR_PARS >
+  SMSpp_to_SCIP_str_pars;
 
- /// @}
+ const static std::array< std::pair< std::string , int > , SCIP_NUM_INT_PARS >
+  SCIP_to_SMSpp_int_pars;
 
+ const static std::array< std::pair< std::string , int > , SCIP_NUM_DBL_PARS >
+  SCIP_to_SMSpp_dbl_pars;
+
+ const static std::array< std::pair< std::string , int > , SCIP_NUM_STR_PARS >
+  SCIP_to_SMSpp_str_pars;
+
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
-/*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
-/*--------------------------------------------------------------------------*/
-
-/**
- * @name Methods for modifying the constructed SCIP problem
- * @{
- */
-
- /// It handles a variable modification
- void var_modification( VariableMod * mod ) override;
-
- /// It handles an objective modification
- void objective_modification( ObjectiveMod * mod ) override;
-
- /// It handles a constraint modification
- void const_modification( ConstraintMod * mod ) override;
-
- /// It handles a bound modification
- void bound_modification( OneVarConstraintMod * mod ) override;
-
- /// It handles a function modification applied to the objective
- void objective_function_modification( FunctionMod * mod ) override;
-
- /// It handles a function modification applied to a constraint
- void constraint_function_modification( FunctionMod * mod ) override;
-
- /// It handles a function vars modification to the objective
- void objective_fvars_modification( FunctionModVars * mod ) override;
-
- /// It handles a function vars modification to a constraint
- void constraint_fvars_modification( FunctionModVars * mod ) override;
-
- /// It handles a dynamic modification
- void dynamic_modification( BlockModAD * mod ) override;
-
- /// It adds a single new dynamic constraint
- void add_dynamic_constraint( FRowConstraint * con ) override;
-
- /// It adds a single new dynamic bound
- void add_dynamic_bound( OneVarConstraint * con ) override;
-
- /// It adds a single new dynamic variable
- void add_dynamic_variable( ColVariable * var ) override;
-
- /// It removes a single dynamic constraint
- void remove_dynamic_constraint( const FRowConstraint * con ) override;
-
- /// It removes a single dynamic variable
- void remove_dynamic_variable( const ColVariable * var ) override;
-
- /// It removes a single dynamic bound
- void remove_dynamic_bound( const OneVarConstraint * con ) override;
- /// @}
-
-/*--------------------------------------------------------------------------*/
-/*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
-/*--------------------------------------------------------------------------*/
- private:
 
  SMSpp_insert_in_factory_h;
-};
 
-}
+/*--------------------------------------------------------------------------*/
 
-#endif
+ };  // end( class SCIPMILPSolver )
+
+/*--------------------------------------------------------------------------*/
+
+}  // end( namespace SMSpp_di_unipi_it )
+
+/*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+#endif  /* SCIPMILPSolver.h included */
+
+/*--------------------------------------------------------------------------*/
+/*----------------------- End File SCIPMILPSolver.h ------------------------*/
+/*--------------------------------------------------------------------------*/
