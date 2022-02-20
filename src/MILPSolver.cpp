@@ -913,7 +913,6 @@ void MILPSolver::scan_dynamic_constraint( const FRowConstraint & con ,
 {
  dcon_to_idx.emplace_back( & con , row );
  idx_to_dcon.emplace_back( & con );
-
  scan_constraint( con , row );
  }
 

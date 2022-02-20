@@ -1494,34 +1494,31 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   * so each time we modify one of them we have to check if LHS and RHS
   * of the Variable change. */
 
+ static std::array< char , 2 > lu = { 'L' , 'U' };
+ 
  auto * con = static_cast< OneVarConstraint * >( mod->constraint() );
  auto * var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
-
- std::array< int , 2 > indices = { 2 , index_of_variable( var ) };
- std::vector< char > lu;
- std::vector< double > bd;
-
+ auto vi = index_of_variable( var );
+ std::array< int , 2 > ind = { vi , vi };
+ 
  switch( mod->type() ) {
 
   case RowConstraintMod::eChgLHS: {
-   std::array< char , 1 > lu = { 'L' };
    std::array< double , 1 > bd = {  get_problem_lb( *var ) };
-   CPXchgbds( env , lp , 1 , indices.data() , lu.data() , bd.data() );
+   CPXchgbds( env , lp , 1 , ind.data() , lu.data() , bd.data() );
    break;
    }
 
   case RowConstraintMod::eChgRHS: {
-   std::array< char , 1 > lu = { 'U' };
    std::array< double , 1 > bd = {  get_problem_ub( *var ) };
-   CPXchgbds( env , lp , 1 , indices.data() , lu.data() , bd.data() );
+   CPXchgbds( env , lp , 1 , ind.data() , lu.data() + 1 , bd.data() );
    break;
    }
 
   case RowConstraintMod::eChgBTS: {
-   std::array< char , 2 > lu = { 'L' , 'U' };
    std::array< double , 2 > bd = {  get_problem_lb( *var ) ,
 				    get_problem_ub( *var ) };
-   CPXchgbds( env , lp , 2 , indices.data() , lu.data() , bd.data() );
+   CPXchgbds( env , lp , 2 , ind.data() , lu.data() , bd.data() );
    break;
    }
 
