@@ -885,25 +885,50 @@ class MILPSolver : public CDASolver
  * inside the containers.
  * @{ */
 
- /** Scans a ColVariable and fills the vectors of the LP accordingly.
+ /** Scans a static ColVariable and fills the  dictionaries accordingly
   *
   * @param var a reference to a ColVariable
   * @param n   an counter that should be 0 when var is the first
-  *            element of a vector of static ColVariables,
-  *            and -1 when it's a dynamic ColVariable
+  *            element of a vector of static ColVariables
   * @param col a counter for variables/columns */
 
- void scan_variable( const ColVariable & var , int n , Index & col );
+ void scan_static_variable( const ColVariable & var , Index & n ,
+			    Index & col );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /** Scans a FRowConstraint and fills the vectors of the LP accordingly.
+ /** Scans a dyanmic ColVariable and fills the dictionaries accordingly
+  *
+  * @param var a reference to a ColVariable
+  * @param col a counter for variables/columns */
+
+ void scan_dynamic_variable( const ColVariable & var , Index & col );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// common part of scan_static_variable() and scan_dynamic_variable()
+
+ void scan_variable( const ColVariable & var , Index & col );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /** Scans a static FRowConstraint and fills the dictionaries accordingly
   * @param con a reference to a FRowConstraint
   * @param n   an counter that should be 0 when lconst is the first
-  *            element of a vector of static FRowConstraints,
-  *            and -1 when it's a dynamic FRowConstraint
+  *            element of a vector of static FRowConstraints
   * @param row a counter for constraints/rows */
 
- void scan_constraint( const FRowConstraint & con , int n , Index & row );
+ void scan_static_constraint( const FRowConstraint & con , Index & n ,
+			      Index & col );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /** Scans a dynamic FRowConstraint and fills the dictionaries accordingly
+  * @param con a reference to a FRowConstraint
+  * @param row a counter for constraints/rows */
+
+ void scan_dynamic_constraint( const FRowConstraint & con , Index & row );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// common part of scan_static_constraint() and scan_dynamic_constraint()
+
+ void scan_constraint( const FRowConstraint & con , Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a FRealObjective and fills the vectors of the LP accordingly.

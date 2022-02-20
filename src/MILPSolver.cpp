@@ -372,11 +372,11 @@ void MILPSolver::load_problem( void )
   Index set = 0;  // counter for the constraint groups
 
   for( const auto & i : qb->get_static_constraints() ) {
-   int elements = 0;  // counter for group elements
+   Index elements = 0;  // counter for group elements
    Index start = row;
 
-   auto scan = [ this , elements , & row ]( FRowConstraint & c ) {
-    scan_constraint( c , elements , row );
+   auto scan = [ this , & elements , & row ]( const FRowConstraint & c ) {
+    scan_static_constraint( c , elements , row );
     };
    un_any_const_static( i , scan , un_any_type< FRowConstraint >() );
 
@@ -413,8 +413,8 @@ void MILPSolver::load_problem( void )
 
   for( const auto & i : qb->get_dynamic_constraints() ) {
    Index start = row;
-   auto scan = [ this , & row ]( FRowConstraint & c ) {
-    scan_constraint( c , -1 , row );
+   auto scan = [ this , & row ]( const FRowConstraint & c ) {
+    scan_dynamic_constraint( c , row );
     };
    un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
 
@@ -448,10 +448,10 @@ void MILPSolver::load_problem( void )
   Index set = 0;   // counter for the variable groups
 
   for( const auto & i : qb->get_static_variables() ) {
-   int elements = 0;  // counter for group elements
+   Index elements = 0;  // counter for group elements
    Index start = col;
-   auto scan = [ this , elements , & col ]( ColVariable & v ) {
-    scan_variable( v , elements , col );
+   auto scan = [ this , & elements , & col ]( const ColVariable & v ) {
+    scan_static_variable( v , elements , col );
     };
    un_any_const_static( i , scan , un_any_type< ColVariable >() );
 
@@ -488,8 +488,8 @@ void MILPSolver::load_problem( void )
 
   for( const auto & i : qb->get_dynamic_variables() ) {
    Index start = col;
-   auto scan = [ this , & col ]( ColVariable & v ) {
-    scan_variable( v , -1 , col );
+   auto scan = [ this , & col ]( const ColVariable & v ) {
+    scan_dynamic_variable( v ,  col );
     };
    un_any_const_dynamic( i , scan , un_any_type< ColVariable >() );
 
@@ -820,25 +820,31 @@ const FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
 /*------------- AUXILIARY METHODS FOR POPULATING THE PROBLEM  --------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_variable( const ColVariable & var , int n ,
-				Index & col )
+void MILPSolver::scan_static_variable( const ColVariable & var , Index & n ,
+				       Index & col )
 {
- if( n < 0 ) {
-  // DEBUG_LOG( "MILPSolver::scan_variable(): D#" << col << " " << var );
-  dvar_to_idx.emplace_back( & var , col );
-  idx_to_dvar.emplace_back( & var );
-  }
- else {
-  // DEBUG_LOG( "MILPSolver::scan_variable(): S#"
-  //             << n << "/" << col << " " << var );
-
-  if( n == 0 ) {  // The tuple's third field will be filled later
-   svar_to_idx.emplace_back( & var , col , 0 );
-   idx_to_svar.emplace_back( col , & var );
-   }
-  ++n;
+ if( ! n++ ) {  // the tuple's third field will be filled later
+  svar_to_idx.emplace_back( & var , col , 0 );
+  idx_to_svar.emplace_back( col , & var );
   }
 
+ scan_variable( var , col );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::scan_dynamic_variable( const ColVariable & var ,
+					Index & col )
+{
+ dvar_to_idx.emplace_back( & var , col );
+ idx_to_dvar.emplace_back( & var );
+ scan_variable( var , col );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::scan_variable( const ColVariable & var , Index & col )
+{
  if( var.is_fixed() ) {
   lb[ col ] = std::max( get_problem_lb( var ) , var.get_value() );
   ub[ col ] = std::min( get_problem_ub( var ) , var.get_value() );
@@ -889,26 +895,32 @@ void MILPSolver::scan_variable( const ColVariable & var , int n ,
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_constraint( const FRowConstraint & con , int n ,
-				  Index & row )
+void MILPSolver::scan_static_constraint( const FRowConstraint & con ,
+					 Index & n , Index & row )
 {
- if( n < 0 ) {
-  // DEBUG_LOG( "MILPSolver::scan_constraint(): D#" << row << " " << con );
-  dcon_to_idx.emplace_back( & con , row );
-  idx_to_dcon.emplace_back( & con );
-  }
- else {
-  // DEBUG_LOG( "MILPSolver::scan_constraint(): S#"
-  //             << n << "/" << row << " " << con );
-
-  if( n == 0 ) {
-   // The tuple's third field will be filled later
-   scon_to_idx.emplace_back( & con , row , 0 );
-   idx_to_scon.emplace_back( row , & con );
-   }
-  ++n;
+ if( ! n++ ) {  // the tuple's third field will be filled later
+  scon_to_idx.emplace_back( & con , row , 0 );
+  idx_to_scon.emplace_back( row , & con );
   }
 
+ scan_constraint( con , row );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::scan_dynamic_constraint( const FRowConstraint & con ,
+					  Index & row )
+{
+ dcon_to_idx.emplace_back( & con , row );
+ idx_to_dcon.emplace_back( & con );
+
+ scan_constraint( con , row );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row )
+{
  if( ! dynamic_cast< const LinearFunction * >( con.get_function() ) )
   throw( std::invalid_argument( "The Constraint is not linear" ) );
 
