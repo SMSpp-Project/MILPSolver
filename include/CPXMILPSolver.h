@@ -472,7 +472,7 @@ class CPXMILPSolver : public MILPSolver {
  void reload_objective( Function * f );
 
  /// Update problem type: falso for a linear one, true for a quadratic one
- void update_problem_type( bool quad
+ void update_problem_type( bool quad );
 
 /*--------------------------------------------------------------------------*/
 

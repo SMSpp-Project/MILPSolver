@@ -164,6 +164,8 @@ class MILPSolver : public CDASolver
   strLastAlgParMILP  ///< 1st allowed new string parameter for derived classes
   };
 
+ using Index = Block::Index;  // "import" Index from Block
+
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -244,90 +246,89 @@ class MILPSolver : public CDASolver
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Getters for the vectors of the LP problem.
+/** @name Getters for the vectors of the MILP problem.
  *
  * The following methods return the data that define the MILP problem.
- *
  * @{ */
 
- /// Returns the number of variables/columns
+ /// returns the number of variables/columns
  [[nodiscard]] int get_numcols( void ) const { return( numcols ); }
 
- /// Returns the number of constraints/rows
+ /// returns the number of constraints/rows
  [[nodiscard]] int get_numrows( void ) const { return( numrows ); }
 
- /// Returns the number of non-zero elements
- [[nodiscard]] int get_nzelements( void ) const { return( nzelements ); }
+ /// returns the number of non-zero elements
+ [[nodiscard]] int get_nzelements( void ) const { return( matval.size() ); }
 
- /// Returns the sense of the objective function, see CPXchgobjsen()
+ /// returns the sense of the objective function, see CPXchgobjsen()
  [[nodiscard]] int get_objsense( void ) const { return( objsense ); }
 
- /// Returns the linear cofficients of the objective function
+ /// returns the linear cofficients of the objective function
  [[nodiscard]] const std::vector< double > & get_objective( void ) const {
   return( objective );
   }
 
- /// Returns the quadratic cofficients of the objective function
+ /// returns the quadratic cofficients of the objective function
  [[nodiscard]] const std::vector< double > & get_q_objective( void ) const {
   return( q_objective );
   }
 
- /// Returns the RHS values of the constraints
+ /// returns the RHS values of the constraints
  [[nodiscard]] const std::vector< double > & get_rhs( void ) const {
   return( rhs );
   }
 
- /// Returns the range values of the ranged constraints
+ /// returns the range values of the ranged constraints
  [[nodiscard]] const std::vector< double > & get_rngval( void ) const {
   return( rngval );
   }
 
- /// Returns the sense of the constraints, see  CPXchgsense()
+ /// returns the sense of the constraints, see  CPXchgsense()
  [[nodiscard]] const std::vector< char > & get_sense( void ) const {
   return( sense );
   }
 
- /// Returns matbeg, one of the arrays that define the constraint matrix
+ /// returns matbeg, one of the arrays that define the constraint matrix
  [[nodiscard]] const std::vector< int > & get_matbeg( void ) const {
   return( matbeg );
   }
 
- /// Returns matcnt, one of the arrays that define the constraint matrix
+ /// returns matcnt, one of the arrays that define the constraint matrix
  [[nodiscard]] const std::vector< int > & get_matcnt( void ) const {
   return( matcnt );
   }
 
- /// Returns matind, one of the arrays that define the constraint matrix
+ /// returns matind, one of the arrays that define the constraint matrix
  [[nodiscard]] const std::vector< int > & get_matind( void ) const {
   return( matind );
   }
 
- /// Returns matval, one of the arrays that define the constraint matrix
+ /// returns matval, one of the arrays that define the constraint matrix
  [[nodiscard]] const std::vector< double > & get_matval( void ) const {
   return( matval );
   }
 
- /// Returns the lower bounds on the variables
+ /// returns the lower bounds on the variables
  [[nodiscard]] const std::vector< double > & get_var_lb( void ) const {
   return( lb );
   }
 
- /// Returns the upper bounds on the variables
+ /// returns the upper bounds on the variables
  [[nodiscard]] const std::vector< double > & get_var_ub( void ) const {
   return( ub );
   }
 
- /// Returns the types of the variables, see CPXcopyctype()
+ /// returns the types of the variables
  [[nodiscard]] const std::vector< char > & get_xctype( void ) const {
   return( xctype );
   }
 
- /// Returns the names of the constraints/rows
+ /// returns the names of the constraints/rows
  [[nodiscard]] const std::vector< char * > & get_rowname( void ) const {
   return( rowname );
   }
 
- /// Returns the names of the variables/columns
+ /// returns the names of the variables/columns
  [[nodiscard]] const std::vector< char * > & get_colname( void ) const {
   return( colname );
   }
@@ -341,7 +342,6 @@ class MILPSolver : public CDASolver
   *
   * We provide separate methods for looking into static, dynamic or both parts
   * of the problem, so we can reduce searching time when possible.
-  *
   * @{ */
 
  /** Returns the matrix column index of a given variable.
@@ -409,7 +409,7 @@ class MILPSolver : public CDASolver
   * @throws std::invalid_argument if the index doesn't correspond to a
   *                               variable */
 
- ColVariable * variable_with_index( int i );
+ const ColVariable * variable_with_index( int i );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /** Returns the static variable corresponding to the given variable
@@ -420,7 +420,7 @@ class MILPSolver : public CDASolver
   * @throws std::invalid_argument if the index doesn't correspond to
   *                               a static variable */
 
- ColVariable * static_variable_with_index( int i );
+ const ColVariable * static_variable_with_index( int i );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /** Returns the dynamic variable corresponding to the given variable
@@ -431,7 +431,7 @@ class MILPSolver : public CDASolver
   * @throws std::invalid_argument if the index doesn't correspond to
   *                               a dynamic variable. */
 
- ColVariable * dynamic_variable_with_index( int i );
+ const ColVariable * dynamic_variable_with_index( int i );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /** Returns the constraint corresponding to a constraint matrix row index.
@@ -441,7 +441,7 @@ class MILPSolver : public CDASolver
   * @throws std::invalid_argument if the index doesn't correspond to
   *                               a constraint */
 
- FRowConstraint * constraint_with_index( int i );
+ const FRowConstraint * constraint_with_index( int i );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /** Returns the static constraint corresponding to the given constraint
@@ -452,7 +452,7 @@ class MILPSolver : public CDASolver
   * @throws std::invalid_argument if the index doesn't correspond to
   *                               a static constraint */
 
- FRowConstraint * static_constraint_with_index( int i );
+ const FRowConstraint * static_constraint_with_index( int i );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /** Returns the dynamic constraint corresponding to the given constraint
@@ -463,7 +463,7 @@ class MILPSolver : public CDASolver
   * @throws std::invalid_argument if the index doesn't correspond to
   *                               a dynamic constraint  */
 
- FRowConstraint * dynamic_constraint_with_index( int i );
+ const FRowConstraint * dynamic_constraint_with_index( int i );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -588,12 +588,12 @@ class MILPSolver : public CDASolver
 /*---------------- VARIABLE AND CONSTRAINT TRACKING VECTORS ----------------*/
 /*--------------------------------------------------------------------------*/
 
- using var_int = std::pair< ColVariable * , int >;
- using int_var = std::pair< int, ColVariable * >;
- using con_int = std::pair< FRowConstraint * , int >;
- using int_con = std::pair< int , FRowConstraint * >;
- using var_int_int = std::tuple< ColVariable * , int , int >;
- using con_int_int = std::tuple< FRowConstraint * , int , int >;
+ using var_int = std::pair< const ColVariable * , int >;
+ using int_var = std::pair< int , const ColVariable * >;
+ using con_int = std::pair< const FRowConstraint * , int >;
+ using int_con = std::pair< int , const FRowConstraint * >;
+ using var_int_int = std::tuple< const ColVariable * , int , int >;
+ using con_int_int = std::tuple< const FRowConstraint * , int , int >;
 
  /** @name Variable and Constraint dictionaries
   *
@@ -636,10 +636,11 @@ class MILPSolver : public CDASolver
  std::vector< int_con> idx_to_scon;      ///< from index to static constraint
 
  std::vector< var_int > dvar_to_idx;     ///< from dynamic variable to index
- std::vector< ColVariable * > idx_to_dvar; ///< from index to dynamic variable
+ std::vector< const ColVariable * > idx_to_dvar;
+                                         ///< from index to dynamic variable
 
  std::vector< con_int > dcon_to_idx;     ///< from dynamic constraint to index
- std::vector< FRowConstraint * > idx_to_dcon;
+ std::vector< const FRowConstraint * > idx_to_dcon;
                                          ///< from index to dynamic constraint
 
 /** @} ---------------------------------------------------------------------*/
@@ -888,21 +889,21 @@ class MILPSolver : public CDASolver
   *
   * @param var a reference to a ColVariable
   * @param n   an counter that should be 0 when var is the first
-  *              element of a vector of static ColVariables,
-  *              and -1 when it's a dynamic ColVariable
+  *            element of a vector of static ColVariables,
+  *            and -1 when it's a dynamic ColVariable
   * @param col a counter for variables/columns */
 
- void scan_variable( ColVariable & var , int & n , int & col );
+ void scan_variable( const ColVariable & var , int n , Index & col );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a FRowConstraint and fills the vectors of the LP accordingly.
   * @param con a reference to a FRowConstraint
   * @param n   an counter that should be 0 when lconst is the first
-  *              element of a vector of static FRowConstraints,
-  *              and -1 when it's a dynamic FRowConstraint
+  *            element of a vector of static FRowConstraints,
+  *            and -1 when it's a dynamic FRowConstraint
   * @param row a counter for constraints/rows */
 
- void scan_constraint( FRowConstraint & con , int & n , int & row );
+ void scan_constraint( const FRowConstraint & con , int n , Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a FRealObjective and fills the vectors of the LP accordingly.

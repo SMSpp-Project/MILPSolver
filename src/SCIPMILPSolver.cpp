@@ -8,11 +8,11 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Niccolò Iardella \n
+ * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy by Antonio Frangioni, Niccolò Iardella
+ * \copyright &copy by Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
@@ -28,10 +28,11 @@
 #include <DQuadFunction.h>
 
 #include "SCIPMILPSolver.h"
+
 #include <scip/scipdefplugins.h>
 #include <scip/cons_linear.h>
 
-// Include the proper SCIP parameter mapping
+// include the proper SCIP parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( SCIP, SCIP_VERSION ), _maps.h ) )
@@ -120,7 +121,7 @@ void SCIPMILPSolver::load_problem( void )
 
   SCIP_VAR * var = nullptr;
   char * name = use_custom_names ? colname[ i ] : nullptr;
-  SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & var , name , collb,  colub ,
+  SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & var , name , collb ,  colub ,
                                        objective[ i ] , vartype ) );
   SCIP_CALL_ABORT( SCIPaddVar( scip , var ) );
   vars[ i ] = var;
@@ -289,16 +290,23 @@ double SCIPMILPSolver::get_problem_ub( const ColVariable & var )
 
 int SCIPMILPSolver::compute( bool changedvars )
 {
+ lock();  // lock the mutex: this is done again inside MILPSolver::compute,
+          // but that's OK since the mutex is recursive
+
+ // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
  if( MILPSolver::compute( changedvars ) != kOK )
   throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
 
+ // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() )
   SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip , output_file.c_str() , "mps" ,
 					 FALSE ) );
+
+ // the actual call to SCIP - - - - - - - - - - - - - - - - - - - - - - - - -
  SCIP_CALL_ABORT( SCIPsolve( scip ) );
 
- SCIP_STATUS status = SCIPgetStatus( scip );
- switch( status ) {
+ // decode SCIP exit status - - - - - - - - - - - - - - - - - - - - - - - - -
+ switch( SCIPgetStatus( scip ) ) {
   case( SCIP_STATUS_OPTIMAL ):
   case( SCIP_STATUS_GAPLIMIT ):
   case( SCIP_STATUS_SOLLIMIT ):   sol_status = kOK; break;
@@ -310,6 +318,7 @@ int SCIPMILPSolver::compute( bool changedvars )
   default:                        sol_status = kError;
   }
 
+ unlock();  // unlock the mutex
  return( sol_status );
  }
 
@@ -419,22 +428,13 @@ void SCIPMILPSolver::get_var_solution( Configuration * solc )
   v.set_value( x[ col++ ] );
   };
 
- bool owned = f_Block->is_owned_by( f_id );
- if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
-  throw( std::runtime_error( "Unable to lock the Block" ) );
-
  for( auto qb : v_BFS ) {
-
   for( const auto & vi : qb->get_static_variables() )
    un_any_const_static( vi , set , un_any_type< ColVariable >() );
 
   for( const auto & vi : qb->get_dynamic_variables() )
    un_any_const_dynamic( vi , set , un_any_type< ColVariable >() );
   }
-
- if( ! owned )
-  f_Block->unlock( f_id );
-
  }  // end( SCIPMILPSolver::get_var_solution )
 
 /*--------------------------------------------------------------------------*/
@@ -573,7 +573,7 @@ void SCIPMILPSolver::objective_modification( const ObjectiveMod * mod )
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::const_modification( ConstraintMod * mod )
+void SCIPMILPSolver::const_modification( const ConstraintMod * mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::const_modification( mod );
@@ -750,9 +750,9 @@ void SCIPMILPSolver::objective_fvars_modification(
  auto * f = mod->function();
 
  // check the modification type
- if( ( ! dynamic_cast< C05FunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
 				) );
  if( SCIPisTransformed( scip ) )
@@ -800,9 +800,9 @@ void SCIPMILPSolver::constraint_fvars_modification(
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< C05FunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
 				) );
 
@@ -1194,6 +1194,7 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const
     SCIP_CALL_ABORT( SCIPgetLongintParam( scip , scip_par.c_str() ,
 					  & long_val ) );
     return( ( int ) long_val );
+   default:;  // here just to avoid a pesky warning
    }
   }
 
@@ -1273,6 +1274,7 @@ const std::string & SCIPMILPSolver::get_str_par( idx_type par ) const
 					 & str_val ) );
     value = str_val;
     return( value );
+   default:;  // here just to avoid a pesky warning
    }
   }
 
@@ -1315,6 +1317,7 @@ int SCIPMILPSolver::get_dflt_int_par( idx_type par ) const
     return( SCIPparamGetIntDefault( param ) );
    case SCIP_PARAMTYPE_LONGINT:
     return( ( int ) SCIPparamGetLongintDefault( param ) );
+   default:;  // here just to avoid a pesky warning
    }
   }
 
@@ -1394,6 +1397,7 @@ const std::string & SCIPMILPSolver::get_dflt_str_par( idx_type par ) const
     str_val = SCIPparamGetStringDefault( param );
     value = str_val;
     return( value );
+   default:;  // here just to avoid a pesky warning
    }
   }
 

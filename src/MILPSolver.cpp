@@ -302,7 +302,7 @@ void MILPSolver::load_problem( void )
    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
    }
 
-  auto counter = [ this ]( ColVariable & var ) {
+  auto counter = [ this , & nzelements ]( ColVariable & var ) {
    for( auto * i : var.active_stuff() )
     if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
      if( is_mine( row->get_Block() ) )
@@ -372,10 +372,10 @@ void MILPSolver::load_problem( void )
   Index set = 0;  // counter for the constraint groups
 
   for( const auto & i : qb->get_static_constraints() ) {
-   Index elements = 0;  // counter for group elements
+   int elements = 0;  // counter for group elements
    Index start = row;
 
-   auto scan = [ this , & elements , & row ]( FRowConstraint & c ) {
+   auto scan = [ this , elements , & row ]( FRowConstraint & c ) {
     scan_constraint( c , elements , row );
     };
    un_any_const_static( i , scan , un_any_type< FRowConstraint >() );
@@ -412,16 +412,14 @@ void MILPSolver::load_problem( void )
   int set = 0; // Counter for the constraint groups
 
   for( const auto & i : qb->get_dynamic_constraints() ) {
-   int elements = -1;
    Index start = row;
-
-   auto scan = [ this , & elements , & row ]( FRowConstraint & c ) {
-    scan_constraint( c , elements , row );
+   auto scan = [ this , & row ]( FRowConstraint & c ) {
+    scan_constraint( c , -1 , row );
     };
    un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
 
    // write names
-   auto base = q_Block->get_d_const_name()[ set ];
+   auto base = qb->get_d_const_name()[ set ];
    Index end = row - start;
    for( Index n = 0 ; n < end ; ++n ) {
     std::string name;
@@ -450,10 +448,9 @@ void MILPSolver::load_problem( void )
   Index set = 0;   // counter for the variable groups
 
   for( const auto & i : qb->get_static_variables() ) {
-   Index elements = 0;  // counter for group elements
+   int elements = 0;  // counter for group elements
    Index start = col;
-
-   auto scan = [ this , & elements , & col ]( ColVariable & v ) {
+   auto scan = [ this , elements , & col ]( ColVariable & v ) {
     scan_variable( v , elements , col );
     };
    un_any_const_static( i , scan , un_any_type< ColVariable >() );
@@ -490,11 +487,9 @@ void MILPSolver::load_problem( void )
   Index set = 0;   // Counter for the variable groups
 
   for( const auto & i : qb->get_dynamic_variables() ) {
-   int elements = -1;
    Index start = col;
-
-   auto scan = [ this , & elements , & col ]( ColVariable & v ) {
-    scan_variable( v , elements , col );
+   auto scan = [ this , & col ]( ColVariable & v ) {
+    scan_variable( v , -1 , col );
     };
    un_any_const_dynamic( i , scan , un_any_type< ColVariable >() );
 
@@ -731,7 +726,7 @@ int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * con )
 
 /*--------------------------------------------------------------------------*/
 
-ColVariable * MILPSolver::variable_with_index( int i )
+const ColVariable * MILPSolver::variable_with_index( int i )
 {
  if( i < static_vars )
   return( static_variable_with_index( i ) );
@@ -741,7 +736,7 @@ ColVariable * MILPSolver::variable_with_index( int i )
 
 /*--------------------------------------------------------------------------*/
 
-ColVariable * MILPSolver::static_variable_with_index( int i )
+const ColVariable * MILPSolver::static_variable_with_index( int i )
 {
  if( idx_to_svar.empty() )
   return( nullptr );
@@ -767,7 +762,7 @@ ColVariable * MILPSolver::static_variable_with_index( int i )
 
 /*--------------------------------------------------------------------------*/
 
-ColVariable * MILPSolver::dynamic_variable_with_index( int i )
+const ColVariable * MILPSolver::dynamic_variable_with_index( int i )
 {
  if( ( static_vars < i ) || ( i < numcols ) )
   return( idx_to_dvar[ i - static_vars ] );
@@ -777,7 +772,7 @@ ColVariable * MILPSolver::dynamic_variable_with_index( int i )
 
 /*--------------------------------------------------------------------------*/
 
-FRowConstraint * MILPSolver::constraint_with_index( int i )
+const FRowConstraint * MILPSolver::constraint_with_index( int i )
 {
  if( i < static_cons )
   return( static_constraint_with_index( i ) );
@@ -787,7 +782,7 @@ FRowConstraint * MILPSolver::constraint_with_index( int i )
 
 /*--------------------------------------------------------------------------*/
 
-FRowConstraint * MILPSolver::static_constraint_with_index( int i )
+const FRowConstraint * MILPSolver::static_constraint_with_index( int i )
 {
  if( idx_to_scon.empty() )
   return( nullptr );
@@ -813,7 +808,7 @@ FRowConstraint * MILPSolver::static_constraint_with_index( int i )
 
 /*--------------------------------------------------------------------------*/
 
-FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
+const FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
 {
  if( ( static_cons < i ) || ( i < numrows ) )
   return( idx_to_dcon[ i - static_cons ] );
@@ -825,7 +820,8 @@ FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
 /*------------- AUXILIARY METHODS FOR POPULATING THE PROBLEM  --------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_variable( ColVariable & var , int & n , int & col )
+void MILPSolver::scan_variable( const ColVariable & var , int n ,
+				Index & col )
 {
  if( n < 0 ) {
   // DEBUG_LOG( "MILPSolver::scan_variable(): D#" << col << " " << var );
@@ -893,12 +889,13 @@ void MILPSolver::scan_variable( ColVariable & var , int & n , int & col )
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_constraint( FRowConstraint & con , int & n , int & row )
+void MILPSolver::scan_constraint( const FRowConstraint & con , int n ,
+				  Index & row )
 {
  if( n < 0 ) {
   // DEBUG_LOG( "MILPSolver::scan_constraint(): D#" << row << " " << con );
-  dcon_to_idx.emplace_back( &con, row );
-  idx_to_dcon.emplace_back( &con );
+  dcon_to_idx.emplace_back( & con , row );
+  idx_to_dcon.emplace_back( & con );
   }
  else {
   // DEBUG_LOG( "MILPSolver::scan_constraint(): S#"
@@ -906,15 +903,13 @@ void MILPSolver::scan_constraint( FRowConstraint & con , int & n , int & row )
 
   if( n == 0 ) {
    // The tuple's third field will be filled later
-   scon_to_idx.emplace_back( &con, row, 0 );
-   idx_to_scon.emplace_back( row, &con );
+   scon_to_idx.emplace_back( & con , row , 0 );
+   idx_to_scon.emplace_back( row , & con );
    }
   ++n;
   }
 
- const auto * lf = dynamic_cast< const LinearFunction * >(
-						     con.get_function() );
- if( ! lf )
+ if( ! dynamic_cast< const LinearFunction * >( con.get_function() ) )
   throw( std::invalid_argument( "The Constraint is not linear" ) );
 
  /* We need to define the sense of the constraint.
@@ -953,6 +948,7 @@ void MILPSolver::scan_constraint( FRowConstraint & con , int & n , int & row )
     rhs[ row ] = con_lhs;
     rngval[ row ] = con_rhs - con_lhs;
     }
+
  ++row;
  }
 
@@ -990,7 +986,9 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 
 int MILPSolver::compute( bool changedvars )
 {
+ lock();  // lock the mutex
  MILPSolver::process_modifications();
+ unlock();  // unlock the mutex
  return( kOK );
  }
 
@@ -999,22 +997,24 @@ int MILPSolver::compute( bool changedvars )
 void MILPSolver::process_modifications( void )
 {
  /* This function processes one modification after another, without any
-  * attempt of optimization, moreover you have to be CAREFUL to write all
+  * attempt of optimization. Moreover, you have to be CAREFUL to write all
   * the cases in order from the most specialized to the more generic,
   * e.g., OneVarConstraintMod before RowConstraintMod before ConstraintMod,
-  * otherwise the generic case will intercept the more specialized Mods. */
+  * otherwise the generic cases will intercept the more specialized ones. */
 
- // process all the Modification
- for( auto mod = front() ; mod ; mod = front() ) {
-  if( dynamic_cast< const NBModification * >( mod ) ) {  // an NBModification
-   load_problem();  // reload everything
-   mod_clear();     // all the remaining Modification must be ignored
-   break;           // all done
+ for( ; ; )                 // process all the Modification loop
+  if( auto mod = pop() ) {  // get next Modification, if any
+   auto pmod = mod.get();   // down to regular Modification *
+   if( dynamic_cast< const NBModification * >( pmod ) ) {
+    load_problem();         // an NBModification: reload everything
+    mod_clear();            // all the remaining Modification must be ignored
+    break;                  // all done
+    }
+
+   guts_of_process_modifications( pmod );  // process the Modification
    }
-
-  guts_of_process_modifications( mod.get() );  // process the Modification
-  pop_front();                                 // remove it
-  }
+  else                      // no more Modification to process
+   break;                   // all done
 
  #ifdef MILPSOLVER_DEBUG
   check_status();
@@ -1238,10 +1238,10 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
  auto * f = mod->function();
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( const auto * modl = dynamic_cast< C05FunctionModLin * >( mod ) ) {
-  if( const auto * lf = dynamic_cast<const LinearFunction *>( f ) ) {
+ if( auto * modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
+  if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
-    auto var = static_cast< const ColVariable * >(modl->vars()[ i ]);
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
     objective[ index_of_variable( var ) ] += modl->delta()[ i ];
     }
    return;
@@ -1363,9 +1363,9 @@ void MILPSolver::objective_fvars_modification( const FunctionModVars * mod )
  auto * f = mod->function();
 
  // Check the modification type
- if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
-     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
-     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr )
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd *>( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd *>( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst *>( mod ) ) )
   throw( std::invalid_argument(
 			 "This type of FunctionModVars is not handled" ) );
 
@@ -1425,9 +1425,9 @@ void MILPSolver::constraint_fvars_modification( const FunctionModVars * mod )
   return;
 
  // Check the modification type
- if( dynamic_cast<C05FunctionModVarsAddd *>( mod ) == nullptr &&
-     dynamic_cast<C05FunctionModVarsRngd *>( mod ) == nullptr &&
-     dynamic_cast<C05FunctionModVarsSbst *>( mod ) == nullptr )
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd *>( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd *>( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst *>( mod ) ) )
   throw( std::invalid_argument(
 			 "This type of FunctionModVars is not handled" ) );
 
@@ -1515,7 +1515,7 @@ void MILPSolver::add_dynamic_constraint( const FRowConstraint * con )
 {
  // update the dictionaries
  auto it = lower_bound( dcon_to_idx.begin() , dcon_to_idx.end() , con ,
-                        []( con_int pair , FRowConstraint * c ) {
+                        []( auto & pair , const FRowConstraint * c ) {
                          return( pair.first < c );
                          } );
  dcon_to_idx.insert( it , { con , numrows } );
@@ -1568,8 +1568,8 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
 {
  // update the dictionaries
  auto it = lower_bound( dvar_to_idx.begin() , dvar_to_idx.end() , var ,
-                        []( var_int pair , ColVariable * v ) {
-                         return pair.first < v;
+                        []( auto & pair , const ColVariable * v ) {
+                         return( pair.first < v );
                          } );
 
  dvar_to_idx.insert( it, { var, numcols } );
@@ -1651,7 +1651,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  else
   throw( std::runtime_error( "Dynamic constraint not found" ) );
 
- for( auto & it: dcon_to_idx )
+ for( auto & it : dcon_to_idx )
   if( it.second > index )
    it.second--;
 

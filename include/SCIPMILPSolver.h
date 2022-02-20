@@ -51,7 +51,6 @@ namespace SMSpp_di_unipi_it
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-
 /// class for solving MILP problems via SCIP.
 /** The SCIPMILPSolver class derives from MILPSolver and extends the
  * base class to solve MILP problems using SCIP.
@@ -170,7 +169,7 @@ class SCIPMILPSolver : public MILPSolver
  /// returns the number of nodes used to solve a MIP
  [[nodiscard]] int get_nodes( void ) const override;
 
- /// clears the SCIP environment
+ /// clears the SCIP environment and the matrix representation
  void clear_problem( unsigned int what ) override;
 
  /// loads the problem into SCIP
@@ -297,41 +296,41 @@ class SCIPMILPSolver : public MILPSolver
  *  @{ */
 
  /// handles a variable modification
- void var_modification( VariableMod * mod ) override;
+ void var_modification( const VariableMod * mod ) override;
 
  /// handles an objective modification
- void objective_modification( ObjectiveMod * mod ) override;
+ void objective_modification( const ObjectiveMod * mod ) override;
 
  /// handles a constraint modification
- void const_modification( ConstraintMod * mod ) override;
+ void const_modification( const ConstraintMod * mod ) override;
 
  /// handles a bound modification
- void bound_modification( OneVarConstraintMod * mod ) override;
+ void bound_modification( const OneVarConstraintMod * mod ) override;
 
  /// handles a function modification applied to the objective
- void objective_function_modification( FunctionMod * mod ) override;
+ void objective_function_modification( const FunctionMod * mod ) override;
 
  /// handles a function modification applied to a constraint
- void constraint_function_modification( FunctionMod * mod ) override;
+ void constraint_function_modification( const FunctionMod * mod ) override;
 
  /// handles a function vars modification to the objective
- void objective_fvars_modification( FunctionModVars * mod ) override;
+ void objective_fvars_modification( const FunctionModVars * mod ) override;
 
  /// handles a function vars modification to a constraint
- void constraint_fvars_modification( FunctionModVars * mod ) override;
+ void constraint_fvars_modification( const FunctionModVars * mod ) override;
 
  /// handles a dynamic modification
  // no point in defining it, just calls the base class method
  // void dynamic_modification( const BlockModAD * mod ) override;
 
- /// It adds a single new dynamic constraint
- void add_dynamic_constraint( FRowConstraint * con ) override;
+ /// adds a single new dynamic constraint
+ void add_dynamic_constraint( const FRowConstraint * con ) override;
 
  /// adds a single new dynamic bound
- void add_dynamic_bound( OneVarConstraint * con ) override;
+ void add_dynamic_bound( const OneVarConstraint * con ) override;
 
  /// adds a single new dynamic variable
- void add_dynamic_variable( ColVariable * var ) override;
+ void add_dynamic_variable( const ColVariable * var ) override;
 
  /// removes a single dynamic constraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
