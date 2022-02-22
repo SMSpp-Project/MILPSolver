@@ -62,56 +62,25 @@ SMSpp_insert_in_factory_cpp_0( CPXMILPSolver );
 int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
 			    CPXLONG contextid , void * userhandle )
 {
- if( contextid != CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS )
-  return( 0 );
-
- double solv;
- CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_SOL , & solv );
-
- double bndv;
- CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_BND , & bndv );
-
- auto CMS = static_cast< CPXMILPSolver * >( userhandle );
-
- if( CMS->get_objsense() == 1 ) {
-  // a minimization problem: solv is an upper bound and bndv is a lower bound
-  if( solv >= 1e+75 )
-   solv = Inf< double >();
-
-  if( bndv <= - 1e+75 )
-   bndv = - Inf< double >();
-  
-  if( ( bndv >= CMS->up_cut_off() ) || ( solv <= CMS->lw_cut_off() ) )
-   CPXcallbackabort( context );
-  }
- else {
-  // a maximization problem: solv is a lower bound and bndv is an upper bound
-  if( solv <= -1e+75 )
-   solv = - Inf< double >();
-
-  if( bndv >= 1e+75 )
-   bndv = Inf< double >();
-  
-  if( ( solv >= CMS->up_cut_off() ) || ( bndv <= CMS->lw_cut_off() ) )
-   CPXcallbackabort( context );
-  }
-
- return( 0 );
+ // just defer to the class method
+ return( static_cast< CPXMILPSolver * >( userhandle
+					 )->callback( context , contextid ) );
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-CPXMILPSolver::CPXMILPSolver( void ) : MILPSolver() ,
-  UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
+CPXMILPSolver::CPXMILPSolver( void ) :
+ MILPSolver() , env( nullptr ) , lp( nullptr ) , f_callback_set( false ) ,
+ throw_reduced_cost_exception( 0 ) , CutSepPar( 0 ) ,
+ UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
 {
  int status = 0;
  env = CPXopenCPLEX( & status );
- if( env == nullptr )
+ if( ! env )
   throw( std::runtime_error( "CPXopenCPLEX returned with status " +
 			     std::to_string( status ) ) );
-
  lp = nullptr;
  #ifdef MILPSOLVER_DEBUG
   CPXsetintparam( env , CPXPARAM_Read_DataCheck , CPX_DATACHECK_WARN );
@@ -122,6 +91,9 @@ CPXMILPSolver::CPXMILPSolver( void ) : MILPSolver() ,
 
 CPXMILPSolver::~CPXMILPSolver()
 {
+ for( auto el : v_ConfigDB )
+  delete el;
+
  if( lp )
   CPXfreeprob( env , & lp );
 
@@ -296,12 +268,26 @@ int CPXMILPSolver::compute( bool changedvars )
 
  if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
 
-  if( ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) )
-   CPXcallbacksetfunc( env , lp , CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ,
-		       & CPXMILPSolver_callback , this );
+  if( ( CutSepPar & 7 ) ||
+      ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
+   // the callback has to be set
+   CPXLONG cntxt = 0;
+   if( ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) )
+    cntxt = CPX_CALLBACKCONTEXT_LOCAL_PROGRESS
+          | CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS;
+   if( CutSepPar & 3 )
+    cntxt |= CPX_CALLBACKCONTEXT_RELAXATION;
+   if( CutSepPar & 4 )
+    cntxt |= CPX_CALLBACKCONTEXT_CANDIDATE;
+   
+   CPXcallbacksetfunc( env , lp , cntxt , & CPXMILPSolver_callback , this );
+   f_callback_set = true;
+   }
   else
-   CPXcallbacksetfunc( env , lp , CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ,
-		       nullptr , this );
+   if( f_callback_set ) {    // the callback was set
+    CPXcallbacksetfunc( env , lp , 0 , nullptr , nullptr );  // un-set it
+    f_callback_set = false;
+    }
 
   if( int status = CPXmipopt( env , lp ) ) {  // error
    if( status == CPXERR_SUBPROB_SOLVE )
@@ -977,6 +963,13 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
  if( CPXgetx( env , lp , x.data() , 0 , numcols - 1 ) )
   throw( std::runtime_error( "Unable to get the solution with CPXgetx()" ) );
 
+ get_var_solution( x );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::get_var_solution( const std::vector< double > & x )
+{
  int col = 0;
  int dcol = static_vars;
 
@@ -1981,6 +1974,142 @@ void CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 
 /*--------------------------------------------------------------------------*/
 
+int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
+			     CPXLONG contextid )
+{
+ // main switch: depending on contextid - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ switch( contextid ) {
+  case( CPX_CALLBACKCONTEXT_LOCAL_PROGRESS ):
+  case( CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ): {
+   // local or global progress- - - - - - - - - - - - - - - - - - - - - - - -
+   // check upper / lower bounds and in case stop
+
+   double solv , bndv;
+   CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_SOL , & solv );
+   CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_BND , & bndv );
+
+   if( get_objsense() == 1 ) {
+    // a minimization problem: solv is upper bound and bndv is lower bound
+    if( solv >= 1e+75 )
+     solv = Inf< double >();
+
+    if( bndv <= - 1e+75 )
+     bndv = - Inf< double >();
+  
+    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
+     CPXcallbackabort( context );
+    }
+   else {
+    // a maximization problem: solv is lower bound and bndv is upper bound
+    if( solv <= -1e+75 )
+     solv = - Inf< double >();
+
+    if( bndv >= 1e+75 )
+     bndv = Inf< double >();
+  
+    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) )
+     CPXcallbackabort( context );
+    }
+   break;
+   }
+
+  case( CPX_CALLBACKCONTEXT_RELAXATION ): {
+   // a relaxation has been solved- - - - - - - - - - - - - - - - - - - - - -
+   if( ! ( CutSepPar & 3 ) )  // but we don't do user cut separation
+    break;                    // nothing to do
+
+   int depth;
+   CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODEDEPTH , & depth );
+
+   // if we are at a depth for which separation is not enables
+   if( ( ( ! depth ) && ( ! ( CutSepPar & 1 ) ) ) ||
+       ( depth && ( ! ( CutSepPar & 2 ) ) ) )
+    break;                    // nothing to do
+
+   // separation has to be performed: first thing lock() the Block
+   bool owned = f_Block->is_owned_by( f_id );
+   if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
+    throw( std::runtime_error( "Unable to lock the Block" ) );
+   
+   // get the solution of the relaxation
+   std::vector< double > x( numcols , 0 );
+   if( CPXcallbackgetrelaxationpoint( context , x.data() , 0 , numcols ,
+				      nullptr ) )
+    throw( std::runtime_error(
+       "Unable to get the solution with CPXcallbackgetrelaxationpoint()" ) );
+
+   // write it in the Variable of the Block
+   get_var_solution( x );
+
+   // get the right Configuration index
+   Index ci = depth ? 1 : 0;
+   Index dbi = ci >= CutSepCfgInd.size() ? v_ConfigDB.size()
+                                         : CutSepCfgInd[ ci ];
+   Configuration * cfg = dbi >= v_ConfigDB.size() ? nullptr
+                                                  : v_ConfigDB[ dbi ];
+   // now perform the user separation
+   perform_separation( cfg , true );
+
+   // unlock the Block
+   if( ! owned )
+    f_Block->unlock( f_id );
+
+   break;
+   }
+
+  case( CPX_CALLBACKCONTEXT_CANDIDATE ): {
+   // a feasible solution has been found- - - - - - - - - - - - - - - - - - -
+   if( ! ( CutSepPar & 4 ) )  // but we don't do user lazy const. separation
+    break;                    // nothing to do
+
+   // separation has to be performed: first thing lock() the Block
+   bool owned = f_Block->is_owned_by( f_id );
+   if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
+    throw( std::runtime_error( "Unable to lock the Block" ) );
+   
+   // get the feasible solution
+   std::vector< double > x( numcols , 0 );
+   if( CPXcallbackgetcandidatepoint( context , x.data() , 0 , numcols ,
+				     nullptr ) )
+    throw( std::runtime_error(
+       "Unable to get the solution with CPXcallbackgetcandidatepoint()" ) );
+
+   // write it in the Variable of the Block
+   get_var_solution( x );
+
+   // get the right Configuration index
+   Index dbi = 2 >= CutSepCfgInd.size() ? v_ConfigDB.size()
+                                        : CutSepCfgInd[ 2 ];
+   Configuration * cfg = dbi >= v_ConfigDB.size() ? nullptr
+                                                  : v_ConfigDB[ dbi ];
+   // now perform the lazy constraint separation
+   perform_separation( cfg , false );
+
+   // unlock the Block
+   if( ! owned )
+    f_Block->unlock( f_id );
+   }
+  }  // end( main switch )- - - - - - - - - - - - - - - - - - - - - - - - - -
+     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ return( 0 );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::perform_separation( Configuration * cfg , bool usercut )
+{
+ // note: we assume the Block to have been lock()-ed already and the solution
+ //       (be it from the relaxation or feasible) to have been written in the
+ //       Variable of the Block
+
+
+ }  // end( CPXMILPSolver::perform_separation )
+
+/*--------------------------------------------------------------------------*/
+
 int CPXMILPSolver::cpx_int_par_map( idx_type par ) const
 {
  switch( par ) {
@@ -2036,7 +2165,12 @@ int CPXMILPSolver::cpx_dbl_par_map( idx_type par ) const
 void CPXMILPSolver::set_par( idx_type par , int value )
 {
  if( par == intThrowReducedCostException ) {
-  throw_reduced_cost_exception = value;
+  throw_reduced_cost_exception = bool( value );
+  return;
+  }
+
+ if( par == intCutSepPar ) {
+  CutSepPar = value;
   return;
   }
 
@@ -2076,11 +2210,61 @@ void CPXMILPSolver::set_par( idx_type par , std::string && value )
  // CPLEX parameters
  if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
-  CPXsetstrparam( env, cplex_par, value.c_str() );
+  CPXsetstrparam( env , cplex_par , value.c_str() );
   return;
   }
 
  MILPSolver::set_par( par, std::move( value ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+void CPXMILPSolver::set_par( idx_type par , std::vector< int > && value )
+{
+ if( par == vintCutSepCfgInd ) {
+  CutSepCfgInd = std::move( value );
+  return;
+  }
+
+ // MILPSolver and its ancestors have no set_par( std::vector< int > ),
+ // so avoid calling it
+ // MILPSolver::set_par( par, std::move( value ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+void CPXMILPSolver::set_par( idx_type par ,
+			     std::vector< std::string > && value )
+{
+ if( par == vstrConfigDBFName ) {
+  auto sz = value.size();
+  // delete existing Configuration with index larger than the new size
+  for( Index i = sz ; i < v_ConfigDB.size() ; ++i )
+   delete v_ConfigDB[ i ];
+  // resize the Configuration DB: if the new size is larger than the
+  // old ones, the new Configuration defaut to nullptr
+  v_ConfigDB.resize( sz , nullptr );
+  // resize the configuration names: this makes the next step easier, as
+  // any non-existing element will be an empty string and therefore not
+  // equal to en existing one unless the existing is empty as well, but
+  // this implies that the Configuration is nullptr so it works
+  ConfigDBFName.resize( sz );
+  // for each new configuration check if the filename is the same as
+  // the existing one: if so leave the existing one, otherwise
+  // substitute it with a newly loaded one
+  for( Index i = 0 ; i < sz ; ++i )
+   if( ConfigDBFName[ i ] != value[ i ] ) {
+    delete v_ConfigDB[ i ];
+    v_ConfigDB[ i ] = Configuration::deserialize( value[ i ] );
+    }
+  // finally store the new names in place of the existing ones
+  ConfigDBFName = std::move( value );
+  return;
+  }
+
+ // MILPSolver and its ancestors have no
+ // set_par( std::vector< std::string > ), so avoid calling it
+ // MILPSolver::set_par( par, std::move( value ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2104,68 +2288,25 @@ Solver::idx_type CPXMILPSolver::get_num_str_par( void ) const {
 	 + strLastAlgParCPXS - strLastAlgParMILP );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-int CPXMILPSolver::get_int_par( idx_type par ) const
-{
- if( par == intThrowReducedCostException )
-  return( throw_reduced_cost_exception );
-
- if( int cp = cpx_int_par_map( par ) ) {
-  if( cp > 0 ) {
-   int value;
-   CPXgetintparam( env , cp , & value );
-   return( value );
-   }
-  else {
-   CPXLONG value;
-   CPXgetlongparam( env , - cp , & value );
-   return( ( int ) value );
-   }
-  }
-
- return( MILPSolver::get_int_par( par ) );
+Solver::idx_type CPXMILPSolver::get_num_vint_par( void ) const {
+ return( MILPSolver::get_num_vint_par()
+	 + vintLastAlgParCPXS - vintLastAlgParMILP );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-double CPXMILPSolver::get_dbl_par( idx_type par ) const
-{
- switch( par ) {
-  case( dblUpCutOff ): return( UpCutOff );
-  case( dblLwCutOff ): return( LwCutOff );
-  }
-
- if( int cp = cpx_dbl_par_map( par ) ) {
-  double value;
-  CPXgetdblparam( env , cp , & value );
-  return( value );
-  }
-
- return( MILPSolver::get_dbl_par( par ) );
- }
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
-const std::string & CPXMILPSolver::get_str_par( idx_type par ) const
-{
- static std::string value;
-
- if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
-  int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
-  value.reserve( CPX_STR_PARAM_MAX );
-  CPXgetstrparam( env , cplex_par , value.data() );
-  return( value );
-  }
-
- return( MILPSolver::get_str_par( par ) );
+Solver::idx_type CPXMILPSolver::get_num_vstr_par( void ) const {
+ return( MILPSolver::get_num_vstr_par()
+	 + vstrLastAlgParCPXS - vstrLastAlgParMILP );
  }
 
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intThrowReducedCostException )
+ if( ( par == intThrowReducedCostException ) || ( par == intCutSepPar ) )
   return( 0 );
 
  if( int cp = cpx_int_par_map( par ) ) {
@@ -2226,13 +2367,121 @@ const std::string & CPXMILPSolver::get_dflt_str_par( idx_type par ) const
  return( MILPSolver::get_dflt_str_par( par ) );
  }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+const std::vector< int > & CPXMILPSolver::get_dflt_vint_par( idx_type par )
+ const
+{
+ static std::vector< int > _empty;
+ if( par == vintCutSepCfgInd )
+  return( _empty );
+
+ return( MILPSolver::get_dflt_vint_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+const std::vector< std::string > & CPXMILPSolver::get_dflt_vstr_par(
+							idx_type par ) const
+{
+ static std::vector< std::string > _empty;
+ if( par == vstrConfigDBFName )
+  return( _empty );
+
+ return( MILPSolver::get_dflt_vstr_par( par ) );
+ }
+
 /*--------------------------------------------------------------------------*/
 
-ThinComputeInterface::idx_type
-CPXMILPSolver::int_par_str2idx( const std::string & name ) const
+int CPXMILPSolver::get_int_par( idx_type par ) const
+{
+ if( par == intThrowReducedCostException )
+  return( throw_reduced_cost_exception );
+
+ if( par == intCutSepPar )
+  return( CutSepPar );
+
+ if( int cp = cpx_int_par_map( par ) ) {
+  if( cp > 0 ) {
+   int value;
+   CPXgetintparam( env , cp , & value );
+   return( value );
+   }
+  else {
+   CPXLONG value;
+   CPXgetlongparam( env , - cp , & value );
+   return( ( int ) value );
+   }
+  }
+
+ return( MILPSolver::get_int_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+double CPXMILPSolver::get_dbl_par( idx_type par ) const
+{
+ switch( par ) {
+  case( dblUpCutOff ): return( UpCutOff );
+  case( dblLwCutOff ): return( LwCutOff );
+  }
+
+ if( int cp = cpx_dbl_par_map( par ) ) {
+  double value;
+  CPXgetdblparam( env , cp , & value );
+  return( value );
+  }
+
+ return( MILPSolver::get_dbl_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+const std::string & CPXMILPSolver::get_str_par( idx_type par ) const
+{
+ static std::string value;
+
+ if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
+  int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
+  value.reserve( CPX_STR_PARAM_MAX );
+  CPXgetstrparam( env , cplex_par , value.data() );
+  return( value );
+  }
+
+ return( MILPSolver::get_str_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::vector< int > & CPXMILPSolver::get_vint_par( idx_type par ) const
+{
+ if( par == vintCutSepCfgInd )
+  return( CutSepCfgInd );
+
+ return( MILPSolver::get_vint_par( par ) );
+ }
+ 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::vector< std::string > & CPXMILPSolver::get_vstr_par( idx_type par )
+ const
+{
+ if( par == vstrConfigDBFName )
+  return( ConfigDBFName );
+
+ return( MILPSolver::get_vstr_par( par ) );
+ }
+ 
+/*--------------------------------------------------------------------------*/
+
+Solver::idx_type CPXMILPSolver::int_par_str2idx(
+					     const std::string & name ) const
 {
  if( name == "intThrowReducedCostException" )
   return( intThrowReducedCostException );
+
+ if( name == "intCutSepPar" )
+  return( intCutSepPar );
 
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
@@ -2254,13 +2503,17 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const
  return( Inf< idx_type >() );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::string par_trce = "intThrowReducedCostException";
+ static const std::array< std::string , 2 > _pars =
+                     { "intThrowReducedCostException" , "intCutSepPar" };
  if( idx == intThrowReducedCostException )
-  return( par_trce );
+  return( _pars[ 0 ] );
+
+ if( idx == intCutSepPar )
+  return( _pars[ 1 ] );
 
  // note: this implementation is not thread safe and it requires that the
  //       result is used immediately after the call (prior to any other call
@@ -2283,8 +2536,8 @@ const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
 
 /*--------------------------------------------------------------------------*/
 
-ThinComputeInterface::idx_type
-CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const
+Solver::idx_type CPXMILPSolver::dbl_par_str2idx( const std::string & name )
+ const
 {
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
@@ -2306,7 +2559,7 @@ CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const
  return( Inf< idx_type >() );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 const std::string & CPXMILPSolver::dbl_par_idx2str( idx_type idx ) const
 {
@@ -2331,8 +2584,8 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( idx_type idx ) const
 
 /*--------------------------------------------------------------------------*/
 
-ThinComputeInterface::idx_type
-CPXMILPSolver::str_par_str2idx( const std::string & name ) const
+Solver::idx_type CPXMILPSolver::str_par_str2idx( const std::string & name )
+ const
 {
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
@@ -2354,7 +2607,7 @@ CPXMILPSolver::str_par_str2idx( const std::string & name ) const
  return( Inf< idx_type >() );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 const std::string & CPXMILPSolver::str_par_idx2str( idx_type idx ) const
 {
@@ -2375,6 +2628,50 @@ const std::string & CPXMILPSolver::str_par_idx2str( idx_type idx ) const
   }
 
  return( MILPSolver::str_par_idx2str( idx ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+Solver::idx_type CPXMILPSolver::vint_par_str2idx(
+					     const std::string & name ) const
+{
+ if( name == "vintCutSepCfgInd" )
+  return( vintCutSepCfgInd );
+
+ return( MILPSolver::vint_par_str2idx( name ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::string & CPXMILPSolver::vint_par_idx2str( idx_type idx ) const
+{
+ static const std::string _pars = "vintCutSepCfgInd";
+ if( idx == vintCutSepCfgInd )
+  return( _pars );
+
+ return( MILPSolver::vint_par_idx2str( idx ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+Solver::idx_type CPXMILPSolver::vstr_par_str2idx(
+					     const std::string & name ) const
+{
+ if( name == "vstrConfigDBFName" )
+  return( vstrConfigDBFName );
+
+ return( MILPSolver::vstr_par_str2idx( name ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::string & CPXMILPSolver::vstr_par_idx2str( idx_type idx ) const
+{
+ static const std::string _pars = "vstrConfigDBFName";
+ if( idx == vstrConfigDBFName )
+  return( _pars );
+
+ return( MILPSolver::vstr_par_idx2str( idx ) );
  }
 
 /*--------------------------------------------------------------------------*/

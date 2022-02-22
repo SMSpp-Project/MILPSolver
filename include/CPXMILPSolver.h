@@ -86,30 +86,46 @@ class CPXMILPSolver : public MILPSolver {
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
- /// Types of integer parameters
+ /// enum for integer parameters
  enum int_par_type_CPXS {
-  /// Throws exception if there is inconsistency when storing a reduced cost
-  intThrowReducedCostException = intLastAlgParMILP,
-  /// First CPLEX int/long parameter
-  intFirstCPLEXPar,
-  /// First allowed new int parameter for derived classes
+  /// throws exception if there is inconsistency when storing a reduced cost
+  intThrowReducedCostException = intLastAlgParMILP ,
+  intCutSepPar ,  ///< parameter for deciding if/when cut separation is done
+  intFirstCPLEXPar ,  ///< first CPLEX int/long parameter
+  /// first allowed new int parameter for derived classes
   intLastAlgParCPXS = intFirstCPLEXPar + CPX_NUM_INT_PARS
   };
 
- /// Types of double parameters
+ /// enum for double parameters
  enum dbl_par_type_CPXS {
-  /// First CPLEX double parameter
+  /// first CPLEX double parameter
   dblFirstCPLEXPar = dblLastAlgParMILP,
-  /// First allowed new double parameter for derived classes
+  /// first allowed new double parameter for derived classes
   dblLastAlgParCPXS = dblFirstCPLEXPar + CPX_NUM_DBL_PARS
   };
 
- /// Types of string parameters
+ /// enum for string parameters
  enum str_par_type_CPXS {
-  /// First CPLEX string parameter
+  /// first CPLEX string parameter
   strFirstCPLEXPar = strLastAlgParMILP,
-  /// First allowed new string parameter for derived classes
+  /// first allowed new string parameter for derived classes
   strLastAlgParCPXS = strFirstCPLEXPar + CPX_NUM_STR_PARS
+  };
+
+ /// enum for vector-of-int parameters
+ enum vint_par_type_CPXS {
+  /// indices of separation Configurations in the "Configuration DB"
+  vintCutSepCfgInd = vintLastAlgParMILP ,
+  /// first allowed new vector-of-iint parameter for derived classes
+  vintLastAlgParCPXS
+  };
+
+ /// enum for vector-of-string parameters
+ enum cstr_par_type_CPXS {
+ /// filenames to define the "Configuration DB"
+  vstrConfigDBFName = vstrLastAlgParMILP ,
+  /// first allowed new vector-of-string parameter for derived classes
+  vstrLastAlgParCPXS
   };
 
 /*--------------------------------------------------------------------------*/
@@ -152,6 +168,12 @@ class CPXMILPSolver : public MILPSolver {
  /// writes the current solution in the Block
  void get_var_solution( Configuration * solc = nullptr ) override;
 
+ /// writes a given solution vector in the Block
+ /** Implementation of get_var_solution(9 taking the values of the solution
+  * to be written in the Block out of a std::vector< double > at least as
+  * long as there are columns (no checks performed). */
+ void get_var_solution( const std::vector< double > & x );
+
  /// tells whether a dual solution is available
  bool has_dual_solution( void ) override;
 
@@ -190,7 +212,7 @@ class CPXMILPSolver : public MILPSolver {
 /** @name Methods for handling parameters
  * @{ */
 
- /// Sets an integer parameter with the given value
+ /// sets an integer parameter with the given value
  /** Set the "int" parameters specific of CPXMILPSolver, together with the
   * paramaters of MILPSolver that CPXMILPSolver actually "listens to" and all
   * parameters supported by Cplex:
@@ -213,87 +235,226 @@ class CPXMILPSolver : public MILPSolver {
   *
   *   2) The Variable is not fixed, it has a finite nonzero lower or upper
   *      bound and there is no OneVarConstraint on that Variable whose lower
-  *      or upper bound match the bounds of the Variable. */
+  *      or upper bound match the bounds of the Variable.
+  *
+  * - intCutSepPar [0]: coded bit-wise, indicate if and when separation of
+  *                     either user cuts or lazy constraints is performed:
+  *
+  *   bit 0 : 1 (+1) if separation of user cuts is performed at the root
+  *           node only
+  *
+  *   bit 1 : 1 (+2) if separation of user cuts is performed at every other
+  *           node except the root one
+  *
+  *   bit 2 : 1 (+4) if separation of lazy constraints is performed each time
+  *           a feasible solution is generated
+  *
+  *   See vintCutSepCFG for properly setting Configurations for the
+  *   corresponding calls to get_var_solution() and
+  *   generate_dynamic_constraint(). */
 
- void set_par( idx_type par, int value ) override;
+ void set_par( idx_type par , int value ) override;
 
- /// Sets a double parameter with the given value
- void set_par( idx_type par, double value ) override;
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// sets a double parameter with the given value
+ void set_par( idx_type par , double value ) override;
 
- /// Sets a string parameter with the given value
- void set_par( idx_type par, std::string && value ) override;
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// sets a string parameter with the given value
+ void set_par( idx_type par , std::string && value ) override;
 
- /// Gets the number of integer parameters
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// sets a vector-of-int parameter with the given value
+ /** Set the vector-of-int parameters specific of CPXMILPSolver (note that
+  * Cplex itself does not have any):
+  *
+  * - vintCutSepCfgInd [empty]: sets the Configuration for the various user
+  *                             cuts / lazy constraints separations (see
+  *   intCutSepPar) in terms of their indices in the "Configuration DataBase"
+  *   (see vstrConfigDBFName). In particular:
+  *
+  *   = the 1st element sets the Configuration to be passed to
+  *     generate_dynamic_constraint() when user cuts are to be separated at
+  *     the root node
+  *
+  *   = the 2nd element sets the Configuration to be passed to
+  *     generate_dynamic_constraint() when user cuts are to be separated at
+  *     any other node except the root
+  *
+  *   = the 3rd element sets the Configuration to be passed to
+  *     generate_dynamic_constraint() when user lazy constraints are to be
+  *     separated for any feasible solution
+  *
+  *   = the 4th element sets the Configuration to be passed to
+  *     get_var_solution() when user cuts are to be separated at the root node
+  *
+  *   = the 5th element sets the Configuration to be passed to
+  *     get_var_solution() when user cuts are to be separated at any other
+  *     node except the root
+  *
+  *   = the 6th element sets the Configuration to be passed to
+  *     get_var_solution() when user lazy constraints are to be separated
+  *     for any feasible solution
+  *
+  *   If the passed vector is shorter than 6 elements, any missing ones are
+  *   treated as "pass no Configuration" (nullptr). Similarly, if one entry
+  *   is either negative or >= the size of the "Configuration DataBase", then
+  *   "pass no Configuration" is assumed. */
+
+ void set_par( idx_type par , std::vector< int > && value ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// sets a vector-of-string parameter with the given value
+ /** Set the vector-of-string parameters specific of CPXMILPSolver (note that
+  * Cplex itself does not have any):
+  *
+  * - vstrConfigDBFName [empty]: provides file names used to construct the
+  *                              "Configuration DataBase" that can be used
+  *   to configure some operations on the underlying Block (e.g., user cuts
+  *   or lazy constraints separation). Each entry in the vector is used as
+  *   a filename out of which load a Configuration object that is then
+  *   stored. This Configuration object is then "named" with the index that
+  *   the filename has in this vector of string, so that it can be used for
+  *   possibly multiple tasks. Note that it is assumed that using the
+  *   Configuration objects does not change them. Note that the file names
+  *   can actually be empty or "wrong", in which case nullptr is used. */
+
+ void set_par( idx_type par , std::vector< std::string > && value ) override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par( void ) const override;
 
- /// Gets the number of double parameters
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the number of double parameters
  [[nodiscard]] idx_type get_num_dbl_par( void ) const override;
 
- /// Gets the number of string parameters
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the number of string parameters
  [[nodiscard]] idx_type get_num_str_par( void ) const override;
 
- /// Gets the default value of the specified integer parameter
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the number of vector-of-int parameters
+ [[nodiscard]] idx_type get_num_vint_par( void ) const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the number of vector-of-string parameters
+ [[nodiscard]] idx_type get_num_vstr_par( void ) const override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- /// Gets the default value of the specified double parameter
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the default value of the specified double parameter
  [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
- /** Gets the default value of the specified string parameter
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the default value of the specified string parameter
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
   * par as a CPLEX parameter. */
- [[nodiscard]] const std::string &
-  get_dflt_str_par( idx_type par ) const override;
+ [[nodiscard]] const std::string & get_dflt_str_par( idx_type par )
+  const override;
 
- /// Gets the value of the specified integer parameter
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the default value of the specified vector-of-int parameter
+ [[nodiscard]] const std::vector< int > & get_dflt_vint_par( idx_type par )
+  const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the default value of the specified vector-of-string parameter
+ [[nodiscard]] const std::vector< std::string > & get_dflt_vstr_par(
+					       idx_type par ) const override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
 
- /// Gets the value of the specified double parameter
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the value of the specified double parameter
  [[nodiscard]] double get_dbl_par( idx_type par ) const override;
 
- /** Gets the value of the specified string parameter
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** returns the value of the specified string parameter
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
   * par as a CPLEX parameter. */
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
 
- /// Returns the index of the int parameter with the specified name
- [[nodiscard]] idx_type
-  int_par_str2idx( const std::string & name ) const override;
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the value of the specified vector-of-int parameter
+ [[nodiscard]] const std::vector< int > & get_vint_par( idx_type par )
+  const override;
+ 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the value of the specified vector-of-string parameter
+ [[nodiscard]] const std::vector< std::string > & get_vstr_par( idx_type par )
+  const override;
+ 
+/*--------------------------------------------------------------------------*/
+ /// returns the index of the int parameter with the specified name
+ [[nodiscard]] idx_type int_par_str2idx( const std::string & name )
+  const override;
 
- /** Returns the name of the int parameter with the specified index
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** returns the name of the int parameter with the specified index
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
   * par as a CPLEX parameter. */
- [[nodiscard]] const std::string &
-  int_par_idx2str( idx_type idx ) const override;
+ [[nodiscard]] const std::string & int_par_idx2str( idx_type idx )
+  const override;
 
+/*--------------------------------------------------------------------------*/
  /// Returns the index of the double parameter with the specified name
- [[nodiscard]] idx_type
-  dbl_par_str2idx( const std::string & name ) const override;
+ [[nodiscard]] idx_type dbl_par_str2idx( const std::string & name )
+  const override;
 
- /** Returns the name of the double parameter with the specified index
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** returns the name of the double parameter with the specified index
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
   * par as a CPLEX parameter. */
- [[nodiscard]] const std::string &
-  dbl_par_idx2str( idx_type idx ) const override;
+ [[nodiscard]] const std::string & dbl_par_idx2str( idx_type idx )
+  const override;
 
- /// Returns the index of the string parameter with the specified name
+/*--------------------------------------------------------------------------*/
+ /// returns the index of the string parameter with the specified name
  [[nodiscard]] idx_type
   str_par_str2idx( const std::string & name ) const override;
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /** Returns the name of the string parameter with the specified index
   * @note
   * Due to a limit in the implementation, the string referenced by
   * the return value is *overwritten* each time the method is called with
   * par as a CPLEX parameter. */
- [[nodiscard]] const std::string &
-  str_par_idx2str( idx_type idx ) const override;
+ [[nodiscard]] const std::string & str_par_idx2str( idx_type idx )
+  const override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the index of the vector-of-int parameter with the specified name
+ [[nodiscard]] idx_type vint_par_str2idx( const std::string & name )
+  const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the name of the vector-of-int parameter with the specified index
+ [[nodiscard]] const std::string & vint_par_idx2str( idx_type idx )
+  const override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the index of the vector-of-string parameter with the given name
+ [[nodiscard]] idx_type vstr_par_str2idx( const std::string & name )
+  const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the name of the vector-of-string parameter with the given index
+ [[nodiscard]] const std::string & vstr_par_idx2str( idx_type idx )
+  const override;
 
 /*--------------------------------------------------------------------------*/
 
@@ -302,12 +463,10 @@ class CPXMILPSolver : public MILPSolver {
  double lw_cut_off( void ) const { return( LwCutOff ); }
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------------- FRIENDS ---------------------------------*/
-/*--------------------------------------------------------------------------*/
 
- //friend int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
- //				    CPXLONG contextid , void * userhandle );
-
+ /// callback implemented as a method of the class
+ int callback( CPXCALLBACKCONTEXTptr context , CPXLONG contextid );
+ 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -333,8 +492,7 @@ class CPXMILPSolver : public MILPSolver {
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for modifying the constructed CPLEX problem
- *  @{
- */
+ *  @{ */
 
  /// handles a variable modification
  void var_modification( const VariableMod * mod ) override;
@@ -385,7 +543,36 @@ class CPXMILPSolver : public MILPSolver {
  void remove_dynamic_bound( const OneVarConstraint * con ) override;
 
 /** @} ---------------------------------------------------------------------*/
+/*----------------------- METHODS FOR CUT SEPARATION -----------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Methods for separating user cuts / lazy constraints
+ *  @{ */
 
+ /** From within the callback, run the cut separation invoking
+  * generate_dynamic_variable() with the given Configuration and then
+  * examining the list of Modification to see if some dynamic Constraint have
+  * been added; if so they are added as user cuts if usercut == true and as
+  * lazy constraints otherwise.
+  *
+  * IMPORTANT NOTE: CPLEX has a different stance than SMS++ on dynamic
+  *                 Constraint, in the sense that those that are added inside
+  * a callback are not permanently added to the formulation and may be
+  * discarded whole. In contrast, for SMS++ dynamic Constraint are
+  * first-class citizens of the formulation. To reconcile this two different
+  * viewpoints,
+  *
+  *     THE Modification ADDING DYNAMIC Constraint ARE *NOT* REMOVED FROM
+  *     THE QUEUE OF ACTIVE Modification
+  *
+  * As a result, when Cplex terminates and gets re-solved (if ever), the
+  * dynamic Constraint will be properly added to the formulation. This is
+  * consistent with the view that Modification happening when the Solver is
+  * running must not *necessarily* be immediately acted upon by changing the
+  * model that the Solver is solving. */
+
+ void perform_separation( Configuration * cfg , bool usercut );
+
+/** @} ---------------------------------------------------------------------*/
  /// maps a Solver integer parameter into a Cplex one
  /** Maps the Solver integer parameter \p par into a Cplex one;
   * returns a positive number of it is an int parameter and a negative
@@ -403,10 +590,27 @@ class CPXMILPSolver : public MILPSolver {
  CPXENVptr env; ///< CPLEX environment
  CPXLPptr lp;   ///< CPLEX LP problem
 
+ bool f_callback_set;  // true if the callback has been set
+
  /** This variable indicates whether an exception must be thrown if there is
   * an inconsistency when a reduced cost is being stored during a call to
   * get_dual_solution() or get_dual_direction(). */
- int throw_reduced_cost_exception{};
+ bool throw_reduced_cost_exception;
+
+ /** bitwise-encoded parameter for deciding if and when separation of user
+  * cuts and lazy constraints is performed */
+ unsigned char CutSepPar;
+
+ /** vector containing the indices of the Configuration for the various
+  * user cuts / lazy constraints separations in the "Configuration DB" */
+ std::vector< int > CutSepCfgInd;
+
+ /** vector containing the filenames used to load of the Configuration of
+  * the "Configuration DB" */
+ std::vector< std::string > ConfigDBFName;
+
+ /// the "Configuration DB" istsel
+ std::vector< Configuration * > v_ConfigDB;
 
  /** @name Handling of CPLEX parameters
   *
@@ -416,7 +620,7 @@ class CPXMILPSolver : public MILPSolver {
   * parameters with the same names, for example in configuration files.
   *
   * Note: since SMS++ does not support long parameters, both int and
-  * long CPLEX parameters are handled as SMS++ int parameters.
+  *       long CPLEX parameters are handled as SMS++ int parameters.
   * @{ */
 
  const static std::array< int , CPX_NUM_INT_PARS > SMSpp_to_CPLEX_int_pars;
@@ -434,7 +638,6 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 
  double UpCutOff;  ///< externally set upper cutoff to terminate
-
  double LwCutOff;  ///< externally set lower cutoff to terminate
  
 /*--------------------------------------------------------------------------*/

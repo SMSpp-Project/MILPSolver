@@ -143,7 +143,7 @@ class MILPSolver : public CDASolver
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
- /// Types of integer parameters
+ /// enum for int parameters
  enum int_par_type_MILP {
   intUseCustomNames = intLastParCDAS , ///< use custom names for rows/columns
   /// Relax [M]ILP by removing integrality constraints for integer variables
@@ -151,17 +151,35 @@ class MILPSolver : public CDASolver
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
- /// Types of double parameters
+ /// enum for double parameters
  enum dbl_par_type_MILP {
   /// First allowed new double parameter for derived classes
   dblLastAlgParMILP = dblLastParCDAS
   };
 
- /// Types of string parameters
+ /// enum for string parameters
  enum str_par_type_MILP {
   strProblemName = strLastParCDAS ,  ///< problem name
   strOutputFile ,                    ///< output filename
   strLastAlgParMILP  ///< 1st allowed new string parameter for derived classes
+  };
+
+ /// enum for vector-of-int parameters
+ enum vint_par_type_MILP {
+  ///< first allowed new vector-of-int parameter for derived classes
+  vintLastAlgParMILP = vintLastParCDAS
+  };
+
+ /// enum for vector-of-double parameters
+ enum vdbl_par_type_MILP {
+  /// first allowed new vector-of-double parameter for derived classes
+  vdblLastAlgParMILP = vdblLastParCDAS
+  };
+
+ /// enum for vector-of-string parameters
+ enum vstr_par_type_MILP {
+  /// first allowed new vector-of-double parameter for derived classes
+  vstrLastAlgParMILP = vstrLastParCDAS
   };
 
  using Index = Block::Index;  // "import" Index from Block
@@ -511,72 +529,72 @@ class MILPSolver : public CDASolver
 /** @name Methods for handling parameters
  * @{ */
 
- /// Sets an integer parameter with the given value
+ /// sets an integer parameter with the given value
  void set_par( idx_type par , int value ) override;
 
- // Sets a double parameter with the given value
+ // sets a double parameter with the given value
  // void set_par( idx_type par , double value ) override;
 
- /// Sets a string parameter with the given value
+ /// sets a string parameter with the given value
  void set_par( idx_type par , std::string && value ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// Gets the number of integer parameters
+ /// gets the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par( void ) const override;
 
- /// Gets the number of double parameters
+ /// gets the number of double parameters
  [[nodiscard]] idx_type get_num_dbl_par( void ) const override;
 
- /// Gets the number of string parameters
+ /// gets the number of string parameters
  [[nodiscard]] idx_type get_num_str_par( void ) const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// Gets the default value of the specified integer parameter
+ /// gets the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- // Gets the default value of the specified double parameter
+ // gets the default value of the specified double parameter
  // [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
- /// Gets the default value of the specified string parameter
+ /// returns the default value of the specified string parameter
  [[nodiscard]] const std::string & get_dflt_str_par( idx_type par )
   const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// Gets the value of the specified integer parameter
+ /// returns the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
 
- // Gets the value of the specified double parameter
+ // returns the value of the specified double parameter
  // [[nodiscard]] double get_dbl_par( idx_type par ) const override;
 
- /// Gets the value of the specified string parameter
+ /// returns the value of the specified string parameter
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// Returns the index of the int parameter with the specified name
+ /// returns the index of the int parameter with the specified name
  [[nodiscard]] idx_type int_par_str2idx( const std::string & name )
   const override;
 
- /// Returns the name of the int parameter with the specified index
+ /// returns the name of the int parameter with the specified index
  [[nodiscard]] const std::string & int_par_idx2str( idx_type idx )
   const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- // Returns the index of the double parameter with the specified name
+ // returns the index of the double parameter with the specified name
  // [[nodiscard]] idx_type
  // dbl_par_str2idx( const std::string & name ) const override;
 
- // Returns the name of the double parameter with the specified index
+ // returns the name of the double parameter with the specified index
  // [[nodiscard]] const std::string &
  // dbl_par_idx2str( idx_type idx ) const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// Returns the index of the string parameter with the specified name
- [[nodiscard]] idx_type
-  str_par_str2idx( const std::string & name ) const override;
+ /// returns the index of the string parameter with the specified name
+ [[nodiscard]] idx_type str_par_str2idx( const std::string & name )
+  const override;
 
  /// Returns the name of the string parameter with the specified index
- [[nodiscard]] const std::string &
-  str_par_idx2str( idx_type idx ) const override;
+ [[nodiscard]] const std::string & str_par_idx2str( idx_type idx )
+  const override;
 
 /** @} ---------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
