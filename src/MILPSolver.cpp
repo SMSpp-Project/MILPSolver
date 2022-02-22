@@ -1108,18 +1108,21 @@ void MILPSolver::var_modification( const VariableMod * mod )
  auto * var = static_cast< const ColVariable * >( mod->variable() );
 
  // update the number of integer variables
- if( var->is_integer( mod->old_state() ) !=
-     var->is_integer( mod->new_state() ) ) {
-  if( var->is_integer( mod->new_state() ) )
+ if( ColVariable::is_integer( mod->old_state() ) !=
+     ColVariable::is_integer( mod->new_state() ) ) {
+  if( ColVariable::is_integer( mod->new_state() ) )
    ++int_vars;
   else    
    --int_vars;
   }
 
+ if( lb.empty() && xctype.empty() )
+  return;
+ 
  int idx = index_of_variable( var );
 
  // update bounds (if any)
- if( ( ! lb.empty() ) && ( ! ub.empty() ) ) {
+ if( ! lb.empty() ) {
   lb[ idx ] = get_problem_lb( *var );
   ub[ idx ] = get_problem_ub( *var );
   }

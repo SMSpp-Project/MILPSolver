@@ -443,13 +443,6 @@ class CPXMILPSolver : public MILPSolver {
 
  private:
 
- /** Gets the number of CPLEX integer vars.
-  * Optionally, the read CPLEX variable types can be saved in a vector.
-  * Such vector is automatically resized and filled.
-  *
-  * @param ctype A vector where CPLEX variable types are saved */
- int CPXgetintvars( std::vector< char > * ctype = nullptr );
-
  /** Returns the SMS++ status corresponding to the given
   * CPLEX status returned by CPXgetstat() in case of a LP/QP,
   * or by CPXgetsubstat() in case of a subproblem of a MIP. */
@@ -471,7 +464,7 @@ class CPXMILPSolver : public MILPSolver {
   * To be used as fallback method for objective FunctionMods. */
  void reload_objective( Function * f );
 
- /// Update problem type: falso for a linear one, true for a quadratic one
+ /// Update problem type: false for a linear one, true for a quadratic one
  void update_problem_type( bool quad );
 
 /*--------------------------------------------------------------------------*/
