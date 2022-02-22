@@ -549,7 +549,7 @@ class CPXMILPSolver : public MILPSolver {
  *  @{ */
 
  /** From within the callback, run the cut separation invoking
-  * generate_dynamic_variable() with the given Configuration and then
+  * generate_dynamic_constraints() with the given Configuration and then
   * examining the list of Modification to see if some dynamic Constraint have
   * been added; if so they are added as user cuts if usercut == true and as
   * lazy constraints otherwise.
@@ -570,7 +570,8 @@ class CPXMILPSolver : public MILPSolver {
   * running must not *necessarily* be immediately acted upon by changing the
   * model that the Solver is solving. */
 
- void perform_separation( Configuration * cfg , bool usercut );
+ void perform_separation( Configuration * cfg , bool usercut ,
+			  CPXCALLBACKCONTEXTptr context );
 
 /** @} ---------------------------------------------------------------------*/
  /// maps a Solver integer parameter into a Cplex one

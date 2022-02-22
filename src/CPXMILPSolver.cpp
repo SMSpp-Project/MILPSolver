@@ -1763,20 +1763,18 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  std::vector< int > rmatind( nzcnt );
  std::vector< double > rmatval( nzcnt );
 
- double rhs , rngval;
- char sense;
-
- // Get the coefficients to fill the matrix
+ // get the coefficients to fill the matrix
  for( int i = 0 ; i < nzcnt ; ++i ) {
   auto * var = static_cast< ColVariable * >( lf->get_active_var( i ) );
   rmatind[ i ] = index_of_variable( var );
   rmatval[ i ] = lf->get_coefficient( i );
   }
 
- // Get the bounds
- int index = index_of_dynamic_constraint( con );
+ // get the bounds
  auto con_lhs = con->get_lhs();
  auto con_rhs = con->get_rhs();
+ double rhs , rngval;
+ char sense;
 
  if( con_lhs == con_rhs ) {
   sense = 'E';
@@ -1801,8 +1799,10 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // update the CPLEX problem
  CPXaddrows( env , lp , 0 , 1 , nzcnt , & rhs , & sense , rmatbeg.data() ,
              rmatind.data() , rmatval.data() , nullptr , nullptr );
- if( sense == 'R' )
+ if( sense == 'R' ) {
+  int index = index_of_dynamic_constraint( con );
   CPXchgrngval( env , lp , 1 , & index , & rngval );
+  }
 
  }  // end( CPXMILPSolver::add_dynamic_constraint )
 
@@ -2050,7 +2050,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    Configuration * cfg = dbi >= v_ConfigDB.size() ? nullptr
                                                   : v_ConfigDB[ dbi ];
    // now perform the user separation
-   perform_separation( cfg , true );
+   perform_separation( cfg , true , context );
 
    // unlock the Block
    if( ! owned )
@@ -2085,7 +2085,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    Configuration * cfg = dbi >= v_ConfigDB.size() ? nullptr
                                                   : v_ConfigDB[ dbi ];
    // now perform the lazy constraint separation
-   perform_separation( cfg , false );
+   perform_separation( cfg , false , context );
 
    // unlock the Block
    if( ! owned )
@@ -2099,13 +2099,116 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::perform_separation( Configuration * cfg , bool usercut )
+void CPXMILPSolver::perform_separation( Configuration * cfg , bool usercut ,
+					CPXCALLBACKCONTEXTptr context )
 {
  // note: we assume the Block to have been lock()-ed already and the solution
  //       (be it from the relaxation or feasible) to have been written in the
  //       Variable of the Block
+ //
+ // since the Block is lock()-ed we assume that we can freely work with the
+ // Modification list as no-one has a reason tochange it
+ 
+ // check if f_mod is empty, if not initialize a pointer to the last element
+ auto sz = v_mod.size();
+ auto it = sz ? prev( v_mod.end() ) : v_mod.begin();
 
+ // call generate_dynamic_constraint()
+ f_Block->generate_dynamic_constraints( cfg );
 
+ if( v_mod.size() <= sz )  // check if new Modification have been inserted
+  return;                  // if not, nothing to do
+
+ if( ! sz )                // if the list was empty at the beginning
+  it = v_mod.begin();      // start from the beginning: begin() is different
+                           // from before, when it was == to end()
+ else                      // the list was nonempty
+  ++it;                    // move to the first new element
+
+ // main loop: check all new Modification for a Constraint addition
+ for( ; it != v_mod.end() ; ++it ) {
+  // check if the Modification indicates an added FRowConstraint
+  auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >(
+								it->get() );
+  if( ! tmod )  // if not
+   continue;    // next
+
+  // add all the new constraint one by one (not very efficient)
+  for( auto con : tmod->added() ) {
+   auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+   if( ! lf )
+    throw( std::invalid_argument( "The Constraint is not linear" ) );
+
+   int nzcnt = lf->get_num_active_var();
+
+   std::array< int , 3 > rmatbeg = { 0 , nzcnt , 0 };
+   std::vector< int > rmatind( nzcnt );
+   std::vector< double > rmatval( nzcnt );
+
+   // get the coefficients to fill the matrix
+   for( int i = 0 ; i < nzcnt ; ++i ) {
+    auto * var = static_cast< ColVariable * >( lf->get_active_var( i ) );
+    rmatind[ i ] = index_of_variable( var );
+    rmatval[ i ] = lf->get_coefficient( i );
+    }
+
+   // get the bounds
+   int nrow = 1;
+   auto con_lhs = con->get_lhs();
+   auto con_rhs = con->get_rhs();
+   std::array< double , 2 > rhs;
+   std::array< char , 2 > sense;
+
+   if( con_lhs == con_rhs ) {
+    sense[ 0 ] = 'E';
+    rhs[ 0 ] = con_rhs;
+    }
+   else
+    if( con_lhs == -Inf< double >() ) {
+     sense[ 0 ] = 'L';
+     rhs[ 0 ] = con_rhs;
+     }
+    else
+     if( con_rhs == Inf< double >() ) {
+      sense[ 0 ] = 'G';
+      rhs[ 0 ] = con_lhs;
+      }
+     else {
+      // kludge: the added constraint is ranged LHS <= fun <= RHS, but
+      // CPLEX does not allow cuts to be ranged: hence, separately add
+      // the two constraints fun >= LHS and fun <= RHS
+      sense = { 'G' , 'L' };
+      rhs = { con_lhs , con_rhs };
+      ++nrow;
+      auto realnzc = nzcnt;
+      nzcnt += nzcnt;
+      rmatbeg[ 2 ] = nzcnt;
+      rmatind.resize( nzcnt );
+      std::copy( rmatind.begin() , rmatind.begin() + realnzc ,
+		                   rmatind.begin() + realnzc );
+      rmatval.resize( nzcnt );
+      std::copy( rmatval.begin() , rmatval.begin() + realnzc ,
+		                   rmatval.begin() + realnzc );
+      }
+
+   // finally add the newly added constraint
+   if( usercut ) {  // as a user cut
+    static const int purgeable = CPX_USECUT_FILTER;
+    static const int local = 0;
+    if( CPXcallbackaddusercuts( context , nrow , nzcnt , rhs.data() ,
+			       sense.data() , rmatbeg.data() ,
+				rmatind.data() , rmatval.data() ,
+				& purgeable , & local ) )
+     throw( std::logic_error( "problem in CPXcallbackaddusercuts" ) );
+    }
+   else             // as a lazy constraint
+    if( CPXcallbackrejectcandidate( context , nrow , nzcnt , rhs.data() ,
+				    sense.data() , rmatbeg.data() ,
+				    rmatind.data() , rmatval.data() ) )
+     throw( std::logic_error( "problem in CPXcallbackrejectcandidate" ) );
+
+   }  // end( for each added FRowConstraint )
+  }  // end( main loop )
  }  // end( CPXMILPSolver::perform_separation )
 
 /*--------------------------------------------------------------------------*/

@@ -998,7 +998,17 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 int MILPSolver::compute( bool changedvars )
 {
  lock();  // lock the mutex
+
+ // read-lock the Block, unless already owned
+ bool owned = f_Block->is_owned_by( f_id );
+ if( ( ! owned ) && ( ! f_Block->read_lock() ) )
+  throw( std::runtime_error( "Unable to lock the Block" ) );
+
  MILPSolver::process_modifications();
+
+ if( ! owned )
+  f_Block->read_unlock();  // read-unlock the Block
+
  unlock();  // unlock the mutex
  return( kOK );
  }
@@ -1882,8 +1892,7 @@ const std::string & MILPSolver::get_str_par( idx_type par ) const
 
 /*--------------------------------------------------------------------------*/
 
-ThinComputeInterface::idx_type
-MILPSolver::int_par_str2idx( const std::string & name ) const
+Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
 {
  if( name == "intUseCustomNames" )
   return( intUseCustomNames );
@@ -1911,22 +1920,20 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
 
 /*----------------------------------------------------------------------------
 
-ThinComputeInterface::idx_type
-MILPSolver::dbl_par_str2idx( const std::string & name ) const {
+Solver::idx_type MILPSolver::dbl_par_str2idx( const std::string & name ) const
+{
  return( CDASolver::dbl_par_str2idx( name ) );
  }
 
 ------------------------------------------------------------------------------
 
-const std::string &
-MILPSolver::dbl_par_idx2str( idx_type idx ) const {
+const std::string & MILPSolver::dbl_par_idx2str( idx_type idx ) const {
  return( CDASolver::dbl_par_idx2str( idx ) );
  }
 
 ----------------------------------------------------------------------------*/
 
-ThinComputeInterface::idx_type
-MILPSolver::str_par_str2idx( const std::string & name ) const
+Solver::idx_type MILPSolver::str_par_str2idx( const std::string & name ) const
 {
  if( name == "strProblemName" )
   return( strProblemName );
