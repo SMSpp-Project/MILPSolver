@@ -1,0 +1,73 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - LPPar.txt - - - - - - - - - - - - - - - - -
+#
+# A txt description of a BlockSolverConfig for a Block containing the LP
+# reprsentation of the problem solved by the tester for LagBFunction; this
+# being a simple LP (albeit one with sub-Block), a :MILPSolver (say, a 
+# CPXMILPSolver or a SCIPMILPSolver) is perfectly adequate
+#
+#   Enrico Gorgone, Antonio Frangioni
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+0  # the BlockSolverConfig is not a "differential" one: values are being set
+
+1  # number of (the names of) Solver in this BlockSolverConfig
+# now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
+CPXMILPSolver # name of 1st Solver
+#SCIPMILPSolver # name of 1st Solver
+
+1  # number of ComputeConfig in this BlockSolverConfig
+
+# now all the ComputeConfig
+# 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ComputeConfig # exact type of the ComputeConfig object
+
+1  # f_diff == 0 ==> all non-provided parameters are set to the default value
+   # f_diff == 1 ==> all non-provided parameters are not changed
+
+1 # number of integer parameters
+
+# now all the integer parameters
+intLogVerb     0     # LogVerb, log verbosity of the MILPSolver
+
+# note that we could eof() the file here since the rest is all empty
+
+0 # number of double parameters
+
+# now all the double parameters
+# [none]
+
+0 # number of string parameters
+
+# now all the string parameters
+# [none]
+
+0 # number of vector-of-int parameters
+
+# now all the vector-of-int parameters
+# [none]
+
+0 # number of vector-of-double parameters
+
+# now all the vector-of-double parameters
+# [none]
+
+0 # number of vector-of-string parameters
+
+# now all the vector-of-string parameters
+# [none]
+
+# pointer to the "extra" Configuration
+* # [none]
+
+# end of 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# end of BlockSolverConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - END LPPar.txt - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
