@@ -463,8 +463,27 @@ class CPXMILPSolver : public MILPSolver {
  double lw_cut_off( void ) const { return( LwCutOff ); }
 
 /*--------------------------------------------------------------------------*/
-
  /// callback implemented as a method of the class
+ /** The implementation of CPLEX "generic" callback, which is used to check
+  * for having reached prescribed upper/lower bounds and for user cuts / lazy
+  * constraint separation, just calls this method.
+  *
+  * IMPORTANT NOTE: CPLEX has a different stance than SMS++ on dynamic
+  *                 Constraint, in the sense that those that are added inside
+  * a callback are not permanently added to the formulation and may be
+  * discarded whole. In contrast, for SMS++ dynamic Constraint are
+  * first-class citizens of the formulation. To reconcile this two different
+  * viewpoints,
+  *
+  *     THE Modification ADDING DYNAMIC Constraint ARE *NOT* REMOVED FROM
+  *     THE QUEUE OF ACTIVE Modification
+  *
+  * As a result, when Cplex terminates and gets re-solved (if ever), the
+  * dynamic Constraint will be properly added to the formulation. This is
+  * consistent with the view that Modification happening when the Solver is
+  * running must not *necessarily* be immediately acted upon by changing the
+  * model that the Solver is solving. */
+
  int callback( CPXCALLBACKCONTEXTptr context , CPXLONG contextid );
  
 /** @} ---------------------------------------------------------------------*/
@@ -492,54 +511,57 @@ class CPXMILPSolver : public MILPSolver {
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for modifying the constructed CPLEX problem
+ *
+ *  These methods implement the "Modification interface" of MILPSolver, so
+ *  that all Modification are applied to the CPLEX formulation.
  *  @{ */
 
- /// handles a variable modification
+ /// handles a Variable Modification
  void var_modification( const VariableMod * mod ) override;
 
- /// handles an objective modification
+ /// handles an Objective Modification
  void objective_modification( const ObjectiveMod * mod ) override;
 
- /// handles a constraint modification
+ /// handles a Constraint Modification
  void const_modification( const ConstraintMod * mod ) override;
 
- /// handles a bound modification
+ /// handles a bound (OneVarConstraint) Modification
  void bound_modification( const OneVarConstraintMod * mod ) override;
 
- /// handles a function modification applied to the objective
+ /// handles a Function Modification applied to the Objective
  void objective_function_modification( const FunctionMod * mod ) override;
 
- /// handles a function modification applied to a constraint
+ /// handles a Function Modification applied to a Constraint
  void constraint_function_modification( const FunctionMod * mod ) override;
 
- /// handles a function vars modification to the objective
+ /// handles a Function Variable Modification applied to the Objective
  void objective_fvars_modification( const FunctionModVars * mod )
   override;
 
- /// handles a function vars modification to a constraint
+ /// handles a Function Variable Modification applied to a Constraint
  void constraint_fvars_modification( const FunctionModVars * mod )
   override;
 
- // handles a dynamic modification
+ // handles a dynamic Modification
  // no point in defining it, just calls the base class method
  // void dynamic_modification( const BlockModAD * mod ) override;
 
- /// adds a single new dynamic constraint
+ /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
 
- /// adds a single new dynamic bound
+ /// adds a single new dynamic bound (OneVarConstraint)
  void add_dynamic_bound( const OneVarConstraint * con ) override;
 
- /// adds a single new dynamic variable
+ /// adds a single new dynamic ColVariable
  void add_dynamic_variable( const ColVariable * var ) override;
 
- /// removes a single dynamic constraint
+ /// removes a single dynamic FRowConstraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
 
- /// removes a single dynamic variable
+ /// removes a single dynamic ColVariable
  void remove_dynamic_variable( const ColVariable * var ) override;
 
- /// removes a single dynamic bound
+ /// removes a single dynamic bound (OneVarConstraint)
  void remove_dynamic_bound( const OneVarConstraint * con ) override;
 
 /** @} ---------------------------------------------------------------------*/
@@ -551,36 +573,27 @@ class CPXMILPSolver : public MILPSolver {
  /** From within the callback, run the cut separation invoking
   * generate_dynamic_constraints() with the given Configuration and then
   * examining the list of Modification to see if some dynamic Constraint have
-  * been added; if so they are added as user cuts if usercut == true and as
-  * lazy constraints otherwise.
+  * been added; if so they are reported back under the form needed to be
+  * added as user cuts or lazy constraints (which is the same).
   *
-  * IMPORTANT NOTE: CPLEX has a different stance than SMS++ on dynamic
-  *                 Constraint, in the sense that those that are added inside
-  * a callback are not permanently added to the formulation and may be
-  * discarded whole. In contrast, for SMS++ dynamic Constraint are
-  * first-class citizens of the formulation. To reconcile this two different
-  * viewpoints,
-  *
-  *     THE Modification ADDING DYNAMIC Constraint ARE *NOT* REMOVED FROM
-  *     THE QUEUE OF ACTIVE Modification
-  *
-  * As a result, when Cplex terminates and gets re-solved (if ever), the
-  * dynamic Constraint will be properly added to the formulation. This is
-  * consistent with the view that Modification happening when the Solver is
-  * running must not *necessarily* be immediately acted upon by changing the
-  * model that the Solver is solving. */
+  * Note that all vectors are supposed to be empty at the beginning of the
+  * call, and they will still be empty if no cuts are found. */
 
- void perform_separation( Configuration * cfg , bool usercut ,
-			  CPXCALLBACKCONTEXTptr context );
+ void perform_separation( Configuration * cfg ,
+			  std::vector< int > & rmatbeg ,
+			  std::vector< int > & rmatind ,
+			  std::vector< double > & rmatval ,
+			  std::vector< double > & rhs , 
+			  std::vector< char > & sense );
 
 /** @} ---------------------------------------------------------------------*/
  /// maps a Solver integer parameter into a Cplex one
  /** Maps the Solver integer parameter \p par into a Cplex one;
   * returns a positive number of it is an int parameter and a negative
   * number if it is a long one. Returns 0 if not a Cplex paameter. */
-
  int cpx_int_par_map( idx_type par ) const;
  
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// maps a Solver double parameter into a Cplex one (or 0)
  int cpx_dbl_par_map( idx_type par ) const;
 
