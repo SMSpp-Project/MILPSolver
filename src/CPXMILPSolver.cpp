@@ -2056,6 +2056,11 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    std::vector< char > sense;
    perform_separation( get_cfg( depth ? 1 : 0 ) ,
 		       rmatbeg , rmatind , rmatval , rhs , sense );
+   if( ! owned )
+    f_Block->unlock( f_id );  // unlock the Block
+
+   // critical section ends here, release the mutex
+   f_callback_mutex.unlock();
 
    // if any user cut was generated, add them
    if( ! rmatbeg.empty() ) {
@@ -2067,12 +2072,6 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 				& purgeable , & local ) )
      throw( std::logic_error( "problem in CPXcallbackaddusercuts" ) );
     }
-
-   if( ! owned )
-    f_Block->unlock( f_id );  // unlock the Block
-
-   // critical section ends here, release the mutex
-   f_callback_mutex.unlock();
 
    break;
    }
@@ -2110,6 +2109,11 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    std::vector< char > sense;
    perform_separation( get_cfg( 2 ) ,
 		       rmatbeg , rmatind , rmatval , rhs , sense );
+   if( ! owned )
+    f_Block->unlock( f_id );  // unlock the Block
+
+   // critical section ends here, release the mutex
+   f_callback_mutex.unlock();
 
    // if any lazy constraint was generated, add them
    if( ! rmatbeg.empty() )
@@ -2118,12 +2122,6 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 				    rmatbeg.data() , rmatind.data() ,
 				    rmatval.data() ) )
      throw( std::logic_error( "problem in CPXcallbackrejectcandidate" ) );
-
-   if( ! owned )
-    f_Block->unlock( f_id );  // unlock the Block
-
-   // critical section ends here, release the mutex
-   f_callback_mutex.unlock();
    }
   }  // end( main switch )- - - - - - - - - - - - - - - - - - - - - - - - - -
      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

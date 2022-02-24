@@ -249,9 +249,8 @@ class CPXMILPSolver : public MILPSolver {
   *   bit 2 : 1 (+4) if separation of lazy constraints is performed each time
   *           a feasible solution is generated
   *
-  *   See vintCutSepCFG for properly setting Configurations for the
-  *   corresponding calls to get_var_solution() and
-  *   generate_dynamic_constraint(). */
+  *   See vintCutSepCfgInd for properly setting Configurations for the
+  *   corresponding calls to generate_dynamic_constraint(). */
 
  void set_par( idx_type par , int value ) override;
 
