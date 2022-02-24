@@ -2028,7 +2028,12 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
        ( depth && ( ! ( CutSepPar & 2 ) ) ) )
     break;                    // nothing to do
 
-   // separation has to be performed: first thing lock() the Block
+   // this is a critical section where different CPLEX threads may compete
+   // for access to the Block: ensure mutual exclusion
+   f_callback_mutex.lock();
+
+   // ensure no interference from other threads (except CPLEX ones) by also
+   // lock()-ing the Block
    bool owned = f_Block->is_owned_by( f_id );
    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
     throw( std::runtime_error( "Unable to lock the Block" ) );
@@ -2063,9 +2068,11 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
      throw( std::logic_error( "problem in CPXcallbackaddusercuts" ) );
     }
 
-   // unlock the Block
    if( ! owned )
-    f_Block->unlock( f_id );
+    f_Block->unlock( f_id );  // unlock the Block
+
+   // critical section ends here, release the mutex
+   f_callback_mutex.unlock();
 
    break;
    }
@@ -2075,7 +2082,12 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    if( ! ( CutSepPar & 4 ) )  // but we don't do lazy constraint separation
     break;                    // nothing to do
 
-   // separation has to be performed: first thing lock() the Block
+   // this is a critical section where different CPLEX threads may compete
+   // for access to the Block: ensure mutual exclusion
+   f_callback_mutex.lock();
+
+   // ensure no interference from other threads (except CPLEX ones) by also
+   // lock()-ing the Block
    bool owned = f_Block->is_owned_by( f_id );
    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
     throw( std::runtime_error( "Unable to lock the Block" ) );
@@ -2107,9 +2119,11 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 				    rmatval.data() ) )
      throw( std::logic_error( "problem in CPXcallbackrejectcandidate" ) );
 
-   // unlock the Block
    if( ! owned )
-    f_Block->unlock( f_id );
+    f_Block->unlock( f_id );  // unlock the Block
+
+   // critical section ends here, release the mutex
+   f_callback_mutex.unlock();
    }
   }  // end( main switch )- - - - - - - - - - - - - - - - - - - - - - - - - -
      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

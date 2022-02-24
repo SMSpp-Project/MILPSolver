@@ -612,9 +612,20 @@ class CPXMILPSolver : public MILPSolver {
   * the "Configuration DB" */
  std::vector< std::string > ConfigDBFName;
 
- /// the "Configuration DB" istsel
+ /// the "Configuration DB" istself
  std::vector< Configuration * > v_ConfigDB;
 
+ /// the mutex to ensure that CPLEX threads do not overstep in the callback
+ /** Since CPLEX is multi-threaded, lock()-ing the Block with the f_id of
+  * CPXMILPSolver is not enough to prevent concurrent access to it. This is
+  * an issue in che callback(), in particular when user cuts / lazy
+  * constranits separation is required, and therefore 1) a solution has to
+  * be written in the Variable, 2) generate_dynamic_constraints() has to be
+  * called, which may cause the addition of new dynamic Constraint to the
+  * Block. Thus, CPXMILPSolver will use this mutex to ensure mutual exclusion
+  * of the CPLEX threads for the critical sections of the callback(). */
+ std::mutex f_callback_mutex;
+ 
  /** @name Handling of CPLEX parameters
   *
   * The following maps are used to keep a relationship between SMS++ parameter

@@ -33,8 +33,8 @@ ComputeConfig  # exact type of the ComputeConfig object
 # now all the integer parameters
 intLogVerb     2     # LogVerb, log verbosity of the CPXMILPSolver
 intCutSepPar   4     # separate lazy constraints
-CPXPARAM_Threads 1
-CPXPARAM_ScreenOutput 1
+CPXPARAM_Threads 16
+CPXPARAM_ScreenOutput 0
 
 # note that we could eof() the file here since the rest is all empty
 
@@ -43,10 +43,10 @@ CPXPARAM_ScreenOutput 1
 # now all the double parameters
 # [none]
 
-1 # number of string parameters
+0 # number of string parameters
 
 # now all the string parameters
-strOutputFile	NCoCube.lp
+#strOutputFile	NCoCube.lp
 
 0 # number of vector-of-int parameters
 
