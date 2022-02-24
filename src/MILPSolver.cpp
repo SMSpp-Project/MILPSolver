@@ -82,10 +82,10 @@ void MILPSolver::set_Block( Block * block )
   if( ( ! owned ) && ( ! block->lock( f_id ) ) )
    throw( std::runtime_error( "Unable to lock the Block" ) );
 
-  // Generate abstract representation
-  block->generate_abstract_variables( nullptr );
-  block->generate_abstract_constraints( nullptr );
-  block->generate_objective( nullptr );
+  // generate abstract representation
+  block->generate_abstract_variables();
+  block->generate_abstract_constraints();
+  block->generate_objective();
 
   if( ! owned )
    block->unlock( f_id );

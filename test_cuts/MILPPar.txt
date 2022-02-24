@@ -1,38 +1,40 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - LPPar.txt - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - MILPPar.txt - - - - - - - - - - - - - - - - -
 #
-# A txt description of a BlockSolverConfig for a Block containing the LP
-# reprsentation of the problem solved by the tester for LagBFunction; this
-# being a simple LP (albeit one with sub-Block), a :MILPSolver (say, a 
-# CPXMILPSolver or a SCIPMILPSolver) is perfectly adequate
+# A txt description of a BlockSolverConfig for a Block solved by
+# CPXMILPSolver with active lazy cut generation
 #
-#   Enrico Gorgone, Antonio Frangioni
+#   Antonio Frangioni
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+BlockSolverConfig     # exact type of the Configuration object
 
 0  # the BlockSolverConfig is not a "differential" one: values are being set
 
 1  # number of (the names of) Solver in this BlockSolverConfig
 # now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
 CPXMILPSolver # name of 1st Solver
-#SCIPMILPSolver # name of 1st Solver
 
 1  # number of ComputeConfig in this BlockSolverConfig
 
 # now all the ComputeConfig
 # 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-ComputeConfig # exact type of the ComputeConfig object
+ComputeConfig  # exact type of the ComputeConfig object
 
 1  # f_diff == 0 ==> all non-provided parameters are set to the default value
    # f_diff == 1 ==> all non-provided parameters are not changed
 
-1 # number of integer parameters
+4 # number of integer parameters
 
 # now all the integer parameters
-intLogVerb     0     # LogVerb, log verbosity of the MILPSolver
+intLogVerb     2     # LogVerb, log verbosity of the CPXMILPSolver
+intCutSepPar   4     # separate lazy constraints
+CPXPARAM_Threads 1
+CPXPARAM_ScreenOutput 1
 
 # note that we could eof() the file here since the rest is all empty
 
@@ -41,10 +43,10 @@ intLogVerb     0     # LogVerb, log verbosity of the MILPSolver
 # now all the double parameters
 # [none]
 
-0 # number of string parameters
+1 # number of string parameters
 
 # now all the string parameters
-# [none]
+strOutputFile	NCoCube.lp
 
 0 # number of vector-of-int parameters
 
@@ -69,5 +71,5 @@ intLogVerb     0     # LogVerb, log verbosity of the MILPSolver
 # end of BlockSolverConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - END LPPar.txt - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - END MILPPar.txt - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

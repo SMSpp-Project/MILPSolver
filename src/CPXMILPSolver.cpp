@@ -2034,8 +2034,8 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
     throw( std::runtime_error( "Unable to lock the Block" ) );
    
    // get the solution of the relaxation
-   std::vector< double > x( numcols , 0 );
-   if( CPXcallbackgetrelaxationpoint( context , x.data() , 0 , numcols ,
+   std::vector< double > x( numcols );
+   if( CPXcallbackgetrelaxationpoint( context , x.data() , 0 , numcols - 1 ,
 				      nullptr ) )
     throw( std::runtime_error(
        "Unable to get the solution with CPXcallbackgetrelaxationpoint()" ) );
@@ -2043,20 +2043,14 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    // write it in the Variable of the Block
    get_var_solution( x );
 
-   // get the right Configuration index
-   Index ci = depth ? 1 : 0;
-   int dbi = ci >= CutSepCfgInd.size() ? v_ConfigDB.size()
-                                       : CutSepCfgInd[ ci ];
-   Configuration * cfg = ( ( dbi < 0 ) || ( dbi >= v_ConfigDB.size() ) )
-                       ? nullptr : v_ConfigDB[ dbi ];
-
-   // now perform the user cut separation
+   // now perform the user cut separation with the right Configuration
    std::vector< int > rmatbeg;
    std::vector< int > rmatind;
    std::vector< double > rmatval;
    std::vector< double > rhs;
    std::vector< char > sense;
-   perform_separation( cfg , rmatbeg , rmatind , rmatval , rhs , sense );
+   perform_separation( get_cfg( depth ? 1 : 0 ) ,
+		       rmatbeg , rmatind , rmatval , rhs , sense );
 
    // if any user cut was generated, add them
    if( ! rmatbeg.empty() ) {
@@ -2087,8 +2081,8 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
     throw( std::runtime_error( "Unable to lock the Block" ) );
    
    // get the feasible solution
-   std::vector< double > x( numcols , 0 );
-   if( CPXcallbackgetcandidatepoint( context , x.data() , 0 , numcols ,
+   std::vector< double > x( numcols );
+   if( CPXcallbackgetcandidatepoint( context , x.data() , 0 , numcols - 1 ,
 				     nullptr ) )
     throw( std::runtime_error(
        "Unable to get the solution with CPXcallbackgetcandidatepoint()" ) );
@@ -2096,19 +2090,14 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    // write it in the Variable of the Block
    get_var_solution( x );
 
-   // get the right Configuration index
-   int dbi = 2 >= CutSepCfgInd.size() ? v_ConfigDB.size()
-                                      : CutSepCfgInd[ 2 ];
-   Configuration * cfg = ( ( dbi < 0 ) || ( dbi >= v_ConfigDB.size() ) )
-                       ? nullptr : v_ConfigDB[ dbi ];
-
-   // now perform the lazy constraint separation
+   // now perform the lazy constraint separation with the right Configuration
    std::vector< int > rmatbeg;
    std::vector< int > rmatind;
    std::vector< double > rmatval;
    std::vector< double > rhs;
    std::vector< char > sense;
-   perform_separation( cfg , rmatbeg , rmatind , rmatval , rhs , sense );
+   perform_separation( get_cfg( 2 ) ,
+		       rmatbeg , rmatind , rmatval , rhs , sense );
 
    // if any lazy constraint was generated, add them
    if( ! rmatbeg.empty() )
@@ -2962,6 +2951,18 @@ void CPXMILPSolver::update_problem_type( bool quad )
   case( CPXPROB_FIXEDMIQP ): break;
   default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
   }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+Configuration * CPXMILPSolver::get_cfg( Index ci ) const
+{
+ if( ci >= CutSepCfgInd.size() )
+  return( nullptr );
+ auto dbi = CutSepCfgInd[ ci ];
+ if( ( dbi < 0 ) || ( Index( dbi ) >= v_ConfigDB.size() ) )
+  return( nullptr );
+ return( v_ConfigDB[ dbi ] );
  }
 
 /*--------------------------------------------------------------------------*/

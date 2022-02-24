@@ -285,18 +285,7 @@ class CPXMILPSolver : public MILPSolver {
   *     generate_dynamic_constraint() when user lazy constraints are to be
   *     separated for any feasible solution
   *
-  *   = the 4th element sets the Configuration to be passed to
-  *     get_var_solution() when user cuts are to be separated at the root node
-  *
-  *   = the 5th element sets the Configuration to be passed to
-  *     get_var_solution() when user cuts are to be separated at any other
-  *     node except the root
-  *
-  *   = the 6th element sets the Configuration to be passed to
-  *     get_var_solution() when user lazy constraints are to be separated
-  *     for any feasible solution
-  *
-  *   If the passed vector is shorter than 6 elements, any missing ones are
+  *   If the passed vector is shorter than 3 elements, any missing ones are
   *   treated as "pass no Configuration" (nullptr). Similarly, if one entry
   *   is either negative or >= the size of the "Configuration DataBase", then
   *   "pass no Configuration" is assumed. */
@@ -681,9 +670,12 @@ class CPXMILPSolver : public MILPSolver {
   * To be used as fallback method for objective FunctionMods. */
  void reload_objective( Function * f );
 
- /// Update problem type: false for a linear one, true for a quadratic one
+ /// update problem type: false for a linear one, true for a quadratic one
  void update_problem_type( bool quad );
 
+ // get the right Configuration for ci = 0, 1, 2
+ Configuration * get_cfg( Index ci ) const;
+ 
 /*--------------------------------------------------------------------------*/
 
  SMSpp_insert_in_factory_h;

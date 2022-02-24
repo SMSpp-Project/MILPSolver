@@ -8,7 +8,7 @@
  * The NCoCubeBlock is a Block that encodes for the N-Co-Cube, i.e., the
  * unitary ball in the L_1 norm, with a simple linear Objective. Optimizing
  * over this is trivial, since the N-Co-Cube only has 2n vertices of the
- * form ( 0 , 0 , ... \pm 1 , ... , 0 ), and therefore also has the
+ * form [ 0 , 0 , ... \pm 1 , ... , 0 ], and therefore also has the
  * integrality property. However, NCoCubeBlock implements the "crazy"
  * formulation in the original variable space which has 2^n constraints of
  * the form
@@ -32,13 +32,10 @@
 /*-------------------------------- MACROS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#define LOG_LEVEL 0
+#define LOG_LEVEL 2
 // 0 = only pass/fail
 // 1 = result of each test
 // 2 = + solver log
-// 3 = + save LP file
-// 4 = + save every LP for every iteration
-// 5 = + print data
 
 #if( LOG_LEVEL >= 1 )
  #define LOG1( x ) cout << x
@@ -121,13 +118,12 @@ using p_LF = LinearFunction *;
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 /// an N-Co-Cube, i.e., the unitary ball in the L_1 norm
-/** NCoCubeBlock is a(n Abstract)Block that encodes for the N-Co-Cube, i.e.,
- * the unitary ball in the L_1 norm, with a simple linear Objective.
- * Optimizing over this is trivial, since the N-Co-Cube only has 2n vertices
- * of the form ( 0 , 0 , ... \pm 1 , ... , 0 ), and therefore also has the
- * integrality property. However, NCoCubeBlock implements the "crazy"
- * formulation in the original variable space which has 2^n constraints of
- * the form
+/** NCoCubeBlock is a Block that encodes for the N-Co-Cube, i.e., the unitary
+ * ball in the L_1 norm, with a simple linear Objective. Optimizing over this
+ * is trivial, since the N-Co-Cube only has 2n vertices of the form
+ * [ 0 , 0 , ... \pm 1 , ... , 0 ], and therefore also has the integrality
+ * property. However, NCoCubeBlock implements the "crazy" formulation in the
+ * original variable space which has 2^n constraints of  the form
  *
  *   \pm 1 x_1 + \pm 1 x_2 + ... + \pm 1 x_n <= 1
  *
@@ -157,7 +153,7 @@ public:
   f_obj.clear();             // clear the Objective
   v_x.clear();               // delete Variable
   // explicitly reset all Constraint and Variable
-  reset_static_constraints();
+  reset_static_variables();
   reset_dynamic_constraints();
   reset_objective();
   }
@@ -185,6 +181,7 @@ public:
  
 /*--------------------------------------------------------------------------*/
  /// extends Block::deserialize( netCDF::NcGroup )
+
  void deserialize( const netCDF::NcGroup & group ) override {
   throw( std::logic_error( "NCoCubeBlock::deserialize not implemented yet"
 			   ) );
@@ -239,7 +236,7 @@ public:
    el = std::make_pair( & (*(vit++)) , *(cit++) );
 
   f_obj.set_sense( Objective::eMin );
-  f_obj.set_function( new LinearFunction( std::move( p ) , 0 ) , eNoMod );
+  f_obj.set_function( new LinearFunction( std::move( p ) ) , eNoMod );
   set_objective( & f_obj , eNoMod );
   }
 
@@ -274,7 +271,7 @@ public:
 
   if( viol >= 1e-8 ) {  // the 1e-8 should not be necessary, v_x is integer
    std::list< FRowConstraint > newcut( 1 );
-   newcut.front().set_function( new LinearFunction( std::move( cut ) , 0 ) ,
+   newcut.front().set_function( new LinearFunction( std::move( cut ) ) ,
 				eNoMod );
    newcut.front().set_rhs( 1 );
    newcut.front().set_lhs( - Inf< FunctionValue >() );
@@ -375,7 +372,7 @@ static bool SolveBoth( void )
   Solver * slvr = NCCB.get_registered_solvers().front();
   #if DETACH_LP
    NCCB.unregister_Solver( slvr );
-   NCCB.register_Solver( slvr );
+   NCCB.register_Solver( slvr , true );  // push to front
   #endif
   int rtrn = slvr->compute( false );
   bool hs = ( ( rtrn >= Solver::kOK ) && ( rtrn < Solver::kError ) )
@@ -383,12 +380,12 @@ static bool SolveBoth( void )
 
   if( ! hs ) {
    if( rtrn == Solver::kInfeasible )
-    cout << "Unfeas(?)";
+    cout << "Unfeas(?)" << endl;
    else
     if( rtrn == Solver::kUnbounded )
-     cout << "Unbounded(?)";
+     cout << "Unbounded(?)" << endl;
     else
-     cout << "Error!";
+     cout << "Error!" << endl;
    return( false );
    }
 
@@ -396,17 +393,16 @@ static bool SolveBoth( void )
 
   // manually compute the optimal value
   double opt = INF;
-  auto csts = NCCB.get_costs();
   for( auto ci : NCCB.get_costs() )
-   if( - ci < opt )
-    opt = ci;
+   if( - std::abs( ci ) < opt )
+    opt = - std::abs( ci );
 
-  if( abs( fo - opt ) <= 1e-7 * max( double( 1 ) , abs( max( fo , opt ) ) ) ) {
+  if( abs( fo - opt ) <= 1e-7 * max( double( 1 ) , abs( opt ) ) ) {
    LOG1( "OK" << endl );
    return( true );
    }
 
-  LOG1( "Error: fo = " << fo << ", opt = " opt << << endl );
+  LOG1( "Error: fo = " << fo << ", opt = " << opt << endl );
   return( false );
   }
  catch( exception &e ) {
@@ -456,9 +452,12 @@ int main( int argc , char **argv )
 
  NCCB.load( generate_costs() );
 
- NCCB.generate_abstract_variables();
- NCCB.generate_abstract_constraints();
- NCCB.generate_objective();
+ // do NOT generate the abstract representation, since this is done by
+ // CPXMILPSolver when it is registered, and since there is no check in
+ // NCoCubeBlock it would end up being generated twice
+ // NCCB.generate_abstract_variables();
+ // NCCB.generate_abstract_constraints();
+ // NCCB.generate_objective();
 
  // attach the Solver to the Block- - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -486,13 +485,13 @@ int main( int argc , char **argv )
 
  #if( LOG_LEVEL >= 2 )
   #if( LOG_ON_COUT )
-   NCCB.get_registered_solvers()).front()->set_log( & cout );
+   NCCB.get_registered_solvers().front()->set_log( & cout );
   #else
    ofstream LOGFile( "log.txt" , ofstream::out );
    if( ! LOGFile.is_open() )
     cerr << "Warning: cannot open log file" << endl;
    else {
-    LOGFile.setf( ios::scientific, ios::floatfield );
+    LOGFile.setf( ios::scientific , ios::floatfield );
     LOGFile << setprecision( 10 );
     NCCB.get_registered_solvers()).front()->set_log( & LOGFile );
     }
