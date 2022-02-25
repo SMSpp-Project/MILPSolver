@@ -62,56 +62,25 @@ SMSpp_insert_in_factory_cpp_0( CPXMILPSolver );
 int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
 			    CPXLONG contextid , void * userhandle )
 {
- if( contextid != CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS )
-  return( 0 );
-
- double solv;
- CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_SOL , & solv );
-
- double bndv;
- CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_BND , & bndv );
-
- auto CMS = static_cast< CPXMILPSolver * >( userhandle );
-
- if( CMS->get_objsense() == 1 ) {
-  // a minimization problem: solv is an upper bound and bndv is a lower bound
-  if( solv >= 1e+75 )
-   solv = Inf< double >();
-
-  if( bndv <= - 1e+75 )
-   bndv = - Inf< double >();
-  
-  if( ( bndv >= CMS->up_cut_off() ) || ( solv <= CMS->lw_cut_off() ) )
-   CPXcallbackabort( context );
-  }
- else {
-  // a maximization problem: solv is a lower bound and bndv is an upper bound
-  if( solv <= -1e+75 )
-   solv = - Inf< double >();
-
-  if( bndv >= 1e+75 )
-   bndv = Inf< double >();
-  
-  if( ( solv >= CMS->up_cut_off() ) || ( bndv <= CMS->lw_cut_off() ) )
-   CPXcallbackabort( context );
-  }
-
- return( 0 );
+ // just defer to the class method
+ return( static_cast< CPXMILPSolver * >( userhandle
+					 )->callback( context , contextid ) );
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-CPXMILPSolver::CPXMILPSolver( void ) : MILPSolver() ,
-  UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
+CPXMILPSolver::CPXMILPSolver( void ) :
+ MILPSolver() , env( nullptr ) , lp( nullptr ) , f_callback_set( false ) ,
+ throw_reduced_cost_exception( 0 ) , CutSepPar( 0 ) ,
+ UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
 {
  int status = 0;
  env = CPXopenCPLEX( & status );
- if( env == nullptr )
+ if( ! env )
   throw( std::runtime_error( "CPXopenCPLEX returned with status " +
 			     std::to_string( status ) ) );
-
  lp = nullptr;
  #ifdef MILPSOLVER_DEBUG
   CPXsetintparam( env , CPXPARAM_Read_DataCheck , CPX_DATACHECK_WARN );
@@ -122,10 +91,13 @@ CPXMILPSolver::CPXMILPSolver( void ) : MILPSolver() ,
 
 CPXMILPSolver::~CPXMILPSolver()
 {
- if( lp )
-  CPXfreeprob( env, &lp );
+ for( auto el : v_ConfigDB )
+  delete el;
 
- CPXcloseCPLEX( &env );
+ if( lp )
+  CPXfreeprob( env , & lp );
+
+ CPXcloseCPLEX( & env );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -149,7 +121,7 @@ void CPXMILPSolver::clear_problem( unsigned int what )
  MILPSolver::clear_problem( 0 );
 
  if( lp )
-  CPXfreeprob( env, &lp );
+  CPXfreeprob( env , & lp );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -159,20 +131,20 @@ void CPXMILPSolver::load_problem( void )
  MILPSolver::load_problem();
 
  int status = 0;
- lp = CPXcreateprob( env, &status, prob_name.c_str() );
+ lp = CPXcreateprob( env , & status , prob_name.c_str() );
 
  std::vector< double > cpx_lb = lb;
  std::vector< double > cpx_ub = ub;
  std::vector< double > cpx_rhs = rhs;
 
- for( int i = 0; i < numcols; ++i ) {
+ for( int i = 0 ; i < numcols ; ++i ) {
   if( cpx_lb[ i ] == -Inf< double >() )
    cpx_lb[ i ] = -CPX_INFBOUND;
   if( cpx_ub[ i ] == Inf< double >() )
    cpx_ub[ i ] = CPX_INFBOUND;
   }
 
- for( int i = 0; i < numrows; ++i ) {
+ for( int i = 0 ; i < numrows ; ++i ) {
   if( cpx_rhs[ i ] == -Inf< double >() )
    cpx_rhs[ i ] = -CPX_INFBOUND;
   else
@@ -195,31 +167,31 @@ void CPXMILPSolver::load_problem( void )
 
  bool is_qp = std::any_of( q_objective.begin() ,
                            q_objective.end() ,
-                           []( double d ) { return d != 0; } );
+                           []( double d ) { return( d != 0 ); } );
  if( is_qp ) {
   // CPLEX evaluates the corresponding objective with a factor
   // of 0.5 in front of the quadratic objective term.
   std::vector< double > double_q_obj = q_objective;
-  for( auto & i : double_q_obj ) {
-   i = i * 2;
-   }
+  for( auto & qi : double_q_obj )
+   qi *= 2;
 
-  // Adding q_objective information automatically changes the problem type
+  // adding q_objective information automatically changes the problem type
   // from linear to quadratic
   CPXcopyqpsep( env , lp , double_q_obj.data() );
   }
 
- // Adding ctype information automatically changes the problem type
+ // adding ctype information automatically changes the problem type
  // from continuous to mixed integer
  if( int_vars > 0 )
-  CPXcopyctype( env, lp, xctype.data() );
+  CPXcopyctype( env , lp , xctype.data() );
 
- // The base representation isn't needed anymore
+ // the base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
 
  UpCutOff = Inf< double >();
  LwCutOff = - Inf< double >();
- }
+
+ }  // end( CPXMILPSolver::load_problem )
 
 /*--------------------------------------------------------------------------*/
 
@@ -247,20 +219,23 @@ double CPXMILPSolver::get_problem_ub( const ColVariable & var )
 
 int CPXMILPSolver::compute( bool changedvars )
 {
+ lock();  // lock the mutex: this is done again inside MILPSolver::compute,
+          // but that's OK since the mutex is recursive
+
+ // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
  if( MILPSolver::compute( changedvars ) != kOK )
-  throw( std::runtime_error( "An error occurred in MILPSolver::compute()" ) );
+  throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
 
- int status = 0;
- bool is_qp = false;
-
+ // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() )
   CPXwriteprob( env , lp , output_file.c_str() , "LP" );
 
- int probtype = CPXgetprobtype( env, lp );
- switch( probtype ) {
+ // figure out which API function is to be called - - - - - - - - - - - - - -
+ bool is_qp = false;
+ switch( CPXgetprobtype( env , lp ) ) {
   case( CPXPROB_LP ):
    // DEBUG_LOG( "CPLEX problem type: LP" << std::endl );
-   break;
+   // break;
   case( CPXPROB_MILP ):
    // DEBUG_LOG( "CPLEX problem type: MILP" << std::endl );
    break;
@@ -269,12 +244,12 @@ int CPXMILPSolver::compute( bool changedvars )
    break;
   case( CPXPROB_QP ):
    // DEBUG_LOG( "CPLEX problem type: QP" << std::endl );
-   is_qp = true;
-   break;
+   // is_qp = true;
+   // break;
   case( CPXPROB_MIQP ):
    // DEBUG_LOG( "CPLEX problem type: MIQP" << std::endl );
-   is_qp = true;
-   break;
+   // is_qp = true;
+   // break;
   case( CPXPROB_FIXEDMIQP ):
    // DEBUG_LOG( "CPLEX problem type: FIXEDMIQP" << std::endl );
    is_qp = true;
@@ -289,45 +264,55 @@ int CPXMILPSolver::compute( bool changedvars )
    throw( std::runtime_error( "Undefined CPLEX problem type" ) );
   }
 
- if( int_vars > 0 ) {  // the MIP case - - - - - - - - - - - - - - - - - - - -
+ // the actual call to CPLEX- - - - - - - - - - - - - - - - - - - - - - - - -
 
-  if( ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) )
-   CPXcallbacksetfunc( env , lp , CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ,
-		       & CPXMILPSolver_callback , this );
+ if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
+
+  if( ( CutSepPar & 7 ) ||
+      ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
+   // the callback has to be set
+   CPXLONG cntxt = 0;
+   if( ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) )
+    cntxt = CPX_CALLBACKCONTEXT_LOCAL_PROGRESS
+          | CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS;
+   if( CutSepPar & 3 )
+    cntxt |= CPX_CALLBACKCONTEXT_RELAXATION;
+   if( CutSepPar & 4 )
+    cntxt |= CPX_CALLBACKCONTEXT_CANDIDATE;
+   
+   CPXcallbacksetfunc( env , lp , cntxt , & CPXMILPSolver_callback , this );
+   f_callback_set = true;
+   }
   else
-   CPXcallbacksetfunc( env , lp , CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ,
-		       nullptr , this );
-
-  status = CPXmipopt( env , lp );
-  if( status ) {  // Error
-   if( status == CPXERR_SUBPROB_SOLVE ) {
-    int substatus = CPXgetsubstat( env , lp );
-    sol_status = decode_lqp_status( substatus );
+   if( f_callback_set ) {    // the callback was set
+    CPXcallbacksetfunc( env , lp , 0 , nullptr , nullptr );  // un-set it
+    f_callback_set = false;
     }
+
+  if( int status = CPXmipopt( env , lp ) ) {  // error
+   if( status == CPXERR_SUBPROB_SOLVE )
+    sol_status = decode_lqp_status( CPXgetsubstat( env , lp ) );
    else
     sol_status = decode_cpx_error( status );
 
-   return( sol_status );
+   goto Return_status;
    }
 
-  status = CPXgetstat( env , lp );
-  sol_status = decode_mip_status( status );
-  return( sol_status );
+  sol_status = decode_mip_status( CPXgetstat( env , lp ) );
+  goto Return_status;
   }
 
- // the continuous case- - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( is_qp )
-  status = CPXqpopt( env , lp );
- else
-  status = CPXlpopt( env , lp );
+ // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- if( status ) {  // Error
-  sol_status = decode_cpx_error( status );
-  return( sol_status );
+ if( int status = is_qp ? CPXqpopt( env , lp ) : CPXlpopt( env , lp ) ) {
+  sol_status = decode_cpx_error( status );  // error
+  goto Return_status;
   }
 
- status = CPXgetstat( env , lp );
- sol_status = decode_lqp_status( status );
+ sol_status = decode_lqp_status( CPXgetstat( env , lp ) );
+
+ Return_status:
+ unlock();  // unlock the mutex
  return( sol_status );
 
  }  // end( CPXMILPSolver::compute )
@@ -421,7 +406,7 @@ int CPXMILPSolver::decode_mip_status( int status )
   default:;
   }
 
- throw( std::runtime_error( "CPXgetstat() returned an unknown status: " +
+ throw( std::runtime_error( "CPXgetstat() returned unknown status " +
 			    std::to_string( status ) ) );
  }
 
@@ -513,24 +498,23 @@ int CPXMILPSolver::decode_lqp_status( int status )
    // case CPX_STAT_OPTIMAL_RELAXED_QUAD:
    // case CPX_STAT_OPTIMAL_RELAXED_SUM:
   default:;
- }
+  }
 
- throw std::runtime_error( "CPXgetstat() returned an unknown status: " +
+ throw std::runtime_error( "CPXgetstat() returned unknown status " +
                            std::to_string( status ) );
-}
+ }
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::decode_cpx_error( int error ) {
+int CPXMILPSolver::decode_cpx_error( int error )
+{
  DEBUG_LOG( "CPLEX returned " << error << std::endl );
 
- /*
-  * The following symbols represent error codes returned by CPLEX,
-  * for example by CPXlpopt(), CPXqpopt() and CPXmipopt().
-  * Not all codes are returned by all the methods, and it's impossible
-  * to know what returns what without doing extensive tests.
-  * So we are implementing just the ones we encounter as we go.
- */
+ /* The following symbols represent error codes returned by CPLEX, for
+  * example by CPXlpopt(), CPXqpopt() and CPXmipopt(). Not all codes are
+  * returned by all the methods, and it's hard to know what returns what
+  * without doing extensive tests. So we are implementing just the ones we
+  * encounter as we go. */
  switch( error ) {
   // case CPXERR_ABORT_STRONGBRANCH:
   // case CPXERR_ADJ_SIGN_QUAD:
@@ -785,32 +769,22 @@ int CPXMILPSolver::decode_cpx_error( int error ) {
    // case CPXERR_XMLPARSE:
   }
 
- throw( std::runtime_error( "CPLEX returned an unmanaged error: " +
+ throw( std::runtime_error( "CPLEX returned unmanaged error " +
 			    std::to_string( error ) ) );
  }
 
 /*--------------------------------------------------------------------------*/
 
-Solver::OFValue CPXMILPSolver::get_lb() {
-
+Solver::OFValue CPXMILPSolver::get_lb( void )
+{
  OFValue lower_bound = 0;
- int probtype = CPXgetprobtype( env, lp );
+ int probtype = CPXgetprobtype( env , lp );
 
  switch( CPXgetobjsen( env, lp ) ) {
-
-  // Minimization problem
-  case CPX_MIN:
-
+  case CPX_MIN:  // Minimization problem- - - - - - - - - - - - - - - - - - -
    switch( sol_status ) {
-
-    case kUnbounded:
-     lower_bound = -Inf< OFValue >();
-     break;
-
-    case kInfeasible:
-     lower_bound = Inf< OFValue >();
-     break;
-
+    case kUnbounded:  lower_bound = -Inf< OFValue >(); break;
+    case kInfeasible: lower_bound = Inf< OFValue >();  break;
     case kOK:
     case kStopIter:
     case kStopTime:
@@ -819,12 +793,12 @@ Solver::OFValue CPXMILPSolver::get_lb() {
       case CPXPROB_MIQP:
       case CPXPROB_FIXEDMILP:
       case CPXPROB_FIXEDMIQP:
-       CPXgetbestobjval( env, lp, &lower_bound );
+       CPXgetbestobjval( env , lp , & lower_bound );
        break;
       default:
        // FIXME: It's unclear how to get a lb for a continuous problem here
-       CPXgetobjval( env, lp, &lower_bound );
-     }
+       CPXgetobjval( env , lp , & lower_bound );
+      }
      break;
 
     default:
@@ -834,21 +808,13 @@ Solver::OFValue CPXMILPSolver::get_lb() {
      // Therefore, in this case, the lower bound should be -Inf.
      lower_bound = -Inf< OFValue >();
      break;
-   }
+    }
    break;
 
-   // Maximization problem
-  case CPX_MAX:
-
+  case CPX_MAX:  // Maximization problem- - - - - - - - - - - - - - - - - - -
    switch( sol_status ) {
-
-    case kUnbounded:
-     lower_bound = Inf< OFValue >();
-     break;
-
-    case kInfeasible:
-     lower_bound = -Inf< OFValue >();
-     break;
+    case kUnbounded:  lower_bound = Inf< OFValue >(); break;
+    case kInfeasible: lower_bound = -Inf< OFValue >(); break;
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
@@ -859,24 +825,22 @@ Solver::OFValue CPXMILPSolver::get_lb() {
       break;
       }
 
-    case kOK:
-     CPXgetobjval( env, lp, &lower_bound );
-     break;
+    case kOK: CPXgetobjval( env, lp, &lower_bound ); break;
 
     default:
      // Same as above
      lower_bound = -Inf< OFValue >();
      break;
-   }
+    }
    break;
 
   default:
    throw std::runtime_error( "Objective type not yet defined" );
    break;
- }
+  }
 
- return lower_bound;
-}
+ return( lower_bound );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -885,19 +849,11 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
  OFValue upper_bound = 0;
  int probtype = CPXgetprobtype( env , lp );
 
- switch( CPXgetobjsen( env, lp ) ) {
-  // Minimization problem
-  case CPX_MIN:
-
+ switch( CPXgetobjsen( env , lp ) ) {
+  case CPX_MIN:  // Minimization problem- - - - - - - - - - - - - - - - - - -
    switch( sol_status ) {
-
-    case kUnbounded:
-     upper_bound = -Inf< OFValue >();
-     break;
-
-    case kInfeasible:
-     upper_bound = Inf< OFValue >();
-     break;
+    case kUnbounded:  upper_bound = -Inf< OFValue >(); break;
+    case kInfeasible: upper_bound = Inf< OFValue >(); break;
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
@@ -908,9 +864,7 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       break;
       }
 
-    case kOK:
-     CPXgetobjval( env, lp, &upper_bound );
-     break;
+    case kOK: CPXgetobjval( env , lp , & upper_bound ); break;
 
     default:
      // If Cplex does not state that an optimal solution has been found
@@ -922,18 +876,10 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     }
    break;
 
-   // Maximization problem
-  case CPX_MAX:
-
+  case CPX_MAX:  // Maximization problem- - - - - - - - - - - - - - - - - - -
    switch( sol_status ) {
-
-    case kUnbounded:
-     upper_bound = Inf< OFValue >();
-     break;
-
-    case kInfeasible:
-     upper_bound = -Inf< OFValue >();
-     break;
+    case kUnbounded:  upper_bound = Inf< OFValue >(); break;
+    case kInfeasible: upper_bound = -Inf< OFValue >(); break;
 
     case kOK:
     case kStopIter:
@@ -943,12 +889,12 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       case CPXPROB_MIQP:
       case CPXPROB_FIXEDMILP:
       case CPXPROB_FIXEDMIQP:
-       CPXgetbestobjval( env, lp, &upper_bound );
+       CPXgetbestobjval( env , lp , & upper_bound );
        break;
       default:
        // FIXME: It's unclear how to get a ub for a continuous problem here
-       CPXgetobjval( env, lp, &upper_bound );
-     }
+       CPXgetobjval( env , lp , & upper_bound );
+      }
      break;
 
     default:
@@ -990,11 +936,10 @@ bool CPXMILPSolver::has_var_solution( void )
 
 bool CPXMILPSolver::is_var_feasible( void )
 {
- int solnmethod, solntype, pfeasind, dfeasind;
- int status = CPXsolninfo( env , lp , & solnmethod , & solntype ,
-                           & pfeasind , & dfeasind );
- if( status )
-  throw( std::runtime_error( "An error occurred in CPXsolninfo()" ) );
+ int solnmethod , solntype , pfeasind , dfeasind;
+ if( CPXsolninfo( env , lp , & solnmethod , & solntype ,
+		  & pfeasind , & dfeasind ) )
+  throw( std::runtime_error( "an error occurred in CPXsolninfo()" ) );
 
  return( bool( pfeasind ) );
  }
@@ -1015,55 +960,43 @@ Solver::OFValue CPXMILPSolver::get_var_value( void )
 void CPXMILPSolver::get_var_solution( Configuration * solc )
 {
  std::vector< double > x( numcols , 0 );
- int status = CPXgetx( env , lp , x.data() , 0 , numcols - 1 );
- if( status )
+ if( CPXgetx( env , lp , x.data() , 0 , numcols - 1 ) )
   throw( std::runtime_error( "Unable to get the solution with CPXgetx()" ) );
 
+ get_var_solution( x );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::get_var_solution( const std::vector< double > & x )
+{
  int col = 0;
- int col_dynamic = static_vars;
+ int dcol = static_vars;
 
- std::queue< Block * > Q;
-
- bool owned = f_Block->is_owned_by( f_id );
- if( ! owned && ! f_Block->lock( f_id ) )
-  throw( std::runtime_error( "Unable to lock the Block" ) );
-
- auto set = [ &x, &col ]( ColVariable & v ) {
+ auto set = [ & x , & col ]( ColVariable & v ) {
   v.set_value( x[ col++ ] );
   };
 
- auto set_dynamic = [ &x, &col_dynamic ]( ColVariable & v ) {
-  v.set_value( x[ col_dynamic++ ] );
+ auto setd = [ & x , & dcol ]( ColVariable & v ) {
+  v.set_value( x[ dcol++ ] );
   };
 
- Q.push( f_Block );
+ for( auto qb : v_BFS ) {
+  for( const auto & vi : qb->get_static_variables() )
+   un_any_const_static( vi , set , un_any_type< ColVariable >() );
 
- while( ! Q.empty() ) {
-  Block * q_Block = Q.front();
-  Q.pop();
-
-  for( auto * i : q_Block->get_nested_Blocks() )
-   Q.push( i );
-
-  for( const auto & i : q_Block->get_static_variables() )
-   un_any_const_static( i, set, un_any_type< ColVariable >() );
-
-  for( const auto & i : q_Block->get_dynamic_variables() )
-   un_any_const_dynamic( i, set_dynamic, un_any_type< ColVariable >() );
+  for( const auto & vi : qb->get_dynamic_variables() )
+   un_any_const_dynamic( vi , setd , un_any_type< ColVariable >() );
   }
-
- if( ! owned )
-  f_Block->unlock( f_id );
  }
 
 /*--------------------------------------------------------------------------*/
 
 bool CPXMILPSolver::has_dual_solution( void )
 {
- int solnmethod, solntype, pfeasind, dfeasind;
- int status = CPXsolninfo( env , lp , & solnmethod , & solntype ,
-                           & pfeasind , & dfeasind );
- if( status )
+ int solnmethod , solntype , pfeasind , dfeasind;
+ if( CPXsolninfo( env , lp , & solnmethod , & solntype ,
+		  & pfeasind , & dfeasind ) )
   throw( std::runtime_error( "An error occurred in CPXsolninfo()" ) );
 
  switch( solntype ) {
@@ -1079,72 +1012,49 @@ bool CPXMILPSolver::has_dual_solution( void )
 
 /*--------------------------------------------------------------------------*/
 
-bool CPXMILPSolver::is_dual_feasible()
+bool CPXMILPSolver::is_dual_feasible( void )
 {
- int solnmethod, solntype, pfeasind, dfeasind;
- int status = CPXsolninfo( env , lp , & solnmethod , & solntype ,
-                           & pfeasind , & dfeasind );
- if( status )
-  throw( std::runtime_error( "An error occurred in CPXsolninfo()" ) );
+ int solnmethod , solntype , pfeasind , dfeasind;
+ if( CPXsolninfo( env , lp , & solnmethod , & solntype ,
+		  & pfeasind , & dfeasind ) )
+  throw( std::runtime_error( "an error occurred in CPXsolninfo()" ) );
 
  return( bool( dfeasind ) );
  }
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
- std::vector< double > pi( numrows, 0 );
- std::vector< double > dj( numcols, 0 );
- int status;
+void CPXMILPSolver::get_dual_solution( Configuration * solc )
+{
+ std::vector< double > pi( numrows , 0 );
+ std::vector< double > dj( numcols , 0 );
 
- status = CPXgetpi( env, lp, pi.data(), 0, numrows - 1 );
- if( status ) {
-  throw std::runtime_error( "Unable to get the dual values with CPXgetpi()" );
- }
+ if( CPXgetpi( env , lp , pi.data() , 0 , numrows - 1 ) )
+  throw( std::runtime_error( "Unable to get dual values with CPXgetpi()" ) );
 
- status = CPXgetdj( env, lp, dj.data(), 0, numcols - 1 );
- if( status ) {
-  throw std::runtime_error( "Unable to get the dual multipliers with CPXgetdj()" );
- }
-
- bool owned = f_Block->is_owned_by( f_id );
- if( !owned && !f_Block->lock( f_id ) ) {
-  throw std::runtime_error( "Unable to lock the Block" );
- }
-
+ if( CPXgetdj( env , lp , dj.data() , 0 , numcols - 1 ) )
+  throw( std::runtime_error( "Unable to get reduced costs with CPXgetdj()"
+			     ) );
  int row = 0;
  int row_dynamic = static_cons;
 
- auto set = [ &pi, &row ]( FRowConstraint & c ) {
+ auto set = [ & pi , & row ]( FRowConstraint & c ) {
   c.set_dual( pi[ row++ ] );
- };
+  };
 
- auto set_dynamic = [ &pi, &row_dynamic ]( FRowConstraint & c ) {
+ auto set_dynamic = [ & pi , & row_dynamic ]( FRowConstraint & c ) {
   c.set_dual( pi[ row_dynamic++ ] );
- };
+  };
 
- std::queue< Block * > Q;
+ for( auto qb : v_BFS ) {
+  for( const auto & ci : qb->get_static_constraints() )
+   un_any_const_static( ci , set , un_any_type< FRowConstraint >() );
 
- Q.push( f_Block );
-
- while( !Q.empty() ) {
-  Block * q_Block = Q.front();
-  Q.pop();
-
-  for( auto * i : q_Block->get_nested_Blocks() ) {
-   Q.push( i );
+  for( const auto & ci : qb->get_dynamic_constraints() )
+   un_any_const_dynamic( ci, set_dynamic, un_any_type< FRowConstraint >() );
   }
 
-  for( const auto & i : q_Block->get_static_constraints() ) {
-   un_any_const_static( i, set, un_any_type< FRowConstraint >() );
-  }
-
-  for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   un_any_const_dynamic( i, set_dynamic, un_any_type< FRowConstraint >() );
-  }
- }
-
- for( int i = 0; i < numcols; ++i ) {
+ for( int i = 0 ; i < numcols ; ++i ) {
 
   auto var = variable_with_index( i );
   auto active_bounds = get_active_bounds( *var );
@@ -1158,13 +1068,11 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
 
   const auto var_is_fixed = var->is_fixed();
   if( var_is_fixed ) {
-   /*
-    * The Variable is fixed. There should be at least one OneVarConstraint
+   /* The Variable is fixed. There should be at least one OneVarConstraint
     * (for this Variable) whose lower and upper bounds are equal to the value
     * of this Variable. If such OneVarConstraint exists, the reduced cost of
     * this Variable will be dual of that OneVarConstraint. If there is no such
-    * OneVarConstraint, the reduced cost of this variable will be lost.
-    */
+    * OneVarConstraint, the reduced cost of this variable will be lost. */
    var_lb = var->get_value();
    var_ub = var->get_value();
 
@@ -1173,146 +1081,113 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc ) {
     if( b->get_lhs() == var_lb && b->get_rhs() == var_lb ) {
      lhs_con = b;
      rhs_con = b;
+     }
     }
-   }
 
    assert( lhs_con == rhs_con );
-
-  } else {
-   // A non-fixed Variable
+   }
+  else {  // a non-fixed Variable
    for( auto b: active_bounds ) {
     b->set_dual( 0 );
 
     if( b->get_lhs() >= var_lb ) {
      var_lb = b->get_lhs();
      lhs_con = b;
-    }
+     }
 
     if( b->get_rhs() <= var_ub ) {
      var_ub = b->get_rhs();
      rhs_con = b;
+     }
     }
    }
-  }
 
-  if( lhs_con && dj[ i ] >= 0 ) {
+  if( lhs_con && ( dj[ i ] >= 0 ) )
    lhs_con->set_dual( dj[ i ] );
-  } else if( rhs_con && dj[ i ] <= 0 ) {
-   rhs_con->set_dual( dj[ i ] );
-  } else if( lhs_con || rhs_con ) {
-   throw std::logic_error( "CPXMILPSolver::get_dual_solution: invalid dual value." );
-  }
+  else
+   if( rhs_con && ( dj[ i ] <= 0 ) )
+    rhs_con->set_dual( dj[ i ] );
+   else
+    if( lhs_con || rhs_con )
+     throw( std::logic_error(
+	       "CPXMILPSolver::get_dual_solution: invalid dual value." ) );
 
   if( throw_reduced_cost_exception ) {
-   if( var_is_fixed && !lhs_con && var_lb != 0 ) {
-    /*
-     * The Variable is fixed but it has no associated OneVarConstraint
-     * with both bounds equal to the value of the Variable.
-     */
+   if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
+    /* The Variable is fixed but it has no associated OneVarConstraint
+     * with both bounds equal to the value of the Variable. */
 
     throw std::logic_error(
      "CPXMILPSolver::get_dual_solution: variable with index " +
      std::to_string( i ) + " is fixed to " +
      std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
      "with both bounds equal to the value of this variable." );
-
-   } else if( !var_is_fixed && !lhs_con && !rhs_con ) {
-    /*
-     * The Variable is not fixed and it has no associated OneVarConstraint.
-     * An exception is thrown if it has a finite nonzero bound.
-     */
-
-    if( ( var_lb != 0 && std::abs( var_lb ) < Inf< double >() ) ||
-        ( var_ub != 0 && std::abs( var_ub ) < Inf< double >() ) ) {
-     throw std::logic_error(
-      "CPXMILPSolver::get_dual_solution: variable with index " +
-      std::to_string( i ) + " has no OneVarConstraint." );
     }
+   else
+    if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
+     /* The Variable is not fixed and it has no associated OneVarConstraint.
+      * An exception is thrown if it has a finite nonzero bound. */
 
+     if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
+	 ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
+      throw( std::logic_error(
+                "CPXMILPSolver::get_dual_solution: variable with index " +
+		std::to_string( i ) + " has no OneVarConstraint." ) );
+     }
    }
   }
- }
-
- if( ! owned )
-  f_Block->unlock( f_id );
- }
+ }  // end( CPXMILPSolver::get_dual_solution )
 
 /*--------------------------------------------------------------------------*/
 
 bool CPXMILPSolver::has_dual_direction( void )
 {
- std::vector< double > y( numrows, 0 );
+ std::vector< double > y( numrows , 0 );
  double proof = 0;
- int status = CPXdualfarkas( env , lp , y.data() , & proof );
- return( ! bool( status ) );
+ return( ! bool( CPXdualfarkas( env , lp , y.data() , & proof ) ) );
  }
 
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_direction( Configuration * dirc )
 {
- std::vector< double > y( numrows, 0 );
- std::vector< double > dj( numcols, 0 );
- double proof = 0;
- int status;
+ std::vector< double > y( numrows , 0 );
+ std::vector< double > dj( numcols , 0 );
 
  // CPXdualfarkas gives a Farkas certificate y so that:
  // y' * A * x >= y' * b
  //   If it is a <= constraint then y[i] <= 0 holds;
  //   If it is a >= constraint then y[i] >= 0 holds.
- status = CPXdualfarkas( env, lp, y.data(), &proof );
 
- if( status ) {
-  throw std::runtime_error( "An error occurred in CPXdualfarkas()" );
- }
+ double proof = 0;
+ if( CPXdualfarkas( env , lp , y.data() , & proof ) )
+  throw( std::runtime_error( "an error occurred in CPXdualfarkas()" ) );
 
  // CPXdjfrompi computes reduced costs from dual values
  // dj = c - A'y
- status = CPXdjfrompi( env, lp, y.data(), dj.data() );
 
- if( status ) {
-  throw std::runtime_error( "An error occurred in CPXdjfrompi()" );
- }
-
- bool owned = f_Block->is_owned_by( f_id );
- if( !owned && !f_Block->lock( f_id ) ) {
-  throw std::runtime_error( "Unable to lock the Block" );
- }
+ if( CPXdjfrompi( env , lp , y.data() , dj.data() ) )
+  throw( std::runtime_error( "an error occurred in CPXdjfrompi()" ) );
 
  int row = 0;
  int row_dynamic = static_cons;
-
- auto set = [ &y, &row ]( FRowConstraint & c ) {
+ auto set = [ & y , & row ]( FRowConstraint & c ) {
   c.set_dual( y[ row++ ] );
- };
+  };
 
- auto set_dynamic = [ &y, &row_dynamic ]( FRowConstraint & c ) {
+ auto set_dynamic = [ & y , & row_dynamic ]( FRowConstraint & c ) {
   c.set_dual( y[ row_dynamic++ ] );
- };
+  };
 
- std::queue< Block * > Q;
+ for( auto qb : v_BFS ) {
+  for( const auto & ci : qb->get_static_constraints() )
+   un_any_const_static( ci , set , un_any_type< FRowConstraint >() );
 
- Q.push( f_Block );
-
- while( !Q.empty() ) {
-  Block * q_Block = Q.front();
-  Q.pop();
-
-  for( auto * i : q_Block->get_nested_Blocks() ) {
-   Q.push( i );
+  for( const auto & ci : qb->get_dynamic_constraints() )
+   un_any_const_dynamic( ci , set_dynamic , un_any_type< FRowConstraint >() );
   }
 
-  for( const auto & i : q_Block->get_static_constraints() ) {
-   un_any_const_static( i, set, un_any_type< FRowConstraint >() );
-  }
-
-  for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   un_any_const_dynamic( i, set_dynamic, un_any_type< FRowConstraint >() );
-  }
- }
-
- for( int i = 0; i < numcols; ++i ) {
-
+ for( int i = 0 ; i < numcols ; ++i ) {
   // Bounds that will have the dual value set.
   OneVarConstraint * lhs_con = nullptr;
   OneVarConstraint * rhs_con = nullptr;
@@ -1325,84 +1200,75 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
 
   const auto var_is_fixed = var->is_fixed();
   if( var_is_fixed ) {
-   /*
-    * The Variable is fixed. There should be at least one OneVarConstraint
+   /* The Variable is fixed. There should be at least one OneVarConstraint
     * (for this Variable) whose lower and upper bounds are equal to the value
     * of this Variable. If such a OneVarConstraint exists, the reduced cost of
     * this Variable will be dual of that OneVarConstraint. If there is no such
-    * OneVarConstraint, the reduced cost of this variable will be lost.
-    */
+    * OneVarConstraint, the reduced cost of this variable will be lost. */
    var_lb = var->get_value();
    var_ub = var->get_value();
 
    for( auto b: active_bounds ) {
     b->set_dual( 0 );
-    if( b->get_lhs() == var_lb && b->get_rhs() == var_lb ) {
+    if( ( b->get_lhs() == var_lb ) && ( b->get_rhs() == var_lb ) ) {
      lhs_con = b;
      rhs_con = b;
+     }
     }
-   }
 
    assert( lhs_con == rhs_con );
-
-  } else {
-   // A non-fixed Variable
-   for( auto b: active_bounds ) {
+   }
+  else {  // A non-fixed Variable
+   for( auto b : active_bounds ) {
     b->set_dual( 0 );
 
     if( b->get_lhs() >= var_lb ) {
      var_lb = b->get_lhs();
      lhs_con = b;
-    }
+     }
 
     if( b->get_rhs() <= var_ub ) {
      var_ub = b->get_rhs();
      rhs_con = b;
+     }
     }
    }
-  }
 
-  if( lhs_con && dj[ i ] >= 0 ) {
+  if( lhs_con && ( dj[ i ] >= 0 ) )
    lhs_con->set_dual( dj[ i ] );
-  } else if( rhs_con && dj[ i ] <= 0 ) {
-   rhs_con->set_dual( dj[ i ] );
-  } else if( lhs_con || rhs_con ) {
-   throw std::logic_error( "CPXMILPSolver::get_dual_direction: invalid dual value." );
-  }
+  else
+   if( rhs_con && ( dj[ i ] <= 0 ) )
+    rhs_con->set_dual( dj[ i ] );
+   else
+    if( lhs_con || rhs_con )
+     throw( std::logic_error(
+	       "CPXMILPSolver::get_dual_direction: invalid dual value" ) );
 
   if( throw_reduced_cost_exception ) {
-   if( var_is_fixed && ( !lhs_con ) && ( var_lb != 0 ) ) {
-    /*
-     * The Variable is fixed but it has no associated OneVarConstraint
-     * with both bounds equal to the value of the Variable.
-     */
+   if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
+    /* The Variable is fixed but it has no associated OneVarConstraint
+     * with both bounds equal to the value of the Variable. */
 
     throw std::logic_error(
      "CPXMILPSolver::get_dual_direction: variable with index " +
      std::to_string( i ) + " is fixed to " +
      std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
      "with both bounds equal to the value of this variable." );
-
-   } else if( !var_is_fixed && !lhs_con && !rhs_con ) {
-    /*
-     * The Variable is not fixed and it has no associated OneVarConstraint.
-     * An exception is thrown if it has a finite nonzero bound.
-     */
-
-    if( ( var_lb != 0 && std::abs( var_lb ) < Inf< double >() ) ||
-        ( var_ub != 0 && std::abs( var_ub ) < Inf< double >() ) ) {
-     throw std::logic_error(
-      "CPXMILPSolver::get_dual_direction: variable with index " +
-      std::to_string( i ) + " has no OneVarConstraint." );
     }
+   else
+    if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
+     /* The Variable is not fixed and it has no associated OneVarConstraint.
+      * An exception is thrown if it has a finite nonzero bound. */
+
+     if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
+	 ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
+      throw( std::logic_error(
+                "CPXMILPSolver::get_dual_direction: variable with index " +
+		std::to_string( i ) + " has no OneVarConstraint." ) );
+     }
    }
   }
- }
-
- if( !owned )
-  f_Block->unlock( f_id );
-
- }
+ }  // end( CPXMILPSolver::get_dual_direction )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1413,7 +1279,7 @@ void CPXMILPSolver::write_lp( const std::string & filename )
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::get_nodes() const
+int CPXMILPSolver::get_nodes( void ) const
 {
  return( CPXgetnodecnt( env , lp ) );
  }
@@ -1422,170 +1288,115 @@ int CPXMILPSolver::get_nodes() const
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::var_modification( VariableMod * mod )
+void CPXMILPSolver::var_modification( const VariableMod * mod )
 {
- try {
-  MILPSolver::var_modification( mod );
-  } catch( std::logic_error & e ) {}
+ bool was_mip = int_vars > 0;  // was a MIP before the change
 
- /* VariableMod class does not include any modification types, so we "refresh"
-  * all the CPLEX information for the variable. In particular we:
-  *
-  *  - reset the ctype (binary, integer, continuous)
-  *  - if the variable is fixed, we fix it in CPLEX by doing LHS = RHS
-  *  - if the variable is not fixed, we reset LHS and RHS values
-  *
-  * The CPLEX problem type must also be updated if we remove the last integer
-  * variable of a MIP or add a integer variable to a LP/QP. */
+ // call the method of MILPSolver to update dictionaries (and int_vars)
+ MILPSolver::var_modification( mod );
 
- auto * var = dynamic_cast<ColVariable *>(mod->variable());
- // TODO: Is dynamic_cast necessary?
- if( var == nullptr ) {
-  // TODO: Throw exception?
-  return;
- }
+ bool is_mip = int_vars > 0;  // is a MIP after the change
 
- int idx = index_of_variable( var );
- std::vector< int > indices( 2, idx );
+ auto * var = static_cast< ColVariable * >( mod->variable() );
+ auto idx = index_of_variable( var );
+ std::array< int , 2 > indices = { idx , idx };
 
- // Read old variable types
- std::vector< char > ctype;
- int is_mip = CPXgetintvars( &ctype );
+ // react to changes in the integrality - - - - - - - - - - - - - - - - - - -
+ if( ColVariable::is_integer( mod->old_state() ) !=
+     ColVariable::is_integer( mod->new_state() ) ) {
 
- // Read new variable type
- char new_ctype;
- if( var->is_integer() && !relax_int_vars ) {
-  if( var->is_unitary() && var->is_positive() ) {
-   new_ctype = 'B'; // Binary
-  } else {
-   new_ctype = 'I'; // Integer
+  // construct new variable type
+  char new_ctype;
+  if( var->is_integer() && ( ! relax_int_vars ) ) {
+   if( var->is_unitary() && var->is_positive() )
+    new_ctype = 'B'; // Binary
+   else
+    new_ctype = 'I'; // Integer
+   }
+  else
+   new_ctype = 'C';  // Continuous
+
+  if( is_mip )    // it is a MIP
+   if( was_mip )  // but it already was so, update only the one variable
+    CPXchgctype( env , lp , 1 , indices.data() , & new_ctype );
+   else {         // it was not a MIP
+    // the first integer variable is added
+    // all ctype values must be [re]added to the problem
+    switch( CPXgetprobtype( env, lp ) ) {
+     case CPXPROB_LP : CPXchgprobtype( env , lp , CPXPROB_MILP ); break;
+     case CPXPROB_QP : CPXchgprobtype( env , lp , CPXPROB_MIQP ); break;
+     default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
+     }
+
+    // all variables are continuous
+    std::vector< char > ctype( numcols , 'C' );
+    ctype[ idx ] = new_ctype;  // save the one that just became binary
+    CPXcopyctype( env , lp , ctype.data() );
+    }
+  else              // it is not a MIP
+   if( was_mip ) {  // but was so
+    // the last integer variable was removed, remove all ctype values
+    switch( CPXgetprobtype( env , lp ) ) {
+     case CPXPROB_LP :
+     case CPXPROB_QP :   break;
+     case CPXPROB_MILP :
+     case CPXPROB_FIXEDMILP : CPXchgprobtype( env , lp , CPXPROB_LP ); break;
+     case CPXPROB_MIQP :
+     case CPXPROB_FIXEDMIQP : CPXchgprobtype( env , lp , CPXPROB_QP ); break;
+     default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
+     }
+    // else do nothing, the problem stays continuous; besides this should
+    // never happen as the variable type has changed
+    }
+  }   // end( if( new integrality != old integrality ) )
+
+ // react to fix / unfix- - - - - - - - - - - - - - - - - - - - - - - - - - -
+ if( Variable::is_fixed( mod->old_state() ) !=
+     Variable::is_fixed( mod->new_state() ) ) {
+  if( Variable::is_fixed( mod->new_state() ) ) {  // fix the variable
+    static std::array< char , 1 > lu = { 'B' };
+    std::array< double , 1 > bd = { var->get_value() };
+    CPXchgbds( env , lp , 1 , indices.data() , lu.data() , bd.data() );
+    }
+   else {                                         // un fix the variable
+    static std::array< char , 2 > lu = { 'L' , 'U' };
+    std::array< double , 2 > bd = { get_problem_lb( *var ) ,
+				    get_problem_ub( *var ) };
+    CPXchgbds( env , lp , 2 , indices.data() , lu.data() , bd.data() );
+    }
   }
- } else {
-  new_ctype = 'C';  // Continuous
- }
- 
- // if the variable type has changed
- if( new_ctype != ctype[ idx ] ){ 
-  if( ctype[ idx ] == 'C' && ( new_ctype == 'B' || new_ctype == 'I' ) ){
-   ++is_mip; 
-  }
-  if( new_ctype == 'C' && ( ctype[ idx ] == 'B' || ctype[ idx ] == 'I' ) ){
-   --is_mip; 
-  }
- 
- // Update problem type
- if( is_mip == 0 ) {
-  // The last integer variable was removed, or the problem stays continuous
-  // This call removes all ctype values
-  switch( CPXgetprobtype( env, lp ) ) {
-   case CPXPROB_LP :
-   case CPXPROB_QP :
-    break;
-   case CPXPROB_MILP :
-   case CPXPROB_FIXEDMILP :
-    CPXchgprobtype( env, lp, CPXPROB_LP );
-    break;
-   case CPXPROB_MIQP :
-   case CPXPROB_FIXEDMIQP :
-    CPXchgprobtype( env, lp, CPXPROB_QP );
-    break;
-   default:
-    throw std::runtime_error( "Wrong CPLEX problem type" );
-  }
-
- } else if( is_mip == 1 ) {
-  // The first integer variable was added
-  // All ctype values must be [re]added to the problem
-  switch( CPXgetprobtype( env, lp ) ) {
-   case CPXPROB_LP : 
-    CPXchgprobtype( env, lp, CPXPROB_MILP );
-    break;
-   case CPXPROB_QP :
-    CPXchgprobtype( env, lp, CPXPROB_MIQP );
-    break;
-   default:{
-    throw std::runtime_error( "Wrong CPLEX problem type" );
-  }
-  }
-
-  ctype[ idx ] = new_ctype;
-  CPXcopyctype( env, lp, ctype.data() );
-
- } else {
-  // The problem stays a MIP, update only the one variable
-  CPXchgctype( env, lp, 1, indices.data(), &new_ctype );
- }
-
-} // end( if( new_ctype != ctype[ idx ] ) )
-
- // Update bounds
- std::vector< char > lu;
- std::vector< double > bd;
-
- if( var->is_fixed() ) {
-  lu.resize( 1 );
-  bd.resize( 1 );
-  lu[ 0 ] = 'B';
-  bd[ 0 ] = var->get_value();
-  CPXchgbds( env, lp, 1, indices.data(), lu.data(), bd.data() );
-
- } else {
-  lu.resize( 2 );
-  bd.resize( 2 );
-  lu[ 0 ] = 'L';
-  lu[ 1 ] = 'U';
-  bd[ 0 ] = get_problem_lb( *var );
-  bd[ 1 ] = get_problem_ub( *var );
-
-  CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
- }
-}
+ }  // end( CPXMILPSolver::var_modification )
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::objective_modification( ObjectiveMod * mod )
+void CPXMILPSolver::objective_modification( const ObjectiveMod * mod )
 {
- try {
-  MILPSolver::objective_modification( mod );
-  } catch( std::logic_error & e ) {}
+ // call the method of MILPSolver to update sense direction
+ MILPSolver::objective_modification( mod );
 
  /* ObjectiveMod class does not include any modification types except
   * for eSetMin and eSetMax.
   * To change OF coefficents, a FunctionMod must be used. */
 
  switch( mod->type() ) {
-
-  case ObjectiveMod::eSetMin:
-   CPXchgobjsen( env, lp, CPX_MIN );
-   break;
-
-  case ObjectiveMod::eSetMax:
-   CPXchgobjsen( env, lp, CPX_MAX );
-   break;
-
-  default:
-   throw std::invalid_argument( "Invalid type of ObjectiveMod" );
+  case ObjectiveMod::eSetMin: CPXchgobjsen( env , lp , CPX_MIN ); break;
+  case ObjectiveMod::eSetMax: CPXchgobjsen( env , lp , CPX_MAX ); break;
+  default: throw( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
+  }
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::const_modification( ConstraintMod * mod )
+void CPXMILPSolver::const_modification( const ConstraintMod * mod )
 {
- try {
-  MILPSolver::const_modification( mod );
-  } catch( std::logic_error & e ) {}
+ // no point in calling the method of MILPSolver, as it does nothing
+ // MILPSolver::const_modification( mod );
 
- /*
-  * To change the coefficents, a FunctionMod must be used.
-  */
+ /* To change the coefficents, a FunctionMod must be used. */
 
- auto * con = dynamic_cast<FRowConstraint *>(mod->constraint());
- // TODO: Is dynamic_cast necessary?
- if( con == nullptr ) {
-  // TODO: Throw exception?
+ auto * con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+ if( ! con )  // TODO: Throw exception?
   return;
- }
 
  int index = index_of_constraint( con );
  char sense;
@@ -1596,15 +1407,14 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod )
  RowConstraint::RHSValue con_rhs = NAN;
 
  switch( mod->type() ) {
-
   case ConstraintMod::eRelaxConst:
    // In order to relax the constraint all we do is transform it
    // into an inequality with RHS equal to infinity
 
    sense = 'G';
    rhs = -CPX_INFBOUND;
-   CPXchgrhs( env, lp, 1, &index, &rhs );
-   CPXchgsense( env, lp, 1, &index, &sense );
+   CPXchgrhs( env , lp , 1 , & index , & rhs );
+   CPXchgsense( env , lp , 1 , & index , & sense );
    break;
 
   case ConstraintMod::eEnforceConst:
@@ -1623,141 +1433,132 @@ void CPXMILPSolver::const_modification( ConstraintMod * mod )
    if( con_lhs == con_rhs ) {
     sense = 'E';
     rhs = con_rhs;
-   } else if( con_lhs == -Inf< double >() ) {
-    sense = 'L';
-    rhs = con_rhs;
-   } else if( con_rhs == Inf< double >() ) {
-    sense = 'G';
-    rhs = con_lhs;
-   } else {
-    sense = 'R';
-    rhs = con_lhs;
-    rngval = con_rhs - con_lhs;
-   }
+    }
+   else
+    if( con_lhs == -Inf< double >() ) {
+     sense = 'L';
+     rhs = con_rhs;
+     }
+    else
+     if( con_rhs == Inf< double >() ) {
+      sense = 'G';
+      rhs = con_lhs;
+      }
+     else {
+      sense = 'R';
+      rhs = con_lhs;
+      rngval = con_rhs - con_lhs;
+      }
 
-   CPXchgrhs( env, lp, 1, &index, &rhs );
-   CPXchgsense( env, lp, 1, &index, &sense );
-   if( sense == 'R' ) {
-    CPXchgrngval( env, lp, 1, &index, &rngval );
-   }
+   CPXchgrhs( env , lp , 1 , & index , & rhs );
+   CPXchgsense( env , lp , 1 , & index , & sense );
+   if( sense == 'R' )
+    CPXchgrngval( env , lp , 1 , & index , & rngval );
    break;
 
   default:
-   throw std::invalid_argument( "Invalid type of ConstraintMod" );
- }
-}
+   throw( std::invalid_argument( "Invalid type of ConstraintMod" ) );
+  }
+ }  // end( CPXMILPSolver::const_modification )
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::bound_modification( OneVarConstraintMod * mod )
+void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
 {
- try {
-  MILPSolver::bound_modification( mod );
-  } catch( std::logic_error & e ) {}
+ // no point in calling the method of MILPSolver, as it does nothing
+ // MILPSolver::bound_modification( mod );
 
  /* The same ColVariable can have more active OneVarConstraints,
   * so each time we modify one of them we have to check if LHS and RHS
   * of the Variable change. */
 
- auto * con = static_cast<OneVarConstraint *>(mod->constraint());
- auto * var = static_cast<ColVariable *>(con->get_active_var( 0 ));
-
- std::vector< int > indices( 2, index_of_variable( var ) );
- std::vector< char > lu;
- std::vector< double > bd;
-
+ static std::array< char , 2 > lu = { 'L' , 'U' };
+ 
+ auto * con = static_cast< OneVarConstraint * >( mod->constraint() );
+ auto * var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ auto vi = index_of_variable( var );
+ std::array< int , 2 > ind = { vi , vi };
+ 
  switch( mod->type() ) {
 
-  case RowConstraintMod::eChgLHS:
-   lu.resize( 1 );
-   bd.resize( 1 );
-   lu[ 0 ] = 'L';
-   bd[ 0 ] = get_problem_lb( *var );
-
-   CPXchgbds( env, lp, 1, indices.data(), lu.data(), bd.data() );
+  case RowConstraintMod::eChgLHS: {
+   std::array< double , 1 > bd = {  get_problem_lb( *var ) };
+   CPXchgbds( env , lp , 1 , ind.data() , lu.data() , bd.data() );
    break;
+   }
 
-  case RowConstraintMod::eChgRHS:
-   lu.resize( 1 );
-   bd.resize( 1 );
-   lu[ 0 ] = 'U';
-   bd[ 0 ] = get_problem_ub( *var );
-
-   CPXchgbds( env, lp, 1, indices.data(), lu.data(), bd.data() );
+  case RowConstraintMod::eChgRHS: {
+   std::array< double , 1 > bd = {  get_problem_ub( *var ) };
+   CPXchgbds( env , lp , 1 , ind.data() , lu.data() + 1 , bd.data() );
    break;
+   }
 
-  case RowConstraintMod::eChgBTS:
-   lu.resize( 2 );
-   bd.resize( 2 );
-   lu[ 0 ] = 'L';
-   lu[ 1 ] = 'U';
-   bd[ 0 ] = get_problem_lb( *var );
-   bd[ 1 ] = get_problem_ub( *var );
-
-   CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
+  case RowConstraintMod::eChgBTS: {
+   std::array< double , 2 > bd = {  get_problem_lb( *var ) ,
+				    get_problem_ub( *var ) };
+   CPXchgbds( env , lp , 2 , ind.data() , lu.data() , bd.data() );
    break;
+   }
 
   default:
-   throw std::invalid_argument( "Invalid type of OneVarConstraintMod" );
+   throw( std::invalid_argument( "Invalid type of OneVarConstraintMod" ) );
+  }
  }
-}
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::objective_function_modification( FunctionMod * mod )
+void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
 {
- try {
-  MILPSolver::objective_function_modification( mod );
-  } catch( std::logic_error & e ) {}
+ // no point in calling the method of MILPSolver, as it does nothing
+ // MILPSolver::objective_function_modification( mod );
 
  auto * f = mod->function();
 
  // TODO: Avoid fallback reloading - Why this doesn't work?
+ //
  // C05FunctionModLin
  // --------------------------------------------------------------------------
- // if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
+ // if( const auto * modl = dynamic_cast< C05FunctionModLin * >( mod ) ) {
  //
- //  if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+ //  if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
  //   // Linear objective function
  //
- //   for( int i = 0; i < modl->vars().size(); ++i ) {
- //    auto var = static_cast<const ColVariable *>(modl->vars()[ i ]);
+ //   for( int i = 0 ; i < modl->vars().size() ; ++i ) {
+ //    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
  //    auto idx = index_of_variable( var );
  //    double value;
  //
- //    CPXgetobj( env, lp, &value, idx, idx );
+ //    CPXgetobj( env , lp , & value , idx , idx );
  //    value += modl->delta()[ i ];
- //    CPXchgobj( env, lp, 1, &idx, &value );
- //   }
+ //    CPXchgobj( env , lp , 1 , & idx , & value );
+ //    }
  //
  //   update_problem_type( f );
  //   return;
- //  }
+ //   }
  //
  //  // This should never happen
  //  throw std::invalid_argument( "Unknown type of Objective Function" );
- // }
+ //  }
 
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------
  reload_objective( f );
- }
+
+ }  // end( CPXMILPSolver::objective_function_modification )
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::constraint_function_modification( FunctionMod * mod )
+void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
 {
- try {
-  MILPSolver::constraint_function_modification( mod );
-  } catch( std::logic_error & e ) {}
+ // no point in calling the method of MILPSolver, as it does nothing
+ // MILPSolver::constraint_function_modification( mod );
 
- auto * f = mod->function();
- const auto * lf = dynamic_cast< const LinearFunction * >( f );
+ auto * lf = dynamic_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
  auto * con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
- // TODO: Is dynamic_cast necessary?
  if( ! con )  // TODO: Throw exception?
   return;
 
@@ -1767,67 +1568,78 @@ void CPXMILPSolver::constraint_function_modification( FunctionMod * mod )
  // if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
  //  auto row = index_of_constraint( con );
  //
- //  for( int i = 0; i < modl->vars().size(); ++i ) {
- //   auto var = static_cast<const ColVariable *>(modl->vars()[ i ]);
+ //  for( Index i = 0 ; i < modl->vars().size() ; ++i ) {
+ //   auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
  //   auto col = index_of_variable( var );
  //   double value;
  //
- //   CPXgetcoef( env, lp, row, col, &value );
+ //   CPXgetcoef( env , lp , row , col , & value );
  //   value += modl->delta()[ i ];
  //   CPXchgcoeflist( env, lp, 1, &row, &col, &value );
- //  }
+ //   }
  //
- //  update_problem_type( f );
  //  return;
- // }
+ //  }
 
  // Fallback method - Reload all coefficients
  // --------------------------------------------------------------------------
 
- reload_constraint( f );
- }
+ reload_constraint( lf );
+
+ }  // end( CPXMILPSolver::constraint_function_modification )
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod )
+void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
 {
- try {
-  MILPSolver::objective_fvars_modification( mod );
-  } catch( std::logic_error & e ) {}
+ // this is called in response to Variable being added to / removed from the
+ // Objective; however, note that all Variable are supposed to exist at the
+ // time this is called, so index_of_variable() is always correct
+
+ // no point in calling the method of MILPSolver, as it does nothing
+ // MILPSolver::objective_fvars_modification( mod );
+
+ auto nv = mod->vars().size();
+ if( ! nv )
+  return;
+
+ // check the modification type
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+  throw( std::invalid_argument( "This type of FunctionModVars is not handled"
+				) );
+ std::vector< int > indices;
+ indices.reserve( nv );
+ std::vector< double > values;
+ values.reserve( nv );
 
  auto * f = mod->function();
+ auto nav = f->get_num_active_var();
 
- // Check the modification type
- if( dynamic_cast< C05FunctionModVarsAddd * >( mod ) == nullptr &&
-     dynamic_cast< C05FunctionModVarsRngd * >( mod ) == nullptr &&
-     dynamic_cast< C05FunctionModVarsSbst * >( mod ) == nullptr ) {
-  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
-  }
+ // while changing the coefficients, we have to be careful about the fact
+ // that Modification are managed asynchronously with the model changes
+ // although the added/removed Variable do exist in the internal data
+ // structure of [CPX]MILPSolver since the Modification are managed
+ // strictly in arrival order, they may no longer exist in the model;
+ // more to the point, they may no longer be active in the LinearFunction
 
- std::vector< int > indices;
- std::vector< double > values;
-
- indices.reserve( mod->vars().size() );
- values.reserve( mod->vars().size() );
-
- if( const auto * lf = dynamic_cast<const LinearFunction *> (f) ) {
+ if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function
 
   for( auto * v : mod->vars() ) {
-   auto var = static_cast<const ColVariable *>(v);
+   auto var = static_cast< const ColVariable * >( v );
    indices.push_back( index_of_variable( var ) );
 
    if( mod->added() ) {
-    auto value = lf->get_coefficient( lf->is_active( var ) );
-    values.push_back( value );
+    auto idx = lf->is_active( var );
+    values.push_back( idx < nav ? lf->get_coefficient( idx ) : 0 );
     }
    else
     values.push_back( 0 );
    }
 
-  if( indices.empty() )
-   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
-
+  CPXchgobj( env , lp , nv , indices.data() , values.data() );
   return;
   }
 
@@ -1836,176 +1648,178 @@ void CPXMILPSolver::objective_fvars_modification( FunctionModVars * mod )
 
   for( auto * v : mod->vars() ) {
    auto var = static_cast< const ColVariable * >( v );
-   indices.push_back( index_of_variable( var ) );
-   double q_value;
+   auto ind = index_of_variable( var );
+   indices.push_back( ind );
+   double value = 0;
+   double q_value = 0;
 
    if( mod->added() ) {
     auto idx = qf->is_active( var );
-    values.push_back( qf->get_linear_coefficient( idx ) );
-    q_value = qf->get_quadratic_coefficient( idx );
-    }
-   else {
-    values.push_back( 0 );
-    q_value = 0;
+    if( idx < nav ) {
+     value = qf->get_linear_coefficient( idx );
+     q_value = qf->get_quadratic_coefficient( idx );
+     }
     }
 
-   CPXchgqpcoef( env , lp , indices.back() , indices.back() , 2 * q_value );
+   values.push_back( value );
+   CPXchgqpcoef( env , lp , ind , ind , 2 * q_value );
    }
 
-  if( ! indices.empty() )
-   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
-
+  CPXchgobj( env , lp , nv , indices.data() , values.data() );
   return;
   }
 
  // This should never happen
  throw( std::invalid_argument( "Unknown type of Objective Function" ) );
- }
+
+ }  // end( CPXMILPSolver::objective_fvars_modification )
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::constraint_fvars_modification( FunctionModVars * mod )
+void CPXMILPSolver::constraint_fvars_modification(
+						const FunctionModVars * mod )
 {
- try {
-  MILPSolver::constraint_fvars_modification( mod );
-  } catch( std::logic_error & e ) {}
+ // this is called in response to Variable being added to / removed from the
+ // Constraint; however, note that all Variable are supposed to exist at the
+ // time this is called, so index_of_variable() is always correct
 
- auto * f = mod->function();
- const auto * lf = dynamic_cast< const LinearFunction * >( f );
+ // no point in calling the method of MILPSolver, as it does nothing
+ // MILPSolver::constraint_fvars_modification( mod );
+
+ auto * lf = dynamic_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
- // Check the modification type
- if( dynamic_cast< C05FunctionModVarsAddd * >( mod ) == nullptr &&
-     dynamic_cast< C05FunctionModVarsRngd * >( mod ) == nullptr &&
-     dynamic_cast< C05FunctionModVarsSbst * >( mod ) == nullptr ) {
-  throw std::invalid_argument( "This type of FunctionModVars is not handled" );
-  }
+ auto nv = mod->vars().size();
+ if( ! nv )
+  return;
+
+ // check the modification type
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+  throw( std::invalid_argument( "This type of FunctionModVars is not handled"
+				) );
+
+ auto * con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
+ if( ! con )  // TODO: Throw exception?
+  return;
 
  std::vector< int > indices;
+ indices.reserve( nv );
  std::vector< double > values;
- std::vector< int > rows;
-
- indices.reserve( mod->vars().size() );
  values.reserve( mod->vars().size() );
- rows.reserve( mod->vars().size() );
+ std::vector< int > rows( nv , index_of_constraint( con ) );
 
- // Get indices and coefficients
- auto * con = dynamic_cast<FRowConstraint *>(lf->get_Observer());
- // TODO: Is dynamic_cast necessary?
- if( con == nullptr ) {
-  // TODO: Throw exception?
-  return;
- }
+ auto nav = lf->get_num_active_var();
 
- for( auto * it1 : mod->vars() ) {
-  for( auto it2: lf->get_v_var() ) {
-   if( it1 == it2.first ) {
-    indices.push_back( index_of_variable( it2.first ) );
-    rows.push_back( index_of_constraint( con ) );
-    if( mod->added() ) {
-     values.push_back( it2.second );
-    } else {
-     values.push_back( 0 );
-    }
-    break;
+ // while changing the coefficients, we have to be careful about the fact
+ // that Modification are managed asynchronously with the model changes
+ // although the added/removed Variable do exist in the internal data
+ // structure of [CPX]MILPSolver since the Modification are managed
+ // strictly in arrival order, they may no longer exist in the model;
+ // more to the point, they may no longer be active in the LinearFunction
+
+ // get indices and coefficients
+ for( auto * v : mod->vars() ) {
+  auto var = static_cast< const ColVariable * >( v );
+  indices.push_back( index_of_variable( var ) );
+
+  if( mod->added() ) {
+   auto idx = lf->is_active( var );
+   values.push_back( idx < nav ? lf->get_coefficient( idx ) : 0 );
    }
+  else
+   values.push_back( 0 );
   }
+
+ // update the coefficients
+ CPXchgcoeflist( env , lp , nv , rows.data() , indices.data() ,
+		 values.data() );
+
+ }  // end( CPXMILPSolver::constraint_fvars_modification )
+
+/*----------------------------------------------------------------------------
+
+void CPXMILPSolver::dynamic_modification( const BlockModAD * mod )
+{
+ MILPSolver::dynamic_modification( mod );
  }
 
- // Update the coefficients
- if( !indices.empty() ) {
-  CPXchgcoeflist( env, lp, indices.size(), rows.data(),
-                  indices.data(), values.data() );
- }
-}
+----------------------------------------------------------------------------*/
 
-/*--------------------------------------------------------------------------*/
+void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
+{
+ // call the method of MILPSolver to update the dictionaries (only)
+ MILPSolver::add_dynamic_constraint( con );
 
-void CPXMILPSolver::dynamic_modification( BlockModAD * mod ) {
- try {
-  MILPSolver::dynamic_modification( mod );
- } catch( std::logic_error & e ) {}
-}
+ auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+ if( ! lf )
+  throw( std::invalid_argument( "The Constraint is not linear" ) );
 
-/*--------------------------------------------------------------------------*/
+ int nzcnt = lf->get_num_active_var();
 
-void CPXMILPSolver::add_dynamic_constraint( FRowConstraint * con ) {
- try {
-  MILPSolver::add_dynamic_constraint( con );
- } catch( std::logic_error & e ) {}
-
- const auto * f = dynamic_cast<const LinearFunction *>(con->get_function());
- if( f == nullptr ) {
-  throw std::invalid_argument( "The Constraint is not linear" );
- }
-
- int nzcnt = con->get_num_active_var();
-
- std::array< int, 2 > rmatbeg = { 0, nzcnt };
+ std::array< int , 2 > rmatbeg = { 0 , nzcnt };
  std::vector< int > rmatind( nzcnt );
  std::vector< double > rmatval( nzcnt );
 
- double rhs;
- double rngval;
- char sense;
-
- // Get the coefficients to fill the matrix
- for( int i = 0; i < nzcnt; ++i ) {
-  auto * var = dynamic_cast<ColVariable *>(f->get_active_var( i ));
-  // TODO: Is dynamic_cast necessary?
-  if( var == nullptr ) {
-   // TODO: Throw exception?
-   continue;
+ // get the coefficients to fill the matrix
+ for( int i = 0 ; i < nzcnt ; ++i ) {
+  auto * var = static_cast< ColVariable * >( lf->get_active_var( i ) );
+  rmatind[ i ] = index_of_variable( var );
+  rmatval[ i ] = lf->get_coefficient( i );
   }
 
-  rmatind[ i ] = index_of_variable( var );
-  rmatval[ i ] = f->get_coefficient( i );
- }
-
- // Get the bounds
- int index = index_of_dynamic_constraint( con );
+ // get the bounds
  auto con_lhs = con->get_lhs();
  auto con_rhs = con->get_rhs();
+ double rhs , rngval;
+ char sense;
 
  if( con_lhs == con_rhs ) {
   sense = 'E';
   rhs = con_rhs;
+  }
+ else
+  if( con_lhs == -Inf< double >() ) {
+   sense = 'L';
+   rhs = con_rhs;
+   }
+  else
+   if( con_rhs == Inf< double >() ) {
+    sense = 'G';
+    rhs = con_lhs;
+    }
+   else {
+    sense = 'R';
+    rhs = con_lhs;
+    rngval = con_rhs - con_lhs;
+    }
 
- } else if( con_lhs == -Inf< double >() ) {
-  sense = 'L';
-  rhs = con_rhs;
-
- } else if( con_rhs == Inf< double >() ) {
-  sense = 'G';
-  rhs = con_lhs;
-
- } else {
-  sense = 'R';
-  rhs = con_lhs;
-  rngval = con_rhs - con_lhs;
- }
-
- // Update the CPLEX problem
- CPXaddrows( env, lp, 0, 1, nzcnt, &rhs, &sense,
-             rmatbeg.data(),
-             rmatind.data(),
-             rmatval.data(),
-             nullptr,
-             nullptr );
+ // update the CPLEX problem
+ CPXaddrows( env , lp , 0 , 1 , nzcnt , & rhs , & sense , rmatbeg.data() ,
+             rmatind.data() , rmatval.data() , nullptr , nullptr );
  if( sense == 'R' ) {
-  CPXchgrngval( env, lp, 1, &index, &rngval );
- }
-}
+  int index = index_of_dynamic_constraint( con );
+  CPXchgrngval( env , lp , 1 , & index , & rngval );
+  }
+
+ }  // end( CPXMILPSolver::add_dynamic_constraint )
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::add_dynamic_variable( ColVariable * var ) {
- try {
-  MILPSolver::add_dynamic_variable( var );
- } catch( std::logic_error & e ) {}
+void CPXMILPSolver::add_dynamic_variable( const ColVariable * var )
+{
+ bool was_mip = int_vars > 0;  // was a MIP before the change
 
- // Build the coefficient matrix for the new variable
+ // call the method of MILPSolver to update dictionaries (and int_vars)
+ MILPSolver::add_dynamic_variable( var );
+
+ bool is_mip = int_vars > 0;  // is a MIP after the change
+
+ /* build the coefficient matrix for the new variable
+ // no, this must not be done: the variable is created "empty", and
+ // the coefficients will be added separately later on
  std::vector< int > cmatind;
  std::vector< double > cmatval;
 
@@ -2013,100 +1827,102 @@ void CPXMILPSolver::add_dynamic_variable( ColVariable * var ) {
  cmatind.reserve( active_constraints.size() );
  cmatval.reserve( active_constraints.size() );
 
- // Get the coefficients for this variable for each active constraint
+ // get the coefficients for this variable for each active constraint
  for( auto * con : active_constraints ) {
-
-  const auto * f = dynamic_cast<const LinearFunction *>(con->get_function());
-  if( f == nullptr ) {
-   throw std::invalid_argument( "The Constraint is not linear" );
-  }
+  auto * f = dynamic_cast< const LinearFunction * >( con->get_function() );
+  if( ! f )
+   throw( std::invalid_argument( "The Constraint is not linear" ) );
 
   // get_active_constraints() already checks that the index exists
   cmatind.push_back( index_of_constraint( con ) );
-  auto it = find_if( f->get_v_var().begin(), f->get_v_var().end(),
+  auto it = find_if( f->get_v_var().begin() , f->get_v_var().end(),
                      [ & ]( LinearFunction::coeff_pair pair ) {
-                      return pair.first == var;
+                      return( pair.first == var );
                      } );
   cmatval.push_back( it->second );
- }
+  }
+ */
 
- // Get the bounds
+ // get the bounds
  double lb = get_problem_lb( *var );
  double ub = get_problem_ub( *var );
 
- // Update the CPLEX problem
+ // update the CPLEX problem
+ /*
  int nzcnt = cmatind.size();
- std::array< int, 2 > cmatbeg = { 0, nzcnt };
- CPXaddcols( env, lp, 1, nzcnt, nullptr, cmatbeg.data(),
-             cmatind.data(), cmatval.data(), &lb, &ub, nullptr );
+ std::array< int , 2 > cmatbeg = { 0 , nzcnt };
+ CPXaddcols( env , lp , 1 , nzcnt , nullptr , cmatbeg.data() ,
+             cmatind.data() , cmatval.data() , & lb , & ub , nullptr );
+ */
+ CPXaddcols( env , lp , 1 , 0 , nullptr , nullptr , nullptr , nullptr,
+	     & lb , & ub , nullptr );
 
- //Get the new variable type
- char new_ctype;
- std::vector< char > old_ctype;
- int is_mip = CPXgetintvars( &old_ctype );
 
- if( var->is_integer() && !relax_int_vars ) {
-  ++is_mip;
-  if( var->is_unitary() && var->is_positive() ) {
-   new_ctype = 'B'; // Binary
-  } else {
-   new_ctype = 'I'; // Integer
+ // update problem type, if necessary
+ if( is_mip ) {       // the problem is a MIP
+  int idx = index_of_dynamic_variable( var );
+
+  char new_ctype;     // get the new variable type
+  if( var->is_integer() && ( ! relax_int_vars ) ) {
+   if( var->is_unitary() && var->is_positive() )
+    new_ctype = 'B';  // Binary
+   else
+    new_ctype = 'I';  // Integer
+   }
+  else
+   new_ctype = 'C';   // Continuous
+
+  if( was_mip )       // and it was a MIP before
+   // set the ctype for the one variable
+   CPXchgctype( env , lp , 1 , & idx , & new_ctype );
+  else {              // it was not a MIP before
+   // the first integer variable is added
+   // all ctype values must be [re]added to the problem
+   switch( CPXgetprobtype( env, lp ) ) {
+    case CPXPROB_LP : CPXchgprobtype( env , lp , CPXPROB_MILP ); break;
+    case CPXPROB_QP : CPXchgprobtype( env , lp , CPXPROB_MIQP ); break;
+    default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
+    }
+
+   // all variables are continuous
+   std::vector< char > ctype( numcols , 'C' );
+   ctype[ idx ] = new_ctype;  // save the one that just became binary
+   CPXcopyctype( env , lp , ctype.data() );
+   }
   }
- } else {
-  new_ctype = 'C';  // Continuous
- }
+ else                 // it is not a MIP
+  if( was_mip ) {     // but was so
+   // the last integer variable was removed, make the problem continuous
+   switch( CPXgetprobtype( env , lp ) ) {
+    case CPXPROB_LP :
+    case CPXPROB_QP :   break;  // this should not happe, but ...
+    case CPXPROB_MILP :
+    case CPXPROB_FIXEDMILP : CPXchgprobtype( env , lp , CPXPROB_LP ); break;
+    case CPXPROB_MIQP :
+    case CPXPROB_FIXEDMIQP : CPXchgprobtype( env , lp , CPXPROB_QP ); break;
+    default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
+    }
+   }
+  // else do nothing, the problem stays continuous
 
- // Update problem type, if necessary
- if( is_mip == 0 ) {
-  // The problem wasn't and still isn't a MIP, nothing to do
- } else if( is_mip == 1 ) {
-  // The first integer variable was added
-  // All ctype values must be [re]added to the problem
-  switch( CPXgetprobtype( env, lp ) ) {
-   case CPXPROB_LP :
-    CPXchgprobtype( env, lp, CPXPROB_MILP );
-    break;
-   case CPXPROB_QP :
-    CPXchgprobtype( env, lp, CPXPROB_MIQP );
-    break;
-   default:
-    throw std::runtime_error( "Wrong CPLEX problem type" );
-  }
-
-  old_ctype[ index_of_dynamic_variable( var ) ] = new_ctype;
-  CPXcopyctype( env, lp, old_ctype.data() );
- } else {
-  // The problem stays a MIP, update only the one variable
-  int index = index_of_dynamic_variable( var );
-  CPXchgctype( env, lp, 1, &index, &new_ctype );
- }
-}
+ }  // end( CPXMILPSolver::add_dynamic_variable )
 
 /*--------------------------------------------------------------------------*/
 
-void
-CPXMILPSolver::add_dynamic_bound( OneVarConstraint * con ) {
- try {
-  MILPSolver::add_dynamic_bound( con );
- } catch( std::logic_error & e ) {}
+void CPXMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
+{
+ // no point in calling the method of MILPSolver, as it does nothing
+ // MILPSolver::add_dynamic_bound( con );
 
- auto * var = dynamic_cast<ColVariable *>(con->get_active_var( 0 ));
- // TODO: Is dynamic_cast necessary?
- if( var == nullptr ) {
-  // TODO: Throw exception?
-  return;
- }
+ auto * var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
 
- std::vector< int > indices( 2, index_of_variable( var ) );
- std::vector< char > lu( 2 );
- std::vector< double > bd( 2 );
+ auto idx = index_of_variable( var );
+ std::array< int , 2 > indices = { idx , idx };
+ static std::array< char , 2 > lu = { 'L' , 'U' };
+ std::array< double , 2 > bd = { get_problem_lb( *var ) ,
+				 get_problem_ub( *var ) };
 
- lu[ 0 ] = 'L';
- lu[ 1 ] = 'U';
- bd[ 0 ] = get_problem_lb( *var );
- bd[ 1 ] = get_problem_ub( *var );
-
- CPXchgbds( env, lp, 2, indices.data(), lu.data(), bd.data() );
+ CPXchgbds( env , lp , 2 , indices.data() , lu.data() , bd.data() );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2117,9 +1933,8 @@ void CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  if( index < Inf< int >() ) {
   CPXdelrows( env , lp , index , index );
 
-  try {
-   MILPSolver::remove_dynamic_constraint( con );
-   } catch( std::logic_error & e ) {}
+  // call the method of MILPSolver to update the dictionaries (only)
+  MILPSolver::remove_dynamic_constraint( con );
   }
  else
   throw( std::runtime_error( "Dynamic constraint not found" ) );
@@ -2133,9 +1948,8 @@ void CPXMILPSolver::remove_dynamic_variable( const ColVariable * var )
  if( index < Inf< int >() ) {
   CPXdelcols( env , lp , index , index );
 
-  try {
-   MILPSolver::remove_dynamic_variable( var );
-   } catch( std::logic_error & e ) {}
+  // call the method of MILPSolver to update the dictionaries (only)
+  MILPSolver::remove_dynamic_variable( var );
   }
  else
   throw( std::runtime_error( "Dynamic variable not found" ) );
@@ -2145,30 +1959,282 @@ void CPXMILPSolver::remove_dynamic_variable( const ColVariable * var )
 
 void CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 {
- try {
-  MILPSolver::remove_dynamic_bound( con );
-  } catch( std::logic_error & e ) {}
+ // no point in calling the method of MILPSolver, as it does nothing
+ // MILPSolver::remove_dynamic_bound( con );
 
- auto * var = dynamic_cast< ColVariable * >( con->get_active_var( 0 ) );
- // TODO: Is dynamic_cast necessary?
- if( var == nullptr )
-  return;
+ auto * var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
 
- std::vector< int > indices( 2, index_of_variable( var ) );
- std::vector< char > lu( 2 );
- std::vector< double > bd( 2 );
-
- lu[ 0 ] = 'L';
- lu[ 1 ] = 'U';
- bd[ 0 ] = get_problem_lb( *var );
- bd[ 1 ] = get_problem_ub( *var );
+ std::array< int , 2 > indices = { 2 , index_of_variable( var ) };
+ static std::array< char , 2 > lu = { 'L' , 'U' };
+ std::array< double , 2 > bd = { get_problem_lb( *var ) ,
+				 get_problem_ub( *var ) };
 
  CPXchgbds( env , lp , 2 , indices.data() , lu.data() , bd.data() );
  }
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::cpx_int_par_map( int par ) const
+int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
+			     CPXLONG contextid )
+{
+ // main switch: depending on contextid - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ switch( contextid ) {
+  case( CPX_CALLBACKCONTEXT_LOCAL_PROGRESS ):
+  case( CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ): {
+   // local or global progress- - - - - - - - - - - - - - - - - - - - - - - -
+   // check upper / lower bounds and in case stop
+
+   double solv , bndv;
+   CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_SOL , & solv );
+   CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_BND , & bndv );
+
+   if( get_objsense() == 1 ) {
+    // a minimization problem: solv is upper bound and bndv is lower bound
+    if( solv >= 1e+75 )
+     solv = Inf< double >();
+
+    if( bndv <= - 1e+75 )
+     bndv = - Inf< double >();
+  
+    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
+     CPXcallbackabort( context );
+    }
+   else {
+    // a maximization problem: solv is lower bound and bndv is upper bound
+    if( solv <= -1e+75 )
+     solv = - Inf< double >();
+
+    if( bndv >= 1e+75 )
+     bndv = Inf< double >();
+  
+    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) )
+     CPXcallbackabort( context );
+    }
+   break;
+   }
+
+  case( CPX_CALLBACKCONTEXT_RELAXATION ): {
+   // a relaxation has been solved- - - - - - - - - - - - - - - - - - - - - -
+   if( ! ( CutSepPar & 3 ) )  // but we don't do user cut separation
+    break;                    // nothing to do
+
+   int depth;                 // find the depth of the current node
+   CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODEDEPTH , & depth );
+
+   // if we are at a depth for which separation is not enabled
+   if( ( ( ! depth ) && ( ! ( CutSepPar & 1 ) ) ) ||
+       ( depth && ( ! ( CutSepPar & 2 ) ) ) )
+    break;                    // nothing to do
+
+   // this is a critical section where different CPLEX threads may compete
+   // for access to the Block: ensure mutual exclusion
+   f_callback_mutex.lock();
+
+   // ensure no interference from other threads (except CPLEX ones) by also
+   // lock()-ing the Block
+   bool owned = f_Block->is_owned_by( f_id );
+   if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
+    throw( std::runtime_error( "Unable to lock the Block" ) );
+   
+   // get the solution of the relaxation
+   std::vector< double > x( numcols );
+   if( CPXcallbackgetrelaxationpoint( context , x.data() , 0 , numcols - 1 ,
+				      nullptr ) )
+    throw( std::runtime_error(
+       "Unable to get the solution with CPXcallbackgetrelaxationpoint()" ) );
+
+   // write it in the Variable of the Block
+   get_var_solution( x );
+
+   // now perform the user cut separation with the right Configuration
+   std::vector< int > rmatbeg;
+   std::vector< int > rmatind;
+   std::vector< double > rmatval;
+   std::vector< double > rhs;
+   std::vector< char > sense;
+   perform_separation( get_cfg( depth ? 1 : 0 ) ,
+		       rmatbeg , rmatind , rmatval , rhs , sense );
+   if( ! owned )
+    f_Block->unlock( f_id );  // unlock the Block
+
+   // critical section ends here, release the mutex
+   f_callback_mutex.unlock();
+
+   // if any user cut was generated, add them
+   if( ! rmatbeg.empty() ) {
+    static const int purgeable = CPX_USECUT_FILTER;
+    static const int local = 0;
+    if( CPXcallbackaddusercuts( context , rhs.size() , rmatind.size() ,
+				rhs.data() , sense.data() , rmatbeg.data() ,
+				rmatind.data() , rmatval.data() ,
+				& purgeable , & local ) )
+     throw( std::logic_error( "problem in CPXcallbackaddusercuts" ) );
+    }
+
+   break;
+   }
+
+  case( CPX_CALLBACKCONTEXT_CANDIDATE ): {
+   // a feasible solution has been found- - - - - - - - - - - - - - - - - - -
+   if( ! ( CutSepPar & 4 ) )  // but we don't do lazy constraint separation
+    break;                    // nothing to do
+
+   // this is a critical section where different CPLEX threads may compete
+   // for access to the Block: ensure mutual exclusion
+   f_callback_mutex.lock();
+
+   // ensure no interference from other threads (except CPLEX ones) by also
+   // lock()-ing the Block
+   bool owned = f_Block->is_owned_by( f_id );
+   if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
+    throw( std::runtime_error( "Unable to lock the Block" ) );
+   
+   // get the feasible solution
+   std::vector< double > x( numcols );
+   if( CPXcallbackgetcandidatepoint( context , x.data() , 0 , numcols - 1 ,
+				     nullptr ) )
+    throw( std::runtime_error(
+       "Unable to get the solution with CPXcallbackgetcandidatepoint()" ) );
+
+   // write it in the Variable of the Block
+   get_var_solution( x );
+
+   // now perform the lazy constraint separation with the right Configuration
+   std::vector< int > rmatbeg;
+   std::vector< int > rmatind;
+   std::vector< double > rmatval;
+   std::vector< double > rhs;
+   std::vector< char > sense;
+   perform_separation( get_cfg( 2 ) ,
+		       rmatbeg , rmatind , rmatval , rhs , sense );
+   if( ! owned )
+    f_Block->unlock( f_id );  // unlock the Block
+
+   // critical section ends here, release the mutex
+   f_callback_mutex.unlock();
+
+   // if any lazy constraint was generated, add them
+   if( ! rmatbeg.empty() )
+    if( CPXcallbackrejectcandidate( context , rhs.size() , rmatind.size() ,
+				    rhs.data() , sense.data() ,
+				    rmatbeg.data() , rmatind.data() ,
+				    rmatval.data() ) )
+     throw( std::logic_error( "problem in CPXcallbackrejectcandidate" ) );
+   }
+  }  // end( main switch )- - - - - - - - - - - - - - - - - - - - - - - - - -
+     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ return( 0 );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::perform_separation( Configuration * cfg ,
+					std::vector< int > & rmatbeg ,
+					std::vector< int > & rmatind ,
+					std::vector< double > & rmatval ,
+					std::vector< double > & rhs , 
+					std::vector< char > & sense )
+{
+ // note: we assume the Block to have been lock()-ed already and the solution
+ //       (be it from the relaxation or feasible) to have been written in the
+ //       Variable of the Block
+ //
+ // since the Block is lock()-ed we assume that we can freely work with the
+ // Modification list as no-one has a reason tochange it
+ 
+ auto nM = v_mod.size();  // current number of Modification in the list
+ auto it = v_mod.end();
+ if( nM )                 // if the list is not empty
+  it = prev( it );        // initialize an iterator to the last element
+
+ // call generate_dynamic_constraint()
+ f_Block->generate_dynamic_constraints( cfg );
+
+ if( v_mod.size() <= nM )  // check if new Modification have been inserted
+  return;                  // if not, nothing to do
+
+ if( ! nM )                // if the list was empty at the beginning
+  it = v_mod.begin();      // start from the beginning
+ else                      // the list was nonempty
+  ++it;                    // move to the first new element
+
+ rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
+ 
+ // main loop: check all new Modification for a Constraint addition
+ for( ; it != v_mod.end() ; ++it ) {
+  // check if the Modification indicates an added FRowConstraint
+  auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >(
+								it->get() );
+  if( ! tmod )  // if not
+   continue;    // next
+
+  // add all the new constraint to the matrix, one by one
+  for( auto con : tmod->added() ) {
+   auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+   if( ! lf )
+    throw( std::invalid_argument( "The Constraint is not linear" ) );
+
+   auto nzcnt = lf->get_num_active_var();
+   auto sz = rmatind.size();
+   rmatind.resize( sz + nzcnt );
+   rmatval.resize( sz + nzcnt );
+
+   // get the coefficients to fill the matrix
+   auto iit = rmatind.begin() + sz;
+   auto vit = rmatval.begin() + sz;
+   for( auto & el : lf->get_v_var() ) {
+    *(iit++) = index_of_variable( el.first );
+    *(vit++) = el.second;
+    }
+
+   // get the bounds
+   auto con_lhs = con->get_lhs();
+   auto con_rhs = con->get_rhs();
+
+   if( con_lhs == con_rhs ) {
+    sense.push_back( 'E' );
+    rhs.push_back( con_rhs );
+    }
+   else
+    if( con_lhs == -Inf< double >() ) {
+     sense.push_back( 'L' );
+     rhs.push_back( con_rhs );
+     }
+    else
+     if( con_rhs == Inf< double >() ) {
+      sense.push_back( 'G' );
+      rhs.push_back( con_lhs );
+      }
+     else {
+      // kludge: the added constraint is ranged LHS <= lf( x ) <= RHS, but
+      // CPLEX does not allow cuts to be ranged: hence, separately add
+      // the two constraints lf( x ) >= LHS and lf( x ) <= RHS
+      sense.push_back( 'G' );
+      rhs.push_back( con_lhs );
+      auto nsz = rmatind.size();
+      rmatbeg.push_back( nsz );
+      sense.push_back( 'L' );
+      rhs.push_back( con_rhs );
+      rmatind.resize( nsz + nzcnt );
+      std::copy( rmatind.begin() + sz , rmatind.begin() + nsz ,
+		                        rmatind.begin() + nsz );
+      rmatval.resize( nsz + nzcnt );
+      std::copy( rmatval.begin() + sz , rmatval.begin() + nsz ,
+		                        rmatval.begin() + nsz );
+      }
+
+   rmatbeg.push_back( rmatind.size() );
+
+   }  // end( for each added FRowConstraint )
+  }  // end( main loop )
+ }  // end( CPXMILPSolver::perform_separation )
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::cpx_int_par_map( idx_type par ) const
 {
  switch( par ) {
   case( intMaxIter ): return( - CPXPARAM_MIP_Limits_Nodes );
@@ -2199,7 +2265,7 @@ int CPXMILPSolver::cpx_int_par_map( int par ) const
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::cpx_dbl_par_map( int par ) const
+int CPXMILPSolver::cpx_dbl_par_map( idx_type par ) const
 {
  switch( par ) {
   case( dblMaxTime ): return( CPXPARAM_TimeLimit );
@@ -2223,7 +2289,12 @@ int CPXMILPSolver::cpx_dbl_par_map( int par ) const
 void CPXMILPSolver::set_par( idx_type par , int value )
 {
  if( par == intThrowReducedCostException ) {
-  throw_reduced_cost_exception = value;
+  throw_reduced_cost_exception = bool( value );
+  return;
+  }
+
+ if( par == intCutSepPar ) {
+  CutSepPar = value;
   return;
   }
 
@@ -2263,96 +2334,103 @@ void CPXMILPSolver::set_par( idx_type par , std::string && value )
  // CPLEX parameters
  if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
-  CPXsetstrparam( env, cplex_par, value.c_str() );
+  CPXsetstrparam( env , cplex_par , value.c_str() );
   return;
   }
 
  MILPSolver::set_par( par, std::move( value ) );
  }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+void CPXMILPSolver::set_par( idx_type par , std::vector< int > && value )
+{
+ if( par == vintCutSepCfgInd ) {
+  CutSepCfgInd = std::move( value );
+  return;
+  }
+
+ // MILPSolver and its ancestors have no set_par( std::vector< int > ),
+ // so avoid calling it
+ // MILPSolver::set_par( par, std::move( value ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+void CPXMILPSolver::set_par( idx_type par ,
+			     std::vector< std::string > && value )
+{
+ if( par == vstrConfigDBFName ) {
+  auto sz = value.size();
+  // delete existing Configuration with index larger than the new size
+  for( Index i = sz ; i < v_ConfigDB.size() ; ++i )
+   delete v_ConfigDB[ i ];
+  // resize the Configuration DB: if the new size is larger than the
+  // old ones, the new Configuration defaut to nullptr
+  v_ConfigDB.resize( sz , nullptr );
+  // resize the configuration names: this makes the next step easier, as
+  // any non-existing element will be an empty string and therefore not
+  // equal to en existing one unless the existing is empty as well, but
+  // this implies that the Configuration is nullptr so it works
+  ConfigDBFName.resize( sz );
+  // for each new configuration check if the filename is the same as
+  // the existing one: if so leave the existing one, otherwise
+  // substitute it with a newly loaded one
+  for( Index i = 0 ; i < sz ; ++i )
+   if( ConfigDBFName[ i ] != value[ i ] ) {
+    delete v_ConfigDB[ i ];
+    v_ConfigDB[ i ] = Configuration::deserialize( value[ i ] );
+    }
+  // finally store the new names in place of the existing ones
+  ConfigDBFName = std::move( value );
+  return;
+  }
+
+ // MILPSolver and its ancestors have no
+ // set_par( std::vector< std::string > ), so avoid calling it
+ // MILPSolver::set_par( par, std::move( value ) );
+ }
+
 /*--------------------------------------------------------------------------*/
 
-ThinComputeInterface::idx_type CPXMILPSolver::get_num_int_par() const {
+Solver::idx_type CPXMILPSolver::get_num_int_par( void ) const {
  return( MILPSolver::get_num_int_par()
 	 + intLastAlgParCPXS - intLastAlgParMILP );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-ThinComputeInterface::idx_type CPXMILPSolver::get_num_dbl_par() const {
+Solver::idx_type CPXMILPSolver::get_num_dbl_par( void ) const {
  return( MILPSolver::get_num_dbl_par()
 	 + dblLastAlgParCPXS - dblLastAlgParMILP );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-ThinComputeInterface::idx_type CPXMILPSolver::get_num_str_par() const {
+Solver::idx_type CPXMILPSolver::get_num_str_par( void ) const {
  return( MILPSolver::get_num_str_par()
 	 + strLastAlgParCPXS - strLastAlgParMILP );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-int CPXMILPSolver::get_int_par( idx_type par ) const
-{
- if( par == intThrowReducedCostException )
-  return( throw_reduced_cost_exception );
-
- if( int cp = cpx_int_par_map( par ) ) {
-  if( cp > 0 ) {
-   int value;
-   CPXgetintparam( env , cp , & value );
-   return( value );
-   }
-  else {
-   CPXLONG value;
-   CPXgetlongparam( env , - cp , & value );
-   return( ( int ) value );
-   }
-  }
-
- return( MILPSolver::get_int_par( par ) );
+Solver::idx_type CPXMILPSolver::get_num_vint_par( void ) const {
+ return( MILPSolver::get_num_vint_par()
+	 + vintLastAlgParCPXS - vintLastAlgParMILP );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-double CPXMILPSolver::get_dbl_par( idx_type par ) const
-{
- switch( par ) {
-  case( dblUpCutOff ): return( UpCutOff );
-  case( dblLwCutOff ): return( LwCutOff );
-  }
-
- if( int cp = cpx_dbl_par_map( par ) ) {
-  double value;
-  CPXgetdblparam( env , cp , & value );
-  return( value );
-  }
-
- return( MILPSolver::get_dbl_par( par ) );
- }
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
-const std::string & CPXMILPSolver::get_str_par( idx_type par ) const
-{
- static std::string value;
-
- if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
-  int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
-  value.reserve( CPX_STR_PARAM_MAX );
-  CPXgetstrparam( env , cplex_par , value.data() );
-  return( value );
-  }
-
- return( MILPSolver::get_str_par( par ) );
+Solver::idx_type CPXMILPSolver::get_num_vstr_par( void ) const {
+ return( MILPSolver::get_num_vstr_par()
+	 + vstrLastAlgParCPXS - vstrLastAlgParMILP );
  }
 
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intThrowReducedCostException )
+ if( ( par == intThrowReducedCostException ) || ( par == intCutSepPar ) )
   return( 0 );
 
  if( int cp = cpx_int_par_map( par ) ) {
@@ -2413,13 +2491,121 @@ const std::string & CPXMILPSolver::get_dflt_str_par( idx_type par ) const
  return( MILPSolver::get_dflt_str_par( par ) );
  }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+const std::vector< int > & CPXMILPSolver::get_dflt_vint_par( idx_type par )
+ const
+{
+ static std::vector< int > _empty;
+ if( par == vintCutSepCfgInd )
+  return( _empty );
+
+ return( MILPSolver::get_dflt_vint_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+const std::vector< std::string > & CPXMILPSolver::get_dflt_vstr_par(
+							idx_type par ) const
+{
+ static std::vector< std::string > _empty;
+ if( par == vstrConfigDBFName )
+  return( _empty );
+
+ return( MILPSolver::get_dflt_vstr_par( par ) );
+ }
+
 /*--------------------------------------------------------------------------*/
 
-ThinComputeInterface::idx_type
-CPXMILPSolver::int_par_str2idx( const std::string & name ) const
+int CPXMILPSolver::get_int_par( idx_type par ) const
+{
+ if( par == intThrowReducedCostException )
+  return( throw_reduced_cost_exception );
+
+ if( par == intCutSepPar )
+  return( CutSepPar );
+
+ if( int cp = cpx_int_par_map( par ) ) {
+  if( cp > 0 ) {
+   int value;
+   CPXgetintparam( env , cp , & value );
+   return( value );
+   }
+  else {
+   CPXLONG value;
+   CPXgetlongparam( env , - cp , & value );
+   return( ( int ) value );
+   }
+  }
+
+ return( MILPSolver::get_int_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+double CPXMILPSolver::get_dbl_par( idx_type par ) const
+{
+ switch( par ) {
+  case( dblUpCutOff ): return( UpCutOff );
+  case( dblLwCutOff ): return( LwCutOff );
+  }
+
+ if( int cp = cpx_dbl_par_map( par ) ) {
+  double value;
+  CPXgetdblparam( env , cp , & value );
+  return( value );
+  }
+
+ return( MILPSolver::get_dbl_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+const std::string & CPXMILPSolver::get_str_par( idx_type par ) const
+{
+ static std::string value;
+
+ if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
+  int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
+  value.reserve( CPX_STR_PARAM_MAX );
+  CPXgetstrparam( env , cplex_par , value.data() );
+  return( value );
+  }
+
+ return( MILPSolver::get_str_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::vector< int > & CPXMILPSolver::get_vint_par( idx_type par ) const
+{
+ if( par == vintCutSepCfgInd )
+  return( CutSepCfgInd );
+
+ return( MILPSolver::get_vint_par( par ) );
+ }
+ 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::vector< std::string > & CPXMILPSolver::get_vstr_par( idx_type par )
+ const
+{
+ if( par == vstrConfigDBFName )
+  return( ConfigDBFName );
+
+ return( MILPSolver::get_vstr_par( par ) );
+ }
+ 
+/*--------------------------------------------------------------------------*/
+
+Solver::idx_type CPXMILPSolver::int_par_str2idx(
+					     const std::string & name ) const
 {
  if( name == "intThrowReducedCostException" )
   return( intThrowReducedCostException );
+
+ if( name == "intCutSepPar" )
+  return( intCutSepPar );
 
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
@@ -2434,20 +2620,24 @@ CPXMILPSolver::int_par_str2idx( const std::string & name ) const
  if( ! CPXgetparamnum( env , name.c_str() , & cplex_par ) ) {
   auto it = lower_bound( CPLEX_to_SMSpp_int_pars.begin() ,
                          CPLEX_to_SMSpp_int_pars.end() ,
-                         std::make_pair( cplex_par, 0 ) );
+                         std::make_pair( cplex_par , 0 ) );
   return( it->second );
   }
 
  return( Inf< idx_type >() );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::string par_trce = "intThrowReducedCostException";
+ static const std::array< std::string , 2 > _pars =
+                     { "intThrowReducedCostException" , "intCutSepPar" };
  if( idx == intThrowReducedCostException )
-  return( par_trce );
+  return( _pars[ 0 ] );
+
+ if( idx == intCutSepPar )
+  return( _pars[ 1 ] );
 
  // note: this implementation is not thread safe and it requires that the
  //       result is used immediately after the call (prior to any other call
@@ -2458,9 +2648,9 @@ const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
   int cplex_par = SMSpp_to_CPLEX_int_pars[ idx - intFirstCPLEXPar ];
   par_name.reserve( CPX_STR_PARAM_MAX );
   #if CPX_VERSION < 12090000
-   int status = CPXgetparamname( env , cplex_par, par_name.data() );
+   CPXgetparamname( env , cplex_par, par_name.data() );
   #else
-   int status = CPXgetparamhiername( env , cplex_par, par_name.data() );
+   CPXgetparamhiername( env , cplex_par, par_name.data() );
   #endif
   return( par_name );
   }
@@ -2470,8 +2660,8 @@ const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
 
 /*--------------------------------------------------------------------------*/
 
-ThinComputeInterface::idx_type
-CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const
+Solver::idx_type CPXMILPSolver::dbl_par_str2idx( const std::string & name )
+ const
 {
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
@@ -2493,7 +2683,7 @@ CPXMILPSolver::dbl_par_str2idx( const std::string & name ) const
  return( Inf< idx_type >() );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 const std::string & CPXMILPSolver::dbl_par_idx2str( idx_type idx ) const
 {
@@ -2506,9 +2696,9 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( idx_type idx ) const
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ idx - dblFirstCPLEXPar ];
   par_name.reserve( CPX_STR_PARAM_MAX );
   #if CPX_VERSION < 12090000
-   int status = CPXgetparamname( env , cplex_par , par_name.data() );
+   CPXgetparamname( env , cplex_par , par_name.data() );
   #else
-   int status = CPXgetparamhiername( env , cplex_par , par_name.data() );
+   CPXgetparamhiername( env , cplex_par , par_name.data() );
   #endif
   return( par_name );
   }
@@ -2518,8 +2708,8 @@ const std::string & CPXMILPSolver::dbl_par_idx2str( idx_type idx ) const
 
 /*--------------------------------------------------------------------------*/
 
-ThinComputeInterface::idx_type
-CPXMILPSolver::str_par_str2idx( const std::string & name ) const
+Solver::idx_type CPXMILPSolver::str_par_str2idx( const std::string & name )
+ const
 {
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
@@ -2541,22 +2731,22 @@ CPXMILPSolver::str_par_str2idx( const std::string & name ) const
  return( Inf< idx_type >() );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-const std::string & CPXMILPSolver::str_par_idx2str( const idx_type idx ) const
+const std::string & CPXMILPSolver::str_par_idx2str( idx_type idx ) const
 {
  // note: this implementation is not thread safe and it requires that the
  //       result is used immediately after the call (prior to any other call
  //       to int_par_idx2str()), this may have to be improved upon
  static std::string par_name;
 
- if( idx >= strFirstCPLEXPar && idx < strLastAlgParCPXS ) {
+ if( ( idx >= strFirstCPLEXPar ) && ( idx < strLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ idx - strFirstCPLEXPar ];
   par_name.reserve( CPX_STR_PARAM_MAX );
   #if CPX_VERSION < 12090000
-   int status = CPXgetparamname( env , cplex_par , par_name.data() );
+   CPXgetparamname( env , cplex_par , par_name.data() );
   #else
-   int status = CPXgetparamhiername( env , cplex_par , par_name.data() );
+   CPXgetparamhiername( env , cplex_par , par_name.data() );
   #endif
   return( par_name );
   }
@@ -2566,25 +2756,68 @@ const std::string & CPXMILPSolver::str_par_idx2str( const idx_type idx ) const
 
 /*--------------------------------------------------------------------------*/
 
+Solver::idx_type CPXMILPSolver::vint_par_str2idx(
+					     const std::string & name ) const
+{
+ if( name == "vintCutSepCfgInd" )
+  return( vintCutSepCfgInd );
+
+ return( MILPSolver::vint_par_str2idx( name ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::string & CPXMILPSolver::vint_par_idx2str( idx_type idx ) const
+{
+ static const std::string _pars = "vintCutSepCfgInd";
+ if( idx == vintCutSepCfgInd )
+  return( _pars );
+
+ return( MILPSolver::vint_par_idx2str( idx ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+Solver::idx_type CPXMILPSolver::vstr_par_str2idx(
+					     const std::string & name ) const
+{
+ if( name == "vstrConfigDBFName" )
+  return( vstrConfigDBFName );
+
+ return( MILPSolver::vstr_par_str2idx( name ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::string & CPXMILPSolver::vstr_par_idx2str( idx_type idx ) const
+{
+ static const std::string _pars = "vstrConfigDBFName";
+ if( idx == vstrConfigDBFName )
+  return( _pars );
+
+ return( MILPSolver::vstr_par_idx2str( idx ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 #ifdef MILPSOLVER_DEBUG
 
 void CPXMILPSolver::check_status( void )
 {
- if( numcols != CPXgetnumcols( env, lp ) )
-  DEBUG_LOG( "numcols is " << numcols
-                           << " but CPXgetnumcols() returns "
-                           << CPXgetnumcols( env, lp ) << std::endl );
+ auto tmp = CPXgetnumcols( env , lp );
+ if( numcols != tmp )
+  DEBUG_LOG( "numcols is " << numcols << " but CPXgetnumcols() returns "
+	     << tmp << std::endl );
 
- if( numrows != CPXgetnumrows( env, lp ) )
-  DEBUG_LOG( "numrows is " << numrows
-                           << " but CPXgetnumrows() returns "
-                           << CPXgetnumrows( env, lp ) << std::endl );
+ tmp = CPXgetnumrows( env , lp );
+ if( numrows != tmp )
+  DEBUG_LOG( "numrows is " << numrows << " but CPXgetnumrows() returns "
+	     << tmp << std::endl );
 
- int iv = CPXgetintvars( nullptr );
- if( int_vars != iv )
-  DEBUG_LOG( "int_vars is " << int_vars
-                            << " but CPLEX has actually " << iv
-                            << " integer variables" << std::endl );
+ tmp = CPXgetnumbin( env , lp ) + CPXgetnumint( env , lp );
+ if( int_vars != tmp )
+  DEBUG_LOG( "int_vars is " << int_vars << " but CPLEX has actually "
+	     << tmp << " integer variables" << std::endl );
 
  MILPSolver::check_status();
  }
@@ -2595,130 +2828,116 @@ void CPXMILPSolver::check_status( void )
 /*-------------------- PRIVATE METHODS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::CPXgetintvars( std::vector< char > * ctype )
+void CPXMILPSolver::reload_constraint( const LinearFunction * lf )
 {
- int n;
- int current_cols = CPXgetnumcols( env , lp );
- std::vector< char > * good_ctype = nullptr;
-
- // Create a new vector if needed
- if( ctype == nullptr )
-  good_ctype = new std::vector< char >( current_cols );
- else {
-  good_ctype = ctype;
-  good_ctype->resize( current_cols, 'C' );
-  }
-
- // Retrieve the ctype array
- int status = CPXgetctype( env , lp , good_ctype->data() , 0 ,
-			   current_cols - 1 );
- if( ! status ) {
-  // Problem is MIP, get the number of integer variables
-  n = std::count_if( good_ctype->begin(),
-                     good_ctype->end(),
-                     []( char c ) { return c != 'C'; } );
-  }
- else
-  if( status == CPXERR_NOT_MIP )  // Problem is not MIP
-   n = 0;
-  else
-   throw( std::runtime_error( "CPXgetctype() returned " +
-			      std::to_string( status ) ) );
-
- if( ctype == nullptr )
-  delete good_ctype;
-
- return( n );
- }
-
-/*--------------------------------------------------------------------------*/
-
-void CPXMILPSolver::reload_constraint( Function * f )
-{
- const auto * lf = dynamic_cast< const LinearFunction * >( f );
- if( ! lf )
-  return;
-
- auto * con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
- // TODO: Is dynamic_cast necessary?
- if( ! con )  // TODO: Throw exception?
-  return;
+ // note: this is called in response to a FunctionMod, which means that
+ // while the coefficients of the LinearFunction change, their number do
+ // not; hence the set of nonzeros does not change. thus, IF WE WERE SURE
+ // THAT NO Variable HAVE BEEN REMOVED TO THE CONSTRAINT, this would be
+ // simple because we would just have to look at the Variable that are
+ // currently active. unfortunately, this is not true because Modification
+ // are managed asynchronously with the model changes, and therefore it is
+ // possible that some Variable that are in the Constraint for CPXMILPSolver
+ // (have a nonzero coefficient) may no longer be in the LinearFunction.
+ // this may lead to some coefficients to mistakenly remain nonzero after
+ // the call
+ //
+ // however, if this is the case then there is a Modification in the queue
+ // following the one that caused this call where the Variable are removed
+ // from the LinearFunction. during the management of that Modification the
+ // erroneous nonzero coefficients will be zeroed
+ 
+ auto nv = lf->get_num_active_var();
+ if( ! nv )  // but this was an empty Constraint (?)
+  return;    // so nothing changes
 
  std::vector< double > vals;
+ vals.reserve( nv );
  std::vector< int > cols;
- std::vector< int > rows;
- auto row = index_of_constraint( con );
+ cols.reserve( nv );
+ auto row = index_of_constraint( static_cast< const FRowConstraint * >(
+						      lf->get_Observer() ) );
+ std::vector< int > rows( nv , row );
 
- vals.reserve( lf->get_num_active_var() );
- cols.reserve( lf->get_num_active_var() );
- rows.resize( lf->get_num_active_var(), row );
-
- for( auto var : lf->get_v_var() ) {
+ for( auto & var : lf->get_v_var() ) {
   cols.push_back( index_of_variable( var.first ) );
   vals.push_back( var.second );
   }
 
- if( ! cols.empty() )
-  CPXchgcoeflist( env , lp , cols.size() , rows.data() , cols.data() ,
-		  vals.data() );
+ CPXchgcoeflist( env , lp , nv , rows.data() , cols.data() , vals.data() );
  }
 
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::reload_objective( Function * f )
 {
+ // note: this is called in response to a FunctionMod, which means that
+ // while the coefficients of the LinearFunction change, their number do
+ // not; hence the set of nonzeros does not change. thus, IF WE WERE SURE
+ // THAT NO Variable HAVE BEEN REMOVED TO THE CONSTRAINT, this would be
+ // simple because we would just have to look at the Variable that are
+ // currently active. unfortunately, this is not true because Modification
+ // are managed asynchronously with the model changes, and therefore it is
+ // possible that some Variable that are in the Objective for CPXMILPSolver
+ // (have a nonzero coefficient) may no longer be in the LinearFunction.
+ // this may lead to some coefficients to mistakenly remain nonzero after
+ // the call
+ //
+ // however, if this is the case then there is a Modification in the queue
+ // following the one that caused this call where the Variable are removed
+ // from the LinearFunction. during the management of that Modification the
+ // erroneous nonzero coefficients will be zeroed
+
+ auto nv = f->get_num_active_var();
+ if( ! nv )  // but this was an empty Objective (?)
+  return;    // so nothing changes
+
  std::vector< int > indices;
+ indices.reserve( nv );
  std::vector< double > values;
+ values.reserve( nv );
 
- if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
-  indices.reserve( lf->get_num_active_var() );
-  values.reserve( lf->get_num_active_var() );
-
+ if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
   for( auto el : lf->get_v_var() ) {
    indices.push_back( index_of_variable( el.first ) );
    values.push_back( el.second );
    }
 
-  if( ! indices.empty() )
-   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
+  CPXchgobj( env , lp , nv , indices.data() , values.data() );
 
-  update_problem_type( f );
+  update_problem_type( false );
   return;
   }
 
- if( const auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
-  indices.reserve( qf->get_num_active_var() );
-  values.reserve( qf->get_num_active_var() );
-
+ if( auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
   for( auto el : qf->get_v_var() ) {
-   // Linear coefficients can be changed all at once with CPXchgobj
+   // linear coefficients can be changed all at once with CPXchgobj
    indices.push_back( index_of_variable( std::get< 0 >( el ) ) );
    values.push_back( std::get< 1 >( el ) );
    double q_value = std::get< 2 >( el );
 
-   // Quadratic coefficients need be changed one at a time
+   // quadratic coefficients need be changed one at a time
    CPXchgqpcoef( env , lp , indices.back() , indices.back() , 2 * q_value );
    }
 
-  if( ! indices.empty() )
-   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
+  CPXchgobj( env , lp , nv , indices.data() , values.data() );
 
-  update_problem_type( f );
+  update_problem_type( true );
   return;
   }
 
- // This should never happen
+ // this should never happen
  throw( std::invalid_argument( "Unknown type of Objective Function" ) );
- }
+
+ }  // end( CPXMILPSolver::reload_objective )
 
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::update_problem_type( Function * f )
+void CPXMILPSolver::update_problem_type( bool quad )
 {
  // TODO: I'm not really sure if this is done automatically by CPLEX, check
 
- if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
-  // Update problem type, if needed
+ if( ! quad ) {
   switch( CPXgetprobtype( env , lp ) ) {
    case( CPXPROB_LP ):
    case( CPXPROB_MILP ):
@@ -2734,24 +2953,28 @@ void CPXMILPSolver::update_problem_type( Function * f )
   return;
   }
 
- if( const auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
-  switch( CPXgetprobtype( env , lp ) ) {
-   case( CPXPROB_LP ):        CPXchgprobtype( env , lp , CPXPROB_QP );
-                              break;
-   case( CPXPROB_MILP ):      CPXchgprobtype( env , lp , CPXPROB_MIQP );
-                              break;
-   case( CPXPROB_FIXEDMILP ): CPXchgprobtype( env , lp , CPXPROB_FIXEDMIQP );
-                              break;
-   case( CPXPROB_QP ):
-   case( CPXPROB_MIQP ):
-   case( CPXPROB_FIXEDMIQP ): break;
-   default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
-   }
-  return;
+ switch( CPXgetprobtype( env , lp ) ) {
+  case( CPXPROB_LP ):   CPXchgprobtype( env , lp , CPXPROB_QP ); break;
+  case( CPXPROB_MILP ): CPXchgprobtype( env , lp , CPXPROB_MIQP ); break;
+  case( CPXPROB_FIXEDMILP ): CPXchgprobtype( env , lp , CPXPROB_FIXEDMIQP );
+                             break;
+  case( CPXPROB_QP ):
+  case( CPXPROB_MIQP ):
+  case( CPXPROB_FIXEDMIQP ): break;
+  default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
   }
+ }
 
- // This should never happen
- throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+/*--------------------------------------------------------------------------*/
+
+Configuration * CPXMILPSolver::get_cfg( Index ci ) const
+{
+ if( ci >= CutSepCfgInd.size() )
+  return( nullptr );
+ auto dbi = CutSepCfgInd[ ci ];
+ if( ( dbi < 0 ) || ( Index( dbi ) >= v_ConfigDB.size() ) )
+  return( nullptr );
+ return( v_ConfigDB[ dbi ] );
  }
 
 /*--------------------------------------------------------------------------*/
