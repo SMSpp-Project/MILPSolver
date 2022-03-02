@@ -45,6 +45,8 @@
 /// namespace for the Structured Modeling System++ (SMS++)
 namespace SMSpp_di_unipi_it {
 
+ class LinearFunction;  // forward declaration of LinearFunction
+
 /*--------------------------------------------------------------------------*/
 /*----------------------- CLASS CPXMILPSolver ------------------------------*/
 /*--------------------------------------------------------------------------*/
