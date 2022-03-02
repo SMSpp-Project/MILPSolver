@@ -2021,7 +2021,11 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
     break;                    // nothing to do
 
    int depth;                 // find the depth of the current node
-   CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODEDEPTH , & depth );
+   #if CPX_VERSION <= 12090000
+    CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODECOUNT , & depth );
+   #else
+    CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODEDEPTH , & depth );
+   #endif
 
    // if we are at a depth for which separation is not enabled
    if( ( ( ! depth ) && ( ! ( CutSepPar & 1 ) ) ) ||
