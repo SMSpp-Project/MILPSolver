@@ -2022,9 +2022,15 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 
    int depth;                 // find the depth of the current node
    #if CPX_VERSION <= 12090000
-    CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODECOUNT , & depth );
+    if( CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODECOUNT , & depth
+			       ) )
+     throw( std::runtime_error(
+                 "Unable to get the depth with CPXcallbackgetinfoint()" ) );
    #else
-    CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODEDEPTH , & depth );
+    if( CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODEDEPTH , & depth
+			       ) )
+     throw( std::runtime_error(
+                 "Unable to get the depth with CPXcallbackgetinfoint()" ) );
    #endif
 
    // if we are at a depth for which separation is not enabled
@@ -2068,12 +2074,12 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 
    // if any user cut was generated, add them
    if( ! rmatbeg.empty() ) {
-    static const int purgeable = CPX_USECUT_FILTER;
-    static const int local = 0;
+    std::vector< int > purgeable( rhs.size() , CPX_USECUT_FILTER );
+    std::vector< int > local( rhs.size() , 0 );
     if( CPXcallbackaddusercuts( context , rhs.size() , rmatind.size() ,
 				rhs.data() , sense.data() , rmatbeg.data() ,
 				rmatind.data() , rmatval.data() ,
-				& purgeable , & local ) )
+				purgeable.data() , local.data() ) )
      throw( std::logic_error( "problem in CPXcallbackaddusercuts" ) );
     }
 
