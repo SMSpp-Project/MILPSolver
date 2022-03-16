@@ -177,7 +177,7 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// placeholder for load( std::istream & input  )
 
- void load( std::istream & input ) override {}
+ void load( std::istream & input , char frmt = 0 ) override {}
  
 /*--------------------------------------------------------------------------*/
  /// extends Block::deserialize( netCDF::NcGroup )

@@ -74,8 +74,8 @@ namespace SMSpp_di_unipi_it {
  * (See set_par( idx_type, int )).
  * Moreover, the user can include in the configuration all the parameters
  * supported by CPXsetintparam(), CPXsetdblparam() and CPXsetstrparam()
- * (See the CPLEX Callable Library reference manual for all of them).
- */
+ * (See the CPLEX Callable Library reference manual for all of them). */
+
 class CPXMILPSolver : public MILPSolver {
 
 /*--------------------------------------------------------------------------*/
