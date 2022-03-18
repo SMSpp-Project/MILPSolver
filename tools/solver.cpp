@@ -1,7 +1,7 @@
 /** @file
  * SMS++ MILP solver.
  *
- * A tool that loads an SimpleMILPBlock from a .milp file,
+ * A tool that loads a SimpleMILPBlock from a .milp file,
  * optionally configures it with a BlockConfig and a BlockSolverConfig,
  * and solves it with all the loaded Solvers.
  *
@@ -30,6 +30,50 @@ using namespace SMSpp_di_unipi_it;
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+std::string get_filename_extension( const std::string & filename ) {
+ std::size_t pos = filename.find_last_of( '.' );
+ if( pos != std::string::npos )
+  return filename.substr( pos + 1 );
+ return "";
+}
+
+/*--------------------------------------------------------------------------*/
+
+void tolower( std::string & string ) {
+ std::transform( string.begin() , string.end() , string.begin() ,
+                 []( auto c ) { return std::tolower( c ); } );
+}
+
+/*--------------------------------------------------------------------------*/
+
+AbstractBlock * read_Block( const std::string & filename ) {
+
+ // Infer file type from file extension
+
+ char file_type = '\0';
+
+ auto extension = get_filename_extension( filename );
+ tolower( extension );
+
+ if( extension == "lp" )
+   file_type = 'L';
+ else if( extension == "mps" )
+  file_type = 'M';
+
+ if( file_type == '\0' )
+  throw std::invalid_argument( "Cannot infer file type from extension" );
+
+ std::ifstream istream( filename );
+ if( ! istream.is_open() )
+  throw std::runtime_error( "Failed to open file " + filename );
+
+ auto block = new AbstractBlock();
+ block->load( istream , file_type );
+ return block;
+}
+
+/*--------------------------------------------------------------------------*/
+
 int main( int argc, char ** argv ) {
 
  // Manage options and help, see common_utils.h
@@ -38,8 +82,7 @@ int main( int argc, char ** argv ) {
  process_args( argc, argv );
 
  // Read block
- auto block = new AbstractBlock();
- block->read( filename );
+ auto block = read_Block( filename );
 
  // Configure block
  BlockConfig * b_config;
