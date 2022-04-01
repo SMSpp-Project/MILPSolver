@@ -2074,7 +2074,12 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 
    // if any user cut was generated, add them
    if( ! rmatbeg.empty() ) {
-    std::vector< int > purgeable( rhs.size() , CPX_USECUT_FILTER );
+    auto md = ( CutSepPar >> 3 ) & 3;
+    std::vector< int > purgeable( rhs.size() ,
+				  md == 0 ? CPX_USECUT_FILTER
+				          : ( md == 1 ? CPX_USECUT_PURGE
+				                      : CPX_USECUT_FORCE )
+				  );
     std::vector< int > local( rhs.size() , 0 );
     if( CPXcallbackaddusercuts( context , rhs.size() , rmatind.size() ,
 				rhs.data() , sense.data() , rmatbeg.data() ,
