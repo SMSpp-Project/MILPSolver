@@ -2020,18 +2020,16 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    if( ! ( CutSepPar & 3 ) )  // but we don't do user cut separation
     break;                    // nothing to do
 
-   int depth;                 // find the depth of the current node
+   CPXLONG depth;             // find the depth of the current node
    #if CPX_VERSION <= 12090000
-    if( CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODECOUNT , & depth
-			       ) )
-     throw( std::runtime_error(
-                 "Unable to get the depth with CPXcallbackgetinfoint()" ) );
+    if( CPXcallbackgetinfolong( context , CPXCALLBACKINFO_NODECOUNT ,
+				& depth ) )
    #else
-    if( CPXcallbackgetinfoint( context , CPXCALLBACKINFO_NODEDEPTH , & depth
-			       ) )
-     throw( std::runtime_error(
-                 "Unable to get the depth with CPXcallbackgetinfoint()" ) );
+    if( CPXcallbackgetinfolong( context , CPXCALLBACKINFO_NODEDEPTH ,
+				& depth ) )
    #endif
+     throw( std::runtime_error(
+                "Unable to get the depth with CPXcallbackgetinfolong()" ) );
 
    // if we are at a depth for which separation is not enabled
    if( ( ( ! depth ) && ( ! ( CutSepPar & 1 ) ) ) ||
