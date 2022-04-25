@@ -1409,12 +1409,12 @@ void CPXMILPSolver::const_modification( const ConstraintMod * mod )
  switch( mod->type() ) {
   case ConstraintMod::eRelaxConst:
    // In order to relax the constraint all we do is transform it
-   // into an inequality with RHS equal to infinity
+   // into an inequality (<=) with RHS equal to infinity
 
-   sense = 'G';
-   rhs = -CPX_INFBOUND;
-   CPXchgrhs( env , lp , 1 , & index , & rhs );
+   sense = 'L';
+   rhs = CPX_INFBOUND;
    CPXchgsense( env , lp , 1 , & index , & sense );
+   CPXchgrhs( env , lp , 1 , & index , & rhs );
    break;
 
   case ConstraintMod::eEnforceConst:

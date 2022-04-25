@@ -518,15 +518,29 @@ void MILPSolver::load_problem( void )
  // scan the objective- - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- switch( f_Block->get_objective_sense() ) {
-  case( Objective::eMax ): objsense = -1; break;
-  case( Objective::eMin ): objsense = 1;  break;
-  default:                 objsense = 0;
-  }
-
- for( auto qb : v_BFS )
+ objsense = 0;
+ for( auto qb : v_BFS ) {
+  switch( qb->get_objective_sense() ) {
+   case( Objective::eMax ):
+    if( objsense == 1 )
+     throw( std::invalid_argument(
+		    "MILPSolver:: mixed max/min Objective not supported" ) );
+    objsense = -1; break;
+   case( Objective::eMin ):
+    if( objsense == -1 )
+     throw( std::invalid_argument(
+		    "MILPSolver:: mixed max/min Objective not supported" ) );
+     objsense = 1;
+   }
+  
   if( auto * obj = dynamic_cast< FRealObjective * >( qb->get_objective() ) )
    scan_objective( obj );
+  }
+
+ // unlock the Block- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ if( ! owned )
+  f_Block->read_unlock();
 
  DEBUG_LOG( "objective   = " << log_vector( objective ) << std::endl );
  DEBUG_LOG( "q_objective = " << log_vector( q_objective ) << std::endl );
@@ -541,9 +555,8 @@ void MILPSolver::load_problem( void )
  DEBUG_LOG( "ub          = " << log_vector( ub ) << std::endl );
  DEBUG_LOG( "xctype      = " << log_vector( xctype ) << std::endl );
 
- // unlock the Block
- if( ! owned )
-  f_Block->read_unlock();
+ if( ! objsense )  // not defined anywhere in the Block
+  objsense = 1;    // take one pick (minimization)
 
  }  // end( MILPSolver::load_problem )
 
@@ -932,8 +945,8 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row )
  auto con_rhs = con.get_rhs();
 
  if( con.is_relaxed() ) {  // a relaxed constraint becomes: function >= -Inf
-  sense[ row ] = 'G';
-  rhs[ row ] = -Inf< double >();
+  sense[ row ] = 'L';
+  rhs[ row ] = Inf< double >();
   }
  else
   if( con_lhs == con_rhs ) {
