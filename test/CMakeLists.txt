@@ -52,4 +52,13 @@ add_test(NAME MILPSolver_test
          COMMAND MILPSolver_test
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- MILPSolver_test_dual ------------------------------------------------ #
+add_executable(MILPSolver_test_dual test_dual.cpp)
+target_link_libraries(MILPSolver_test_dual PRIVATE
+                      SMS++::MILPSolver)
+
+add_test(NAME MILPSolver_test_dual
+         COMMAND MILPSolver_test_dual
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # --------------------------------------------------------------------------- #
