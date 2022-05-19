@@ -1029,8 +1029,9 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
  std::vector< double > pi( numrows , 0 );
  std::vector< double > dj( numcols , 0 );
 
- if( CPXgetpi( env , lp , pi.data() , 0 , numrows - 1 ) )
-  throw( std::runtime_error( "Unable to get dual values with CPXgetpi()" ) );
+ if( numrows > 0 )
+  if( CPXgetpi( env , lp , pi.data() , 0 , numrows - 1 ) )
+   throw( std::runtime_error( "Unable to get dual values with CPXgetpi()" ) );
 
  if( CPXgetdj( env , lp , dj.data() , 0 , numcols - 1 ) )
   throw( std::runtime_error( "Unable to get reduced costs with CPXgetdj()"
@@ -1039,11 +1040,11 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
  int row_dynamic = static_cons;
 
  auto set = [ & pi , & row ]( FRowConstraint & c ) {
-  c.set_dual( pi[ row++ ] );
+  c.set_dual( - pi[ row++ ] );
   };
 
  auto set_dynamic = [ & pi , & row_dynamic ]( FRowConstraint & c ) {
-  c.set_dual( pi[ row_dynamic++ ] );
+  c.set_dual( - pi[ row_dynamic++ ] );
   };
 
  for( auto qb : v_BFS ) {
@@ -1103,10 +1104,10 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
    }
 
   if( lhs_con && ( dj[ i ] >= 0 ) )
-   lhs_con->set_dual( dj[ i ] );
+   lhs_con->set_dual( - dj[ i ] );
   else
    if( rhs_con && ( dj[ i ] <= 0 ) )
-    rhs_con->set_dual( dj[ i ] );
+    rhs_con->set_dual( - dj[ i ] );
    else
     if( lhs_con || rhs_con )
      throw( std::logic_error(
@@ -1172,11 +1173,11 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
  int row = 0;
  int row_dynamic = static_cons;
  auto set = [ & y , & row ]( FRowConstraint & c ) {
-  c.set_dual( y[ row++ ] );
+  c.set_dual( - y[ row++ ] );
   };
 
  auto set_dynamic = [ & y , & row_dynamic ]( FRowConstraint & c ) {
-  c.set_dual( y[ row_dynamic++ ] );
+  c.set_dual( - y[ row_dynamic++ ] );
   };
 
  for( auto qb : v_BFS ) {
@@ -1235,10 +1236,10 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
    }
 
   if( lhs_con && ( dj[ i ] >= 0 ) )
-   lhs_con->set_dual( dj[ i ] );
+   lhs_con->set_dual( - dj[ i ] );
   else
    if( rhs_con && ( dj[ i ] <= 0 ) )
-    rhs_con->set_dual( dj[ i ] );
+    rhs_con->set_dual( - dj[ i ] );
    else
     if( lhs_con || rhs_con )
      throw( std::logic_error(
