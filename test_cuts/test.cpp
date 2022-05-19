@@ -147,7 +147,7 @@ public:
  /// destructor of NCoCubeBlock
 
  virtual ~NCoCubeBlock() {
-  Constraint::clear(v_cuts);     // clear the cuts
+  Constraint::clear( v_cuts );   // clear the cuts
   f_obj.clear();                 // clear the Objective
   v_x.clear();                   // delete Variable
   // explicitly reset all Constraint and Variable
