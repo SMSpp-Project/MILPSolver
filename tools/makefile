@@ -2,22 +2,19 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of cpx_pars                                                     #
-#                                                                            #
-#                                VERSION 1.00                                #
-#                               25 - 10 - 2020                               #
+#   makefile of cpx_pars / scip_pars                                         #
 #                                                                            #
 #                              Implementation by:                            #
 #                                                                            #
 #                              Antonio Frangioni                             #
-#                           Operations Research Group                        #
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
 #                                                                            #
 ##############################################################################
 
-# module name
-NAME = scip_pars
+# module name: uncomment the one that you want to build
+#NAME = scip_pars
+NAME = cpx_pars
 
 # basic directory
 DIR = ./
