@@ -122,6 +122,7 @@ target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
 
 if (MILPSolver_USE_CPLEX)
     message(STATUS "MILPSolver: CPLEX found, configuring CPXMILPSolver")
+    target_include_directories(${modName} PUBLIC ${CPLEX_INCLUDE_DIRS}) 
     target_sources(${modName} PRIVATE  src/CPXMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC CPLEX::Cplex)
 endif ()
