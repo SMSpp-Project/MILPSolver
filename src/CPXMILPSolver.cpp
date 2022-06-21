@@ -195,7 +195,7 @@ void CPXMILPSolver::load_problem( void )
 
 /*--------------------------------------------------------------------------*/
 
-double CPXMILPSolver::get_problem_lb( const ColVariable & var )
+double CPXMILPSolver::get_problem_lb( const ColVariable & var ) const
 {
  double b = MILPSolver::get_problem_lb( var );
  if( b == -Inf< double >() )
@@ -206,13 +206,26 @@ double CPXMILPSolver::get_problem_lb( const ColVariable & var )
 
 /*--------------------------------------------------------------------------*/
 
-double CPXMILPSolver::get_problem_ub( const ColVariable & var )
+double CPXMILPSolver::get_problem_ub( const ColVariable & var ) const
 {
  double b = MILPSolver::get_problem_ub( var );
  if( b == Inf< double >() )
   b = CPX_INFBOUND;
 
  return( b );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+std::array< double , 2 > CPXMILPSolver::get_problem_bounds(
+					      const ColVariable & var ) const
+{
+ auto ret = MILPSolver::get_problem_bounds( var );
+ if( ret[ 0 ] == -Inf< double >() )
+  ret[ 0 ] = -CPX_INFBOUND;
+ if( ret[ 1 ] == Inf< double >() )
+  ret[ 1 ] = CPX_INFBOUND;
+ return( ret );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1298,8 +1311,10 @@ void CPXMILPSolver::var_modification( const VariableMod * mod )
 
  bool is_mip = int_vars > 0;  // is a MIP after the change
 
- auto * var = static_cast< ColVariable * >( mod->variable() );
+ auto var = static_cast< const ColVariable * >( mod->variable() );
  auto idx = index_of_variable( var );
+ if( idx == Inf< int >() )  // the Variable is not (yet) there (?)
+  return;                   // nothing to do
  std::array< int , 2 > indices = { idx , idx };
 
  // react to changes in the integrality - - - - - - - - - - - - - - - - - - -
@@ -1361,8 +1376,7 @@ void CPXMILPSolver::var_modification( const VariableMod * mod )
     }
    else {                                         // un fix the variable
     static std::array< char , 2 > lu = { 'L' , 'U' };
-    std::array< double , 2 > bd = { get_problem_lb( *var ) ,
-				    get_problem_ub( *var ) };
+    auto bd = CPXMILPSolver::get_problem_bounds( *var );
     CPXchgbds( env , lp , 2 , indices.data() , lu.data() , bd.data() );
     }
   }
@@ -1396,10 +1410,12 @@ void CPXMILPSolver::const_modification( const ConstraintMod * mod )
  /* To change the coefficents, a FunctionMod must be used. */
 
  auto * con = dynamic_cast< FRowConstraint * >( mod->constraint() );
- if( ! con )  // TODO: Throw exception?
-  return;
+ if( ! con )  // this should not happen
+  return;     // but in case, nothing to do
 
  int index = index_of_constraint( con );
+ if( index == Inf< int >() )  // the FRowConstraint is not (yet?) there
+  return;                     // nothing to do
  char sense;
  double rhs;
  double rngval;
@@ -1469,34 +1485,47 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::bound_modification( mod );
 
- /* The same ColVariable can have more active OneVarConstraints,
-  * so each time we modify one of them we have to check if LHS and RHS
-  * of the Variable change. */
+ /* One ColVariable can have more active OneVarConstraints, so each time we
+  * modify one of them we have to check if LHS and RHS of the Variable
+  * actually change (as they may not). */
 
  static std::array< char , 2 > lu = { 'L' , 'U' };
  
- auto * con = static_cast< OneVarConstraint * >( mod->constraint() );
- auto * var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ auto con = static_cast< OneVarConstraint * >( mod->constraint() );
+ auto var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ if( ! var )  // this should never happen
+  return;     // but in case, there is nothing to do
+ 
+ // fixed variables are implemented in CPXMILPSolver by changing the bounds;
+ // therefore, actual changes of the bounds are ignored here. note that we
+ // are assuming the new bounds do not make the fixed value of the variable
+ // unfeasible, as this will make the whole problem unfeasible
+ // TODO: check this
+ if( var->is_fixed() )
+  return;
+
  auto vi = index_of_variable( var );
+ if( vi == Inf< int >() )  // the ColVariable has been removed
+  return;                  // is strange, but there is nothing to do
+
  std::array< int , 2 > ind = { vi , vi };
  
  switch( mod->type() ) {
 
   case RowConstraintMod::eChgLHS: {
-   std::array< double , 1 > bd = {  get_problem_lb( *var ) };
+   std::array< double , 1 > bd = { CPXMILPSolver::get_problem_lb( *var ) };
    CPXchgbds( env , lp , 1 , ind.data() , lu.data() , bd.data() );
    break;
    }
 
   case RowConstraintMod::eChgRHS: {
-   std::array< double , 1 > bd = {  get_problem_ub( *var ) };
+   std::array< double , 1 > bd = { CPXMILPSolver::get_problem_ub( *var ) };
    CPXchgbds( env , lp , 1 , ind.data() , lu.data() + 1 , bd.data() );
    break;
    }
 
   case RowConstraintMod::eChgBTS: {
-   std::array< double , 2 > bd = {  get_problem_lb( *var ) ,
-				    get_problem_ub( *var ) };
+   auto bd = CPXMILPSolver::get_problem_bounds( *var );
    CPXchgbds( env , lp , 2 , ind.data() , lu.data() , bd.data() );
    break;
    }
@@ -1513,15 +1542,15 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::objective_function_modification( mod );
 
- auto * f = mod->function();
+ auto f = mod->function();
 
  // TODO: Avoid fallback reloading - Why this doesn't work?
  //
  // C05FunctionModLin
  // --------------------------------------------------------------------------
- // if( const auto * modl = dynamic_cast< C05FunctionModLin * >( mod ) ) {
+ // if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
  //
- //  if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ //  if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
  //   // Linear objective function
  //
  //   for( int i = 0 ; i < modl->vars().size() ; ++i ) {
@@ -1615,7 +1644,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  std::vector< double > values;
  values.reserve( nv );
 
- auto * f = mod->function();
+ auto f = mod->function();
  auto nav = f->get_num_active_var();
 
  // while changing the coefficients, we have to be careful about the fact
@@ -1625,48 +1654,48 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function
 
-  for( auto * v : mod->vars() ) {
+  for( auto v : mod->vars() ) {
    auto var = static_cast< const ColVariable * >( v );
-   indices.push_back( index_of_variable( var ) );
-
-   if( mod->added() ) {
-    auto idx = lf->is_active( var );
-    values.push_back( idx < nav ? lf->get_coefficient( idx ) : 0 );
+   if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+    indices.push_back( idx );
+    if( mod->added() ) {
+     auto cidx = lf->is_active( var );
+     values.push_back( cidx < nav ? lf->get_coefficient( cidx ) : 0 );
+     }
+    else
+     values.push_back( 0 );
     }
-   else
-    values.push_back( 0 );
    }
 
-  CPXchgobj( env , lp , nv , indices.data() , values.data() );
+  CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
   return;
   }
 
- if( const auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
   // Quadratic objective function
 
-  for( auto * v : mod->vars() ) {
+  for( auto v : mod->vars() ) {
    auto var = static_cast< const ColVariable * >( v );
-   auto ind = index_of_variable( var );
-   indices.push_back( ind );
-   double value = 0;
-   double q_value = 0;
+   if( auto ind = index_of_variable( var ) ; ind < Inf< int >() ) {
+    indices.push_back( ind );
+    double value = 0;
+    double q_value = 0;
 
-   if( mod->added() ) {
-    auto idx = qf->is_active( var );
-    if( idx < nav ) {
-     value = qf->get_linear_coefficient( idx );
-     q_value = qf->get_quadratic_coefficient( idx );
-     }
+    if( mod->added() )
+     if( auto idx = qf->is_active( var ) ; idx < nav ) {
+       value = qf->get_linear_coefficient( idx );
+       q_value = qf->get_quadratic_coefficient( idx );
+       }
+
+    values.push_back( value );
+    CPXchgqpcoef( env , lp , ind , ind , 2 * q_value );
     }
-
-   values.push_back( value );
-   CPXchgqpcoef( env , lp , ind , ind , 2 * q_value );
    }
 
-  CPXchgobj( env , lp , nv , indices.data() , values.data() );
+  CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
   return;
   }
 
@@ -1687,7 +1716,7 @@ void CPXMILPSolver::constraint_fvars_modification(
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_fvars_modification( mod );
 
- auto * lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
@@ -1702,15 +1731,19 @@ void CPXMILPSolver::constraint_fvars_modification(
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
 				) );
 
- auto * con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
+ auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )  // TODO: Throw exception?
+  return;
+
+ auto cidx = index_of_constraint( con );
+ if( cidx == Inf< int >() )
   return;
 
  std::vector< int > indices;
  indices.reserve( nv );
  std::vector< double > values;
  values.reserve( mod->vars().size() );
- std::vector< int > rows( nv , index_of_constraint( con ) );
+ std::vector< int > rows( nv , cidx );
 
  auto nav = lf->get_num_active_var();
 
@@ -1722,21 +1755,22 @@ void CPXMILPSolver::constraint_fvars_modification(
  // more to the point, they may no longer be active in the LinearFunction
 
  // get indices and coefficients
- for( auto * v : mod->vars() ) {
+ for( auto v : mod->vars() ) {
   auto var = static_cast< const ColVariable * >( v );
-  indices.push_back( index_of_variable( var ) );
-
-  if( mod->added() ) {
-   auto idx = lf->is_active( var );
-   values.push_back( idx < nav ? lf->get_coefficient( idx ) : 0 );
+  if( auto vidx = index_of_variable( var ) ; vidx < Inf< int >() ) {
+   indices.push_back( vidx );
+   if( mod->added() ) {
+    auto idx = lf->is_active( var );
+    values.push_back( idx < nav ? lf->get_coefficient( idx ) : 0 );
+    }
+   else
+    values.push_back( 0 );
    }
-  else
-   values.push_back( 0 );
   }
 
  // update the coefficients
- CPXchgcoeflist( env , lp , nv , rows.data() , indices.data() ,
-		 values.data() );
+ CPXchgcoeflist( env , lp , indices.size() , rows.data() ,
+		 indices.data() , values.data() );
 
  }  // end( CPXMILPSolver::constraint_fvars_modification )
 
@@ -1754,22 +1788,24 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::add_dynamic_constraint( con );
 
- auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+ auto lf = dynamic_cast< const LinearFunction * >( con->get_function() );
  if( ! lf )
-  throw( std::invalid_argument( "The Constraint is not linear" ) );
+  throw( std::invalid_argument( "the FRowConstraint is not linear" ) );
 
  int nzcnt = lf->get_num_active_var();
 
  std::array< int , 2 > rmatbeg = { 0 , nzcnt };
- std::vector< int > rmatind( nzcnt );
- std::vector< double > rmatval( nzcnt );
-
+ std::vector< int > rmatind;
+ rmatind.reserve( nzcnt );
+ std::vector< double > rmatval;
+ rmatval.reserve( nzcnt );
+ 
  // get the coefficients to fill the matrix
- for( int i = 0 ; i < nzcnt ; ++i ) {
-  auto * var = static_cast< ColVariable * >( lf->get_active_var( i ) );
-  rmatind[ i ] = index_of_variable( var );
-  rmatval[ i ] = lf->get_coefficient( i );
-  }
+ for( auto & el : lf->get_v_var() )
+  if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
+   rmatind.push_back( idx );
+   rmatval.push_back( el.second );
+   }
 
  // get the bounds
  auto con_lhs = con->get_lhs();
@@ -1798,10 +1834,13 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
     }
 
  // update the CPLEX problem
- CPXaddrows( env , lp , 0 , 1 , nzcnt , & rhs , & sense , rmatbeg.data() ,
-             rmatind.data() , rmatval.data() , nullptr , nullptr );
+ CPXaddrows( env , lp , 0 , 1 , rmatind.size() , & rhs , & sense ,
+	     rmatbeg.data() , rmatind.data() , rmatval.data() ,
+	     nullptr , nullptr );
  if( sense == 'R' ) {
-  int index = index_of_dynamic_constraint( con );
+  //!!  int index = index_of_dynamic_constraint( con );
+  // the constraint has just been added at the end
+  int index = numrows - 1;
   CPXchgrngval( env , lp , 1 , & index , & rngval );
   }
 
@@ -1818,50 +1857,18 @@ void CPXMILPSolver::add_dynamic_variable( const ColVariable * var )
 
  bool is_mip = int_vars > 0;  // is a MIP after the change
 
- /* build the coefficient matrix for the new variable
- // no, this must not be done: the variable is created "empty", and
- // the coefficients will be added separately later on
- std::vector< int > cmatind;
- std::vector< double > cmatval;
-
- auto active_constraints = get_active_constraints( *var );
- cmatind.reserve( active_constraints.size() );
- cmatval.reserve( active_constraints.size() );
-
- // get the coefficients for this variable for each active constraint
- for( auto * con : active_constraints ) {
-  auto * f = dynamic_cast< const LinearFunction * >( con->get_function() );
-  if( ! f )
-   throw( std::invalid_argument( "The Constraint is not linear" ) );
-
-  // get_active_constraints() already checks that the index exists
-  cmatind.push_back( index_of_constraint( con ) );
-  auto it = find_if( f->get_v_var().begin() , f->get_v_var().end(),
-                     [ & ]( LinearFunction::coeff_pair pair ) {
-                      return( pair.first == var );
-                     } );
-  cmatval.push_back( it->second );
-  }
- */
-
  // get the bounds
- double lb = get_problem_lb( *var );
- double ub = get_problem_ub( *var );
+ auto bd = CPXMILPSolver::get_problem_bounds( *var );
 
  // update the CPLEX problem
- /*
- int nzcnt = cmatind.size();
- std::array< int , 2 > cmatbeg = { 0 , nzcnt };
- CPXaddcols( env , lp , 1 , nzcnt , nullptr , cmatbeg.data() ,
-             cmatind.data() , cmatval.data() , & lb , & ub , nullptr );
- */
  CPXaddcols( env , lp , 1 , 0 , nullptr , nullptr , nullptr , nullptr,
-	     & lb , & ub , nullptr );
-
+	     & bd[ 0 ] , & bd[ 1 ] , nullptr );
 
  // update problem type, if necessary
  if( is_mip ) {       // the problem is a MIP
-  int idx = index_of_dynamic_variable( var );
+  //!! int idx = index_of_dynamic_variable( var );
+  // the variable has just been inserted at the end
+  int idx = numcols - 1;
 
   char new_ctype;     // get the new variable type
   if( var->is_integer() && ( ! relax_int_vars ) ) {
@@ -1915,13 +1922,18 @@ void CPXMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::add_dynamic_bound( con );
 
- auto * var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ auto var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ if( ! var )
+  throw( std::logic_error( "CPXMILPSolver: added a bound on no Variable" ) );
 
  auto idx = index_of_variable( var );
+ if( idx == Inf< int >() )
+  throw( std::logic_error( "CPXMILPSolver: added a bound on unknown Variable"
+			   ) );
+
  std::array< int , 2 > indices = { idx , idx };
  static std::array< char , 2 > lu = { 'L' , 'U' };
- std::array< double , 2 > bd = { get_problem_lb( *var ) ,
-				 get_problem_ub( *var ) };
+ auto bd = CPXMILPSolver::get_problem_bounds( *var );
 
  CPXchgbds( env , lp , 2 , indices.data() , lu.data() , bd.data() );
  }
@@ -1931,14 +1943,13 @@ void CPXMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 void CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 {
  int index = index_of_dynamic_constraint( con );
- if( index < Inf< int >() ) {
-  CPXdelrows( env , lp , index , index );
-
-  // call the method of MILPSolver to update the dictionaries (only)
-  MILPSolver::remove_dynamic_constraint( con );
-  }
- else
+ if( index == Inf< int >() )
   throw( std::runtime_error( "Dynamic constraint not found" ) );
+
+ CPXdelrows( env , lp , index , index );
+
+ // call the method of MILPSolver to update the dictionaries (only)
+ MILPSolver::remove_dynamic_constraint( con );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1946,14 +1957,13 @@ void CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 void CPXMILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
  int index = index_of_dynamic_variable( var );
- if( index < Inf< int >() ) {
-  CPXdelcols( env , lp , index , index );
-
-  // call the method of MILPSolver to update the dictionaries (only)
-  MILPSolver::remove_dynamic_variable( var );
-  }
- else
+ if( index == Inf< int >() )
   throw( std::runtime_error( "Dynamic variable not found" ) );
+
+ CPXdelcols( env , lp , index , index );
+
+ // call the method of MILPSolver to update the dictionaries (only)
+ MILPSolver::remove_dynamic_variable( var );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1963,12 +1973,20 @@ void CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::remove_dynamic_bound( con );
 
- auto * var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ // note: this only works because remove_dynamic_constraint[s]() do *not*
+ //       clear the removed OneVarConstraint, and therefore we can easily
+ //       reconstruct which ColVariable it was about
+ auto var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ if( ! var )  // this should never happen
+  return;     // but in case, there is nothing to do
 
- std::array< int , 2 > indices = { 2 , index_of_variable( var ) };
+ int idx = index_of_variable( var );
+ if( idx == Inf< int >() )  // the ColVariable has been removed
+  return;                   // is strange, but there is nothing to do
+
+ std::array< int , 2 > indices = { 2 , idx };
  static std::array< char , 2 > lu = { 'L' , 'U' };
- std::array< double , 2 > bd = { get_problem_lb( *var ) ,
-				 get_problem_ub( *var ) };
+ auto bd = CPXMILPSolver::get_problem_bounds( *var );
 
  CPXchgbds( env , lp , 2 , indices.data() , lu.data() , bd.data() );
  }
@@ -2865,20 +2883,28 @@ void CPXMILPSolver::reload_constraint( const LinearFunction * lf )
  if( ! nv )  // but this was an empty Constraint (?)
   return;    // so nothing changes
 
+ if( nv > Index( numcols ) )  // check if some variables have been defined
+  nv = numcols;               // that have not yet been added to the matrix
+
  std::vector< double > vals;
  vals.reserve( nv );
  std::vector< int > cols;
  cols.reserve( nv );
  auto row = index_of_constraint( static_cast< const FRowConstraint * >(
 						      lf->get_Observer() ) );
+ if( row == Inf< int >() )  // the constraint is not (yet?) there
+  return;
+
  std::vector< int > rows( nv , row );
 
- for( auto & var : lf->get_v_var() ) {
-  cols.push_back( index_of_variable( var.first ) );
-  vals.push_back( var.second );
-  }
+ for( auto & var : lf->get_v_var() )
+  if( auto idx = index_of_variable( var.first ) ; idx < Inf< int >() ) {
+   cols.push_back( idx );
+   vals.push_back( var.second );
+   }
 
- CPXchgcoeflist( env , lp , nv , rows.data() , cols.data() , vals.data() );
+ CPXchgcoeflist( env , lp , cols.size() , rows.data() , cols.data() ,
+		 vals.data() );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2906,35 +2932,39 @@ void CPXMILPSolver::reload_objective( Function * f )
  if( ! nv )  // but this was an empty Objective (?)
   return;    // so nothing changes
 
+ if( nv > Index( numcols ) )  // check if some variables have been defined
+  nv = numcols;               // that have not yet been added to the matrix
+
  std::vector< int > indices;
  indices.reserve( nv );
  std::vector< double > values;
  values.reserve( nv );
 
- if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
-  for( auto el : lf->get_v_var() ) {
-   indices.push_back( index_of_variable( el.first ) );
-   values.push_back( el.second );
-   }
+ if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+  for( auto & el : lf->get_v_var() )
+   if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
+    indices.push_back( idx );
+    values.push_back( el.second );
+    }
 
-  CPXchgobj( env , lp , nv , indices.data() , values.data() );
+  CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
 
   update_problem_type( false );
   return;
   }
 
  if( auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
-  for( auto el : qf->get_v_var() ) {
-   // linear coefficients can be changed all at once with CPXchgobj
-   indices.push_back( index_of_variable( std::get< 0 >( el ) ) );
-   values.push_back( std::get< 1 >( el ) );
-   double q_value = std::get< 2 >( el );
+  for( auto & el : qf->get_v_var() )
+   if( auto idx = index_of_variable( std::get< 0 >( el ) ) ;
+       idx < Inf< int >() ) {
+    // linear coefficients can be changed all at once with CPXchgobj
+    indices.push_back( idx );
+    values.push_back( std::get< 1 >( el ) );
+    // quadratic coefficients need be changed one at a time
+    CPXchgqpcoef( env , lp , idx , idx , 2 * std::get< 2 >( el ) );
+    }
 
-   // quadratic coefficients need be changed one at a time
-   CPXchgqpcoef( env , lp , indices.back() , indices.back() , 2 * q_value );
-   }
-
-  CPXchgobj( env , lp , nv , indices.data() , values.data() );
+  CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
 
   update_problem_type( true );
   return;

@@ -266,7 +266,7 @@ void SCIPMILPSolver::load_problem( void )
 
 /*--------------------------------------------------------------------------*/
 
-double SCIPMILPSolver::get_problem_lb( const ColVariable & var )
+double SCIPMILPSolver::get_problem_lb( const ColVariable & var ) const
 {
  double b = MILPSolver::get_problem_lb( var );
  if( b == -Inf< double >() )
@@ -277,13 +277,26 @@ double SCIPMILPSolver::get_problem_lb( const ColVariable & var )
 
 /*--------------------------------------------------------------------------*/
 
-double SCIPMILPSolver::get_problem_ub( const ColVariable & var )
+double SCIPMILPSolver::get_problem_ub( const ColVariable & var ) const
 {
  double b = MILPSolver::get_problem_ub( var );
  if( b == Inf< double >() )
   b = SCIPinfinity( scip );
 
  return( b );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+std::array< double , 2 > SCIPMILPSolver::get_problem_bounds(
+					      const ColVariable & var ) const
+{
+ auto ret = MILPSolver::get_problem_bounds( var );
+ if( ret[ 0 ] == -Inf< double >() )
+  ret[ 0 ] = -SCIPinfinity( scip );
+ if( ret[ 1 ] == Inf< double >() )
+  ret[ 1 ] = SCIPinfinity( scip );
+ return( ret );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -499,8 +512,10 @@ void SCIPMILPSolver::var_modification( const VariableMod * mod )
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto * var = static_cast< ColVariable * >( mod->variable() );
+ auto var = static_cast< ColVariable * >( mod->variable() );
  int idx = index_of_variable( var );
+ if( idx == Inf< int >() )  // the variable is no longer there (?)
+  return;
 
  // read old variable type
  SCIP_VARTYPE oldtype = SCIPvarGetType( vars[ idx ] );
@@ -532,14 +547,13 @@ void SCIPMILPSolver::var_modification( const VariableMod * mod )
 				     SCIP_VARTYPE_CONTINUOUS , & infeas ) );
  assert( ! infeas );
 
- SCIP_Real lb = get_problem_lb( *var );
- SCIP_Real ub = get_problem_ub( *var );
+ auto bd = SCIPMILPSolver::get_problem_bounds( *var );
 
- if( SCIPvarGetLbOriginal( vars[ idx ] ) != lb )
-  SCIP_CALL_ABORT( SCIPchgVarLb( scip , vars[ idx ] , lb ) );
+ if( SCIPvarGetLbOriginal( vars[ idx ] ) != bd[ 0 ] )
+  SCIP_CALL_ABORT( SCIPchgVarLb( scip , vars[ idx ] , bd[ 0 ] ) );
 
- if( SCIPvarGetUbOriginal( vars[ idx ] ) != ub )
-  SCIP_CALL_ABORT( SCIPchgVarUb( scip , vars[ idx ] , ub ) );
+ if( SCIPvarGetUbOriginal( vars[ idx ] ) != bd[ 1 ] )
+  SCIP_CALL_ABORT( SCIPchgVarUb( scip , vars[ idx ] , bd[ 1 ] ) );
 
  }  // end( SCIPMILPSolver::var_modification )
 
@@ -581,14 +595,18 @@ void SCIPMILPSolver::const_modification( const ConstraintMod * mod )
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto * con = dynamic_cast< FRowConstraint * >(mod->constraint());
+ auto con = dynamic_cast< const FRowConstraint * >(mod->constraint());
  if( ! con )
   return;
 
  RowConstraint::RHSValue con_lhs = NAN;
  RowConstraint::RHSValue con_rhs = NAN;
 
- SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
+ auto idx = index_of_constraint( con );
+ if( idx == Inf< int >() )  // the Constraint is no longer there (?)
+  return;                   // nothing to do
+ 
+ SCIP_CONS * scip_con = cons[ idx ];
 
  switch( mod->type() ) {
   case ConstraintMod::eRelaxConst:
@@ -638,30 +656,36 @@ void SCIPMILPSolver::bound_modification( const OneVarConstraintMod * mod )
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto * con = static_cast<OneVarConstraint *>(mod->constraint());
- auto * var = static_cast<ColVariable *>(con->get_active_var( 0 ));
+ auto con = static_cast< OneVarConstraint * >( mod->constraint() );
+ auto var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ if( ! var )  // this should never happen
+  return;     // but in case, there is nothing to do
 
- SCIP_Real lb;
- SCIP_Real ub;
- SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
+ auto idx = index_of_variable( var );
+ if( idx == Inf< int >() )  // the ColVariable has been removed
+  return;                   // is strange, but there is nothing to do
+
+ auto scip_var = vars[ idx ];
 
  switch( mod->type() ) {
-  case RowConstraintMod::eChgLHS:
-   lb = get_problem_lb( *var );
+  case RowConstraintMod::eChgLHS: {
+   SCIP_Real lb = SCIPMILPSolver::get_problem_lb( *var );
    SCIP_CALL_ABORT( SCIPchgVarLb( scip , scip_var , lb ) );
    break;
+   }
 
-  case RowConstraintMod::eChgRHS:
-   ub = get_problem_ub( *var );
+  case RowConstraintMod::eChgRHS: {
+   SCIP_Real ub = SCIPMILPSolver::get_problem_ub( *var );
    SCIP_CALL_ABORT( SCIPchgVarUb( scip , scip_var , ub ) );
    break;
+   }
 
-  case RowConstraintMod::eChgBTS:
-   lb = get_problem_lb( *var );
-   ub = get_problem_ub( *var );
-   SCIP_CALL_ABORT( SCIPchgVarLb( scip, scip_var, lb ) );
-   SCIP_CALL_ABORT( SCIPchgVarUb( scip, scip_var, ub ) );
+  case RowConstraintMod::eChgBTS: {
+   auto bd = SCIPMILPSolver::get_problem_bounds( *var );
+   SCIP_CALL_ABORT( SCIPchgVarLb( scip , scip_var , bd[ 0 ] ) );
+   SCIP_CALL_ABORT( SCIPchgVarUb( scip , scip_var , bd[ 1 ] ) );
    break;
+   }
 
   default:
    throw std::invalid_argument( "Invalid type of OneVarConstraintMod" );
@@ -679,7 +703,7 @@ void SCIPMILPSolver::objective_function_modification(
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto * f = mod->function();
+ auto f = mod->function();
 
  // C05FunctionModLin
  // --------------------------------------------------------------------------
@@ -688,9 +712,11 @@ void SCIPMILPSolver::objective_function_modification(
  // --------------------------------------------------------------------------
  if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function
-  for( auto el : lf->get_v_var() ) {
-   SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
-   SCIP_CALL_ABORT( SCIPchgVarObj( scip , var , el.second ) );
+  for( auto & el : lf->get_v_var() ) {
+   auto idx = index_of_variable( el.first );
+   if( idx == Inf< int >() )  // the ColVariable is not there
+    return;                   // nothing to do
+   SCIP_CALL_ABORT( SCIPchgVarObj( scip , vars[ idx ] , el.second ) );
    }
   return;
   }
@@ -715,15 +741,19 @@ void SCIPMILPSolver::constraint_function_modification(
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_function_modification( mod );
 
- auto * lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
- auto * con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
+ auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )
   return;
 
- SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
+ auto cidx = index_of_constraint( con );
+ if( cidx == Inf< int >() )  // the Constraint is no longer there (?)
+  return;                    // nothing to do
+ 
+ SCIP_CONS * scip_con = cons[ cidx ];
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
@@ -733,11 +763,12 @@ void SCIPMILPSolver::constraint_function_modification(
 
  // Fallback method - Reload all coefficients
  // --------------------------------------------------------------------------
- for( auto el : lf->get_v_var() ) {
-  SCIP_VAR * var = vars[ index_of_variable( el.first ) ];
-  SCIP_CALL_ABORT( SCIPchgCoefLinear( scip , scip_con , var , el.second ) );
-  }
-}  // end( SCIPMILPSolver::constraint_function_modification )
+ for( auto el : lf->get_v_var() )
+  if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() )
+   SCIP_CALL_ABORT( SCIPchgCoefLinear( scip , scip_con , vars[ idx ] ,
+				       el.second ) );
+  
+ }  // end( SCIPMILPSolver::constraint_function_modification )
 
 /*--------------------------------------------------------------------------*/
 
@@ -747,7 +778,7 @@ void SCIPMILPSolver::objective_fvars_modification(
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::objective_fvars_modification( mod );
 
- auto * f = mod->function();
+ auto f = mod->function();
 
  // check the modification type
  if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
@@ -758,20 +789,21 @@ void SCIPMILPSolver::objective_fvars_modification(
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function
 
   for( auto * it1 : mod->vars() )
-   for( auto it2: lf->get_v_var() )
-    if( it1 == it2.first ) {
-     SCIP_VAR * scip_var = vars[ index_of_variable( it2.first ) ];
-     if( mod->added() )
-      SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, it2.second ) );
-     else
-      SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
+   for( auto it2 : lf->get_v_var() )
+    if( it1 == it2.first )
+     if( auto idx = index_of_variable( it2.first ) ; idx < Inf< int >() ) {
+      SCIP_VAR * scip_var = vars[ idx ];
+      if( mod->added() )
+       SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, it2.second ) );
+      else
+       SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
 
-     break;
-     }
+      break;
+      }
 
   return;
   }
@@ -806,25 +838,30 @@ void SCIPMILPSolver::constraint_fvars_modification(
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
 				) );
 
- auto * con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
- if( ! con )
+ auto con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
+ if( con )
   return;
 
- SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
+ auto idx = index_of_constraint( con );
+ if( idx == Inf< int >() )  // the Constraint is no longer there (?)
+  return;                   // nothing to do
+
+ SCIP_CONS * scip_con = cons[ idx ];
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- for( auto * it1 : mod->vars() )
-  for( auto it2 : lf->get_v_var() )
-   if( it1 == it2.first ) {
-    SCIP_VAR * scip_var = vars[ index_of_variable( it2.first ) ];
+ auto nav = lf->get_num_active_var();
+ for( auto v : mod->vars() )
+  if( auto i = lf->is_active( v ) ; i < nav )
+   if( auto idx = index_of_variable( static_cast< const ColVariable * >( v ) )
+       ; idx < Inf< int >() ) {
+    SCIP_VAR * scip_var = vars[ idx ];
     if( mod->added() )
-     SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, scip_con, scip_var,
-					 it2.second ) );
+     SCIP_CALL_ABORT( SCIPchgCoefLinear( scip , scip_con , scip_var ,
+					 lf->get_coefficient( i ) ) );
     else
-     SCIP_CALL_ABORT( SCIPchgCoefLinear( scip, scip_con, scip_var, 0 ) );
-    break;
+     SCIP_CALL_ABORT( SCIPchgCoefLinear( scip , scip_con , scip_var , 0 ) );
     }
 
  }  // end( SCIPMILPSolver::constraint_fvars_modification )
@@ -843,7 +880,7 @@ void SCIPMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::add_dynamic_constraint( con );
 
- auto * f = dynamic_cast< const LinearFunction * >( con->get_function() );
+ auto f = dynamic_cast< const LinearFunction * >( con->get_function() );
  if( ! f )
   throw std::invalid_argument( "The Constraint is not linear" );
 
@@ -864,13 +901,10 @@ void SCIPMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
                                              con_lhs , con_rhs ) );
 
  // get the coefficients to fill the matrix
- for( Block::Index i = 0 ; i < con->get_num_active_var() ; ++i ) {
-  auto * var = static_cast< ColVariable * >( f->get_active_var( i ) );
-
-  SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
-  SCIP_Real coef = f->get_coefficient( i );
-  SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , scip_con , scip_var , coef ) );
-  }
+ for( auto & el : f->get_v_var() )
+  if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() )
+   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , scip_con , vars[ idx ] ,
+				       el.second ) );
 
  SCIP_CALL_ABORT( SCIPaddCons( scip , scip_con ) );
  cons.push_back( scip_con );
@@ -888,8 +922,7 @@ void SCIPMILPSolver::add_dynamic_variable( const ColVariable * var )
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- SCIP_Real lb = get_problem_lb( *var );
- SCIP_Real ub = get_problem_ub( *var );
+ auto bd = SCIPMILPSolver::get_problem_bounds( *var );
  SCIP_VARTYPE vartype = SCIP_VARTYPE_BINARY;
 
  // variable type
@@ -905,24 +938,30 @@ void SCIPMILPSolver::add_dynamic_variable( const ColVariable * var )
  SCIP_VAR * scip_var = nullptr;
 
  SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & scip_var , nullptr ,
-                                      lb , ub , 0.0 , vartype ) );
+                                      bd[ 0 ] , bd[ 1 ] , 0.0 , vartype ) );
  vars.push_back( scip_var );
  SCIP_CALL_ABORT( SCIPaddVar( scip, scip_var ) );
 
+ // we need the coefficients for this variable in each constraint
+ /*!! no, this should not be needed. adding the contribution of the new
+  *!! ColVariable to each of the Constraint (and the Objective) it
+  *!! contributes to will be done when the corresponding Modification
+  *!! will be managed
+
  int i = 0;
 
- // we need the coefficients for this variable in each constraint
  auto active_constraints = get_active_constraints( *var );
  for( auto * con : active_constraints ) {
-  auto * f = dynamic_cast< const LinearFunction * >( con->get_function() );
+  auto f = dynamic_cast< const LinearFunction * >( con->get_function() );
   if( ! f )
    throw( std::invalid_argument( "The Constraint is not linear" ) );
- 
+
   SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
   SCIP_Real coeff = f->get_coefficient( i );
   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , scip_con , scip_var , coeff ) );
   ++i;
   }
+  !!*/
 
  SCIP_CALL_ABORT( SCIPreleaseVar( scip , & scip_var ) );
 
@@ -938,14 +977,20 @@ void SCIPMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto * var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ auto var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ if( ! var )
+  throw( std::logic_error( "SCIPMILPSolver: added a bound on no Variable" ) );
 
- SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
+ auto idx = index_of_variable( var );
+ if( idx == Inf< int >() )
+  throw( std::logic_error( "SCIPMILPSolver: added a bound on unknown Variable"
+			   ) );
 
- SCIP_Real lb = get_problem_lb( *var );
- SCIP_Real ub = get_problem_ub( *var );
- SCIP_CALL_ABORT( SCIPchgVarLb( scip , scip_var , lb ) );
- SCIP_CALL_ABORT( SCIPchgVarUb( scip , scip_var , ub ) );
+ SCIP_VAR * scip_var = vars[ idx ];
+
+ auto bd = SCIPMILPSolver::get_problem_bounds( *var );
+ SCIP_CALL_ABORT( SCIPchgVarLb( scip , scip_var , bd[ 0 ] ) );
+ SCIP_CALL_ABORT( SCIPchgVarUb( scip , scip_var , bd[ 1 ] ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -998,19 +1043,27 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * var )
 void SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 {
  // no point in calling the method of MILPSolver, as it does nothing
- MILPSolver::remove_dynamic_bound( con );
+ // MILPSolver::remove_dynamic_bound( con );
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto * var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ // note: this only works because remove_dynamic_constraint[s]() do *not*
+ //       clear the removed OneVarConstraint, and therefore we can easily
+ //       reconstruct which ColVariable it was about
+ auto var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ if( ! var )  // this should never happen
+  return;     // but in case, there is nothing to do
 
- SCIP_VAR * scip_var = vars[ index_of_variable( var ) ];
+ int idx = index_of_variable( var );
+ if( idx == Inf< int >() )  // the ColVariable has been removed
+  return;                   // is strange, but there is nothing to do
 
- SCIP_Real lb = get_problem_lb( *var );
- SCIP_Real ub = get_problem_ub( *var );
- SCIP_CALL_ABORT( SCIPchgVarLb( scip , scip_var , lb ) );
- SCIP_CALL_ABORT( SCIPchgVarUb( scip , scip_var , ub ) );
+ SCIP_VAR * scip_var = vars[ idx ];
+
+ auto bd = SCIPMILPSolver::get_problem_bounds( *var );
+ SCIP_CALL_ABORT( SCIPchgVarLb( scip , scip_var , bd[ 0 ] ) );
+ SCIP_CALL_ABORT( SCIPchgVarUb( scip , scip_var , bd[ 1 ] ) );
  }
 
 /*--------------------------------------------------------------------------*/

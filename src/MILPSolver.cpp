@@ -562,7 +562,7 @@ void MILPSolver::load_problem( void )
 
 /*--------------------------------------------------------------------------*/
 
-double MILPSolver::get_problem_lb( const ColVariable & var )
+double MILPSolver::get_problem_lb( const ColVariable & var ) const
 {
  double b = var.get_lb();
 
@@ -575,7 +575,7 @@ double MILPSolver::get_problem_lb( const ColVariable & var )
 
 /*--------------------------------------------------------------------------*/
 
-double MILPSolver::get_problem_ub( const ColVariable & var )
+double MILPSolver::get_problem_ub( const ColVariable & var ) const
 {
  double b = var.get_ub();
 
@@ -588,8 +588,26 @@ double MILPSolver::get_problem_ub( const ColVariable & var )
 
 /*--------------------------------------------------------------------------*/
 
-std::vector< FRowConstraint * >
-MILPSolver::get_active_constraints( const ColVariable & var )
+std::array< double , 2 > MILPSolver::get_problem_bounds(
+					      const ColVariable & var ) const
+{
+ std::array< double , 2 > ret;
+ ret[ 0 ] = var.get_lb();
+ ret[ 1 ] = var.get_ub();
+
+ for( auto * i : var.active_stuff() )
+  if( auto box = dynamic_cast< OneVarConstraint * >( i ) ) {
+   ret[ 0 ] = std::max( ret[ 0 ] , box->get_lhs() );
+   ret[ 1 ] = std::min( ret[ 1 ] , box->get_rhs() );
+   }
+
+ return( ret );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+std::vector< FRowConstraint * > MILPSolver::get_active_constraints(
+					      const ColVariable & var ) const
 {
  std::vector< FRowConstraint * > active_constraints;
  for( auto * i : var.active_stuff() )
@@ -602,8 +620,8 @@ MILPSolver::get_active_constraints( const ColVariable & var )
 
 /*--------------------------------------------------------------------------*/
 
-std::vector< OneVarConstraint * >
-MILPSolver::get_active_bounds( const ColVariable & var )
+std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
+					      const ColVariable & var ) const
 {
  std::vector< OneVarConstraint * > active_bounds;
  for( auto * i : var.active_stuff() )
@@ -617,7 +635,7 @@ MILPSolver::get_active_bounds( const ColVariable & var )
 /*-------------------- METHODS FOR PROBLEM DESCRIPTION ---------------------*/
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_variable( const ColVariable * var )
+int MILPSolver::index_of_variable( const ColVariable * var ) const
 {
  auto i = index_of_static_variable( var );
  return( i < Inf< int >() ? i : index_of_dynamic_variable( var ) );
@@ -625,7 +643,7 @@ int MILPSolver::index_of_variable( const ColVariable * var )
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_static_variable( const ColVariable * var )
+int MILPSolver::index_of_static_variable( const ColVariable * var ) const
 {
  if( svar_to_idx.empty() )
   return( Inf< int >() );
@@ -659,7 +677,7 @@ int MILPSolver::index_of_static_variable( const ColVariable * var )
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_dynamic_variable( const ColVariable * var )
+int MILPSolver::index_of_dynamic_variable( const ColVariable * var ) const
 {
  #ifdef MILPSOLVER_DEBUG
   assert( std::is_sorted( dvar_to_idx.begin() , dvar_to_idx.end() ) );
@@ -678,7 +696,7 @@ int MILPSolver::index_of_dynamic_variable( const ColVariable * var )
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_constraint( const FRowConstraint * con )
+int MILPSolver::index_of_constraint( const FRowConstraint * con ) const
 {
  auto i = index_of_static_constraint( con );
  return( i < Inf< int >() ? i : index_of_dynamic_constraint( con ) );
@@ -686,7 +704,7 @@ int MILPSolver::index_of_constraint( const FRowConstraint * con )
 
 /*--------------------------------------------------------------------------*/
 
-int MILPSolver::index_of_static_constraint( const FRowConstraint * con )
+int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) const
 {
  if( scon_to_idx.empty() )
   return( Inf< int >() );
@@ -721,7 +739,7 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * con )
 /*--------------------------------------------------------------------------*/
 
 int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * con )
-{
+ const {
  #ifdef MILPSOLVER_DEBUG
   assert( std::is_sorted( dcon_to_idx.begin() , dcon_to_idx.end() ) );
  #endif
@@ -739,7 +757,7 @@ int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * con )
 
 /*--------------------------------------------------------------------------*/
 
-const ColVariable * MILPSolver::variable_with_index( int i )
+const ColVariable * MILPSolver::variable_with_index( int i ) const
 {
  if( i < static_vars )
   return( static_variable_with_index( i ) );
@@ -749,7 +767,7 @@ const ColVariable * MILPSolver::variable_with_index( int i )
 
 /*--------------------------------------------------------------------------*/
 
-const ColVariable * MILPSolver::static_variable_with_index( int i )
+const ColVariable * MILPSolver::static_variable_with_index( int i ) const
 {
  if( idx_to_svar.empty() )
   return( nullptr );
@@ -775,7 +793,7 @@ const ColVariable * MILPSolver::static_variable_with_index( int i )
 
 /*--------------------------------------------------------------------------*/
 
-const ColVariable * MILPSolver::dynamic_variable_with_index( int i )
+const ColVariable * MILPSolver::dynamic_variable_with_index( int i ) const
 {
  if( ( static_vars < i ) || ( i < numcols ) )
   return( idx_to_dvar[ i - static_vars ] );
@@ -785,7 +803,7 @@ const ColVariable * MILPSolver::dynamic_variable_with_index( int i )
 
 /*--------------------------------------------------------------------------*/
 
-const FRowConstraint * MILPSolver::constraint_with_index( int i )
+const FRowConstraint * MILPSolver::constraint_with_index( int i ) const
 {
  if( i < static_cons )
   return( static_constraint_with_index( i ) );
@@ -796,7 +814,7 @@ const FRowConstraint * MILPSolver::constraint_with_index( int i )
 /*--------------------------------------------------------------------------*/
 
 const FRowConstraint * MILPSolver::static_constraint_with_index( int i )
-{
+ const {
  if( idx_to_scon.empty() )
   return( nullptr );
 
@@ -822,7 +840,7 @@ const FRowConstraint * MILPSolver::static_constraint_with_index( int i )
 /*--------------------------------------------------------------------------*/
 
 const FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
-{
+ const {
  if( ( static_cons < i ) || ( i < numrows ) )
   return( idx_to_dcon[ i - static_cons ] );
 
@@ -858,13 +876,14 @@ void MILPSolver::scan_dynamic_variable( const ColVariable & var ,
 
 void MILPSolver::scan_variable( const ColVariable & var , Index & col )
 {
+ auto bd = MILPSolver::get_problem_bounds( var );
  if( var.is_fixed() ) {
-  lb[ col ] = std::max( get_problem_lb( var ) , var.get_value() );
-  ub[ col ] = std::min( get_problem_ub( var ) , var.get_value() );
+  lb[ col ] = std::max( bd[ 0 ] , var.get_value() );
+  ub[ col ] = std::min( bd[ 1 ] , var.get_value() );
   }
  else {
-  lb[ col ] = get_problem_lb( var );
-  ub[ col ] = get_problem_ub( var );
+  lb[ col ] = bd[ 0 ];
+  ub[ col ] = bd[ 1 ];
   }
 
  if( var.is_integer() && ( ! relax_int_vars ) ) {
@@ -1128,7 +1147,7 @@ bool MILPSolver::is_of( Function * f )
 
 void MILPSolver::var_modification( const VariableMod * mod )
 {
- auto * var = static_cast< const ColVariable * >( mod->variable() );
+ auto var = static_cast< const ColVariable * >( mod->variable() );
 
  // update the number of integer variables
  if( ColVariable::is_integer( mod->old_state() ) !=
@@ -1146,8 +1165,9 @@ void MILPSolver::var_modification( const VariableMod * mod )
 
  // update bounds (if any)
  if( ! lb.empty() ) {
-  lb[ idx ] = get_problem_lb( *var );
-  ub[ idx ] = get_problem_ub( *var );
+  auto bd = MILPSolver::get_problem_bounds( *var );
+  lb[ idx ] = bd[ 0 ];
+  ub[ idx ] = bd[ 1 ];
   }
 
  // update variable type (if any)
@@ -1255,10 +1275,12 @@ void MILPSolver::bound_modification( const OneVarConstraintMod * mod )
   case RowConstraintMod::eChgRHS:
    ub[ idx ] = get_problem_ub( *var );
    break;
-  case RowConstraintMod::eChgBTS:
-   lb[ idx ] = get_problem_lb( *var );
-   ub[ idx ] = get_problem_ub( *var );
+  case RowConstraintMod::eChgBTS: {
+   auto bd = MILPSolver::get_problem_bounds( *var );
+   lb[ idx ] = bd[ 0 ];
+   ub[ idx ] = bd[ 1 ];
    break;
+   }
   default:
    throw( std::invalid_argument( "Invalid type of OneVarConstraintMod" ) );
   }
@@ -1609,7 +1631,7 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
                          return( pair.first < v );
                          } );
 
- dvar_to_idx.insert( it, { var, numcols } );
+ dvar_to_idx.insert( it , { var , numcols } );
  idx_to_dvar.emplace_back( var );
 
  // update the counters
@@ -1619,8 +1641,9 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
 
  // update the LB/UB vectors (if any)
  if( ! lb.empty() ) {
-  lb.emplace_back( get_problem_lb( *var ) );
-  ub.emplace_back( get_problem_ub( *var ) );
+  auto bd = MILPSolver::get_problem_bounds( *var );
+  lb.emplace_back( bd[ 0 ] );
+  ub.emplace_back( bd[ 1 ] );
   }
 
  // update the objective vectors
@@ -1661,9 +1684,17 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
   return;
 
  auto var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ if( ! var )
+  throw( std::logic_error( "MILPSolver: added a bound on no Variable" ) );
+
  int idx = index_of_variable( var );
- lb[ idx ] = get_problem_lb( *var );
- ub[ idx ] = get_problem_ub( *var );
+ if( idx == Inf< int >() )
+  throw( std::logic_error( "MILPSolver: added a bound on unknown Variable" )
+	 );
+
+ auto bd = MILPSolver::get_problem_bounds( *var );
+ lb[ idx ] = bd[ 0 ];
+ ub[ idx ] = bd[ 1 ];
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1771,14 +1802,24 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
 
 void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 {
- // this modification has nothing to do if these are empty
+ // this Modification has nothing to do if these are empty
  if( lb.empty() )
   return;
 
- auto var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
+ // note: this only works because remove_dynamic_constraint[s]() do *not*
+ //       clear the removed OneVarConstraint, and therefore we can easily
+ //       reconstruct which ColVariable it was about
+ auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
+ if( ! var )  // this should never happen
+  return;     // but in case, there is nothing to do
+
  int idx = index_of_variable( var );
- lb[ idx ] = get_problem_lb( * var );
- ub[ idx ] = get_problem_ub( * var );
+ if( idx == Inf< int >() )  // the ColVariable has been removed
+  return;                   // is strange, but there is nothing to do
+ 
+ auto bd = get_problem_bounds( * var );
+ lb[ idx ] = bd[ 0 ];
+ ub[ idx ] = bd[ 1 ];
  }
 
 /*--------------------------------------------------------------------------*/

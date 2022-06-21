@@ -283,13 +283,17 @@ class SCIPMILPSolver : public MILPSolver
   * OneVarConstraints active for that Variable.
   * @{ */
 
- /// Gets the LB fot the given variable in the problem
- double get_problem_lb( const ColVariable & var ) override;
+ /// gets the LB fot the given variable in the problem
+ double get_problem_lb( const ColVariable & var ) const override;
 
- /// Gets the UB fot the given variable in the problem
- double get_problem_ub( const ColVariable & var ) override;
+ /// gets the UB fot the given variable in the problem
+ double get_problem_ub( const ColVariable & var ) const override;
 
- /** @} --------------------------------------------------------------------*/
+ /// gets both bounds for the given variable in the problem
+ std::array< double , 2 > get_problem_bounds( const ColVariable & var )
+  const override;
+
+/** @} ---------------------------------------------------------------------*/
 /*-------------------- METHODS FOR MODIFYING THE PROBLEM -------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for modifying the constructed SCIP problem

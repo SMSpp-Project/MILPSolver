@@ -362,126 +362,127 @@ class MILPSolver : public CDASolver
   * of the problem, so we can reduce searching time when possible.
   * @{ */
 
+ /// returns the matrix column index of a given variable
  /** Returns the matrix column index of a given variable.
   *
   * @param var a pointer to a ColVariable
-  * @return the corresponding matrix column index
-  * @throws std::invalid_argument if no indices are associated to that
-  *                               variable */
+  * @return the corresponding matrix column index, or Inf< int >() if the
+  *         ColVariable was not found */
 
- int index_of_variable( const ColVariable * var );
+ int index_of_variable( const ColVariable * var ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the matrix column index of a given static variable
  /** Returns the matrix column index of a given static variable.
   *
   * @param var a pointer to a ColVariable
-  * @return the corresponding matrix column index
-  * @throws std::invalid_argument if no indices are associated to the
-  *                               variable */
+  * @return the corresponding matrix column index, or Inf< int >() if the
+  *         ColVariable was not found among the static ones */
 
- int index_of_static_variable( const ColVariable * var );
+ int index_of_static_variable( const ColVariable * var ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /** Returns the matrix column index of a given dynamic variable.
   *
   * @param var a pointer to a ColVariable
-  * @return the corresponding matrix column index
-  * @throws std::invalid_argument if no indices are associated to the
-  *                               variable */
+  * @return the corresponding matrix column index, or Inf< int >() if the
+  *         ColVariable was not found among the dynamic ones */
 
- int index_of_dynamic_variable( const ColVariable * var );
+ int index_of_dynamic_variable( const ColVariable * var ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// rturns the matrix row index of the given constraint
  /** Returns the matrix row index of the given constraint.
   *
   * @param con a pointer to a FRowConstraint
-  * @return the corresponding matrix row index */
+  * @return the corresponding matrix row index, or Inf< int >() if the
+  *         FRowConstraint was not found */
 
- int index_of_constraint( const FRowConstraint * con );
+ int index_of_constraint( const FRowConstraint * con ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the matrix row index of the given static constraint
  /** Returns the matrix row index of the given static constraint.
   *
   * @param con a pointer to a FRowConstraint
-  * @return the corresponding matrix row index
-  * @throws std::invalid_argument if no indices are associated to the
-  *                               constraint */
+  * @return the corresponding matrix row index, or Inf< int >() if the
+  *         FRowConstraint was not found among the static ones */
 
- int index_of_static_constraint( const FRowConstraint * con );
+ int index_of_static_constraint( const FRowConstraint * con ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the matrix row index of the given dynamic constraint
  /** Returns the matrix row index of the given dynamic constraint.
   *
   * @param con a pointer to a FRowConstraint
-  * @return the corresponding matrix row index
-  * @throws std::invalid_argument if no indices are associated to the
-  *                               constraint */
+  * @return the corresponding matrix row index, or Inf< int >() if the
+  *         FRowConstraint was not found among the dynamic ones */
 
- int index_of_dynamic_constraint( const FRowConstraint * con );
+ int index_of_dynamic_constraint( const FRowConstraint * con ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the variable corresponding to the given column index
  /** Returns the variable corresponding to a variable matrix column index.
   *
   * @param i a constraint matrix column index
-  * @return a pointer to the corresponding ColVariable
-  * @throws std::invalid_argument if the index doesn't correspond to a
-  *                               variable */
+  * @return a pointer to the corresponding ColVariable, or nullptr if \p i
+  *         is an invalid variable index */
 
- const ColVariable * variable_with_index( int i );
+ const ColVariable * variable_with_index( int i ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the static variable corresponding to the given column index
  /** Returns the static variable corresponding to the given variable
   * matrix column index.
   *
   * @param i a constraint matrix column index
-  * @return a pointer to the corresponding static ColVariable
-  * @throws std::invalid_argument if the index doesn't correspond to
-  *                               a static variable */
+  * @return a pointer to the corresponding ColVariable, or nullptr if \p i
+  *         is an invalid static variable index */
 
- const ColVariable * static_variable_with_index( int i );
+ const ColVariable * static_variable_with_index( int i ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the dynamic variable corresponding to the given column index
  /** Returns the dynamic variable corresponding to the given variable
   * matrix column index.
   *
   * @param i a constraint matrix column index
-  * @return a pointer to the corresponding dynamic ColVariable
-  * @throws std::invalid_argument if the index doesn't correspond to
-  *                               a dynamic variable. */
+  * @return a pointer to the corresponding ColVariable, or nullptr if \p i
+  *         is an invalid dynamic variable index */
 
- const ColVariable * dynamic_variable_with_index( int i );
+ const ColVariable * dynamic_variable_with_index( int i ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /** Returns the constraint corresponding to a constraint matrix row index.
+ /// returns the constraint corresponding to the given matrix row index
+ /** Returns the constraint corresponding to the givem matrix row index.
   *
   * @param i a constraint matrix row index
-  * @return a pointer to the corresponding FRowConstraint
-  * @throws std::invalid_argument if the index doesn't correspond to
-  *                               a constraint */
+  * @return a pointer to the corresponding FRowConstraint, or nullptr if \p i
+  *         is an invalid constraint index */
 
- const FRowConstraint * constraint_with_index( int i );
+ const FRowConstraint * constraint_with_index( int i ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the static constraint corresponding to the given row index
  /** Returns the static constraint corresponding to the given constraint
   * matrix row index.
   *
   * @param i a constraint matrix row index
-  * @return a pointer to the corresponding FRowConstraint
-  * @throws std::invalid_argument if the index doesn't correspond to
-  *                               a static constraint */
+  * @return a pointer to the corresponding FRowConstraint, or nullptr if \p i
+  *         is an invalid static constraint index */
 
- const FRowConstraint * static_constraint_with_index( int i );
+ const FRowConstraint * static_constraint_with_index( int i ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the dynamic constraint corresponding to the given row index
  /** Returns the dynamic constraint corresponding to the given constraint
   * matrix row index.
   *
   * @param i a constraint matrix row index
-  * @return a pointer to the corresponding FRowConstraint
-  * @throws std::invalid_argument if the index doesn't correspond to
-  *                               a dynamic constraint  */
+  * @return a pointer to the corresponding FRowConstraint, or nullptr if \p i
+  *         is an invalid dynamic constraint index */
 
- const FRowConstraint * dynamic_constraint_with_index( int i );
+ const FRowConstraint * dynamic_constraint_with_index( int i ) const;
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -777,18 +778,21 @@ class MILPSolver : public CDASolver
   * OneVarConstraints active for that Variable.
   * @{ */
 
- /// Gets the LB fot the given variable in the problem
- virtual double get_problem_lb( const ColVariable & var );
+ /// gets the LB for the given variable in the problem
+ virtual double get_problem_lb( const ColVariable & var ) const;
 
- /// Gets the UB fot the given variable in the problem
- virtual double get_problem_ub( const ColVariable & var );
+ /// gets the UB for the given variable in the problem
+ virtual double get_problem_ub( const ColVariable & var ) const;
+
+ /// gets both bounds for the given variable in the problem---
+ virtual std::array< double , 2 > get_problem_bounds(
+					     const ColVariable & var ) const;
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
-
  /// returns true if b is "mine" (f_Block or one of its descendants)
 
- bool is_mine( Block * b ) {
+ bool is_mine( Block * b ) const {
   while( b ) {
    if( b == f_Block )
     return( true );
@@ -798,16 +802,15 @@ class MILPSolver : public CDASolver
   }
 
 /*--------------------------------------------------------------------------*/
-
- /// Gets the active constraints for the specified variable
+ /// gets the active constraints for the specified variable
  // TODO: This should be temporary
- std::vector< FRowConstraint * >
- get_active_constraints( const ColVariable & var );
+ std::vector< FRowConstraint * > get_active_constraints(
+					     const ColVariable & var ) const;
 
- /// Gets the active bounds for the specified variable
+ /// gets the active bounds for the specified variable
  // TODO: This should be temporary
- std::vector< OneVarConstraint * >
- get_active_bounds( const ColVariable & var );
+ std::vector< OneVarConstraint * > get_active_bounds(
+					     const ColVariable & var ) const;
 
 /*--------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */
