@@ -87,6 +87,8 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @name piblic types of CPXMILPSolver
+ * @{ */
 
  /// enum for integer parameters
  enum int_par_type_CPXS {
@@ -131,6 +133,15 @@ class CPXMILPSolver : public MILPSolver {
   };
 
 /*--------------------------------------------------------------------------*/
+ // "importing" a few types from Block
+
+ using Subset = Block::Subset;
+ 
+ using c_Subset = Block::c_Subset;
+
+ using Range = Block::Range;
+
+/** @} ---------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Constructor and Destructor
@@ -692,11 +703,11 @@ class CPXMILPSolver : public MILPSolver {
 
  /** Reloads a constraint.
   * To be used as fallback method for constraint FunctionMods. */
- void reload_constraint( const LinearFunction * lf );
+ // void reload_constraint( const LinearFunction * lf );
 
  /** Reloads the objective.
   * To be used as fallback method for objective FunctionMods. */
- void reload_objective( Function * f );
+ // void reload_objective( Function * f );
 
  /// update problem type: false for a linear one, true for a quadratic one
  void update_problem_type( bool quad );
