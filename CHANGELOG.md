@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Invert the sign of the dual solution in CPXMILPSolver to follow the
+  RowConstraint conventions.
+
 ## [0.5.0] - 2021-12-08
 
 ### Added
