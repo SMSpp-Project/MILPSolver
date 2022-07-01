@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2022-07-01
+
 ### Added
 
 - Support to SCIP 8.0.0 and Cplex 22.1.
@@ -74,7 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.0...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.1...develop
+[0.5.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.0...0.5.1
 [0.5.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.4.0...0.5.0
 [0.4.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.3.0...0.4.0
 [0.3.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.2.0...0.3.0

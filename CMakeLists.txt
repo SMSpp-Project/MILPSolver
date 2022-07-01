@@ -22,7 +22,7 @@
 cmake_minimum_required(VERSION 3.12)
 cmake_policy(VERSION 3.12)
 project(MILPSolver
-        VERSION 0.5.0
+        VERSION 0.5.1
         DESCRIPTION "SMS++ MILPSolver module"
         HOMEPAGE_URL https://gitlab.com/smspp/milpsolver
         LANGUAGES C CXX)
