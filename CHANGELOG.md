@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2022-07-01
+
+### Added
+
+- Support to SCIP 8.0.0 and Cplex 22.1.
+- Separation of user cuts and lazy constraints.
+
+### Fixed
+
+- Invert the sign of the dual solution in CPXMILPSolver to follow the
+  RowConstraint conventions.
+- Scan of ColVariable in CPXMILPSolver.
+- Blunder in bound changes in CPXMILPSolver.
+- Callback for Cplex versions prior to 12.10.
+
 ## [0.5.0] - 2021-12-08
 
 ### Added
@@ -61,7 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.0...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.1...develop
+[0.5.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.0...0.5.1
 [0.5.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.4.0...0.5.0
 [0.4.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.3.0...0.4.0
 [0.3.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.2.0...0.3.0

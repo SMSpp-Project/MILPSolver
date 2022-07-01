@@ -2,7 +2,7 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of cpx_pars / scip_pars                                         #
+#   makefile of test (for :MILPSolver)                                       #
 #                                                                            #
 #                              Implementation by:                            #
 #                                                                            #
@@ -12,17 +12,20 @@
 #                                                                            #
 ##############################################################################
 
-# module name: uncomment the one that you want to build
-#NAME = scip_pars
-NAME = cpx_pars
+# module name
+NAME = test
 
 # basic directory
 DIR = ./
 
 # debug switches
-#SW = -g -glldb -fno-inline -std=c++17 -ferror-limit=1 $(MCFCS)
+#SW = -g3 -glldb -fno-inline -std=c++17 -ferror-limit=1 -Wno-enum-compare
+# debug switches with address sanitizer and extra pedantic warning
+#SW = -g3 -glldb -fno-inline -std=c++17 -ferror-limit=1 -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer -Wpedantic -Wextra -Wno-unused-parameter -DCLANG_1200_0_32_27_PATCH -Wno-enum-compare
+# production switches with address sanitizer
+#SW = -O3 -std=c++17 -DNDEBUG -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined -Wno-enum-compare
 # production switches
-SW = -O3 -std=c++17 -DNDEBUG $(MCFCS)
+SW = -O3 -std=c++17 -DNDEBUG -DCLANG_1200_0_32_27_PATCH -Wno-enum-compare -ferror-limit=1
 
 # compiler
 CC = clang++
@@ -45,36 +48,36 @@ clean::
 # *H   is the list of all include files
 # *INC is the -I<include directories>
 
-# define input macros for libCPLEX complete makefile, then include it
-libCPLEXDIR = $(MILPSSDR)../../extlib/
-include $(libCPLEXDIR)makefile-libCPLEX
+# define input macros for SMS++ complete makefile, then include it
+SMS++SDR = ../../SMS++/
+include $(SMS++SDR)lib/makefile-c
 
-# define input macros for libSCIP complete makefile, then include it
-libSCIPDIR = $(MILPSSDR)../../extlib/
-include $(libSCIPDIR)makefile-libSCIP
+# define input macros for MILPSolver makefile (minus SMS++), then include it
+MILPSSDR = ../
+include $(MILPSSDR)makefile-s
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
 # object files
-MOBJ =  
+MOBJ =  $(MILPSOBJ) $(SMS++OBJ)
 
 # libreries
-MLIB =  $(libCPLEXLIB) $(libSCIPLIB)
+MLIB =  $(MILPSLIB) $(SMS++LIB)
 
-$(NAME): $(MOBJ) $(DIR)$(NAME).o
-	$(CC) -o $(NAME) $(DIR)$(NAME).o $(MOBJ) $(MLIB) $(SW)
+$(NAME): $(MOBJ) $(DIR)test.o
+	$(CC) -o $(DIR)$(NAME) $^ $(MLIB) $(SW)
 
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
 # include directives
-MINC =  $(libCPLEXINC) $(libSCIPINC)
+MINC =  $(SMS++INC) $(MILPSINC)
 
 # includes
-MH =    
+MH =    $(SMS++H) $(MILPSH)
 
 # compile command
 
-$(DIR)$(NAME).o: $(DIR)$(NAME).cpp $(MH)
-	$(CC) -c $*.cpp -o $@ $(MINC) $(SW)
+$(DIR)test.o: $(DIR)test.cpp $(MH)
+	$(CC) -c $(DIR)test.cpp -o $@ $(MINC) $(SW)
 
 ############################ End of makefile #################################

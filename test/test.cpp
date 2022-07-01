@@ -34,9 +34,14 @@ class MILPSolverTest :
  ~MILPSolverTest() override = default;
 
  void SetUp() override {
+  const auto filename = std::get< 0 >( GetParam() );
+  std::ifstream istream( filename );
+  if( ! istream.is_open() )
+   throw std::runtime_error( "Failed to open file " + filename );
+
   block = new AbstractBlock();
   EXPECT_TRUE( block != nullptr );
-  block->read( std::get< 0 >( GetParam() ) );
+  block->load( istream );
  }
 
  void TearDown() override {
