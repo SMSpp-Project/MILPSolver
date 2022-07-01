@@ -49,8 +49,8 @@ double get_obj_sign( Objective::of_type sense ) {
  switch( sense ) {
   case( Objective::eMin ): return -1;
   case( Objective::eMax ): return 1;
+  default: return 0;
  }
- return 0;
 }
 
 /*--------------------------------------------------------------------------*/
