@@ -1,9 +1,9 @@
 ##############################################################################
 ################################ makefile-s ##################################
 ##############################################################################
-#									                                         #
+#                                                                            #
 #   makefile of MILPSolver and its dependencies, excluding SMS++             #
-#									                                         #
+#                                                                            #
 #   The makefile defines internally all external libraries required by       #
 #   MILPSolver, excluding the SMS++ core ones whose symbols are assumed to   #
 #   have been defined already (typically by including SMS++/lib/makefile).   #
@@ -29,7 +29,7 @@
 #                          Operations Research Group                         #
 #                         Dipartimento di Informatica                        #
 #                             Universita' di Pisa                            #
-#									                                         #
+#                                                                            #
 ##############################################################################
 
 # define & include the necessary modules- - - - - - - - - - - - - - - - - - -
