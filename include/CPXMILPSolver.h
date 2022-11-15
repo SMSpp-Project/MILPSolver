@@ -62,7 +62,7 @@ namespace SMSpp_di_unipi_it {
  * using CPLEX through its Callable Library. Moreover, it implements the
  * interface that MILPSolver provides for processing modifications.
  *
- * The main logic is in compute(). This method copies the vectors that decribe
+ * The main logic is in compute(). This method copies the vectors that describe
  * the LP problem into a CPLEX environment, it processes the modifications and
  * then solves the problem.
  * get_var_solution() retrieves the values of the variables from CPLEX, saves
@@ -87,7 +87,7 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name piblic types of CPXMILPSolver
+/** @name public types of CPXMILPSolver
  * @{ */
 
  /// enum for integer parameters
@@ -227,7 +227,7 @@ class CPXMILPSolver : public MILPSolver {
 
  /// sets an integer parameter with the given value
  /** Set the "int" parameters specific of CPXMILPSolver, together with the
-  * paramaters of MILPSolver that CPXMILPSolver actually "listens to" and all
+  * parameters of MILPSolver that CPXMILPSolver actually "listens to" and all
   * parameters supported by Cplex:
   *
   * - intThrowReducedCostException [0]: it indicates whether an exception must
@@ -607,7 +607,7 @@ class CPXMILPSolver : public MILPSolver {
  /// maps a Solver integer parameter into a Cplex one
  /** Maps the Solver integer parameter \p par into a Cplex one;
   * returns a positive number of it is an int parameter and a negative
-  * number if it is a long one. Returns 0 if not a Cplex paameter. */
+  * number if it is a long one. Returns 0 if not a Cplex parameter. */
  int cpx_int_par_map( idx_type par ) const;
  
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -647,7 +647,7 @@ class CPXMILPSolver : public MILPSolver {
  /** Since CPLEX is multi-threaded, lock()-ing the Block with the f_id of
   * CPXMILPSolver is not enough to prevent concurrent access to it. This is
   * an issue in che callback(), in particular when user cuts / lazy
-  * constranits separation is required, and therefore 1) a solution has to
+  * constraints separation is required, and therefore 1) a solution has to
   * be written in the Variable, 2) generate_dynamic_constraints() has to be
   * called, which may cause the addition of new dynamic Constraint to the
   * Block. Thus, CPXMILPSolver will use this mutex to ensure mutual exclusion
@@ -714,7 +714,9 @@ class CPXMILPSolver : public MILPSolver {
 
  // get the right Configuration for ci = 0, 1, 2
  Configuration * get_cfg( Index ci ) const;
- 
+
+ OFValue get_constant_value( void );
+
 /*--------------------------------------------------------------------------*/
 
  SMSpp_insert_in_factory_h;

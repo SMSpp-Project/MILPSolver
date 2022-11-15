@@ -814,10 +814,12 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       case CPXPROB_FIXEDMILP:
       case CPXPROB_FIXEDMIQP:
        CPXgetbestobjval( env , lp , & lower_bound );
+       lower_bound += get_constant_value();
        break;
       default:
        // FIXME: It's unclear how to get a lb for a continuous problem here
        CPXgetobjval( env , lp , & lower_bound );
+       lower_bound += get_constant_value();
       }
      break;
 
@@ -844,8 +846,12 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       lower_bound = - Inf< OFValue >();
       break;
       }
+     lower_bound += get_constant_value();
 
-    case kOK: CPXgetobjval( env, lp, &lower_bound ); break;
+    case kOK:
+     CPXgetobjval( env , lp , & lower_bound );
+     lower_bound += get_constant_value();
+     break;
 
     default:
      // Same as above
@@ -883,8 +889,12 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       upper_bound = Inf< OFValue >();
       break;
       }
+     upper_bound += get_constant_value();
 
-    case kOK: CPXgetobjval( env , lp , & upper_bound ); break;
+    case kOK:
+     CPXgetobjval( env , lp , & upper_bound );
+     upper_bound += get_constant_value();
+     break;
 
     default:
      // If Cplex does not state that an optimal solution has been found
@@ -910,10 +920,12 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       case CPXPROB_FIXEDMILP:
       case CPXPROB_FIXEDMIQP:
        CPXgetbestobjval( env , lp , & upper_bound );
+       upper_bound += get_constant_value();
        break;
       default:
        // FIXME: It's unclear how to get a ub for a continuous problem here
        CPXgetobjval( env , lp , & upper_bound );
+       upper_bound += get_constant_value();
       }
      break;
 
@@ -3137,6 +3149,27 @@ Configuration * CPXMILPSolver::get_cfg( Index ci ) const
  if( ( dbi < 0 ) || ( Index( dbi ) >= v_ConfigDB.size() ) )
   return( nullptr );
  return( v_ConfigDB[ dbi ] );
+ }
+
+Solver::OFValue CPXMILPSolver::get_constant_value( void )
+{
+ OFValue const_value = 0;
+
+ std::queue< Block * > Q;
+ Q.push( f_Block );
+
+ while( ! Q.empty() ) {
+  Block * q_Block = Q.front();
+  Q.pop();
+
+  for( auto * i : q_Block->get_nested_Blocks() )
+   Q.push( i );
+
+  auto of = dynamic_cast< FRealObjective * >( q_Block->get_objective() );
+  if( of )
+   const_value += of->get_constant_term();
+ }
+ return( const_value );
  }
 
 /*--------------------------------------------------------------------------*/
