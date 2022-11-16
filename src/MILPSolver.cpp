@@ -1001,6 +1001,8 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 {
  // DEBUG_LOG( "MILPSolver::scan_objective() " << *obj );
 
+ constant_value += obj->get_constant_term();
+
  if( auto * lf = dynamic_cast< const LinearFunction * >(
 						 obj->get_function() ) ) {
   for( auto el : lf->get_v_var() )

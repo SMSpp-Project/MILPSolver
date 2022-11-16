@@ -715,8 +715,6 @@ class CPXMILPSolver : public MILPSolver {
  // get the right Configuration for ci = 0, 1, 2
  Configuration * get_cfg( Index ci ) const;
 
- OFValue get_constant_value( void );
-
 /*--------------------------------------------------------------------------*/
 
  SMSpp_insert_in_factory_h;
