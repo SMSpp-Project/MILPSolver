@@ -346,14 +346,14 @@ Solver::OFValue SCIPMILPSolver::get_lb( void )
    switch( sol_status ) {
     case kUnbounded:  lower_bound = -Inf< OFValue >(); break;
     case kInfeasible: lower_bound = Inf< OFValue >();  break;
-    default:          lower_bound = SCIPgetDualbound( scip );
+    default:          lower_bound = SCIPgetDualbound( scip ) + constant_value;
     }
    break;
   case SCIP_OBJSENSE_MAXIMIZE:
    switch( sol_status ) {
     case kUnbounded:  lower_bound = Inf< OFValue >();  break;
     case kInfeasible: lower_bound = -Inf< OFValue >(); break;
-    default:          lower_bound = SCIPgetPrimalbound( scip );
+    default:          lower_bound = SCIPgetPrimalbound( scip ) + constant_value;
     }
    break;
   default:
@@ -374,14 +374,14 @@ Solver::OFValue SCIPMILPSolver::get_ub( void )
    switch( sol_status ) {
     case kUnbounded:  upper_bound = -Inf< OFValue >(); break;
     case kInfeasible: upper_bound = Inf< OFValue >();  break;
-    default:          upper_bound = SCIPgetPrimalbound( scip );
+    default:          upper_bound = SCIPgetPrimalbound( scip ) + constant_value;
     }
    break;
   case SCIP_OBJSENSE_MAXIMIZE:
    switch( sol_status ) {
     case kUnbounded:  upper_bound = Inf< OFValue >();  break;
     case kInfeasible: upper_bound = -Inf< OFValue >(); break;
-    default:          upper_bound = SCIPgetDualbound( scip );
+    default:          upper_bound = SCIPgetDualbound( scip ) + constant_value;
     }
    break;
   default:
