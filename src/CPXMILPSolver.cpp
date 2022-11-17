@@ -1686,11 +1686,11 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
 
  const auto shift = mod->shift();
 
- if( ( shift == Inf< Function::FunctionValue >() ) ||
-     ( shift == -Inf< Function::FunctionValue >() ) )
+ if( ( shift == FunctionMod::INFshift ) || ( shift == -FunctionMod::INFshift ) )
   throw( std::logic_error( "unexpected value in *FunctionMod*" ) );
 
- constant_value += shift;
+ if( ! std::isnan( shift ) )
+  constant_value += shift;
 
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------
