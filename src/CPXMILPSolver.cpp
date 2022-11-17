@@ -1688,7 +1688,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
 
  if( ( shift == Inf< Function::FunctionValue >() ) ||
      ( shift == -Inf< Function::FunctionValue >() ) )
-  throw ( std::logic_error( "unexpected value in *FunctionMod*" ) );
+  throw( std::logic_error( "unexpected value in *FunctionMod*" ) );
 
  constant_value += shift;
 
