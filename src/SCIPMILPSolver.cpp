@@ -703,12 +703,18 @@ void SCIPMILPSolver::objective_function_modification(
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- constant_value += mod->shift();
-
  auto f = mod->function();
 
  // C05FunctionModLin
  // --------------------------------------------------------------------------
+
+ const auto shift = mod->shift();
+
+ if( ( shift == Inf< Function::FunctionValue >() ) ||
+     ( shift == -Inf< Function::FunctionValue >() ) )
+  throw ( std::logic_error( "unexpected value in *FunctionMod*" ) );
+
+ constant_value += shift;
 
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------
