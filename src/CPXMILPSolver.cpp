@@ -1561,6 +1561,8 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::objective_function_modification( mod );
 
+ constant_value += mod->shift();
+
  auto f = mod->function();
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -

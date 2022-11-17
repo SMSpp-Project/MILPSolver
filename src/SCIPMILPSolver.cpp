@@ -569,7 +569,7 @@ void SCIPMILPSolver::objective_modification( const ObjectiveMod * mod )
 
  /* ObjectiveMod class does not include any modification types except
   * for eSetMin and eSetMax.
-  * To change OF coefficents, a FunctionMod must be used. */
+  * To change OF coefficients, a FunctionMod must be used. */
 
  switch( mod->type() ) {
   case ObjectiveMod::eSetMin:
@@ -702,6 +702,8 @@ void SCIPMILPSolver::objective_function_modification(
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
+
+ constant_value += mod->shift();
 
  auto f = mod->function();
 
