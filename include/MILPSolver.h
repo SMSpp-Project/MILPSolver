@@ -956,9 +956,9 @@ class MILPSolver : public CDASolver
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a FRealObjective and fills the vectors of the LP accordingly.
-  * Moreover, since the CPLEX C API does not support the concept of "constant
-  * term", all of them, for each Block of the problem, are accumulated in
-  * the homonymous variable to provide the updated OF value.
+  * Moreover, since both the CPLEX and SCIP C API does not support the concept
+  * of "constant term", all of them, for each Block of the problem, are
+  * accumulated in the homonymous variable to provide the updated OF value.
   * @param obj a FRealObjective */
 
  void scan_objective( const FRealObjective * obj );

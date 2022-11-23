@@ -532,7 +532,7 @@ void MILPSolver::load_problem( void )
 		    "MILPSolver:: mixed max/min Objective not supported" ) );
      objsense = 1;
    }
-  
+
   if( auto * obj = dynamic_cast< FRealObjective * >( qb->get_objective() ) )
    scan_objective( obj );
   }
