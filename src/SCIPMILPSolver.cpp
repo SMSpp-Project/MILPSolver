@@ -89,6 +89,7 @@ void SCIPMILPSolver::load_problem( void )
 {
  MILPSolver::load_problem();
 
+ SCIP_CALL_ABORT( SCIPfreeProb( scip ) );
  SCIP_CALL_ABORT( SCIPcreateProbBasic( scip , prob_name.c_str() ) );
 
  // Set objective sense
