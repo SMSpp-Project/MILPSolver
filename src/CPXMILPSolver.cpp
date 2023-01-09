@@ -818,10 +818,12 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       case CPXPROB_FIXEDMILP:
       case CPXPROB_FIXEDMIQP:
        CPXgetbestobjval( env , lp , & lower_bound );
+       lower_bound += constant_value;
        break;
       default:
        // FIXME: It's unclear how to get a lb for a continuous problem here
        CPXgetobjval( env , lp , & lower_bound );
+       lower_bound += constant_value;
       }
      break;
 
@@ -848,8 +850,12 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       lower_bound = - Inf< OFValue >();
       break;
       }
+     lower_bound += constant_value;
 
-    case kOK: CPXgetobjval( env, lp, &lower_bound ); break;
+    case kOK:
+     CPXgetobjval( env , lp , & lower_bound );
+     lower_bound += constant_value;
+     break;
 
     default:
      // Same as above
@@ -887,8 +893,12 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       upper_bound = Inf< OFValue >();
       break;
       }
+     upper_bound += constant_value;
 
-    case kOK: CPXgetobjval( env , lp , & upper_bound ); break;
+    case kOK:
+     CPXgetobjval( env , lp , & upper_bound );
+     upper_bound += constant_value;
+     break;
 
     default:
      // If Cplex does not state that an optimal solution has been found
@@ -914,10 +924,12 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       case CPXPROB_FIXEDMILP:
       case CPXPROB_FIXEDMIQP:
        CPXgetbestobjval( env , lp , & upper_bound );
+       upper_bound += constant_value;
        break;
       default:
        // FIXME: It's unclear how to get a ub for a continuous problem here
        CPXgetobjval( env , lp , & upper_bound );
+       upper_bound += constant_value;
       }
      break;
 
@@ -1675,6 +1687,14 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   CPXchgobj( env , lp , idxs.size() , cidx.data() , nval.data() );
   return;
   }
+
+ const auto shift = mod->shift();
+
+ if( ( shift == FunctionMod::INFshift ) || ( shift == -FunctionMod::INFshift ) )
+  throw( std::logic_error( "unexpected value in *FunctionMod*" ) );
+
+ if( ! std::isnan( shift ) )
+  constant_value += shift;
 
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------

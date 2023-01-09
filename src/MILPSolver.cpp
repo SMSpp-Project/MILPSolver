@@ -532,7 +532,7 @@ void MILPSolver::load_problem( void )
 		    "MILPSolver:: mixed max/min Objective not supported" ) );
      objsense = 1;
    }
-  
+
   if( auto * obj = dynamic_cast< FRealObjective * >( qb->get_objective() ) )
    scan_objective( obj );
   }
@@ -1000,6 +1000,8 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row )
 void MILPSolver::scan_objective( const FRealObjective * obj )
 {
  // DEBUG_LOG( "MILPSolver::scan_objective() " << *obj );
+
+ constant_value += obj->get_constant_term();
 
  if( auto * lf = dynamic_cast< const LinearFunction * >(
 						 obj->get_function() ) ) {

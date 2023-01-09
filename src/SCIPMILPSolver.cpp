@@ -347,14 +347,14 @@ Solver::OFValue SCIPMILPSolver::get_lb( void )
    switch( sol_status ) {
     case kUnbounded:  lower_bound = -Inf< OFValue >(); break;
     case kInfeasible: lower_bound = Inf< OFValue >();  break;
-    default:          lower_bound = SCIPgetDualbound( scip );
+    default:          lower_bound = SCIPgetDualbound( scip ) + constant_value;
     }
    break;
   case SCIP_OBJSENSE_MAXIMIZE:
    switch( sol_status ) {
     case kUnbounded:  lower_bound = Inf< OFValue >();  break;
     case kInfeasible: lower_bound = -Inf< OFValue >(); break;
-    default:          lower_bound = SCIPgetPrimalbound( scip );
+    default:          lower_bound = SCIPgetPrimalbound( scip ) + constant_value;
     }
    break;
   default:
@@ -375,14 +375,14 @@ Solver::OFValue SCIPMILPSolver::get_ub( void )
    switch( sol_status ) {
     case kUnbounded:  upper_bound = -Inf< OFValue >(); break;
     case kInfeasible: upper_bound = Inf< OFValue >();  break;
-    default:          upper_bound = SCIPgetPrimalbound( scip );
+    default:          upper_bound = SCIPgetPrimalbound( scip ) + constant_value;
     }
    break;
   case SCIP_OBJSENSE_MAXIMIZE:
    switch( sol_status ) {
     case kUnbounded:  upper_bound = Inf< OFValue >();  break;
     case kInfeasible: upper_bound = -Inf< OFValue >(); break;
-    default:          upper_bound = SCIPgetDualbound( scip );
+    default:          upper_bound = SCIPgetDualbound( scip ) + constant_value;
     }
    break;
   default:
@@ -570,7 +570,7 @@ void SCIPMILPSolver::objective_modification( const ObjectiveMod * mod )
 
  /* ObjectiveMod class does not include any modification types except
   * for eSetMin and eSetMax.
-  * To change OF coefficents, a FunctionMod must be used. */
+  * To change OF coefficients, a FunctionMod must be used. */
 
  switch( mod->type() ) {
   case ObjectiveMod::eSetMin:
@@ -703,6 +703,19 @@ void SCIPMILPSolver::objective_function_modification(
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
+
+ if( ! ( dynamic_cast< const C05FunctionModLin * >( mod ) ) &&
+     ! ( dynamic_cast< const C05FunctionMod * >( mod ) ) ) {
+
+  const auto shift = mod->shift();
+
+  if( ( shift == FunctionMod::INFshift ) ||
+      ( shift == -FunctionMod::INFshift ) )
+   throw( std::logic_error( "unexpected value in *FunctionMod*" ) );
+
+  if( ! std::isnan( shift ) )
+   constant_value += shift;
+  }
 
  auto f = mod->function();
 
