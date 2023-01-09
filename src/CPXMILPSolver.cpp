@@ -127,8 +127,10 @@ void CPXMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( 0 );
 
- if( lp )
+ if( lp ) {
   CPXfreeprob( env , & lp );
+  lp = nullptr;
+  }
  }
 
 /*--------------------------------------------------------------------------*/
@@ -138,6 +140,8 @@ void CPXMILPSolver::load_problem( void )
  MILPSolver::load_problem();
 
  int status = 0;
+ if( lp )
+  CPXfreeprob( env , & lp );
  lp = CPXcreateprob( env , & status , prob_name.c_str() );
 
  std::vector< double > cpx_lb = lb;
