@@ -1690,8 +1690,8 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
 
  const auto shift = mod->shift();
 
- if( ( shift == FunctionMod::INFshift ) || ( shift == -FunctionMod::INFshift ) )
-  throw( std::logic_error( "unexpected value in *FunctionMod*" ) );
+ if( ( shift == FunctionMod::INFshift ) || ( shift == - FunctionMod::INFshift ) )
+  throw( std::logic_error( "unexpected *FunctionMod* from LinearFunction" ) );
 
  if( ! std::isnan( shift ) )
   constant_value += shift;
