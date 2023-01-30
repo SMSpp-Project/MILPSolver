@@ -709,7 +709,8 @@ void SCIPMILPSolver::objective_function_modification(
 
   const auto shift = mod->shift();
 
-  if( ( shift == FunctionMod::INFshift ) || ( shift == - FunctionMod::INFshift ) )
+  if( ( shift == FunctionMod::INFshift ) ||
+      ( shift == - FunctionMod::INFshift ) )
    throw( std::logic_error( "unexpected *FunctionMod* from LinearFunction" ) );
 
   if( ! std::isnan( shift ) )

@@ -303,7 +303,7 @@ int CPXMILPSolver::compute( bool changedvars )
     cntxt |= CPX_CALLBACKCONTEXT_RELAXATION;
    if( CutSepPar & 4 )
     cntxt |= CPX_CALLBACKCONTEXT_CANDIDATE;
-   
+
    CPXcallbacksetfunc( env , lp , cntxt , & CPXMILPSolver_callback , this );
    f_callback_set = true;
    }
@@ -1513,12 +1513,12 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   * actually change (as they may not). */
 
  static std::array< char , 2 > lu = { 'L' , 'U' };
- 
+
  auto con = static_cast< OneVarConstraint * >( mod->constraint() );
  auto var = ColV( con->get_active_var( 0 ) );
  if( ! var )  // this should never happen
   return;     // but in case, there is nothing to do
- 
+
  // fixed variables are implemented in CPXMILPSolver by changing the bounds;
  // therefore, actual changes of the bounds are ignored here. note that we
  // are assuming the new bounds do not make the fixed value of the variable
@@ -1532,7 +1532,7 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   return;                  // is strange, but there is nothing to do
 
  std::array< int , 2 > ind = { vi , vi };
- 
+
  switch( mod->type() ) {
 
   case RowConstraintMod::eChgLHS: {
@@ -1589,7 +1589,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
    auto & cp = lf->get_v_var();
- 
+
    for( auto v :  modl->vars() )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      *(nvit++) = cp[ idx ].second;
@@ -1599,7 +1599,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
    nval.resize( nsz );
-   
+
    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
    }
@@ -1622,7 +1622,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
    auto & cp = qf->get_v_var();
- 
+
    for( auto v :  modl->vars() )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      *(nvit++) = std::get< 1 >( cp[ idx ] );
@@ -1632,7 +1632,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
    nval.resize( nsz );
-   
+
    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
    }
@@ -1648,7 +1648,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   auto qf = dynamic_cast< const DQuadFunction * >( f );
   if( ! qf )
    throw( std::logic_error(
-		       "unexpected C05FunctionMod from Linear Objective" ) );
+		       "unexpected *C05FunctionMod* from Linear Objective" ) );
 
   Subset idxs;
   c_Vec_p_Var * vars;
@@ -1683,14 +1683,15 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   auto nsz = std::distance( nval.begin() , nvit );
   cidx.resize( nsz );
   nval.resize( nsz );
-   
+
   CPXchgobj( env , lp , idxs.size() , cidx.data() , nval.data() );
   return;
   }
 
  const auto shift = mod->shift();
 
- if( ( shift == FunctionMod::INFshift ) || ( shift == - FunctionMod::INFshift ) )
+ if( ( shift == FunctionMod::INFshift ) ||
+     ( shift == - FunctionMod::INFshift ) )
   throw( std::logic_error( "unexpected *FunctionMod* from LinearFunction" ) );
 
  if( ! std::isnan( shift ) )
@@ -1703,7 +1704,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
  }  // end( CPXMILPSolver::objective_function_modification )
 
 /*--------------------------------------------------------------------------*/
- 
+
 void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing
@@ -1723,7 +1724,7 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
  if( ! modl )
-  throw( std::logic_error( "unexpected FunctionMod from FRowConstraint" ) );
+  throw( std::logic_error( "unexpected *FunctionMod* from FRowConstraint" ) );
 
  Subset idxs;
  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
@@ -1740,7 +1741,7 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
  auto idxit = idxs.begin();
  auto cidxit = cidx.begin();
  auto & cp = lf->get_v_var();
- 
+
  for( auto v :  modl->vars() )
   if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
    *(nvit++) = cp[ idx ].second;
@@ -1941,7 +1942,7 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  rmatind.reserve( nzcnt );
  std::vector< double > rmatval;
  rmatval.reserve( nzcnt );
- 
+
  // get the coefficients to fill the matrix
  for( auto & el : lf->get_v_var() )
   if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
@@ -2158,7 +2159,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 
     if( bndv <= - 1e+75 )
      bndv = - Inf< double >();
-  
+
     if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
      CPXcallbackabort( context );
     }
@@ -2169,7 +2170,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
-  
+
     if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) )
      CPXcallbackabort( context );
     }
@@ -2206,7 +2207,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    bool owned = f_Block->is_owned_by( f_id );
    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
     throw( std::runtime_error( "Unable to lock the Block" ) );
-   
+
    // get the solution of the relaxation
    std::vector< double > x( numcols );
    if( CPXcallbackgetrelaxationpoint( context , x.data() , 0 , numcols - 1 ,
@@ -2264,7 +2265,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    bool owned = f_Block->is_owned_by( f_id );
    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
     throw( std::runtime_error( "Unable to lock the Block" ) );
-   
+
    // get the feasible solution
    std::vector< double > x( numcols );
    if( CPXcallbackgetcandidatepoint( context , x.data() , 0 , numcols - 1 ,
@@ -2309,7 +2310,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
 					std::vector< int > & rmatbeg ,
 					std::vector< int > & rmatind ,
 					std::vector< double > & rmatval ,
-					std::vector< double > & rhs , 
+					std::vector< double > & rhs ,
 					std::vector< char > & sense )
 {
  // note: we assume the Block to have been lock()-ed already and the solution
@@ -2318,7 +2319,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
  //
  // since the Block is lock()-ed we assume that we can freely work with the
  // Modification list as no-one has a reason tochange it
- 
+
  auto nM = v_mod.size();  // current number of Modification in the list
  auto it = v_mod.end();
  if( nM )                 // if the list is not empty
@@ -2336,7 +2337,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
   ++it;                    // move to the first new element
 
  rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
- 
+
  // main loop: check all new Modification for a Constraint addition
  for( ; it != v_mod.end() ; ++it ) {
   // check if the Modification indicates an added FRowConstraint
@@ -2450,7 +2451,7 @@ int CPXMILPSolver::cpx_dbl_par_map( idx_type par ) const
   case( dblFAccSol ): return( CPXPARAM_Simplex_Tolerances_Feasibility );
   }
 
- if( ( par >= dblFirstCPLEXPar ) && ( par < dblLastAlgParCPXS ) ) 
+ if( ( par >= dblFirstCPLEXPar ) && ( par < dblLastAlgParCPXS ) )
   return( SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ] );
 
  return( 0 );
@@ -2758,7 +2759,7 @@ const std::vector< int > & CPXMILPSolver::get_vint_par( idx_type par ) const
 
  return( MILPSolver::get_vint_par( par ) );
  }
- 
+
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 const std::vector< std::string > & CPXMILPSolver::get_vstr_par( idx_type par )
@@ -2769,7 +2770,7 @@ const std::vector< std::string > & CPXMILPSolver::get_vstr_par( idx_type par )
 
  return( MILPSolver::get_vstr_par( par ) );
  }
- 
+
 /*--------------------------------------------------------------------------*/
 
 Solver::idx_type CPXMILPSolver::int_par_str2idx(
