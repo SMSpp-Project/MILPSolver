@@ -713,12 +713,12 @@ void SCIPMILPSolver::objective_function_modification(
    const auto shift = modl->shift();
 
    if( ( shift == FunctionMod::INFshift ) ||
-       ( shift == - FunctionMod::INFshift ) )
+       ( shift == - FunctionMod::INFshift ) ||
+       ( std::isnan( shift ) ) )
     throw ( std::logic_error(
      "unexpected *C05FunctionMod* from Objective Function" ) );
 
-   if( !std::isnan( shift ) )
-    constant_value += shift;
+   constant_value += shift;
    return;
    }
   }
