@@ -704,23 +704,29 @@ void SCIPMILPSolver::objective_function_modification(
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- if( ! ( dynamic_cast< const C05FunctionModLin * >( mod ) ) &&
-     ! ( dynamic_cast< const C05FunctionMod * >( mod ) ) ) {
+ // C05FunctionMod
+ // --------------------------------------------------------------------------
+ if( auto modl = dynamic_cast< const C05FunctionMod * >( mod ) ) {
 
-  const auto shift = mod->shift();
+  if( modl->type() == C05FunctionMod::NothingChanged ) {
 
-  if( ( shift == FunctionMod::INFshift ) ||
-      ( shift == - FunctionMod::INFshift ) )
-   throw( std::logic_error( "unexpected *FunctionMod* from LinearFunction" ) );
+   const auto shift = modl->shift();
 
-  if( ! std::isnan( shift ) )
-   constant_value += shift;
+   if( ( shift == FunctionMod::INFshift ) ||
+       ( shift == - FunctionMod::INFshift ) )
+    throw ( std::logic_error(
+     "unexpected *C05FunctionMod* from Objective Function" ) );
+
+   if( !std::isnan( shift ) )
+    constant_value += shift;
+   return;
+   }
   }
-
- auto f = mod->function();
 
  // C05FunctionModLin
  // --------------------------------------------------------------------------
+
+ auto f = mod->function();
 
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------
@@ -744,7 +750,8 @@ void SCIPMILPSolver::objective_function_modification(
 
  // This should never happen
  throw( std::invalid_argument( "Unknown type of Objective Function" ) );
- }
+
+ }  // end( SCIPMILPSolver::objective_function_modification )
 
 /*--------------------------------------------------------------------------*/
 // TODO: Change only involved variables

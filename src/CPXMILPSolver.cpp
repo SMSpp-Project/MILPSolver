@@ -1556,7 +1556,7 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   default:
    throw( std::invalid_argument( "Invalid type of OneVarConstraintMod" ) );
   }
- }
+ }  // end( CPXMILPSolver::bound_modification )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1645,6 +1645,20 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( auto modl = dynamic_cast< const C05FunctionMod * >( mod ) ) {
 
+  if( modl->type() == C05FunctionMod::NothingChanged ) {
+
+   const auto shift = modl->shift();
+
+   if( ( shift == FunctionMod::INFshift ) ||
+       ( shift == - FunctionMod::INFshift ) )
+    throw( std::logic_error(
+     "unexpected *C05FunctionMod* from Objective Function" ) );
+
+   if( ! std::isnan( shift ) )
+    constant_value += shift;
+   return;
+   }
+
   auto qf = dynamic_cast< const DQuadFunction * >( f );
   if( ! qf )
    throw( std::logic_error(
@@ -1688,15 +1702,6 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   return;
   }
 
- const auto shift = mod->shift();
-
- if( ( shift == FunctionMod::INFshift ) ||
-     ( shift == - FunctionMod::INFshift ) )
-  throw( std::logic_error( "unexpected *FunctionMod* from LinearFunction" ) );
-
- if( ! std::isnan( shift ) )
-  constant_value += shift;
-
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------
  // reload_objective( f );
@@ -1724,7 +1729,7 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
  if( ! modl )
-  throw( std::logic_error( "unexpected *FunctionMod* from FRowConstraint" ) );
+  throw( std::logic_error( "unexpected *C05FunctionModLin* from FRowConstraint" ) );
 
  Subset idxs;
  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
