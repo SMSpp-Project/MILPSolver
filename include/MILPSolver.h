@@ -244,7 +244,7 @@ class MILPSolver : public CDASolver
   * The input parameter is a bitwise value that allows to specify which
   * vectors should be cleared. From the LSB to the MSB:
   *
-  * - 1 clears the costraint matrix, xctype the column/row names
+  * - 1 clears the constraint matrix, xctype the column/row names
   * - 2 clears the OF related vectors (objective and q_objective)
   * - 4 clears rhs, rngval and sense
   * - 8 clears lb and ub.
