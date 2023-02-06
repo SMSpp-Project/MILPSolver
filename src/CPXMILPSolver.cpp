@@ -280,7 +280,7 @@ int CPXMILPSolver::compute( bool changedvars )
    break;
   case( CPXPROB_QCP ):
    // DEBUG_LOG( "CPLEX problem type: QCP" << std::endl );
-   throw std::runtime_error( "Unsupported CPLEX problem type" );
+   throw( std::runtime_error( "Unsupported CPLEX problem type" ) );
   case( CPXPROB_MIQCP ):
    // DEBUG_LOG( "CPLEX problem type: MIQCP" << std::endl );
    throw( std::runtime_error( "Unsupported CPLEX problem type" ) );
@@ -360,12 +360,12 @@ int CPXMILPSolver::decode_mip_status( int status )
    // Stopped; no integer solution.
   case CPXMIP_ABORT_RELAXATION_UNBOUNDED:
    // Could not bound convex relaxation of nonconvex (MI)QP.
-   return kError;
+   return( kError );
   case CPXMIP_DETTIME_LIM_FEAS:
    // Deterministic time limit exceeded, but integer solution exists.
   case CPXMIP_DETTIME_LIM_INFEAS:
    // Deterministic time limit exceeded; no integer solution.
-   return kStopTime;
+   return( kStopTime );
   case CPXMIP_FAIL_FEAS:
    // Terminated because of an error, but integer solution exists.
   case CPXMIP_FAIL_FEAS_NO_TREE:
@@ -374,10 +374,10 @@ int CPXMILPSolver::decode_mip_status( int status )
    // Terminated because of an error; no integer solution.
   case CPXMIP_FAIL_INFEAS_NO_TREE:
    // Out of memory, no tree available, no integer solution.
-   return kError;
+   return( kError );
   case CPXMIP_INFEASIBLE:
    // Solution is integer infeasible.
-   return kInfeasible;
+   return( kInfeasible );
   case CPXMIP_INForUNBD:
    // Problem has been proven either infeasible or unbounded.
    //!! note: this is typically given by the preprocessor when it finds an
@@ -386,18 +386,18 @@ int CPXMILPSolver::decode_mip_status( int status )
    //!!       the problem unbounded, but both an empty primal and an empty
    //!!       dual is a rare occurrence, so the most likely correct answer is
    //!!       that the problem is unbounded
-   //!!   return kInfeasible;
-   return kUnbounded;
+   //!!   return( kInfeasible );
+   return( kUnbounded );
   case CPXMIP_MEM_LIM_FEAS:
    // Limit on tree memory has been reached, but an integer solution exists.
   case CPXMIP_MEM_LIM_INFEAS:
    // Limit on tree memory has been reached; no integer solution.
-   return kError;
+   return( kError );
   case CPXMIP_NODE_LIM_FEAS:
    // Node limit has been exceeded but integer solution exists.
   case CPXMIP_NODE_LIM_INFEAS:
    // Node limit has been reached; no integer solution.
-   return kStopIter;
+   return( kStopIter );
   case CPXMIP_OPTIMAL:
    // An optimal integer solution has been found.
   case CPXMIP_OPTIMAL_INFEAS:
@@ -407,15 +407,15 @@ int CPXMILPSolver::decode_mip_status( int status )
    // the relative or absolute MIP gap has been found.
   case CPXMIP_SOL_LIM:
    // The limit on mixed integer solutions has been reached.
-   return kOK;
+   return( kOK );
   case CPXMIP_TIME_LIM_FEAS:
    // Time limit exceeded, but integer solution exists.
   case CPXMIP_TIME_LIM_INFEAS:
    // Time limit exceeded; no integer solution.
-   return kStopTime;
+   return( kStopTime );
   case CPXMIP_UNBOUNDED:
    // Problem has an unbounded ray.
-   return kUnbounded;
+   return( kUnbounded );
    // case CPXMIP_ABORT_RELAXED:
    // case CPXMIP_FEASIBLE:
    // case CPXMIP_FEASIBLE_RELAXED_INF:
@@ -450,30 +450,30 @@ int CPXMILPSolver::decode_lqp_status( int status )
  switch( status ) {
   case CPX_STAT_ABORT_DETTIME_LIM:
    // Stopped due to a deterministic time limit.
-   return kStopTime;
+   return( kStopTime );
   case CPX_STAT_ABORT_DUAL_OBJ_LIM:
    // Stopped due to a limit on the dual objective.
-   return kError;
+   return( kError );
   case CPX_STAT_ABORT_IT_LIM:
    // Stopped due to limit on number of iterations.
-   return kStopIter;
+   return( kStopIter );
   case CPX_STAT_ABORT_OBJ_LIM:
    // Stopped due to an objective limit.
   case CPX_STAT_ABORT_PRIM_OBJ_LIM:
    // Stopped due to a limit on the primal objective.
-   return kError;
+   return( kError );
   case CPX_STAT_ABORT_TIME_LIM:
    // Stopped due to a time limit.
-   return kStopTime;
+   return( kStopTime );
   case CPX_STAT_ABORT_USER:
    // Stopped due to a request from the user.
-   return kError;
+   return( kError );
   case CPX_STAT_BENDERS_NUM_BEST:
    // Solution is infeasible, but cannot be cut with
    // a Benders cut due to numerical difficulties.
   case CPX_STAT_INFEASIBLE:
    // Problem has been proven infeasible.
-   return kInfeasible;
+   return( kInfeasible );
   case CPX_STAT_INForUNBD:
    // Problem has been proven either infeasible or unbounded.
    //!! note: this is typically given by the preprocessor when it finds an
@@ -482,8 +482,8 @@ int CPXMILPSolver::decode_lqp_status( int status )
    //!!       the problem unbounded, but both an empty primal and an empty
    //!!       dual is a rare occurrence, so the most likely correct answer is
    //!!       that the problem is unbounded
-   //!! return kInfeasible;
-   return kUnbounded;
+   //!! return( kInfeasible );
+   return( kUnbounded );
   case CPX_STAT_NUM_BEST:
    // Solution is available, but not proved optimal,
    // due to numeric difficulties during optimization.
@@ -493,10 +493,10 @@ int CPXMILPSolver::decode_lqp_status( int status )
    // Model has an unbounded optimal face.
   case CPX_STAT_OPTIMAL_INFEAS:
    // Optimal solution is available, but with infeasibilities after unscaling.
-   return kOK;
+   return( kOK );
   case CPX_STAT_UNBOUNDED:
    // Problem has an unbounded ray.
-   return kUnbounded;
+   return( kUnbounded );
    // case CPX_STAT_CONFLICT_ABORT_CONTRADICTION:
    // case CPX_STAT_CONFLICT_ABORT_DETTIME_LIM:
    // case CPX_STAT_CONFLICT_ABORT_IT_LIM:
@@ -524,8 +524,8 @@ int CPXMILPSolver::decode_lqp_status( int status )
   default:;
   }
 
- throw std::runtime_error( "CPXgetstat() returned unknown status " +
-                           std::to_string( status ) );
+ throw( std::runtime_error( "CPXgetstat() returned unknown status " +
+                            std::to_string( status ) ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -769,7 +769,7 @@ int CPXMILPSolver::decode_cpx_error( int error )
    // CPXmipopt failed to solve one of the subproblems in the
    // branch-and-cut tree. This failure can be due to a limit
    // (for example, an iteration limit) or due to numeric trouble.
-   return kError;
+   return( kError );
    // case CPXERR_SYNCPRIM_CREATE:
    // case CPXERR_SYSCALL:
    // case CPXERR_THREAD_FAILED:
@@ -865,7 +865,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
    break;
 
   default:
-   throw std::runtime_error( "Objective type not yet defined" );
+   throw( std::runtime_error( "Objective type not yet defined" ) );
    break;
   }
 
@@ -1154,11 +1154,11 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
     /* The Variable is fixed but it has no associated OneVarConstraint
      * with both bounds equal to the value of the Variable. */
 
-    throw std::logic_error(
+    throw( std::logic_error(
      "CPXMILPSolver::get_dual_solution: variable with index " +
      std::to_string( i ) + " is fixed to " +
      std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
-     "with both bounds equal to the value of this variable." );
+     "with both bounds equal to the value of this variable." ) );
     }
    else
     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
@@ -1286,11 +1286,11 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
     /* The Variable is fixed but it has no associated OneVarConstraint
      * with both bounds equal to the value of the Variable. */
 
-    throw std::logic_error(
+    throw( std::logic_error(
      "CPXMILPSolver::get_dual_direction: variable with index " +
      std::to_string( i ) + " is fixed to " +
      std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
-     "with both bounds equal to the value of this variable." );
+     "with both bounds equal to the value of this variable." ) );
     }
    else
     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
@@ -1638,7 +1638,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    }
 
   // This should never happen
-  throw std::invalid_argument( "Unknown type of Objective Function" );
+  throw( std::invalid_argument( "Unknown type of Objective Function" ) );
   }
 
  // C05FunctionMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

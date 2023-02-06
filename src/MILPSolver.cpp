@@ -2030,7 +2030,7 @@ std::string log_vector( const std::vector< T > & v , int limit ) {
   }
  }
  temp_log += "]";
- return temp_log;
+ return( temp_log );
  }
 
 template<>
@@ -2045,7 +2045,7 @@ std::string log_vector( const std::vector< char > & v , int limit ) {
   }
  }
  temp_log += "]";
- return temp_log;
+ return( temp_log );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2226,8 +2226,8 @@ void MILPSolver::check_status( void )
  for( auto & i: idx_to_svar ) {
   auto j = std::find_if( svar_to_idx.begin(), svar_to_idx.end(),
                          [ & ]( auto & pair ) {
-                          return std::get< 1 >( pair ) == i.first &&
-                                 std::get< 0 >( pair ) == i.second;
+                          return( std::get< 1 >( pair ) == i.first &&
+                                  std::get< 0 >( pair ) == i.second );
                          } );
   if( j == svar_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
@@ -2239,8 +2239,8 @@ void MILPSolver::check_status( void )
  for( auto & i: svar_to_idx ) {
   auto j = std::find_if( idx_to_svar.begin(), idx_to_svar.end(),
                          [ & ]( auto & pair ) {
-                          return std::get< 0 >( i ) == pair.second &&
-                                 std::get< 1 >( i ) == pair.first;
+                          return( std::get< 0 >( i ) == pair.second &&
+                                  std::get< 1 >( i ) == pair.first );
                          } );
   if( j == idx_to_svar.end() ) {
    DEBUG_LOG( ", " << std::get< 1 >( i ) <<
@@ -2265,7 +2265,7 @@ void MILPSolver::check_status( void )
 
  for( auto & i: idx_to_dvar ) {
   auto j = std::find_if( dvar_to_idx.begin(), dvar_to_idx.end(),
-                         [ & ]( auto & pair ) { return pair.first == i; } );
+                         [ & ]( auto & pair ) { return( pair.first == i ); } );
   if( j == dvar_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i
                           << "] of idx_to_dvar was not found in dvar_to_idx"
@@ -2275,7 +2275,7 @@ void MILPSolver::check_status( void )
 
  for( auto & i: dvar_to_idx ) {
   auto j = std::find_if( idx_to_dvar.begin(), idx_to_dvar.end(),
-                         [ & ]( auto & var ) { return i.first == var; } );
+                         [ & ]( auto & var ) { return( i.first == var ); } );
   if( j == idx_to_dvar.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
                           << "] of dvar_to_idx was not found in idx_to_dvar"
@@ -2300,8 +2300,8 @@ void MILPSolver::check_status( void )
  for( auto & i: idx_to_scon ) {
   auto j = std::find_if( scon_to_idx.begin(), scon_to_idx.end(),
                          [ & ]( auto & pair ) {
-                          return std::get< 1 >( pair ) == i.first &&
-                                 std::get< 0 >( pair ) == i.second;
+                          return( std::get< 1 >( pair ) == i.first &&
+                                  std::get< 0 >( pair ) == i.second );
                          } );
   if( j == scon_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
@@ -2313,8 +2313,8 @@ void MILPSolver::check_status( void )
  for( auto & i: scon_to_idx ) {
   auto j = std::find_if( idx_to_scon.begin(), idx_to_scon.end(),
                          [ & ]( auto & pair ) {
-                          return std::get< 0 >( i ) == pair.second &&
-                                 std::get< 1 >( i ) == pair.first;
+                          return( std::get< 0 >( i ) == pair.second &&
+                                  std::get< 1 >( i ) == pair.first );
                          } );
   if( j == idx_to_scon.end() ) {
    DEBUG_LOG( ", " << std::get< 1 >( i )
@@ -2339,7 +2339,7 @@ void MILPSolver::check_status( void )
 
  for( auto & i: idx_to_dcon ) {
   auto j = std::find_if( dcon_to_idx.begin(), dcon_to_idx.end(),
-                         [ & ]( auto & pair ) { return pair.first == i; } );
+                         [ & ]( auto & pair ) { return( pair.first == i ); } );
   if( j == dcon_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i
                           << "] of idx_to_dcon was not found in dcon_to_idx"
@@ -2348,7 +2348,7 @@ void MILPSolver::check_status( void )
  }
  for( auto & i: dcon_to_idx ) {
   auto j = std::find_if( idx_to_dcon.begin(), idx_to_dcon.end(),
-                         [ & ]( auto & con ) { return i.first == con; } );
+                         [ & ]( auto & con ) { return( i.first == con ); } );
   if( j == idx_to_dcon.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
                           << "] of dcon_to_idx was not found in idx_to_dcon"
