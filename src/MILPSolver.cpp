@@ -22,7 +22,7 @@
 /*------------------------------- MACROS -----------------------------------*/
 /*--------------------------------------------------------------------------*/
 /* If the macro MILPSOLVER_DEBUG is externally defined, then some costly
- * checks on the data astructures of MILPSolver are performed and debug
+ * checks on the data structures of MILPSolver are performed and debug
  * information printed. Also, the method check_status() is defined and
  * used to check the whole set of data structures. */
 
@@ -1409,7 +1409,7 @@ void MILPSolver::constraint_function_modification( const FunctionMod * mod )
  //  }
  // }
  throw( std::logic_error(
-		  "constraint_function_modification not implememted yet" ) );
+		  "constraint_function_modification not implemented yet" ) );
 
  }  // end( MILPSolver::constraint_function_modification )
 
@@ -1619,7 +1619,7 @@ void MILPSolver::add_dynamic_constraint( const FRowConstraint * con )
   return;
 
  throw( std::logic_error(
-	  "MILPSolver::add_dynamic_constraint not fully implememted yet" ) );
+	  "MILPSolver::add_dynamic_constraint not fully implemented yet" ) );
 
  }  // end( MILPSolver::add_dynamic_constraint )
 
@@ -1673,7 +1673,7 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
  */
 
  throw( std::logic_error(
-	     "MILPSolver::add_dynamic_variable not fully implememted yet" ) );
+	     "MILPSolver::add_dynamic_variable not fully implemented yet" ) );
 
  }  // end( MILPSolver::add_dynamic_variable )
 
@@ -1740,7 +1740,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
   return;
 
  throw( std::logic_error(
-       "MILPSolver::remove_dynamic_constraint not fully implememted yet" ) );
+       "MILPSolver::remove_dynamic_constraint not fully implemented yet" ) );
 
  }  // end( MILPSolver::remove_dynamic_constraint )
 
@@ -1796,7 +1796,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
  xctype.erase( xctype.begin() + index ); */
 
  throw( std::logic_error(
-	 "MILPSolver::remove_dynamic_variable not fully implememted yet" ) );
+	 "MILPSolver::remove_dynamic_variable not fully implemented yet" ) );
 
  }  // end( MILPSolver::remove_dynamic_variable )
 
