@@ -42,7 +42,7 @@ std::string docopt_desc{};    ///< Tool description
 /// Gets the name of the executable from its full path
 std::string get_filename( const std::string & fullpath ) {
  std::size_t found = fullpath.find_last_of( "/\\" );
- return fullpath.substr( found + 1 );
+ return( fullpath.substr( found + 1 ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -110,7 +110,7 @@ int main( int argc, char ** argv ) {
  exe = get_filename( argv[ 0 ] );
  process_args( argc, argv );
 
- // if (!std::filesystem::exists(path)) {
+ // if (! std::filesystem::exists(path)) {
  //  std::filesystem::create_directory(path);
  // }
 
@@ -189,12 +189,12 @@ int main( int argc, char ** argv ) {
 
     default:
      std::cerr << "Unknown type from CPXgetparamtype()" << std::endl;
-     return 1;
+     return( 1 );
    }
 
   } else {
    std::cerr << "Unknown error in CPXgetparamhiername()" << std::endl;
-   return 1;
+   return( 1 );
   }
  }
 
@@ -299,5 +299,5 @@ int main( int argc, char ** argv ) {
  maps_file.close();
  std::cout << "Maps file written on " << maps_path << std::endl;
 
- return 0;
+ return( 0 );
 }

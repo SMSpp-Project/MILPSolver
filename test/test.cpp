@@ -37,7 +37,7 @@ class MILPSolverTest :
   const auto filename = std::get< 0 >( GetParam() );
   std::ifstream istream( filename );
   if( ! istream.is_open() )
-   throw std::runtime_error( "Failed to open file " + filename );
+   throw( std::runtime_error( "Failed to open file " + filename ) );
 
   block = new AbstractBlock();
   EXPECT_TRUE( block != nullptr );
@@ -99,5 +99,5 @@ INSTANTIATE_TEST_SUITE_P( CPXMILPSolverTests,
 
 int main( int argc, char ** argv ) {
  ::testing::InitGoogleTest( &argc, argv );
- return RUN_ALL_TESTS();
+ return( RUN_ALL_TESTS() );
 }

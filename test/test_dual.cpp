@@ -40,16 +40,16 @@ CPXMILPSolver * build_solver() {
  solver->set_par( CPXPARAM_Preprocessing_Presolve , 0 );
  solver->set_par( CPXPARAM_Preprocessing_QCPDuals , CPX_QCPDUALS_FORCE );
  solver->set_par( CPXMILPSolver::intThrowReducedCostException , 1 );
- return solver;
+ return( solver );
 }
 
 /*--------------------------------------------------------------------------*/
 
 double get_obj_sign( Objective::of_type sense ) {
  switch( sense ) {
-  case( Objective::eMin ): return -1;
-  case( Objective::eMax ): return 1;
-  default: return 0;
+  case( Objective::eMin ): return( -1 );
+  case( Objective::eMax ): return( 1 );
+  default: return( 0 );
  }
 }
 
@@ -293,7 +293,7 @@ void run() {
 
 int main() {
  run();
- return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/

@@ -280,7 +280,7 @@ int CPXMILPSolver::compute( bool changedvars )
    break;
   case( CPXPROB_QCP ):
    // DEBUG_LOG( "CPLEX problem type: QCP" << std::endl );
-   throw std::runtime_error( "Unsupported CPLEX problem type" );
+   throw( std::runtime_error( "Unsupported CPLEX problem type" ) );
   case( CPXPROB_MIQCP ):
    // DEBUG_LOG( "CPLEX problem type: MIQCP" << std::endl );
    throw( std::runtime_error( "Unsupported CPLEX problem type" ) );
@@ -303,7 +303,7 @@ int CPXMILPSolver::compute( bool changedvars )
     cntxt |= CPX_CALLBACKCONTEXT_RELAXATION;
    if( CutSepPar & 4 )
     cntxt |= CPX_CALLBACKCONTEXT_CANDIDATE;
-   
+
    CPXcallbacksetfunc( env , lp , cntxt , & CPXMILPSolver_callback , this );
    f_callback_set = true;
    }
@@ -360,12 +360,12 @@ int CPXMILPSolver::decode_mip_status( int status )
    // Stopped; no integer solution.
   case CPXMIP_ABORT_RELAXATION_UNBOUNDED:
    // Could not bound convex relaxation of nonconvex (MI)QP.
-   return kError;
+   return( kError );
   case CPXMIP_DETTIME_LIM_FEAS:
    // Deterministic time limit exceeded, but integer solution exists.
   case CPXMIP_DETTIME_LIM_INFEAS:
    // Deterministic time limit exceeded; no integer solution.
-   return kStopTime;
+   return( kStopTime );
   case CPXMIP_FAIL_FEAS:
    // Terminated because of an error, but integer solution exists.
   case CPXMIP_FAIL_FEAS_NO_TREE:
@@ -374,10 +374,10 @@ int CPXMILPSolver::decode_mip_status( int status )
    // Terminated because of an error; no integer solution.
   case CPXMIP_FAIL_INFEAS_NO_TREE:
    // Out of memory, no tree available, no integer solution.
-   return kError;
+   return( kError );
   case CPXMIP_INFEASIBLE:
    // Solution is integer infeasible.
-   return kInfeasible;
+   return( kInfeasible );
   case CPXMIP_INForUNBD:
    // Problem has been proven either infeasible or unbounded.
    //!! note: this is typically given by the preprocessor when it finds an
@@ -386,18 +386,18 @@ int CPXMILPSolver::decode_mip_status( int status )
    //!!       the problem unbounded, but both an empty primal and an empty
    //!!       dual is a rare occurrence, so the most likely correct answer is
    //!!       that the problem is unbounded
-   //!!   return kInfeasible;
-   return kUnbounded;
+   //!!   return( kInfeasible );
+   return( kUnbounded );
   case CPXMIP_MEM_LIM_FEAS:
    // Limit on tree memory has been reached, but an integer solution exists.
   case CPXMIP_MEM_LIM_INFEAS:
    // Limit on tree memory has been reached; no integer solution.
-   return kError;
+   return( kError );
   case CPXMIP_NODE_LIM_FEAS:
    // Node limit has been exceeded but integer solution exists.
   case CPXMIP_NODE_LIM_INFEAS:
    // Node limit has been reached; no integer solution.
-   return kStopIter;
+   return( kStopIter );
   case CPXMIP_OPTIMAL:
    // An optimal integer solution has been found.
   case CPXMIP_OPTIMAL_INFEAS:
@@ -407,15 +407,15 @@ int CPXMILPSolver::decode_mip_status( int status )
    // the relative or absolute MIP gap has been found.
   case CPXMIP_SOL_LIM:
    // The limit on mixed integer solutions has been reached.
-   return kOK;
+   return( kOK );
   case CPXMIP_TIME_LIM_FEAS:
    // Time limit exceeded, but integer solution exists.
   case CPXMIP_TIME_LIM_INFEAS:
    // Time limit exceeded; no integer solution.
-   return kStopTime;
+   return( kStopTime );
   case CPXMIP_UNBOUNDED:
    // Problem has an unbounded ray.
-   return kUnbounded;
+   return( kUnbounded );
    // case CPXMIP_ABORT_RELAXED:
    // case CPXMIP_FEASIBLE:
    // case CPXMIP_FEASIBLE_RELAXED_INF:
@@ -450,30 +450,30 @@ int CPXMILPSolver::decode_lqp_status( int status )
  switch( status ) {
   case CPX_STAT_ABORT_DETTIME_LIM:
    // Stopped due to a deterministic time limit.
-   return kStopTime;
+   return( kStopTime );
   case CPX_STAT_ABORT_DUAL_OBJ_LIM:
    // Stopped due to a limit on the dual objective.
-   return kError;
+   return( kError );
   case CPX_STAT_ABORT_IT_LIM:
    // Stopped due to limit on number of iterations.
-   return kStopIter;
+   return( kStopIter );
   case CPX_STAT_ABORT_OBJ_LIM:
    // Stopped due to an objective limit.
   case CPX_STAT_ABORT_PRIM_OBJ_LIM:
    // Stopped due to a limit on the primal objective.
-   return kError;
+   return( kError );
   case CPX_STAT_ABORT_TIME_LIM:
    // Stopped due to a time limit.
-   return kStopTime;
+   return( kStopTime );
   case CPX_STAT_ABORT_USER:
    // Stopped due to a request from the user.
-   return kError;
+   return( kError );
   case CPX_STAT_BENDERS_NUM_BEST:
    // Solution is infeasible, but cannot be cut with
    // a Benders cut due to numerical difficulties.
   case CPX_STAT_INFEASIBLE:
    // Problem has been proven infeasible.
-   return kInfeasible;
+   return( kInfeasible );
   case CPX_STAT_INForUNBD:
    // Problem has been proven either infeasible or unbounded.
    //!! note: this is typically given by the preprocessor when it finds an
@@ -482,8 +482,8 @@ int CPXMILPSolver::decode_lqp_status( int status )
    //!!       the problem unbounded, but both an empty primal and an empty
    //!!       dual is a rare occurrence, so the most likely correct answer is
    //!!       that the problem is unbounded
-   //!! return kInfeasible;
-   return kUnbounded;
+   //!! return( kInfeasible );
+   return( kUnbounded );
   case CPX_STAT_NUM_BEST:
    // Solution is available, but not proved optimal,
    // due to numeric difficulties during optimization.
@@ -493,10 +493,10 @@ int CPXMILPSolver::decode_lqp_status( int status )
    // Model has an unbounded optimal face.
   case CPX_STAT_OPTIMAL_INFEAS:
    // Optimal solution is available, but with infeasibilities after unscaling.
-   return kOK;
+   return( kOK );
   case CPX_STAT_UNBOUNDED:
    // Problem has an unbounded ray.
-   return kUnbounded;
+   return( kUnbounded );
    // case CPX_STAT_CONFLICT_ABORT_CONTRADICTION:
    // case CPX_STAT_CONFLICT_ABORT_DETTIME_LIM:
    // case CPX_STAT_CONFLICT_ABORT_IT_LIM:
@@ -524,8 +524,8 @@ int CPXMILPSolver::decode_lqp_status( int status )
   default:;
   }
 
- throw std::runtime_error( "CPXgetstat() returned unknown status " +
-                           std::to_string( status ) );
+ throw( std::runtime_error( "CPXgetstat() returned unknown status " +
+                            std::to_string( status ) ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -769,7 +769,7 @@ int CPXMILPSolver::decode_cpx_error( int error )
    // CPXmipopt failed to solve one of the subproblems in the
    // branch-and-cut tree. This failure can be due to a limit
    // (for example, an iteration limit) or due to numeric trouble.
-   return kError;
+   return( kError );
    // case CPXERR_SYNCPRIM_CREATE:
    // case CPXERR_SYSCALL:
    // case CPXERR_THREAD_FAILED:
@@ -865,7 +865,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
    break;
 
   default:
-   throw std::runtime_error( "Objective type not yet defined" );
+   throw( std::runtime_error( "Objective type not yet defined" ) );
    break;
   }
 
@@ -1154,11 +1154,11 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
     /* The Variable is fixed but it has no associated OneVarConstraint
      * with both bounds equal to the value of the Variable. */
 
-    throw std::logic_error(
+    throw( std::logic_error(
      "CPXMILPSolver::get_dual_solution: variable with index " +
      std::to_string( i ) + " is fixed to " +
      std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
-     "with both bounds equal to the value of this variable." );
+     "with both bounds equal to the value of this variable." ) );
     }
    else
     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
@@ -1286,11 +1286,11 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
     /* The Variable is fixed but it has no associated OneVarConstraint
      * with both bounds equal to the value of the Variable. */
 
-    throw std::logic_error(
+    throw( std::logic_error(
      "CPXMILPSolver::get_dual_direction: variable with index " +
      std::to_string( i ) + " is fixed to " +
      std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
-     "with both bounds equal to the value of this variable." );
+     "with both bounds equal to the value of this variable." ) );
     }
    else
     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
@@ -1513,12 +1513,12 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   * actually change (as they may not). */
 
  static std::array< char , 2 > lu = { 'L' , 'U' };
- 
+
  auto con = static_cast< OneVarConstraint * >( mod->constraint() );
  auto var = ColV( con->get_active_var( 0 ) );
  if( ! var )  // this should never happen
   return;     // but in case, there is nothing to do
- 
+
  // fixed variables are implemented in CPXMILPSolver by changing the bounds;
  // therefore, actual changes of the bounds are ignored here. note that we
  // are assuming the new bounds do not make the fixed value of the variable
@@ -1532,7 +1532,7 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   return;                  // is strange, but there is nothing to do
 
  std::array< int , 2 > ind = { vi , vi };
- 
+
  switch( mod->type() ) {
 
   case RowConstraintMod::eChgLHS: {
@@ -1556,7 +1556,7 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   default:
    throw( std::invalid_argument( "Invalid type of OneVarConstraintMod" ) );
   }
- }
+ }  // end( CPXMILPSolver::bound_modification )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1589,7 +1589,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
    auto & cp = lf->get_v_var();
- 
+
    for( auto v :  modl->vars() )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      *(nvit++) = cp[ idx ].second;
@@ -1599,7 +1599,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
    nval.resize( nsz );
-   
+
    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
    }
@@ -1622,7 +1622,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
    auto & cp = qf->get_v_var();
- 
+
    for( auto v :  modl->vars() )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      *(nvit++) = std::get< 1 >( cp[ idx ] );
@@ -1632,23 +1632,37 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
    nval.resize( nsz );
-   
+
    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
    }
 
   // This should never happen
-  throw std::invalid_argument( "Unknown type of Objective Function" );
+  throw( std::invalid_argument( "Unknown type of Objective Function" ) );
   }
 
  // C05FunctionMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( auto modl = dynamic_cast< const C05FunctionMod * >( mod ) ) {
 
+  if( modl->type() == C05FunctionMod::NothingChanged ) {
+
+   const auto shift = modl->shift();
+
+   if( ( shift == FunctionMod::INFshift ) ||
+       ( shift == - FunctionMod::INFshift ) ||
+       ( std::isnan( shift ) ) )
+    throw( std::logic_error(
+     "unexpected *C05FunctionMod* from Objective Function" ) );
+
+   constant_value += shift;
+   return;
+   }
+
   auto qf = dynamic_cast< const DQuadFunction * >( f );
   if( ! qf )
    throw( std::logic_error(
-		       "unexpected C05FunctionMod from Linear Objective" ) );
+		       "unexpected *C05FunctionMod* from Linear Objective" ) );
 
   Subset idxs;
   c_Vec_p_Var * vars;
@@ -1683,18 +1697,10 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   auto nsz = std::distance( nval.begin() , nvit );
   cidx.resize( nsz );
   nval.resize( nsz );
-   
+
   CPXchgobj( env , lp , idxs.size() , cidx.data() , nval.data() );
   return;
   }
-
- const auto shift = mod->shift();
-
- if( ( shift == FunctionMod::INFshift ) || ( shift == -FunctionMod::INFshift ) )
-  throw( std::logic_error( "unexpected value in *FunctionMod*" ) );
-
- if( ! std::isnan( shift ) )
-  constant_value += shift;
 
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------
@@ -1703,7 +1709,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
  }  // end( CPXMILPSolver::objective_function_modification )
 
 /*--------------------------------------------------------------------------*/
- 
+
 void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing
@@ -1723,7 +1729,7 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
  if( ! modl )
-  throw( std::logic_error( "unexpected FunctionMod from FRowConstraint" ) );
+  throw( std::logic_error( "unexpected *C05FunctionModLin* from FRowConstraint" ) );
 
  Subset idxs;
  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
@@ -1740,7 +1746,7 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
  auto idxit = idxs.begin();
  auto cidxit = cidx.begin();
  auto & cp = lf->get_v_var();
- 
+
  for( auto v :  modl->vars() )
   if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
    *(nvit++) = cp[ idx ].second;
@@ -1941,7 +1947,7 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  rmatind.reserve( nzcnt );
  std::vector< double > rmatval;
  rmatval.reserve( nzcnt );
- 
+
  // get the coefficients to fill the matrix
  for( auto & el : lf->get_v_var() )
   if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
@@ -2158,7 +2164,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 
     if( bndv <= - 1e+75 )
      bndv = - Inf< double >();
-  
+
     if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
      CPXcallbackabort( context );
     }
@@ -2169,7 +2175,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
-  
+
     if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) )
      CPXcallbackabort( context );
     }
@@ -2206,7 +2212,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    bool owned = f_Block->is_owned_by( f_id );
    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
     throw( std::runtime_error( "Unable to lock the Block" ) );
-   
+
    // get the solution of the relaxation
    std::vector< double > x( numcols );
    if( CPXcallbackgetrelaxationpoint( context , x.data() , 0 , numcols - 1 ,
@@ -2264,7 +2270,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    bool owned = f_Block->is_owned_by( f_id );
    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
     throw( std::runtime_error( "Unable to lock the Block" ) );
-   
+
    // get the feasible solution
    std::vector< double > x( numcols );
    if( CPXcallbackgetcandidatepoint( context , x.data() , 0 , numcols - 1 ,
@@ -2309,7 +2315,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
 					std::vector< int > & rmatbeg ,
 					std::vector< int > & rmatind ,
 					std::vector< double > & rmatval ,
-					std::vector< double > & rhs , 
+					std::vector< double > & rhs ,
 					std::vector< char > & sense )
 {
  // note: we assume the Block to have been lock()-ed already and the solution
@@ -2318,7 +2324,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
  //
  // since the Block is lock()-ed we assume that we can freely work with the
  // Modification list as no-one has a reason tochange it
- 
+
  auto nM = v_mod.size();  // current number of Modification in the list
  auto it = v_mod.end();
  if( nM )                 // if the list is not empty
@@ -2336,7 +2342,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
   ++it;                    // move to the first new element
 
  rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
- 
+
  // main loop: check all new Modification for a Constraint addition
  for( ; it != v_mod.end() ; ++it ) {
   // check if the Modification indicates an added FRowConstraint
@@ -2450,7 +2456,7 @@ int CPXMILPSolver::cpx_dbl_par_map( idx_type par ) const
   case( dblFAccSol ): return( CPXPARAM_Simplex_Tolerances_Feasibility );
   }
 
- if( ( par >= dblFirstCPLEXPar ) && ( par < dblLastAlgParCPXS ) ) 
+ if( ( par >= dblFirstCPLEXPar ) && ( par < dblLastAlgParCPXS ) )
   return( SMSpp_to_CPLEX_dbl_pars[ par - dblFirstCPLEXPar ] );
 
  return( 0 );
@@ -2758,7 +2764,7 @@ const std::vector< int > & CPXMILPSolver::get_vint_par( idx_type par ) const
 
  return( MILPSolver::get_vint_par( par ) );
  }
- 
+
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 const std::vector< std::string > & CPXMILPSolver::get_vstr_par( idx_type par )
@@ -2769,7 +2775,7 @@ const std::vector< std::string > & CPXMILPSolver::get_vstr_par( idx_type par )
 
  return( MILPSolver::get_vstr_par( par ) );
  }
- 
+
 /*--------------------------------------------------------------------------*/
 
 Solver::idx_type CPXMILPSolver::int_par_str2idx(

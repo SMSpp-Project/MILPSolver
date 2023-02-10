@@ -38,7 +38,7 @@ std::string docopt_desc{}; ///< Tool description
 /// Gets the name of the executable from its full path
 std::string get_filename( const std::string & fullpath ) {
  std::size_t found = fullpath.find_last_of( "/\\" );
- return fullpath.substr( found + 1 );
+ return( fullpath.substr( found + 1 ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -132,7 +132,7 @@ BlockSolverConfig * default_configure_solver( int verbose ) {
  }
 
  s_config->add_ComputeConfig( "CPXMILPSolver", c_config );
- return s_config;
+ return( s_config );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -187,25 +187,25 @@ BlockConfig * get_blockconfig( const std::string & conf_file ) {
  std::ifstream bcf;
 
  bcf.open( conf_file, std::ifstream::in );
- if( !bcf.is_open() ) {
-  return nullptr;
+ if( ! bcf.is_open() ) {
+  return( nullptr );
  }
 
  std::string name;
  bcf >> eatcomments >> name;
  b_config = dynamic_cast<BlockConfig *> ( Configuration::new_Configuration( name ) );
 
- if( !b_config ) {
-  return nullptr;
+ if( ! b_config ) {
+  return( nullptr );
  }
 
  try {
   bcf >> *b_config;
  } catch( const std::exception & e ) {
-  return nullptr;
+  return( nullptr );
  }
 
- return b_config;
+ return( b_config );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -217,25 +217,25 @@ get_blocksolverconfig( const std::string & conf_file ) {
  std::ifstream scf;
 
  scf.open( conf_file, std::ifstream::in );
- if( !scf.is_open() ) {
-  return nullptr;
+ if( ! scf.is_open() ) {
+  return( nullptr );
  }
 
  std::string name;
  scf >> eatcomments >> name;
  s_config = dynamic_cast<BlockSolverConfig *> ( Configuration::new_Configuration( name ) );
 
- if( !s_config ) {
-  return nullptr;
+ if( ! s_config ) {
+  return( nullptr );
  }
 
  try {
   scf >> *s_config;
  } catch( const std::exception & e ) {
-  return nullptr;
+  return( nullptr );
  }
 
- return s_config;
+ return( s_config );
 }
 
 /*--------------------------------------------------------------------------*/

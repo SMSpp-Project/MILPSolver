@@ -639,7 +639,7 @@ void SCIPMILPSolver::const_modification( const ConstraintMod * mod )
    break;
 
   default:
-   throw std::invalid_argument( "Invalid type of ObjectiveMod" );
+   throw( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
   }
  }  // end( SCIPMILPSolver::const_modification )
 
@@ -689,7 +689,7 @@ void SCIPMILPSolver::bound_modification( const OneVarConstraintMod * mod )
    }
 
   default:
-   throw std::invalid_argument( "Invalid type of OneVarConstraintMod" );
+   throw( std::invalid_argument( "Invalid type of OneVarConstraintMod" ) );
   }
  }  // end( SCIPMILPSolver::bound_modification )
 
@@ -704,23 +704,29 @@ void SCIPMILPSolver::objective_function_modification(
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- if( ! ( dynamic_cast< const C05FunctionModLin * >( mod ) ) &&
-     ! ( dynamic_cast< const C05FunctionMod * >( mod ) ) ) {
+ // C05FunctionMod
+ // --------------------------------------------------------------------------
+ if( auto modl = dynamic_cast< const C05FunctionMod * >( mod ) ) {
 
-  const auto shift = mod->shift();
+  if( modl->type() == C05FunctionMod::NothingChanged ) {
 
-  if( ( shift == FunctionMod::INFshift ) ||
-      ( shift == -FunctionMod::INFshift ) )
-   throw( std::logic_error( "unexpected value in *FunctionMod*" ) );
+   const auto shift = modl->shift();
 
-  if( ! std::isnan( shift ) )
+   if( ( shift == FunctionMod::INFshift ) ||
+       ( shift == - FunctionMod::INFshift ) ||
+       ( std::isnan( shift ) ) )
+    throw( std::logic_error(
+     "unexpected *C05FunctionMod* from Objective Function" ) );
+
    constant_value += shift;
+   return;
+   }
   }
-
- auto f = mod->function();
 
  // C05FunctionModLin
  // --------------------------------------------------------------------------
+
+ auto f = mod->function();
 
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------
@@ -744,7 +750,8 @@ void SCIPMILPSolver::objective_function_modification(
 
  // This should never happen
  throw( std::invalid_argument( "Unknown type of Objective Function" ) );
- }
+
+ }  // end( SCIPMILPSolver::objective_function_modification )
 
 /*--------------------------------------------------------------------------*/
 // TODO: Change only involved variables
@@ -896,7 +903,7 @@ void SCIPMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
 
  auto f = dynamic_cast< const LinearFunction * >( con->get_function() );
  if( ! f )
-  throw std::invalid_argument( "The Constraint is not linear" );
+  throw( std::invalid_argument( "The Constraint is not linear" ) );
 
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
@@ -1280,19 +1287,19 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const
    SCIP_CALL_ABORT( SCIPgetRealParam( scip , "limits/time" , & value ) );
    return( value );
    // case dblRelAcc:   // TODO
-   //  return 1e-6;
+   //  return( 1e-6 );
    // case dblAbsAcc:   // TODO
-   //  return Inf< OFValue >();
+   //  return( Inf< OFValue >() );
    // case dblUpCutOff:
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE ) {
-   //   return SCIPgetObjlimit( scip );
+   //   return( SCIPgetObjlimit( scip ) );
    //  }
-   //  return Inf< OFValue >();
+   //  return( Inf< OFValue >() );
    // case dblLwCutOff:
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MAXIMIZE ) {
-   //   return SCIPgetObjlimit( scip );
+   //   return( SCIPgetObjlimit( scip ) );
    //  }
-   //  return -Inf< OFValue >();
+   //  return( -Inf< OFValue >() );
   case dblRAccSol:
    SCIP_CALL_ABORT( SCIPgetRealParam( scip , "limits/gap" , & value ) );
    return( value );
@@ -1309,7 +1316,7 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const
   const std::string & scip_par =
    SMSpp_to_SCIP_dbl_pars[ par - dblFirstSCIPPar ];
   SCIP_CALL_ABORT( SCIPgetRealParam( scip, scip_par.c_str(), &value ) );
-  return value;
+  return( value );
  }
 
  return( MILPSolver::get_dbl_par( par ) );
@@ -1403,19 +1410,19 @@ double SCIPMILPSolver::get_dflt_dbl_par( idx_type par ) const
    param = SCIPgetParam( scip , "limits/time" );
    return( SCIPparamGetRealDefault( param ) );
    // case dblRelAcc:   // TODO
-   //  return 1e-6;
+   //  return( 1e-6 );
    // case dblAbsAcc:   // TODO
-   //  return Inf< OFValue >();
+   //  return( Inf< OFValue >() );
    // case dblUpCutOff:
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE ) {
-   //   return -Inf< OFValue >();
+   //   return( -Inf< OFValue >() );
    //  }
-   //  return Inf< OFValue >();
+   //  return( Inf< OFValue >() );
    // case dblLwCutOff:
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MAXIMIZE ) {
-   //   return Inf< OFValue >();
+   //   return( Inf< OFValue >() );
    //  }
-   //  return -Inf< OFValue >();
+   //  return( -Inf< OFValue >() );
   case dblRAccSol:
    param = SCIPgetParam( scip , "limits/gap" );
    return( SCIPparamGetRealDefault( param ) );
