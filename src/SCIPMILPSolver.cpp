@@ -695,8 +695,7 @@ void SCIPMILPSolver::bound_modification( const OneVarConstraintMod * mod )
 
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::objective_function_modification(
-						    const FunctionMod * mod )
+void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::objective_function_modification( mod );
