@@ -127,11 +127,10 @@ BlockSolverConfig * default_configure_solver( int verbose ) {
  auto s_config = new BlockSolverConfig;
  auto c_config = new ComputeConfig;
 
- if( verbose ) {
-  c_config->set_par( "intLogVerb", 1 );
- }
+ if( verbose )
+  c_config->set_par( "intLogVerb" , 1 );
 
- s_config->add_ComputeConfig( "CPXMILPSolver", c_config );
+ s_config->add_ComputeConfig( "CPXMILPSolver" , c_config );
  return( s_config );
 }
 
