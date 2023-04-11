@@ -51,7 +51,7 @@
 #endif
 
 /*--------------------------------------------------------------------------*/
-// if nonzero, the :MILPSolver attched to the NCoCubeBlock is detached and
+// if nonzero, the :MILPSolver attached to the NCoCubeBlock is detached and
 // re-attached to it at all iterations
 
 #define DETACH_LP 0
@@ -92,6 +92,7 @@
 /*--------------------------------------------------------------------------*/
 
 using namespace std;
+
 using namespace SMSpp_di_unipi_it;
 
 /*--------------------------------------------------------------------------*/
