@@ -4,8 +4,6 @@
 #                                                                            #
 #   makefile of cpx_pars / scip_pars                                         #
 #                                                                            #
-#                              Implementation by:                            #
-#                                                                            #
 #                              Antonio Frangioni                             #
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #

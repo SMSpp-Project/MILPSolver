@@ -19,11 +19,7 @@
 #           $(MILPSH)   = the .h files to include for MILPSolver             #
 #           $(MILPSINC) = the -I$( MILPSolver directory )                    #
 #                                                                            #
-#                                VERSION 1.00                                #
-#                               07 - 03 - 2018                               #
-#                                                                            #
 #                              Antonio Frangioni                             #
-#                          Operations Research Group                         #
 #                         Dipartimento di Informatica                        #
 #                             Universita' di Pisa                            #
 #                                                                            #

@@ -2,7 +2,6 @@
  * Some common utilities for SMS++ tools.
  *
  * \author Niccolo' Iardella \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
