@@ -952,8 +952,9 @@ void MILPSolver::scan_dynamic_constraint( const FRowConstraint & con ,
 
 void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row )
 {
- if( ! dynamic_cast< const LinearFunction * >( con.get_function() ) )
-  throw( std::invalid_argument( "The Constraint is not linear" ) );
+ if( auto f = con.get_function() )
+  if( ! dynamic_cast< const LinearFunction * >( f ) )
+   throw( std::invalid_argument( "The Constraint is not linear" ) );
 
  /* We need to define the sense of the constraint.
   * In SMS++ FRowConstraints are defined as:

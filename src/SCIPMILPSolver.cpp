@@ -900,8 +900,8 @@ void SCIPMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::add_dynamic_constraint( con );
 
- auto f = dynamic_cast< const LinearFunction * >( con->get_function() );
- if( ! f )
+ auto lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+ if( ! lf )
   throw( std::invalid_argument( "The Constraint is not linear" ) );
 
  if( SCIPisTransformed( scip ) )
@@ -921,7 +921,7 @@ void SCIPMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
                                              con_lhs , con_rhs ) );
 
  // get the coefficients to fill the matrix
- for( auto & el : f->get_v_var() )
+ for( auto & el : lf->get_v_var() )
   if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() )
    SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , scip_con , vars[ idx ] ,
 				       el.second ) );
@@ -972,12 +972,12 @@ void SCIPMILPSolver::add_dynamic_variable( const ColVariable * var )
 
  auto active_constraints = get_active_constraints( *var );
  for( auto * con : active_constraints ) {
-  auto f = dynamic_cast< const LinearFunction * >( con->get_function() );
-  if( ! f )
+  auto lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+  if( ! lf )
    throw( std::invalid_argument( "The Constraint is not linear" ) );
 
   SCIP_CONS * scip_con = cons[ index_of_constraint( con ) ];
-  SCIP_Real coeff = f->get_coefficient( i );
+  SCIP_Real coeff = lf->get_coefficient( i );
   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , scip_con , scip_var , coeff ) );
   ++i;
   }

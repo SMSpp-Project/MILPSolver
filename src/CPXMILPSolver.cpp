@@ -1591,9 +1591,9 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto & cp = lf->get_v_var();
 
    for( auto v :  modl->vars() )
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     *(nvit++) = cp[ idx ].second;
-     *(cidxit++) = index_of_variable( ColV( v ) );
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
+     *( nvit++ ) = cp[ idx ].second;
+     *( cidxit++ ) = index_of_variable( ColV( v ) );
      }
 
    auto nsz = std::distance( nval.begin() , nvit );
@@ -1624,9 +1624,9 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto & cp = qf->get_v_var();
 
    for( auto v :  modl->vars() )
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     *(nvit++) = std::get< 1 >( cp[ idx ] );
-     *(cidxit++) = index_of_variable( ColV( v ) );
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
+     *( nvit++ ) = std::get< 1 >( cp[ idx ] );
+     *( cidxit++ ) = index_of_variable( ColV( v ) );
      }
 
    auto nsz = std::distance( nval.begin() , nvit );
@@ -1686,10 +1686,10 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   auto & cp = qf->get_v_var();
 
   for( auto v : *vars )
-   if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-    *(nvit++) = std::get< 1 >( cp[ idx ] );
+   if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
+    *( nvit++ ) = std::get< 1 >( cp[ idx ] );
     auto cidx = index_of_variable( ColV( v ) );
-    *(cidxit++) = cidx;
+    *( cidxit++ ) = cidx;
     // quadratic coefficients need be changed one at a time
     CPXchgqpcoef( env , lp , cidx , cidx , 2 * std::get< 2 >( cp[ idx ] ) );
     }
@@ -1748,9 +1748,9 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
  auto & cp = lf->get_v_var();
 
  for( auto v :  modl->vars() )
-  if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-   *(nvit++) = cp[ idx ].second;
-   *(cidxit++) = index_of_variable( ColV( v ) );
+  if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
+   *( nvit++ ) = cp[ idx ].second;
+   *( cidxit++ ) = index_of_variable( ColV( v ) );
    }
 
  auto nsz = std::distance( nval.begin() , nvit );
@@ -1938,7 +1938,7 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
 
  auto lf = dynamic_cast< const LinearFunction * >( con->get_function() );
  if( ! lf )
-  throw( std::invalid_argument( "the FRowConstraint is not linear" ) );
+  throw( std::invalid_argument( "The Constraint is not linear" ) );
 
  int nzcnt = lf->get_num_active_var();
 
@@ -2366,8 +2366,8 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
    auto iit = rmatind.begin() + sz;
    auto vit = rmatval.begin() + sz;
    for( auto & el : lf->get_v_var() ) {
-    *(iit++) = index_of_variable( el.first );
-    *(vit++) = el.second;
+    *( iit++ ) = index_of_variable( el.first );
+    *( vit++ ) = el.second;
     }
 
    // get the bounds
