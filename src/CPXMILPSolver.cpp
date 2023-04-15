@@ -1936,62 +1936,63 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::add_dynamic_constraint( con );
 
- auto lf = dynamic_cast< const LinearFunction * >( con->get_function() );
- if( ! lf )
-  throw( std::invalid_argument( "The Constraint is not linear" ) );
+ if( auto f = con->get_function() ) {
+  auto lf = dynamic_cast< const LinearFunction * >( f );
+  if( ! lf )
+   throw( std::invalid_argument( "The Constraint is not linear" ) );
 
- int nzcnt = lf->get_num_active_var();
+  int nzcnt = lf->get_num_active_var();
 
- std::array< int , 2 > rmatbeg = { 0 , nzcnt };
- std::vector< int > rmatind;
- rmatind.reserve( nzcnt );
- std::vector< double > rmatval;
- rmatval.reserve( nzcnt );
+  std::array< int , 2 > rmatbeg = { 0 , nzcnt };
+  std::vector< int > rmatind;
+  rmatind.reserve( nzcnt );
+  std::vector< double > rmatval;
+  rmatval.reserve( nzcnt );
 
- // get the coefficients to fill the matrix
- for( auto & el : lf->get_v_var() )
-  if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
-   rmatind.push_back( idx );
-   rmatval.push_back( el.second );
-   }
+  // get the coefficients to fill the matrix
+  for( auto & el : lf->get_v_var() )
+   if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
+    rmatind.push_back( idx );
+    rmatval.push_back( el.second );
+    }
 
- // get the bounds
- auto con_lhs = con->get_lhs();
- auto con_rhs = con->get_rhs();
- double rhs , rngval;
- char sense;
+  // get the bounds
+  auto con_lhs = con->get_lhs();
+  auto con_rhs = con->get_rhs();
+  double rhs , rngval;
+  char sense;
 
- if( con_lhs == con_rhs ) {
-  sense = 'E';
-  rhs = con_rhs;
-  }
- else
-  if( con_lhs == -Inf< double >() ) {
-   sense = 'L';
+  if( con_lhs == con_rhs ) {
+   sense = 'E';
    rhs = con_rhs;
    }
   else
-   if( con_rhs == Inf< double >() ) {
-    sense = 'G';
-    rhs = con_lhs;
+   if( con_lhs == -Inf< double >() ) {
+    sense = 'L';
+    rhs = con_rhs;
     }
-   else {
-    sense = 'R';
-    rhs = con_lhs;
-    rngval = con_rhs - con_lhs;
-    }
+   else
+    if( con_rhs == Inf< double >() ) {
+     sense = 'G';
+     rhs = con_lhs;
+     }
+    else {
+     sense = 'R';
+     rhs = con_lhs;
+     rngval = con_rhs - con_lhs;
+     }
 
- // update the CPLEX problem
- CPXaddrows( env , lp , 0 , 1 , rmatind.size() , & rhs , & sense ,
-	     rmatbeg.data() , rmatind.data() , rmatval.data() ,
-	     nullptr , nullptr );
- if( sense == 'R' ) {
-  //!!  int index = index_of_dynamic_constraint( con );
-  // the constraint has just been added at the end
-  int index = numrows - 1;
-  CPXchgrngval( env , lp , 1 , & index , & rngval );
+  // update the CPLEX problem
+  CPXaddrows( env , lp , 0 , 1 , rmatind.size() , & rhs , & sense ,
+              rmatbeg.data() , rmatind.data() , rmatval.data() ,
+              nullptr , nullptr );
+  if( sense == 'R' ) {
+   //!!  int index = index_of_dynamic_constraint( con );
+   // the constraint has just been added at the end
+   int index = numrows - 1;
+   CPXchgrngval( env , lp , 1 , & index , & rngval );
+   }
   }
-
  }  // end( CPXMILPSolver::add_dynamic_constraint )
 
 /*--------------------------------------------------------------------------*/
@@ -2323,7 +2324,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
  //       Variable of the Block
  //
  // since the Block is lock()-ed we assume that we can freely work with the
- // Modification list as no-one has a reason tochange it
+ // Modification list as no-one has a reason to change it
 
  auto nM = v_mod.size();  // current number of Modification in the list
  auto it = v_mod.end();
@@ -2353,61 +2354,62 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
 
   // add all the new constraint to the matrix, one by one
   for( auto con : tmod->added() ) {
-   auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
-   if( ! lf )
-    throw( std::invalid_argument( "The Constraint is not linear" ) );
+   if( auto f = con->get_function() ) {
+    auto * lf = dynamic_cast< const LinearFunction * >( f );
+    if( ! lf )
+     throw( std::invalid_argument( "The Constraint is not linear" ) );
 
-   auto nzcnt = lf->get_num_active_var();
-   auto sz = rmatind.size();
-   rmatind.resize( sz + nzcnt );
-   rmatval.resize( sz + nzcnt );
+    auto nzcnt = lf->get_num_active_var();
+    auto sz = rmatind.size();
+    rmatind.resize( sz + nzcnt );
+    rmatval.resize( sz + nzcnt );
 
-   // get the coefficients to fill the matrix
-   auto iit = rmatind.begin() + sz;
-   auto vit = rmatval.begin() + sz;
-   for( auto & el : lf->get_v_var() ) {
-    *( iit++ ) = index_of_variable( el.first );
-    *( vit++ ) = el.second;
-    }
+    // get the coefficients to fill the matrix
+    auto iit = rmatind.begin() + sz;
+    auto vit = rmatval.begin() + sz;
+    for( auto & el : lf->get_v_var() ) {
+     *( iit++ ) = index_of_variable( el.first );
+     *( vit++ ) = el.second;
+     }
 
-   // get the bounds
-   auto con_lhs = con->get_lhs();
-   auto con_rhs = con->get_rhs();
+    // get the bounds
+    auto con_lhs = con->get_lhs();
+    auto con_rhs = con->get_rhs();
 
-   if( con_lhs == con_rhs ) {
-    sense.push_back( 'E' );
-    rhs.push_back( con_rhs );
-    }
-   else
-    if( con_lhs == -Inf< double >() ) {
-     sense.push_back( 'L' );
+    if( con_lhs == con_rhs ) {
+     sense.push_back( 'E' );
      rhs.push_back( con_rhs );
      }
     else
-     if( con_rhs == Inf< double >() ) {
-      sense.push_back( 'G' );
-      rhs.push_back( con_lhs );
-      }
-     else {
-      // kludge: the added constraint is ranged LHS <= lf( x ) <= RHS, but
-      // CPLEX does not allow cuts to be ranged: hence, separately add
-      // the two constraints lf( x ) >= LHS and lf( x ) <= RHS
-      sense.push_back( 'G' );
-      rhs.push_back( con_lhs );
-      auto nsz = rmatind.size();
-      rmatbeg.push_back( nsz );
+     if( con_lhs == -Inf< double >() ) {
       sense.push_back( 'L' );
       rhs.push_back( con_rhs );
-      rmatind.resize( nsz + nzcnt );
-      std::copy( rmatind.begin() + sz , rmatind.begin() + nsz ,
-		                        rmatind.begin() + nsz );
-      rmatval.resize( nsz + nzcnt );
-      std::copy( rmatval.begin() + sz , rmatval.begin() + nsz ,
-		                        rmatval.begin() + nsz );
       }
+     else
+      if( con_rhs == Inf< double >() ) {
+       sense.push_back( 'G' );
+       rhs.push_back( con_lhs );
+       }
+      else {
+       // kludge: the added constraint is ranged LHS <= lf( x ) <= RHS, but
+       // CPLEX does not allow cuts to be ranged: hence, separately add
+       // the two constraints lf( x ) >= LHS and lf( x ) <= RHS
+       sense.push_back( 'G' );
+       rhs.push_back( con_lhs );
+       auto nsz = rmatind.size();
+       rmatbeg.push_back( nsz );
+       sense.push_back( 'L' );
+       rhs.push_back( con_rhs );
+       rmatind.resize( nsz + nzcnt );
+       std::copy( rmatind.begin() + sz , rmatind.begin() + nsz ,
+                  rmatind.begin() + nsz );
+       rmatval.resize( nsz + nzcnt );
+       std::copy( rmatval.begin() + sz , rmatval.begin() + nsz ,
+                  rmatval.begin() + nsz );
+       }
 
-   rmatbeg.push_back( rmatind.size() );
-
+    rmatbeg.push_back( rmatind.size() );
+    }
    }  // end( for each added FRowConstraint )
   }  // end( main loop )
  }  // end( CPXMILPSolver::perform_separation )
