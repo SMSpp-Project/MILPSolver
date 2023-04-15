@@ -875,7 +875,7 @@ class MILPSolver : public CDASolver
  /// adds a single new dynamic constraint
  /** Notice that empty constraints, i.e., constraints with null function, are by
   * definition equals to zero, so as in some cases it might be useful to
-  * handle them, if FRowConstraint::get_function() returns nullprt, then the
+  * handle them, if FRowConstraint::get_function() returns nullptr, then the
   * constraint will be added and the respective row will be generated since,
   * formally speaking, an empty constraint is linear since the identical
   * function zero is.
@@ -946,7 +946,7 @@ class MILPSolver : public CDASolver
   *
   * Notice that empty constraints, i.e., constraints with null function, are by
   * definition equals to zero, so as in some cases it might be useful to
-  * handle them, if FRowConstraint::get_function() returns nullprt, then the
+  * handle them, if FRowConstraint::get_function() returns nullptr, then the
   * constraint will be considered since, formally speaking, an empty
   * constraint is linear since the identical function zero is.
   *
@@ -963,7 +963,7 @@ class MILPSolver : public CDASolver
   *
   * Notice that empty constraints, i.e., constraints with null function, are by
   * definition equals to zero, so as in some cases it might be useful to
-  * handle them, if FRowConstraint::get_function() returns nullprt, then the
+  * handle them, if FRowConstraint::get_function() returns nullptr, then the
   * constraint will be considered since, formally speaking, an empty
   * constraint is linear since the identical function zero is.
   *
