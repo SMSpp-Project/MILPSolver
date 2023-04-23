@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for constant term in the objective function.
+- Support for all-important SCIP 8.0.3.
+
+### Fixed
+
+- Destroy the problem before constructing a new one in load_problem() (in
+  SCIPMILPSolver and CPXMILPSolver).
+
 ## [0.5.1] - 2022-07-01
 
 ### Added
