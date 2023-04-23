@@ -273,7 +273,7 @@ public:
    newcut.front().set_function( new LinearFunction( std::move( cut ) ) ,
 				eNoMod );
    newcut.front().set_rhs( 1 );
-   newcut.front().set_lhs( - Inf< FunctionValue >() );
+   newcut.front().set_lhs( -Inf< FunctionValue >() );
    add_dynamic_constraints( v_cuts , newcut );
    }
   }
