@@ -90,7 +90,7 @@ void test_lower( Objective::of_type sense , const bool frow_constraint ) {
   function->add_variable( x , 1.0 );
   constraint_->set_function( function );
   constraint_->set_lhs( 1.0 );
-  constraint_->set_rhs( Inf<double>() );
+  constraint_->set_rhs( Inf< double >() );
   lp->add_static_constraint( *constraint_ , "constraint" );
   constraint = constraint_;
  }
@@ -98,7 +98,7 @@ void test_lower( Objective::of_type sense , const bool frow_constraint ) {
   auto constraint_ = new LBConstraint;
   constraint_->set_variable( x );
   constraint_->set_lhs( 1.0 );
-  constraint_->set_rhs( Inf<double>() );
+  constraint_->set_rhs( Inf< double >() );
   lp->add_static_constraint( *constraint_ , "constraint" );
   constraint = constraint_;
  }
@@ -164,7 +164,7 @@ void test_upper( Objective::of_type sense , const bool frow_constraint ) {
   auto function = new LinearFunction();
   function->add_variable( x , 1.0 );
   constraint_->set_function( function );
-  constraint_->set_lhs( -Inf<double>() );
+  constraint_->set_lhs( -Inf< double >() );
   constraint_->set_rhs( 1.0 );
   lp->add_static_constraint( *constraint_ , "constraint" );
   constraint = constraint_;
@@ -172,7 +172,7 @@ void test_upper( Objective::of_type sense , const bool frow_constraint ) {
  else {
   auto constraint_ = new UBConstraint;
   constraint_->set_variable( x );
-  constraint_->set_lhs( -Inf<double>() );
+  constraint_->set_lhs( -Inf< double >() );
   constraint_->set_rhs( 1.0 );
   lp->add_static_constraint( *constraint_ , "constraint" );
   constraint = constraint_;

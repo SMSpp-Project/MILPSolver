@@ -81,7 +81,7 @@ int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
 CPXMILPSolver::CPXMILPSolver( void ) :
  MILPSolver() , env( nullptr ) , lp( nullptr ) , f_callback_set( false ) ,
  throw_reduced_cost_exception( 0 ) , CutSepPar( 0 ) ,
- UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
+ UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
 {
  int status = 0;
  env = CPXopenCPLEX( & status );
@@ -118,7 +118,7 @@ void CPXMILPSolver::set_Block( Block * block )
 
  MILPSolver::set_Block( block );
  UpCutOff = Inf< double >();
- LwCutOff = - Inf< double >();
+ LwCutOff = -Inf< double >();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -200,7 +200,7 @@ void CPXMILPSolver::load_problem( void )
  MILPSolver::clear_problem( 15 );
 
  UpCutOff = Inf< double >();
- LwCutOff = - Inf< double >();
+ LwCutOff = -Inf< double >();
 
  }  // end( CPXMILPSolver::load_problem )
 
@@ -847,7 +847,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     case kStopIter:
     case kStopTime:
      if( ! has_var_solution() ) {
-      lower_bound = - Inf< OFValue >();
+      lower_bound = -Inf< OFValue >();
       break;
       }
      lower_bound += constant_value;
@@ -2164,7 +2164,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
      solv = Inf< double >();
 
     if( bndv <= - 1e+75 )
-     bndv = - Inf< double >();
+     bndv = -Inf< double >();
 
     if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
      CPXcallbackabort( context );
@@ -2172,7 +2172,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    else {
     // a maximization problem: solv is lower bound and bndv is upper bound
     if( solv <= -1e+75 )
-     solv = - Inf< double >();
+     solv = -Inf< double >();
 
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
@@ -2637,7 +2637,7 @@ double CPXMILPSolver::get_dflt_dbl_par( idx_type par ) const
 {
  switch( par ) {
   case( dblUpCutOff ): return( Inf< double >() );
-  case( dblLwCutOff ): return( - Inf< double >() );
+  case( dblLwCutOff ): return( -Inf< double >() );
   }
 
  if( int cp = cpx_dbl_par_map( par ) ) {
