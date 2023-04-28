@@ -1309,7 +1309,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
 
-  // if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
+  // if( const auto * qf = dynamic_cast< const DQuadFunction * > (f) ) {
   //
   //  // This may happen if we change from LP to QP
   //  if( q_objective.empty() ) {
@@ -1317,7 +1317,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
   //  }
   //
   //  for( auto i : sbst->subset() ) {
-  //   auto var = static_cast<const ColVariable *>(qf->get_active_var( i ));
+  //   auto var = static_cast< const ColVariable * >( qf->get_active_var( i ) );
   //   auto idx = index_of_variable( var );
   //   objective[ idx ] = qf->get_linear_coefficient( i );
   //   q_objective[ idx ] = qf->get_quadratic_coefficient( i );
@@ -1382,10 +1382,10 @@ void MILPSolver::constraint_function_modification( const FunctionMod * mod )
  // TODO: update constraint matrix
  // C05FunctionModLin
  // --------------------------------------------------------------------------
- // if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
+ // if( const auto * modl = dynamic_cast< C05FunctionModLin * >( mod ) ) {
  //
  //  for( int i = 0; i < modl->vars().size(); ++i ) {
- //   auto var = static_cast<const ColVariable *>(modl->vars()[ i ]);
+ //   auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
  //   auto col = index_of_variable( var );
  //
  //   auto it = lower_bound( matind.begin() + matbeg[ col ],

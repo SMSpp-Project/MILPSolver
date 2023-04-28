@@ -131,8 +131,8 @@ int main( int argc, char ** argv ) {
    s += " ]";
    std::cout << "Solution = " << s << std::endl;
   }
-  if( static_cast<CPXMILPSolver *>(solver)->has_dual_solution() ) {
-   static_cast<CPXMILPSolver *>(solver)->get_dual_solution();
+  if( static_cast< CPXMILPSolver * >( solver )->has_dual_solution() ) {
+   static_cast< CPXMILPSolver * >( solver )->get_dual_solution();
    std::string s = "[";
 
    auto set = [ &s ]( FRowConstraint & c ) {
