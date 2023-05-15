@@ -498,7 +498,7 @@ void SCIPMILPSolver::write_lp( const std::string & filename )
 
 int SCIPMILPSolver::get_nodes( void ) const
 {
- return( (int) SCIPgetNTotalNodes( scip ) );
+ return( ( int ) SCIPgetNTotalNodes( scip ) );
  }
 
 /*--------------------------------------------------------------------------*/
