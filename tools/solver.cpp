@@ -9,7 +9,6 @@
  * BlockSolverConfig on a SMS++ nc4 problem file.
  *
  * \author Niccolo' Iardella \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
@@ -33,15 +32,15 @@ using namespace SMSpp_di_unipi_it;
 std::string get_filename_extension( const std::string & filename ) {
  std::size_t pos = filename.find_last_of( '.' );
  if( pos != std::string::npos )
-  return filename.substr( pos + 1 );
- return "";
+  return( filename.substr( pos + 1 ) );
+ return( "" );
 }
 
 /*--------------------------------------------------------------------------*/
 
 void tolower( std::string & string ) {
  std::transform( string.begin() , string.end() , string.begin() ,
-                 []( auto c ) { return std::tolower( c ); } );
+                 []( auto c ) { return( std::tolower( c ) ); } );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -61,15 +60,15 @@ AbstractBlock * read_Block( const std::string & filename ) {
   file_type = 'M';
 
  if( file_type == '\0' )
-  throw std::invalid_argument( "Cannot infer file type from extension" );
+  throw( std::invalid_argument( "Cannot infer file type from extension" ) );
 
  std::ifstream istream( filename );
  if( ! istream.is_open() )
-  throw std::runtime_error( "Failed to open file " + filename );
+  throw( std::runtime_error( "Failed to open file " + filename ) );
 
  auto block = new AbstractBlock();
  block->load( istream , file_type );
- return block;
+ return( block );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -86,7 +85,7 @@ int main( int argc, char ** argv ) {
 
  // Configure block
  BlockConfig * b_config;
- if( !bconf_file.empty() ) {
+ if( ! bconf_file.empty() ) {
   b_config = get_blockconfig( bconf_file );
   if( b_config == nullptr ) {
    std::cerr << exe << ": Block configuration not valid" << std::endl;
@@ -97,7 +96,7 @@ int main( int argc, char ** argv ) {
 
  // Configure solver
  BlockSolverConfig * s_config;
- if( !sconf_file.empty() ) {
+ if( ! sconf_file.empty() ) {
   s_config = get_blocksolverconfig( sconf_file );
   if( s_config == nullptr ) {
    std::cerr << exe << ": Solver configuration not valid" << std::endl;
@@ -132,8 +131,8 @@ int main( int argc, char ** argv ) {
    s += " ]";
    std::cout << "Solution = " << s << std::endl;
   }
-  if( static_cast<CPXMILPSolver *>(solver)->has_dual_solution() ) {
-   static_cast<CPXMILPSolver *>(solver)->get_dual_solution();
+  if( static_cast< CPXMILPSolver * >( solver )->has_dual_solution() ) {
+   static_cast< CPXMILPSolver * >( solver )->get_dual_solution();
    std::string s = "[";
 
    auto set = [ &s ]( FRowConstraint & c ) {
@@ -152,5 +151,5 @@ int main( int argc, char ** argv ) {
    std::cout << "Dual solution = " << s << std::endl;
   }
  }
- return 0;
+ return( 0 );
 }

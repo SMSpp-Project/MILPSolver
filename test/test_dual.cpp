@@ -40,16 +40,16 @@ CPXMILPSolver * build_solver() {
  solver->set_par( CPXPARAM_Preprocessing_Presolve , 0 );
  solver->set_par( CPXPARAM_Preprocessing_QCPDuals , CPX_QCPDUALS_FORCE );
  solver->set_par( CPXMILPSolver::intThrowReducedCostException , 1 );
- return solver;
+ return( solver );
 }
 
 /*--------------------------------------------------------------------------*/
 
 double get_obj_sign( Objective::of_type sense ) {
  switch( sense ) {
-  case( Objective::eMin ): return -1;
-  case( Objective::eMax ): return 1;
-  default: return 0;
+  case( Objective::eMin ): return( -1 );
+  case( Objective::eMax ): return( 1 );
+  default: return( 0 );
  }
 }
 
@@ -90,7 +90,7 @@ void test_lower( Objective::of_type sense , const bool frow_constraint ) {
   function->add_variable( x , 1.0 );
   constraint_->set_function( function );
   constraint_->set_lhs( 1.0 );
-  constraint_->set_rhs( Inf<double>() );
+  constraint_->set_rhs( Inf< double >() );
   lp->add_static_constraint( *constraint_ , "constraint" );
   constraint = constraint_;
  }
@@ -98,7 +98,7 @@ void test_lower( Objective::of_type sense , const bool frow_constraint ) {
   auto constraint_ = new LBConstraint;
   constraint_->set_variable( x );
   constraint_->set_lhs( 1.0 );
-  constraint_->set_rhs( Inf<double>() );
+  constraint_->set_rhs( Inf< double >() );
   lp->add_static_constraint( *constraint_ , "constraint" );
   constraint = constraint_;
  }
@@ -164,7 +164,7 @@ void test_upper( Objective::of_type sense , const bool frow_constraint ) {
   auto function = new LinearFunction();
   function->add_variable( x , 1.0 );
   constraint_->set_function( function );
-  constraint_->set_lhs( -Inf<double>() );
+  constraint_->set_lhs( -Inf< double >() );
   constraint_->set_rhs( 1.0 );
   lp->add_static_constraint( *constraint_ , "constraint" );
   constraint = constraint_;
@@ -172,7 +172,7 @@ void test_upper( Objective::of_type sense , const bool frow_constraint ) {
  else {
   auto constraint_ = new UBConstraint;
   constraint_->set_variable( x );
-  constraint_->set_lhs( -Inf<double>() );
+  constraint_->set_lhs( -Inf< double >() );
   constraint_->set_rhs( 1.0 );
   lp->add_static_constraint( *constraint_ , "constraint" );
   constraint = constraint_;
@@ -293,7 +293,7 @@ void run() {
 
 int main() {
  run();
- return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/

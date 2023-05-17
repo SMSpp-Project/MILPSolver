@@ -5,7 +5,7 @@
  * Header file for the MILPSolver class, which implements parts of the
  * Solver concept for MILP solvers. The class does not directly provide
  * solving capabilities, but rather a first layer for analysing a "MILP
- * Block" and constructing/mantaining a standard "sparse matrix as a vector
+ * Block" and constructing/maintaining a standard "sparse matrix as a vector
  * of doubles + two vectors of int, plus vectors for costs, bounds and
  * lhs/rhs of constraints" representation of the problem. This is thought to
  * be used as an input for derived classes that use it to provide actual
@@ -19,13 +19,13 @@
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
- *         Università di Pisa \n
+ *         Universita' di Pisa \n
  *
  * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
- *         Università di Pisa \n
+ *         Universita' di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Niccolo' Iardella
+ * \copyright Copyright &copy; by Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -77,15 +77,15 @@ namespace SMSpp_di_unipi_it
  * are present.
  *
  * The MILPSolver can be registered to any kind of Block (assuming that it
- * containss a MILP formulation) and it generates a collection of vectors
+ * contains a MILP formulation) and it generates a collection of vectors
  * that describes the MILP problem in the usual form "sparse matrix as a
  * vector of doubles + two vectors of int, plus vectors for costs, bounds
  * and lhs/rhs of constraints". This makes it easy to construct derived
- * classes thay interface with standard solvers.
+ * classes that interface with standard solvers.
  *
- * The main thing that this class has to take care is the correspondance
+ * The main thing that this class has to take care is the correspondence
  * between the Constraints and Variables of the Block and the constraint
- * matrix. The corrispondance is built via set_Block(), that conducts a
+ * matrix. The correspondence is built via set_Block(), that conducts a
  * Breadth First Search, scanning the Block and all its children, if any,
  * populating the vectors needed to define the MILP problem.
  *
@@ -244,7 +244,7 @@ class MILPSolver : public CDASolver
   * The input parameter is a bitwise value that allows to specify which
   * vectors should be cleared. From the LSB to the MSB:
   *
-  * - 1 clears the costraint matrix, xctype the column/row names
+  * - 1 clears the constraint matrix, xctype the column/row names
   * - 2 clears the OF related vectors (objective and q_objective)
   * - 4 clears rhs, rngval and sense
   * - 8 clears lb and ub.
@@ -281,12 +281,12 @@ class MILPSolver : public CDASolver
  /// returns the sense of the objective function, see CPXchgobjsen()
  [[nodiscard]] int get_objsense( void ) const { return( objsense ); }
 
- /// returns the linear cofficients of the objective function
+ /// returns the linear coefficients of the objective function
  [[nodiscard]] const std::vector< double > & get_objective( void ) const {
   return( objective );
   }
 
- /// returns the quadratic cofficients of the objective function
+ /// returns the quadratic coefficients of the objective function
  [[nodiscard]] const std::vector< double > & get_q_objective( void ) const {
   return( q_objective );
   }
@@ -391,7 +391,7 @@ class MILPSolver : public CDASolver
  int index_of_dynamic_variable( const ColVariable * var ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// rturns the matrix row index of the given constraint
+ /// returns the matrix row index of the given constraint
  /** Returns the matrix row index of the given constraint.
   *
   * @param con a pointer to a FRowConstraint
@@ -454,7 +454,7 @@ class MILPSolver : public CDASolver
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// returns the constraint corresponding to the given matrix row index
- /** Returns the constraint corresponding to the givem matrix row index.
+ /** Returns the constraint corresponding to the given matrix row index.
   *
   * @param i a constraint matrix row index
   * @return a pointer to the corresponding FRowConstraint, or nullptr if \p i
@@ -700,6 +700,9 @@ class MILPSolver : public CDASolver
   * maximization problem. */
  int objsense{};
 
+ /// A double that specify the summation of the constant terms of all blocks.
+ OFValue constant_value{};
+
  /** An array of length at least numcols containing the objective function
   * coefficients. */
  std::vector< double > objective;
@@ -784,7 +787,7 @@ class MILPSolver : public CDASolver
  /// gets the UB for the given variable in the problem
  virtual double get_problem_ub( const ColVariable & var ) const;
 
- /// gets both bounds for the given variable in the problem---
+ /// gets both bounds for the given variable in the problem
  virtual std::array< double , 2 > get_problem_bounds(
 					     const ColVariable & var ) const;
 
@@ -870,6 +873,15 @@ class MILPSolver : public CDASolver
  virtual void dynamic_modification( const BlockModAD * mod );
 
  /// adds a single new dynamic constraint
+ /** Notice that empty constraints, i.e., constraints with null function, are by
+  * definition equals to zero, so as in some cases it might be useful to
+  * handle them, if FRowConstraint::get_function() returns nullptr, then the
+  * constraint will be added and the respective row will be generated since,
+  * formally speaking, an empty constraint is linear since the identical
+  * function zero is.
+  *
+  * @param con a reference to a FRowConstraint
+  */
  virtual void add_dynamic_constraint( const FRowConstraint * con );
 
  /// adds a single new dynamic variable
@@ -906,7 +918,7 @@ class MILPSolver : public CDASolver
  * inside the containers.
  * @{ */
 
- /** Scans a static ColVariable and fills the  dictionaries accordingly
+ /** Scans a static ColVariable and fills the dictionaries accordingly
   *
   * @param var a reference to a ColVariable
   * @param n   an counter that should be 0 when var is the first
@@ -917,7 +929,7 @@ class MILPSolver : public CDASolver
 			    Index & col );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /** Scans a dyanmic ColVariable and fills the dictionaries accordingly
+ /** Scans a dynamic ColVariable and fills the dictionaries accordingly
   *
   * @param var a reference to a ColVariable
   * @param col a counter for variables/columns */
@@ -930,7 +942,14 @@ class MILPSolver : public CDASolver
  void scan_variable( const ColVariable & var , Index & col );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /** Scans a static FRowConstraint and fills the dictionaries accordingly
+ /** Scans a static FRowConstraint and fills the dictionaries accordingly.
+  *
+  * Notice that empty constraints, i.e., constraints with null function, are by
+  * definition equals to zero, so as in some cases it might be useful to
+  * handle them, if FRowConstraint::get_function() returns nullptr, then the
+  * constraint will be considered since, formally speaking, an empty
+  * constraint is linear since the identical function zero is.
+  *
   * @param con a reference to a FRowConstraint
   * @param n   an counter that should be 0 when lconst is the first
   *            element of a vector of static FRowConstraints
@@ -940,7 +959,14 @@ class MILPSolver : public CDASolver
 			      Index & col );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /** Scans a dynamic FRowConstraint and fills the dictionaries accordingly
+ /** Scans a dynamic FRowConstraint and fills the dictionaries accordingly.
+  *
+  * Notice that empty constraints, i.e., constraints with null function, are by
+  * definition equals to zero, so as in some cases it might be useful to
+  * handle them, if FRowConstraint::get_function() returns nullptr, then the
+  * constraint will be considered since, formally speaking, an empty
+  * constraint is linear since the identical function zero is.
+  *
   * @param con a reference to a FRowConstraint
   * @param row a counter for constraints/rows */
 
@@ -953,6 +979,10 @@ class MILPSolver : public CDASolver
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a FRealObjective and fills the vectors of the LP accordingly.
+  * Moreover, since both the CPLEX and SCIP C API does not support the concept
+  * of "constant term", all of them, for each Block of the problem, are
+  * accumulated in the homonymous variable to provide the updated OF value.
+  *
   * @param obj a FRealObjective */
 
  void scan_objective( const FRealObjective * obj );

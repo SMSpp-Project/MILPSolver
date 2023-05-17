@@ -10,13 +10,13 @@
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
- *         Università di Pisa \n
+ *         Universita' di Pisa \n
  *
  * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Niccolo' Iardella
+ * \copyright Copyright &copy; by Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/

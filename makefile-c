@@ -1,9 +1,9 @@
 ##############################################################################
 ################################ makefile-c ##################################
 ##############################################################################
-#									     #
+#                                                                            #
 #   complete makefile of MILPSolver                                          #
-#									     #
+#                                                                            #
 #   The makefile defines internally all external libraries (comprised the    #
 #   SMS++ one) required by MILPSolver. Accordingly, all necessary OBJ, H,    #
 #   -I directives, external libraries + -L<libdirs> are added to the         #
@@ -19,14 +19,10 @@
 #           $(MILPSH)   = the .h files to include for MILPSolver             #
 #           $(MILPSINC) = the -I$( MILPSolver directory )                    #
 #                                                                            #
-#                                VERSION 1.00                                #
-#                               07 - 03 - 2018                               #
-#                                                                            #
 #                              Antonio Frangioni                             #
-#                          Operations Research Group                         #
 #                         Dipartimento di Informatica                        #
 #                             Universita' di Pisa                            #
-#									     #
+#                                                                            #
 ##############################################################################
 
 # define & include the necessary modules- - - - - - - - - - - - - - - - - - -

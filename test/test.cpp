@@ -37,7 +37,7 @@ class MILPSolverTest :
   const auto filename = std::get< 0 >( GetParam() );
   std::ifstream istream( filename );
   if( ! istream.is_open() )
-   throw std::runtime_error( "Failed to open file " + filename );
+   throw( std::runtime_error( "Failed to open file " + filename ) );
 
   block = new AbstractBlock();
   EXPECT_TRUE( block != nullptr );
@@ -73,7 +73,7 @@ TEST_P( MILPSolverTest, SimpleSolve ) {
  }
 
  // Check the objective function value
- auto obj = dynamic_cast<FRealObjective *>(block->get_objective());
+ auto obj = dynamic_cast< FRealObjective * >( block->get_objective() );
  obj->get_function()->compute();
  auto of = obj->get_function()->get_value();
  ASSERT_NEAR( of, std::get< 2 >( GetParam() ), 1e-6 );
@@ -99,5 +99,5 @@ INSTANTIATE_TEST_SUITE_P( CPXMILPSolverTests,
 
 int main( int argc, char ** argv ) {
  ::testing::InitGoogleTest( &argc, argv );
- return RUN_ALL_TESTS();
+ return( RUN_ALL_TESTS() );
 }

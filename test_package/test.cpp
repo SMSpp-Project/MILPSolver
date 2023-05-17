@@ -7,6 +7,6 @@ int main(int argc, char** argv) {
  Solver* solver = new CPXMILPSolver();
  delete solver;
 
- return 0;
+ return( 0 );
 }
 

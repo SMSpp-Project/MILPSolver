@@ -4,8 +4,6 @@
 #                                                                            #
 #   makefile of cpx_pars / scip_pars                                         #
 #                                                                            #
-#                              Implementation by:                            #
-#                                                                            #
 #                              Antonio Frangioni                             #
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
@@ -13,16 +11,16 @@
 ##############################################################################
 
 # module name: uncomment the one that you want to build
-#NAME = scip_pars
-NAME = cpx_pars
+NAME = scip_pars
+#NAME = cpx_pars
 
 # basic directory
 DIR = ./
 
 # debug switches
-#SW = -g -glldb -fno-inline -std=c++17 -ferror-limit=1 $(MCFCS)
+#SW = -g -glldb -fno-inline -std=c++17 -ferror-limit=1
 # production switches
-SW = -O3 -std=c++17 -DNDEBUG $(MCFCS)
+SW = -O3 -std=c++17 -DNDEBUG
 
 # compiler
 CC = clang++
@@ -46,11 +44,11 @@ clean::
 # *INC is the -I<include directories>
 
 # define input macros for libCPLEX complete makefile, then include it
-libCPLEXDIR = $(MILPSSDR)../../extlib/
-include $(libCPLEXDIR)makefile-libCPLEX
+#libCPLEXDIR = $(DIR)../../extlib/
+#include $(libCPLEXDIR)makefile-libCPLEX
 
 # define input macros for libSCIP complete makefile, then include it
-libSCIPDIR = $(MILPSSDR)../../extlib/
+libSCIPDIR = $(DIR)../../extlib/
 include $(libSCIPDIR)makefile-libSCIP
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -

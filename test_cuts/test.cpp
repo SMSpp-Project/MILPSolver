@@ -51,7 +51,7 @@
 #endif
 
 /*--------------------------------------------------------------------------*/
-// if nonzero, the :MILPSolver attched to the NCoCubeBlock is detached and
+// if nonzero, the :MILPSolver attached to the NCoCubeBlock is detached and
 // re-attached to it at all iterations
 
 #define DETACH_LP 0
@@ -92,6 +92,7 @@
 /*--------------------------------------------------------------------------*/
 
 using namespace std;
+
 using namespace SMSpp_di_unipi_it;
 
 /*--------------------------------------------------------------------------*/
@@ -213,7 +214,7 @@ public:
   * twice, but since we are using this class in a very controlled way we
   * forego them. */
 
- void generate_abstract_constraints( Configuration *stcc = nullptr ) override
+ void generate_abstract_constraints( Configuration * stcc = nullptr ) override
  {
   v_cuts.clear();  // should not be necessary
   add_dynamic_constraint( v_cuts , "cuts" );
@@ -250,7 +251,7 @@ public:
   * then the constraint is violated and it is added, otherwise none of the
   * lazy constraints are violated. */
 
- void generate_dynamic_constraints( Configuration *stcc = nullptr ) override
+ void generate_dynamic_constraints( Configuration * dycc = nullptr ) override
  {
   v_coeff_pair cut( v_cost.size() );
   double viol = -1;
@@ -272,7 +273,7 @@ public:
    newcut.front().set_function( new LinearFunction( std::move( cut ) ) ,
 				eNoMod );
    newcut.front().set_rhs( 1 );
-   newcut.front().set_lhs( - Inf< FunctionValue >() );
+   newcut.front().set_lhs( -Inf< FunctionValue >() );
    add_dynamic_constraints( v_cuts , newcut );
    }
   }

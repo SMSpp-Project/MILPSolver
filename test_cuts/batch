@@ -1,7 +1,5 @@
 #/usr/bin/env bash
 
-export DYLD_LIBRARY_PATH=/Users/frangio/Applications/SCIP-8.0.0/lib
-
 iter=3
 
 for size in 10 50
