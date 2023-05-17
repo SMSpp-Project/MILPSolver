@@ -12,7 +12,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy; by Niccolo' Iardella
+ * \copyright &copy; by Niccolo' Iardella
  */
 
 #include <iostream>

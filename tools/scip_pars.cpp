@@ -13,7 +13,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy; Niccolo' Iardella
+ * \copyright &copy; by Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/

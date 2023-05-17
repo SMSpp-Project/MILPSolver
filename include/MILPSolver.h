@@ -25,7 +25,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
