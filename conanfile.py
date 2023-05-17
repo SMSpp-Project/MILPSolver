@@ -3,7 +3,7 @@ from conans import ConanFile, CMake, tools
 
 class SmsppConan(ConanFile):
     name = "milpsolver"
-    version = "0.5.0"
+    version = "0.5.2"
     description = "A MILP Solver for SMS++"
     topics = ("conan", "smspp", "milpsolver")
     url = "https://gitlab.com/smspp/milpsolver"
@@ -16,7 +16,7 @@ class SmsppConan(ConanFile):
     default_options = {"shared": False, "fPIC": True}
 
     requires = (
-        "smspp/0.5.0@smspp/testing",
+        "smspp/0.5.2@smspp/testing",
         "CPLEX/12.10"
     )
 
