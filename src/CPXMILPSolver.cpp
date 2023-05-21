@@ -765,36 +765,33 @@ int CPXMILPSolver::decode_cpx_error( int error )
   // case CPXERR_SBASE_INCOMPAT:
   // case CPXERR_SINGULAR:
   // case CPXERR_STR_PARAM_TOO_LONG:
-  case CPXERR_SUBPROB_SOLVE:
+  // case CPXERR_SUBPROB_SOLVE:
    // CPXmipopt failed to solve one of the subproblems in the
    // branch-and-cut tree. This failure can be due to a limit
    // (for example, an iteration limit) or due to numeric trouble.
-   return( kError );
-   // case CPXERR_SYNCPRIM_CREATE:
-   // case CPXERR_SYSCALL:
-   // case CPXERR_THREAD_FAILED:
-   // case CPXERR_TILIM_CONDITION_NO:
-   // case CPXERR_TILIM_STRONGBRANCH:
-   // case CPXERR_TOO_MANY_COEFFS:
-   // case CPXERR_TOO_MANY_COLS:
-   // case CPXERR_TOO_MANY_RIMNZ:
-   // case CPXERR_TOO_MANY_RIMS:
-   // case CPXERR_TOO_MANY_ROWS:
-   // case CPXERR_TOO_MANY_THREADS:
-   // case CPXERR_TREE_MEMORY_LIMIT:
-   // case CPXERR_TUNE_MIXED:
-   // case CPXERR_UNIQUE_WEIGHTS:
-   // case CPXERR_UNSUPPORTED_CONSTRAINT_TYPE:
-   // case CPXERR_UNSUPPORTED_OPERATION:
-   // case CPXERR_UP_BOUND_REPEATS:
-   // case CPXERR_WORK_FILE_OPEN:
-   // case CPXERR_WORK_FILE_READ:
-   // case CPXERR_WORK_FILE_WRITE:
-   // case CPXERR_XMLPARSE:
+  // case CPXERR_SYNCPRIM_CREATE:
+  // case CPXERR_SYSCALL:
+  // case CPXERR_THREAD_FAILED:
+  // case CPXERR_TILIM_CONDITION_NO:
+  // case CPXERR_TILIM_STRONGBRANCH:
+  // case CPXERR_TOO_MANY_COEFFS:
+  // case CPXERR_TOO_MANY_COLS:
+  // case CPXERR_TOO_MANY_RIMNZ:
+  // case CPXERR_TOO_MANY_RIMS:
+  // case CPXERR_TOO_MANY_ROWS:
+  // case CPXERR_TOO_MANY_THREADS:
+  // case CPXERR_TREE_MEMORY_LIMIT:
+  // case CPXERR_TUNE_MIXED:
+  // case CPXERR_UNIQUE_WEIGHTS:
+  // case CPXERR_UNSUPPORTED_CONSTRAINT_TYPE:
+  // case CPXERR_UNSUPPORTED_OPERATION:
+  // case CPXERR_UP_BOUND_REPEATS:
+  // case CPXERR_WORK_FILE_OPEN:
+  // case CPXERR_WORK_FILE_READ:
+  // case CPXERR_WORK_FILE_WRITE:
+  // case CPXERR_XMLPARSE:
+  return( kError + error );
   }
-
- throw( std::runtime_error( "CPLEX returned unmanaged error " +
-			    std::to_string( error ) ) );
  }
 
 /*--------------------------------------------------------------------------*/
