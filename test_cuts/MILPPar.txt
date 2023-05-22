@@ -32,7 +32,7 @@ ComputeConfig  # exact type of the ComputeConfig object
 
 # now all the integer parameters
 intLogVerb     2     # LogVerb, log verbosity of the CPXMILPSolver
-intCutSepPar   7     # separate valid inequalites everywhere + lazy constraints
+intCutSepPar   7     # separate valid inequalities everywhere + lazy constraints
 CPXPARAM_Threads 16
 CPXPARAM_ScreenOutput 0
 
