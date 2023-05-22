@@ -790,7 +790,8 @@ int CPXMILPSolver::decode_cpx_error( int error )
   // case CPXERR_WORK_FILE_READ:
   // case CPXERR_WORK_FILE_WRITE:
   // case CPXERR_XMLPARSE:
-  return( kError + error );
+  default:
+   return( kError + error );
   }
  }
 
