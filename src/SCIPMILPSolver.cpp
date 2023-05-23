@@ -329,7 +329,7 @@ int SCIPMILPSolver::compute( bool changedvars )
   case( SCIP_STATUS_TIMELIMIT ):  sol_status = kStopTime;   break;
   case( SCIP_STATUS_INFORUNBD ):
   case( SCIP_STATUS_UNBOUNDED ):  sol_status = kUnbounded;  break;
-  default:                        sol_status = kError;
+  default:                        sol_status = kError + SCIPgetStatus( scip );
   }
 
  unlock();  // unlock the mutex
