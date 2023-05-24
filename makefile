@@ -36,7 +36,7 @@
 ##############################################################################
 
 
-# macroes to be exported- - - - - - - - - - - - - - - - - - - - - - - - - - -
+# macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 MILPSOBJ = $(MILPSSDR)obj/MILPSolver.o \
 	$(MILPSSDR)obj/CPXMILPSolver.o \

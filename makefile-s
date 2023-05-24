@@ -47,7 +47,7 @@ include $(libSCIPDIR)makefile-libSCIP
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
-# macroes to be exported- - - - - - - - - - - - - - - - - - - - - - - - - - -
+# macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # append external -I directives to MILPSINC, MILPSOBJ and MILPSH as defined
 # by the makefile, thus the := assignment has to be used (use GNU make)
