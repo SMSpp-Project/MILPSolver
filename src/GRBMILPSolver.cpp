@@ -347,7 +347,8 @@ int GRBMILPSolver::compute( bool changedvars )
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() ){
   std::string output_file_lp;
-  std::getline( output_file , output_file_lp , '.');
+  std::stringstream X(output_file);
+  std::getline( X , output_file_lp , '.');
   output_file_lp = output_file_lp.append(".lp");
   GRBwrite( model , output_file_lp.c_str() );
  }
@@ -1070,7 +1071,8 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
 void GRBMILPSolver::write_lp( const std::string & filename )
 {
  std::string output_file_lp;
- std::getline( output_file , output_file_lp , '.');
+ std::stringstream X(output_file);
+ std::getline( X , output_file_lp , '.');
  output_file_lp = output_file_lp.append(".lp");
  GRBwrite( model , output_file_lp.c_str() );
  }
@@ -1451,7 +1453,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     if ( *arr_idx_row != *arr_idx_col )
      throw( std::runtime_error( "Error while modifing quadratic coefficients" ) );
 
-    double old_var_q_coeff = oldval[ *arr_idx_row ];
+    double old_var_q_coeff = oldval[ arr_idx_row - oldind_row.begin() ];
 
     // quadratic coefficients need be changed one at a time and adding only 
     // the difference between the previous and the new value
