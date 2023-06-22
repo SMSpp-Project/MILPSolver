@@ -50,7 +50,8 @@ include(BuildType)
 
 # An option is an ON/OFF user-settable cache variable
 option(MILPSolver_USE_CPLEX "Whether MILPSolver will use CPLEX or not." ON)
-option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." ON)
+option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." OFF)
+option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 
 # A lot of debug prints
 #if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -77,6 +78,14 @@ if (MILPSolver_USE_SCIP)
     find_package(SCIP)
     if (NOT SCIP_FOUND)
         set(MILPSolver_USE_SCIP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_GUROBI)
+    # Needed for GUROBIMILPSolver
+    find_package(GUROBI)
+    if (NOT GUROBI_FOUND)
+        set(MILPSolver_USE_GUROBI OFF)
     endif ()
 endif ()
 
@@ -134,6 +143,13 @@ if (MILPSolver_USE_SCIP)
     target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
 endif ()
 
+if (MILPSolver_USE_GUROBI)
+    message(STATUS "MILPSolver: GUROBI found, configuring GRBMILPSolver")
+    target_include_directories(${modName} PUBLIC ${GUROBI_INCLUDE_DIRS}) 
+    target_sources(${modName} PRIVATE  src/GRBMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC GUROBI::Gurobi)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -173,6 +189,12 @@ if (MILPSolver_USE_SCIP)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "SCIP*")
+endif ()
+
+if (MILPSolver_USE_GUROBI)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "GRB*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

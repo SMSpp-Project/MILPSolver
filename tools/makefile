@@ -2,7 +2,7 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of cpx_pars / scip_pars                                         #
+#   makefile of cpx_pars / scip_pars  /  grb_pars                            #
 #                                                                            #
 #                              Implementation by:                            #
 #                                                                            #
@@ -10,11 +10,15 @@
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
 #                                                                            #
+#                             Enrico Calandrini                              #
+#                             Università di Pisa                             #
+#                                                                            #
 ##############################################################################
 
 # module name: uncomment the one that you want to build
 #NAME = scip_pars
-NAME = cpx_pars
+#NAME = cpx_pars
+NAME = grb_pars
 
 # basic directory
 DIR = ./
@@ -25,7 +29,7 @@ DIR = ./
 SW = -O3 -std=c++17 -DNDEBUG $(MCFCS)
 
 # compiler
-CC = clang++
+CC = g++
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -46,12 +50,16 @@ clean::
 # *INC is the -I<include directories>
 
 # define input macros for libCPLEX complete makefile, then include it
-libCPLEXDIR = $(MILPSSDR)../../extlib/
-include $(libCPLEXDIR)makefile-libCPLEX
+#libCPLEXDIR = /home/enrico/milpsolver/extlib/
+#include $(libCPLEXDIR)makefile-libCPLEX
 
 # define input macros for libSCIP complete makefile, then include it
-libSCIPDIR = $(MILPSSDR)../../extlib/
-include $(libSCIPDIR)makefile-libSCIP
+#libSCIPDIR = $(MILPSSDR)../../extlib/
+#include $(libSCIPDIR)makefile-libSCIP
+
+# define input macros for libGUROBI complete makefile, then include it
+libGUROBIDIR = /home/enrico/milpsolver/extlib/
+include $(libGUROBIDIR)makefile-libGUROBI.mak
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -59,7 +67,7 @@ include $(libSCIPDIR)makefile-libSCIP
 MOBJ =  
 
 # libreries
-MLIB =  $(libCPLEXLIB) $(libSCIPLIB)
+MLIB =  $(libGUROBILIB) #$(libCPLEXLIB) #$(libSCIPLIB)
 
 $(NAME): $(MOBJ) $(DIR)$(NAME).o
 	$(CC) -o $(NAME) $(DIR)$(NAME).o $(MOBJ) $(MLIB) $(SW)
@@ -67,7 +75,7 @@ $(NAME): $(MOBJ) $(DIR)$(NAME).o
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
 # include directives
-MINC =  $(libCPLEXINC) $(libSCIPINC)
+MINC =  $(libGUROBIINC) #$(libCPLEXINC) #$(libSCIPINC)
 
 # includes
 MH =    

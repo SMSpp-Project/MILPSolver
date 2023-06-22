@@ -1,0 +1,41 @@
+##############################################################################
+############################ makefile-libCPLEX ###############################
+##############################################################################
+#                                                                            #
+#   makefile of libCPLEX                                                     #
+#                                                                            #
+#   Input:  none, this is a pre-built library                                #
+#                                                                            #
+#   Output: accordingly, there is no *H and *OBJ in output, since there is   #
+#           no need to check for changes in the .h and rebuild the .o / .a   #
+#           $(libCPLEXLIB) = external libreries + -L<libdirs> for libCPLEX   #
+#           $(libCPLEXINC) = the -I$(include directories) for libCPLEX       #
+#                                                                            #
+#                             Antonio Frangioni                              #
+#                        Dipartimento di Informatica                         #
+#                            Universita' di Pisa                             #
+#                                                                            #
+##############################################################################
+
+# internal macros - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# external libreries that Cplex needs
+# Linux
+libCPLEXEXTLIB = -lpthread
+# macOS
+#libCPLEXEXTLIB = -framework CoreFoundation -framework IOKit
+
+# basic CPLEX directory
+#libCPLEXBSCDIR = /opt/ibm/ILOG/CPLEX_Studio1210/cplex/
+#libCPLEXBSCDIR = /Users/frangio/Applications/CPLEX_Studio1210/cplex/
+libCPLEXBSCDIR = /opt/ibm/ILOG/CPLEX_Studio221/cplex/
+# lib Cplex directory
+#libCPLEXINCDIR = $(libCPLEXBSCDIR)lib/x86-64_linux/static_pic/
+libCPLEXINCDIR = $(libCPLEXBSCDIR)lib/x86-64_linux/static_pic/
+
+# macroes to be exported- - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+libCPLEXLIB = -L$(libCPLEXINCDIR) $(libCPLEXINCDIR)libilocplex.a $(libCPLEXINCDIR)libcplex.a $(libCPLEXEXTLIB)
+libCPLEXINC = -I$(libCPLEXBSCDIR)include/
+
+############################# End of makefile ################################
