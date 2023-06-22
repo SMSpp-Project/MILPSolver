@@ -50,15 +50,15 @@ clean::
 # *INC is the -I<include directories>
 
 # define input macros for libCPLEX complete makefile, then include it
-#libCPLEXDIR = /home/enrico/milpsolver/extlib/
+#libCPLEXDIR = $(DIR)../../extlib/
 #include $(libCPLEXDIR)makefile-libCPLEX
 
 # define input macros for libSCIP complete makefile, then include it
-#libSCIPDIR = $(MILPSSDR)../../extlib/
+#libSCIPDIR = $(DIR)../../extlib/
 #include $(libSCIPDIR)makefile-libSCIP
 
 # define input macros for libGUROBI complete makefile, then include it
-libGUROBIDIR = /home/enrico/milpsolver/extlib/
+libGUROBIDIR = $(DIR)/../extlib/
 include $(libGUROBIDIR)makefile-libGUROBI.mak
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
