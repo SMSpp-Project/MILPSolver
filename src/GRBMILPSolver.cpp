@@ -378,6 +378,13 @@ int GRBMILPSolver::compute( bool changedvars )
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
    // the callback has to be set
    GRBsetcallbackfunc( model , & GRBMILPSolver_callback , this );
+
+   if( ( CutSepPar & 3 ) )  // we do user cut separation, thus we have to set the possibility in Gurobi
+    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRECRUSH , 1 );
+   
+   if( ( CutSepPar & 4 ) )  // we do lazy constraint separation, thus we have to set the possibility in Gurobi
+    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_LAZYCONSTRAINTS , 1 );
+   
    f_callback_set = true;
    }
   else {
@@ -1449,11 +1456,16 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     
     auto arr_idx_row = std::find(oldind_row.begin(), oldind_row.end(), cidx);
     auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), cidx);
-    
-    if ( *arr_idx_row != *arr_idx_col )
-     throw( std::runtime_error( "Error while modifing quadratic coefficients" ) );
+    double old_var_q_coeff;
 
-    double old_var_q_coeff = oldval[ arr_idx_row - oldind_row.begin() ];
+    if ( arr_idx_row == oldind_row.end() ) // no quadratic coefficient was already set for the variable
+      old_var_q_coeff = 0.0;
+    else{
+      if ( *arr_idx_row != *arr_idx_col )
+        throw( std::runtime_error( "Error while modifing quadratic coefficients" ) );
+
+      old_var_q_coeff = oldval[ arr_idx_row - oldind_row.begin() ];
+    }
 
     // quadratic coefficients need be changed one at a time and adding only 
     // the difference between the previous and the new value
@@ -1467,8 +1479,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
   cidx.resize( nsz );
   nval.resize( nsz );
 
-  for (int i = 0; i < cidx.size(); ++i )
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx[ i ] , nval[ i ]  );
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data());
 
   GRBupdatemodel( model );
   return;
@@ -2071,7 +2082,7 @@ int GRBMILPSolver::callback( GRBmodel *model,
    f_callback_mutex.unlock();
 
    // if any lazy constraint was generated, add them
-   if( ! rmatbeg.empty() )
+   if( ! rmatbeg.empty() ){
     for (int c = 0 ; c < rhs.size() ; ++c ) {
       int nnz; // number of non zero coefficients in the actual lazy costraint
       int idx = rmatbeg[ c ];
@@ -2084,6 +2095,7 @@ int GRBMILPSolver::callback( GRBmodel *model,
                       & rmatval[ idx ] , sense[ c ] , rhs[ c ] ) )
        throw( std::logic_error( "problem in GRBcblazy" ) );
       }
+    }
     
     break;
     }
