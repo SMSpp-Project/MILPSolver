@@ -17,7 +17,7 @@
  *
  * \author Enrico Calandrini \n
  *         Dipartimento di Matematica \n
- *         Università di Pisa \n
+ *         Universita' di Pisa \n
  *
  * \copyright &copy; Antonio Frangioni, Niccolo' Iardella
  */

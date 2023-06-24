@@ -12,12 +12,12 @@
 #           $(libGUROBIINC) = the -I$(include directories) for libGUROBI     #
 #                                                                            #
 #                             Antonio Frangioni                              #
-#                        Dipartimento di Informatica                         #
+#                         Dipartimento di Informatica                        #
 #                            Universita' di Pisa                             #
 #                                                                            #
 #                             Enrico Calandrini                              #
 #                         Dipartimento di Matematica                         #
-#                             Università di Pisa                             #
+#                            Universita' di Pisa                             #
 #                                                                            #
 ##############################################################################
 

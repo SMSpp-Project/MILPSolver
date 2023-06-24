@@ -137,15 +137,15 @@ endif ()
 
 if (MILPSolver_USE_SCIP)
     message(STATUS "MILPSolver: SCIP found, configuring SCIPMILPSolver")
+    target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
     target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC ${SCIP_LIBRARIES})
-    target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
 endif ()
 
 if (MILPSolver_USE_GUROBI)
     message(STATUS "MILPSolver: GUROBI found, configuring GRBMILPSolver")
     target_include_directories(${modName} PUBLIC ${GUROBI_INCLUDE_DIRS}) 
-    target_sources(${modName} PRIVATE  src/GRBMILPSolver.cpp)
+    target_sources(${modName} PRIVATE src/GRBMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC GUROBI::Gurobi)
 endif ()
 

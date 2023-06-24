@@ -8,9 +8,9 @@
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
 #                                                                            #
-#                             Enrico Calandrini                              #
-#                         Dipartimento di Matematica                         #
-#                             Università di Pisa                             #
+#                              Enrico Calandrini                             #
+#                          Dipartimento di Matematica                        #
+#                              Universita' di Pisa                           #
 #                                                                            #
 ##############################################################################
 
