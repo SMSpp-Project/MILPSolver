@@ -24,7 +24,7 @@
 # internal macros - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # basic Gurobi directory
-libGUROBIBSCDIR = /home/enrico/gurobi1001/linux64/
+libGUROBIBSCDIR = $(GUROBI_HOME)/
 
 # lib Gurobi directory
 libGUROBIINCDIR = $(libGUROBIBSCDIR)lib/
