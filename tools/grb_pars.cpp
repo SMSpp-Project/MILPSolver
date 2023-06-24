@@ -15,6 +15,7 @@
  *         Universita' di Pisa \n
  * 
  * \author Enrico Calandrini \n
+ *         Dipartimento di Matematica \n
  *         Universita' di Pisa \n
  *
  * Copyright &copy; Niccolo' Iardella
