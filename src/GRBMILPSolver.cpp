@@ -15,7 +15,7 @@
  * \author Kostas Tavlaridis-Gyparakis \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
+ *
  * \author Enrico Calandrini \n
  *         Dipartimento di Matematica \n
  *         Università di Pisa \n

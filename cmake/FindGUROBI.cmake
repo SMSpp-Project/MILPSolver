@@ -43,10 +43,10 @@ include(FindPackageHandleStandardArgs)
 #if (UNIX)
 #  
 #else ()
-    # Windows 
+    # Windows
 #endif ()
 
-# ----- Find the path to GUROBI --------------------------------------- #
+# ----- Find the path to GUROBI --------------------------------------------- #
 
 if (NOT GUROBI_DIR)
     foreach (dir ${GUROBI_DIRS})
@@ -79,7 +79,7 @@ if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_LIBRARY_DEBUG)
     set(GUROBI_FOUND TRUE)
 else ()
 
-    # ----- Find the GUROBI include directory -------------------------------- #
+    # ----- Find the GUROBI include directory ------------------------------- #
     set(GUROBI_DIR ${GUROBI_DIR}/linux64) # TODO: Generalize to other system
     # Note that find_path() creates a cache entry
     find_path(GUROBI_INCLUDE_DIR gurobi_c.h
@@ -102,7 +102,7 @@ else ()
     #    endif ()
     #endmacro()
 
-    # ----- Find the GUROBI library ------------------------------------------ #
+    # ----- Find the GUROBI library ----------------------------------------- #
     if (UNIX)
         # Note that find_library() creates a cache entry
         find_library(GUROBI_LIBRARY
@@ -117,7 +117,7 @@ else ()
     elseif (NOT GUROBI_LIBRARY) # TODO
 
     endif ()
-    
+
     # ----- Parse the version ----------------------------------------------- #
     if (GUROBI_INCLUDE_DIR)
         file(STRINGS

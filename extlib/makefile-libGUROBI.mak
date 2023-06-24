@@ -16,7 +16,7 @@
 #                            Universita' di Pisa                             #
 #                                                                            #
 #                             Enrico Calandrini                              #
-#                          Dipartimento di Matematica                        #
+#                         Dipartimento di Matematica                         #
 #                             Università di Pisa                             #
 #                                                                            #
 ##############################################################################

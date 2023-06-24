@@ -12,7 +12,7 @@
  * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
+ *
  * \author Enrico Calandrini \n
  *         Dipartimento di Matematica \n
  *         Universita' di Pisa \n
@@ -34,7 +34,7 @@
 
 /*--------------------------------------------------------------------------*/
 
-bool verbose = true;         ///< If the tool should be verbose
+bool verbose = true;          ///< If the tool should be verbose
 // std::filesystem::path path{};
 std::string path{};           ///< Path for output files
 std::string exe{};            ///< Name of the executable file
