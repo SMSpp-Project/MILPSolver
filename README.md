@@ -1,7 +1,39 @@
 # MILPSolver
 
-A MILP Solver for SMS++ that uses [IBM® ILOG® CPLEX® Optimization Studio] and
-[SCIP].
+A generic MILP Solver meta-interface for SMS++, with modules for interfacing
+with some actual solvers.
+
+The `MILPSolver` base class (deriving from `CDASolver` for the case when the
+MILP is actually an LP and therefore dual solutions are available) provides
+a "meta" interface between any SMS++ `Block` whose abstract representation is
+a Mixed-Integer Linear Program (all `Variable` need be `ColVariable`, all
+`Objective` need be a `FRealObjective` whose inner `Function` is a
+`LinearFunction`, the `Constraint` need all be either `FRowConstraint` whose
+inner `Function` is a `LinearFunction` or `OneVarConstraint`). In fact, the
+class is slightly extended to Mixed-Integer Quadratic Program with separable
+objective  (the `Function` inside the `FRealObjective` can also be a
+`DQuadFunction`). However, `MILPSolver` only reads the abstract representation
+and prepares data structures representing the classic (sparse) coefficient
+matrix + accompanying vectors (objective, LHS, RHS, LB, UB) with the idea that
+derived classes will then use it to interface with actual solvers. Indeed,
+`MILPSolver` also provides a handy system for dealing with the `Modification`
+coming from the `Block`, where it handles the changes in the internal data
+structures with a call to a number of protected virtual functions that
+derived classes can redefine in order to "communicate" the changes to the
+underlying actual MILP solvers. Yet, `MILPSolver` can also be used directly
+(it is not pure virtual) in case one just wants to read the coefficient matrix
+representation of a `Block`.
+
+Currently available derived classes are:
+
+- `CPXMILPSolver`, providing the interface with the commercial
+  [IBM ILOG CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio)
+- `SCIPMILPSolver`, providing the interface with the open-source
+  [SCIP](https://www.scipopt.org) (note that since version 8.0.3 SCIP is
+  "truly" FOSS by dint of being distributed under the Apache 2.0 License as
+  opposed to the previous academic license preventing roialty-free commercial
+  use)
+
 
 ## Getting started
 
@@ -10,13 +42,19 @@ These instructions will let you build MILPSolver on your system.
 ### Requirements
 
 - [SMS++ core library](https://gitlab.com/smspp/smspp)
-- [IBM® ILOG® CPLEX® Optimization Studio] (supported versions: 12.8 - 12.10)
-- [SCIP] (supported versions: 7.0.0 - 7.0.1)
+- for `CPXMILPSolver` you will need
+  [IBM ILOG CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio)
+  (currently supported versions: 12.8, 12.10, 20.10, 22.01)
+- for `SCIPMILPSolver` you will need
+  [SCIP](https://www.scipopt.org)(currently supported versions: 7.0.0, 7.0.1,
+  7.0.2, 7.0.3, 8.0.0, 8.0.3)
 
-Both CPLEX and SCIP are optional but you will need at least one of them to
-build a solver that actually solves problems.
-Without either of them, you can still build a solver that loads the problem
-from the SMS++ blocks and makes it available as a set of vectors.
+All actual *MILPSolver are optional but you will need at least one of them to
+actually solve MILP/LP problems. Without any of them, you can still build a
+`MILPSolver` that loads the problem from the SMS++ `Block` and makes it
+available as a (sparse) coefficient matrix + accompanying vectors (objective,
+LHS, RHS, LB, UB).
+
 
 ### Build and install with CMake
 
@@ -62,6 +100,7 @@ To disable them, set the option `BUILD_TESTING` to `OFF`.
 > The tests use [Google Test](https://github.com/google/googletest).
 > CMake will fetch and build it automatically.
 
+
 ## Tools
 
 The repository contains some tools that are built with the library.
@@ -90,52 +129,55 @@ Options:
 
 ### Parameter generators
 
-`CPXMILPSolver` and `SCIPMILPSolver` support,
-respectively, CPLEX and SCIP parameter names in the configuration files.
-To do so, they need header files that depend on the versions of CPLEX
-and SCIP currently installed on the system;
-such headers can be generated with the `cpx_pars` and `scip_pars` tools.
+`CPXMILPSolver` and `SCIPMILPSolver` support, respectively, CPLEX and SCIP
+parameter names in the `Configuration` files. To do so, they need header
+files that depend on the versions of CPLEX and SCIP currently installed on
+the system; such headers can be generated with the `cpx_pars` and `scip_pars`
+tools.
 
 > **Note:**
 > We provide header files for the versions we already support, so you will
-> need these tools only if you have an unsupported version of either CPLEX or SCIP.
+> need these tools only if you have an unsupported version of either CPLEX
+> or SCIP.
+
 
 ## Getting help
 
 If you need support, you want to submit bugs or propose a new feature, you can
 [open a new issue](https://gitlab.com/smspp/milpsolver/-/issues/new).
 
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of
 conduct, and the process for submitting merge requests to us.
+
 
 ## Authors
 
 ### Current Lead Authors
 
 - **Antonio Frangioni**  
-  *Operations Research Group*  
   Dipartimento di Informatica  
   Università di Pisa
 
 - **Niccolò Iardella**  
-  *Operations Research Group*  
   Dipartimento di Informatica  
   Università di Pisa
 
 ### Contributors
 
 - **Rafael Durbano Lobato**  
-  *Operations Research Group*  
   Dipartimento di Informatica  
   Università di Pisa
+
 
 ## License
 
 This code is provided free of charge under the [GNU Lesser General Public
 License version 3.0](https://opensource.org/licenses/lgpl-3.0.html) -
 see the [LICENSE](LICENSE) file for details.
+
 
 ## Disclaimer
 
@@ -147,10 +189,8 @@ any damage or loss that anybody could suffer for having used it. More
 details about the non-warranty attached to this code are available in the
 license description file.
 
-The authors are not affiliated, associated, authorized, endorsed by,
-or in any way officially connected with IBM, or any of its subsidiaries or its affiliates.
-The names IBM, ILOG and CPLEX as well as related names, marks, emblems and
-images are registered trademarks of their respective owners.
+The authors are not affiliated, associated, authorized, endorsed by, or in
+any way officially connected with IBM, or any of its subsidiaries or its
+affiliates. The names IBM, ILOG and CPLEX as well as related names, marks,
+emblems and images are registered trademarks of their respective owners.
 
-[IBM® ILOG® CPLEX® Optimization Studio]: https://www.ibm.com/products/ilog-cplex-optimization-studio
-[SCIP]: https://scipopt.org/index.php

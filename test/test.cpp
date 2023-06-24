@@ -73,7 +73,7 @@ TEST_P( MILPSolverTest, SimpleSolve ) {
  }
 
  // Check the objective function value
- auto obj = dynamic_cast<FRealObjective *>(block->get_objective());
+ auto obj = dynamic_cast< FRealObjective * >( block->get_objective() );
  obj->get_function()->compute();
  auto of = obj->get_function()->get_value();
  ASSERT_NEAR( of, std::get< 2 >( GetParam() ), 1e-6 );
