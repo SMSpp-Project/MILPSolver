@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------------- #
-#    CMake file for unit tests                                                #
+#    CMake file for MILPSolver/test                                           #
 #                                                                             #
 #    In this file we define the unit tests for this library.                  #
 #    Tests that should be supported by ctest executable must be added         #
@@ -9,7 +9,6 @@
 #          keep it in mind when editing it.                                   #
 #                                                                             #
 #                              Niccolo' Iardella                              #
-#                          Operations Research Group                          #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #

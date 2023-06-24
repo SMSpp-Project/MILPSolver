@@ -1,35 +1,35 @@
 # --------------------------------------------------------------------------- #
-#    CMake find module for GUROBI                                       #
+#    CMake find module for GUROBI                                             #
 #                                                                             #
-#    This module finds GUROBI include directories and libraries.               #
+#    This module finds GUROBI include directories and libraries.              #
 #    Use it by invoking find_package() with the form:                         #
 #                                                                             #
-#        find_package(GUROBI [version] [EXACT] [REQUIRED])                     #
+#        find_package(GUROBI [version] [EXACT] [REQUIRED])                    #
 #                                                                             #
 #    The results are stored in the following variables:                       #
 #                                                                             #
-#        GUORBI_FOUND         - True if headers are found                      #
-#        GUROBI_INCLUDE_DIRS  - Include directories                            #
-#        GUROBI_LIBRARIES     - Libraries to be linked                         #
-#        GUROBI_VERSION       - Version number                                 #
+#        GUROBI_FOUND         - True if headers are found                     #
+#        GUROBI_INCLUDE_DIRS  - Include directories                           #
+#        GUROBI_LIBRARIES     - Libraries to be linked                        #
+#        GUROBI_VERSION       - Version number                                #
 #                                                                             #
 #    This module reads hints about search locations from variables:           #
 #                                                                             #
-#        GUROBI_DIR    - Custom path to GUROBI                   #
+#        GUROBI_DIR    - Custom path to GUROBI                                #
 #                                                                             #
 #    The following IMPORTED target is also defined:                           #
 #                                                                             #
-#        GUROBI::Gurobi                                                         #
+#        GUROBI::Gurobi                                                       #
 #                                                                             #
-#    This find module is provided because GUROBI does not provide              #
+#    This find module is provided because GUROBI does not provide             #
 #    a CMake configuration file on its own.                                   #
 #                                                                             #
 #                              Niccolo' Iardella                              #
-#                          Operations Research Group                          #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 #                                                                             #
 #                              Enrico Calandrini                              #
+#                          Dipartimento di Matematica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)

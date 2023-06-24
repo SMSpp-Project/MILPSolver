@@ -16,7 +16,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
@@ -81,7 +81,7 @@ int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
 CPXMILPSolver::CPXMILPSolver( void ) :
  MILPSolver() , env( nullptr ) , lp( nullptr ) , f_callback_set( false ) ,
  throw_reduced_cost_exception( 0 ) , CutSepPar( 0 ) ,
- UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
+ UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
 {
  int status = 0;
  env = CPXopenCPLEX( & status );
@@ -118,7 +118,7 @@ void CPXMILPSolver::set_Block( Block * block )
 
  MILPSolver::set_Block( block );
  UpCutOff = Inf< double >();
- LwCutOff = - Inf< double >();
+ LwCutOff = -Inf< double >();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -200,7 +200,7 @@ void CPXMILPSolver::load_problem( void )
  MILPSolver::clear_problem( 15 );
 
  UpCutOff = Inf< double >();
- LwCutOff = - Inf< double >();
+ LwCutOff = -Inf< double >();
 
  }  // end( CPXMILPSolver::load_problem )
 
@@ -765,36 +765,34 @@ int CPXMILPSolver::decode_cpx_error( int error )
   // case CPXERR_SBASE_INCOMPAT:
   // case CPXERR_SINGULAR:
   // case CPXERR_STR_PARAM_TOO_LONG:
-  case CPXERR_SUBPROB_SOLVE:
+  // case CPXERR_SUBPROB_SOLVE:
    // CPXmipopt failed to solve one of the subproblems in the
    // branch-and-cut tree. This failure can be due to a limit
    // (for example, an iteration limit) or due to numeric trouble.
-   return( kError );
-   // case CPXERR_SYNCPRIM_CREATE:
-   // case CPXERR_SYSCALL:
-   // case CPXERR_THREAD_FAILED:
-   // case CPXERR_TILIM_CONDITION_NO:
-   // case CPXERR_TILIM_STRONGBRANCH:
-   // case CPXERR_TOO_MANY_COEFFS:
-   // case CPXERR_TOO_MANY_COLS:
-   // case CPXERR_TOO_MANY_RIMNZ:
-   // case CPXERR_TOO_MANY_RIMS:
-   // case CPXERR_TOO_MANY_ROWS:
-   // case CPXERR_TOO_MANY_THREADS:
-   // case CPXERR_TREE_MEMORY_LIMIT:
-   // case CPXERR_TUNE_MIXED:
-   // case CPXERR_UNIQUE_WEIGHTS:
-   // case CPXERR_UNSUPPORTED_CONSTRAINT_TYPE:
-   // case CPXERR_UNSUPPORTED_OPERATION:
-   // case CPXERR_UP_BOUND_REPEATS:
-   // case CPXERR_WORK_FILE_OPEN:
-   // case CPXERR_WORK_FILE_READ:
-   // case CPXERR_WORK_FILE_WRITE:
-   // case CPXERR_XMLPARSE:
+  // case CPXERR_SYNCPRIM_CREATE:
+  // case CPXERR_SYSCALL:
+  // case CPXERR_THREAD_FAILED:
+  // case CPXERR_TILIM_CONDITION_NO:
+  // case CPXERR_TILIM_STRONGBRANCH:
+  // case CPXERR_TOO_MANY_COEFFS:
+  // case CPXERR_TOO_MANY_COLS:
+  // case CPXERR_TOO_MANY_RIMNZ:
+  // case CPXERR_TOO_MANY_RIMS:
+  // case CPXERR_TOO_MANY_ROWS:
+  // case CPXERR_TOO_MANY_THREADS:
+  // case CPXERR_TREE_MEMORY_LIMIT:
+  // case CPXERR_TUNE_MIXED:
+  // case CPXERR_UNIQUE_WEIGHTS:
+  // case CPXERR_UNSUPPORTED_CONSTRAINT_TYPE:
+  // case CPXERR_UNSUPPORTED_OPERATION:
+  // case CPXERR_UP_BOUND_REPEATS:
+  // case CPXERR_WORK_FILE_OPEN:
+  // case CPXERR_WORK_FILE_READ:
+  // case CPXERR_WORK_FILE_WRITE:
+  // case CPXERR_XMLPARSE:
+  default:
+   return( kError + error );
   }
-
- throw( std::runtime_error( "CPLEX returned unmanaged error " +
-			    std::to_string( error ) ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -847,7 +845,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     case kStopIter:
     case kStopTime:
      if( ! has_var_solution() ) {
-      lower_bound = - Inf< OFValue >();
+      lower_bound = -Inf< OFValue >();
       break;
       }
      lower_bound += constant_value;
@@ -1936,62 +1934,63 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::add_dynamic_constraint( con );
 
- auto lf = dynamic_cast< const LinearFunction * >( con->get_function() );
- if( ! lf )
-  throw( std::invalid_argument( "the FRowConstraint is not linear" ) );
+ if( auto f = con->get_function() ) {
+  auto lf = dynamic_cast< const LinearFunction * >( f );
+  if( ! lf )
+   throw( std::invalid_argument( "The Constraint is not linear" ) );
 
- int nzcnt = lf->get_num_active_var();
+  int nzcnt = lf->get_num_active_var();
 
- std::array< int , 2 > rmatbeg = { 0 , nzcnt };
- std::vector< int > rmatind;
- rmatind.reserve( nzcnt );
- std::vector< double > rmatval;
- rmatval.reserve( nzcnt );
+  std::array< int , 2 > rmatbeg = { 0 , nzcnt };
+  std::vector< int > rmatind;
+  rmatind.reserve( nzcnt );
+  std::vector< double > rmatval;
+  rmatval.reserve( nzcnt );
 
- // get the coefficients to fill the matrix
- for( auto & el : lf->get_v_var() )
-  if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
-   rmatind.push_back( idx );
-   rmatval.push_back( el.second );
-   }
+  // get the coefficients to fill the matrix
+  for( auto & el : lf->get_v_var() )
+   if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
+    rmatind.push_back( idx );
+    rmatval.push_back( el.second );
+    }
 
- // get the bounds
- auto con_lhs = con->get_lhs();
- auto con_rhs = con->get_rhs();
- double rhs , rngval;
- char sense;
+  // get the bounds
+  auto con_lhs = con->get_lhs();
+  auto con_rhs = con->get_rhs();
+  double rhs , rngval;
+  char sense;
 
- if( con_lhs == con_rhs ) {
-  sense = 'E';
-  rhs = con_rhs;
-  }
- else
-  if( con_lhs == -Inf< double >() ) {
-   sense = 'L';
+  if( con_lhs == con_rhs ) {
+   sense = 'E';
    rhs = con_rhs;
    }
   else
-   if( con_rhs == Inf< double >() ) {
-    sense = 'G';
-    rhs = con_lhs;
+   if( con_lhs == -Inf< double >() ) {
+    sense = 'L';
+    rhs = con_rhs;
     }
-   else {
-    sense = 'R';
-    rhs = con_lhs;
-    rngval = con_rhs - con_lhs;
-    }
+   else
+    if( con_rhs == Inf< double >() ) {
+     sense = 'G';
+     rhs = con_lhs;
+     }
+    else {
+     sense = 'R';
+     rhs = con_lhs;
+     rngval = con_rhs - con_lhs;
+     }
 
- // update the CPLEX problem
- CPXaddrows( env , lp , 0 , 1 , rmatind.size() , & rhs , & sense ,
-	     rmatbeg.data() , rmatind.data() , rmatval.data() ,
-	     nullptr , nullptr );
- if( sense == 'R' ) {
-  //!!  int index = index_of_dynamic_constraint( con );
-  // the constraint has just been added at the end
-  int index = numrows - 1;
-  CPXchgrngval( env , lp , 1 , & index , & rngval );
+  // update the CPLEX problem
+  CPXaddrows( env , lp , 0 , 1 , rmatind.size() , & rhs , & sense ,
+              rmatbeg.data() , rmatind.data() , rmatval.data() ,
+              nullptr , nullptr );
+  if( sense == 'R' ) {
+   //!!  int index = index_of_dynamic_constraint( con );
+   // the constraint has just been added at the end
+   int index = numrows - 1;
+   CPXchgrngval( env , lp , 1 , & index , & rngval );
+   }
   }
-
  }  // end( CPXMILPSolver::add_dynamic_constraint )
 
 /*--------------------------------------------------------------------------*/
@@ -2163,7 +2162,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
      solv = Inf< double >();
 
     if( bndv <= - 1e+75 )
-     bndv = - Inf< double >();
+     bndv = -Inf< double >();
 
     if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
      CPXcallbackabort( context );
@@ -2171,7 +2170,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    else {
     // a maximization problem: solv is lower bound and bndv is upper bound
     if( solv <= -1e+75 )
-     solv = - Inf< double >();
+     solv = -Inf< double >();
 
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
@@ -2323,7 +2322,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
  //       Variable of the Block
  //
  // since the Block is lock()-ed we assume that we can freely work with the
- // Modification list as no-one has a reason tochange it
+ // Modification list as no-one has a reason to change it
 
  auto nM = v_mod.size();  // current number of Modification in the list
  auto it = v_mod.end();
@@ -2353,61 +2352,62 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
 
   // add all the new constraint to the matrix, one by one
   for( auto con : tmod->added() ) {
-   auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
-   if( ! lf )
-    throw( std::invalid_argument( "The Constraint is not linear" ) );
+   if( auto f = con->get_function() ) {
+    auto * lf = dynamic_cast< const LinearFunction * >( f );
+    if( ! lf )
+     throw( std::invalid_argument( "The Constraint is not linear" ) );
 
-   auto nzcnt = lf->get_num_active_var();
-   auto sz = rmatind.size();
-   rmatind.resize( sz + nzcnt );
-   rmatval.resize( sz + nzcnt );
+    auto nzcnt = lf->get_num_active_var();
+    auto sz = rmatind.size();
+    rmatind.resize( sz + nzcnt );
+    rmatval.resize( sz + nzcnt );
 
-   // get the coefficients to fill the matrix
-   auto iit = rmatind.begin() + sz;
-   auto vit = rmatval.begin() + sz;
-   for( auto & el : lf->get_v_var() ) {
-    *(iit++) = index_of_variable( el.first );
-    *(vit++) = el.second;
-    }
+    // get the coefficients to fill the matrix
+    auto iit = rmatind.begin() + sz;
+    auto vit = rmatval.begin() + sz;
+    for( auto & el : lf->get_v_var() ) {
+     *(iit++) = index_of_variable( el.first );
+     *(vit++) = el.second;
+     }
 
-   // get the bounds
-   auto con_lhs = con->get_lhs();
-   auto con_rhs = con->get_rhs();
+    // get the bounds
+    auto con_lhs = con->get_lhs();
+    auto con_rhs = con->get_rhs();
 
-   if( con_lhs == con_rhs ) {
-    sense.push_back( 'E' );
-    rhs.push_back( con_rhs );
-    }
-   else
-    if( con_lhs == -Inf< double >() ) {
-     sense.push_back( 'L' );
+    if( con_lhs == con_rhs ) {
+     sense.push_back( 'E' );
      rhs.push_back( con_rhs );
      }
     else
-     if( con_rhs == Inf< double >() ) {
-      sense.push_back( 'G' );
-      rhs.push_back( con_lhs );
-      }
-     else {
-      // kludge: the added constraint is ranged LHS <= lf( x ) <= RHS, but
-      // CPLEX does not allow cuts to be ranged: hence, separately add
-      // the two constraints lf( x ) >= LHS and lf( x ) <= RHS
-      sense.push_back( 'G' );
-      rhs.push_back( con_lhs );
-      auto nsz = rmatind.size();
-      rmatbeg.push_back( nsz );
+     if( con_lhs == -Inf< double >() ) {
       sense.push_back( 'L' );
       rhs.push_back( con_rhs );
-      rmatind.resize( nsz + nzcnt );
-      std::copy( rmatind.begin() + sz , rmatind.begin() + nsz ,
-		                        rmatind.begin() + nsz );
-      rmatval.resize( nsz + nzcnt );
-      std::copy( rmatval.begin() + sz , rmatval.begin() + nsz ,
-		                        rmatval.begin() + nsz );
       }
+     else
+      if( con_rhs == Inf< double >() ) {
+       sense.push_back( 'G' );
+       rhs.push_back( con_lhs );
+       }
+      else {
+       // kludge: the added constraint is ranged LHS <= lf( x ) <= RHS, but
+       // CPLEX does not allow cuts to be ranged: hence, separately add
+       // the two constraints lf( x ) >= LHS and lf( x ) <= RHS
+       sense.push_back( 'G' );
+       rhs.push_back( con_lhs );
+       auto nsz = rmatind.size();
+       rmatbeg.push_back( nsz );
+       sense.push_back( 'L' );
+       rhs.push_back( con_rhs );
+       rmatind.resize( nsz + nzcnt );
+       std::copy( rmatind.begin() + sz , rmatind.begin() + nsz ,
+                  rmatind.begin() + nsz );
+       rmatval.resize( nsz + nzcnt );
+       std::copy( rmatval.begin() + sz , rmatval.begin() + nsz ,
+                  rmatval.begin() + nsz );
+       }
 
-   rmatbeg.push_back( rmatind.size() );
-
+    rmatbeg.push_back( rmatind.size() );
+    }
    }  // end( for each added FRowConstraint )
   }  // end( main loop )
  }  // end( CPXMILPSolver::perform_separation )
@@ -2635,7 +2635,7 @@ double CPXMILPSolver::get_dflt_dbl_par( idx_type par ) const
 {
  switch( par ) {
   case( dblUpCutOff ): return( Inf< double >() );
-  case( dblLwCutOff ): return( - Inf< double >() );
+  case( dblLwCutOff ): return( -Inf< double >() );
   }
 
  if( int cp = cpx_dbl_par_map( par ) ) {

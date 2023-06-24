@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2023-05-17
+
+### Added
+
+- Support for constant term in the objective function.
+- Support for all-important SCIP 8.0.3.
+
+### Fixed
+
+- Destroy the problem before constructing a new one in load_problem() (in
+  SCIPMILPSolver and CPXMILPSolver).
+
 ## [0.5.1] - 2022-07-01
 
 ### Added
@@ -76,7 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.1...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.2...develop
+[0.5.2]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.1...0.5.2
 [0.5.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.0...0.5.1
 [0.5.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.4.0...0.5.0
 [0.4.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.3.0...0.4.0

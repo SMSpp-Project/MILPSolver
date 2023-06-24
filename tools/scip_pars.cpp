@@ -10,11 +10,10 @@
  * The path should be the include directory of the MILPSolver source tree.
  *
  * \author Niccolo' Iardella \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy; Niccolo' Iardella
+ * \copyright &copy; by Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/

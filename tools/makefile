@@ -4,13 +4,12 @@
 #                                                                            #
 #   makefile of cpx_pars / scip_pars  /  grb_pars                            #
 #                                                                            #
-#                              Implementation by:                            #
-#                                                                            #
 #                              Antonio Frangioni                             #
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
 #                                                                            #
 #                             Enrico Calandrini                              #
+#                          Dipartimento di Matematica                        #
 #                             Università di Pisa                             #
 #                                                                            #
 ##############################################################################
@@ -24,9 +23,9 @@ NAME = grb_pars
 DIR = ./
 
 # debug switches
-#SW = -g -glldb -fno-inline -std=c++17 -ferror-limit=1 $(MCFCS)
+#SW = -g -glldb -fno-inline -std=c++17 -ferror-limit=1
 # production switches
-SW = -O3 -std=c++17 -DNDEBUG $(MCFCS)
+SW = -O3 -std=c++17 -DNDEBUG
 
 # compiler
 CC = g++

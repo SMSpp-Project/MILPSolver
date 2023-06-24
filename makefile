@@ -29,18 +29,14 @@
 #           $(MILPSH)      = the .h files to include                         #
 #           $(MILPSINC)    = the -I$( source directory )                     #
 #                                                                            #
-#                                VERSION 2.00                                #
-#                               21 - 08 - 2019                               #
-#                                                                            #
 #                              Antonio Frangioni                             #
-#                          Operations Research Group                         #
 #                         Dipartimento di Informatica                        #
 #                             Universita' di Pisa                            #
 #                                                                            #
 ##############################################################################
 
 
-# macroes to be exported- - - - - - - - - - - - - - - - - - - - - - - - - - -
+# macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 MILPSOBJ = $(MILPSSDR)obj/MILPSolver.o \
 	$(MILPSSDR)obj/CPXMILPSolver.o \

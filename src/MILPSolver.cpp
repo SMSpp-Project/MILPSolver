@@ -12,7 +12,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
@@ -952,8 +952,9 @@ void MILPSolver::scan_dynamic_constraint( const FRowConstraint & con ,
 
 void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row )
 {
- if( ! dynamic_cast< const LinearFunction * >( con.get_function() ) )
-  throw( std::invalid_argument( "The Constraint is not linear" ) );
+ if( auto f = con.get_function() )
+  if( ! dynamic_cast< const LinearFunction * >( f ) )
+   throw( std::invalid_argument( "The Constraint is not linear" ) );
 
  /* We need to define the sense of the constraint.
   * In SMS++ FRowConstraints are defined as:
@@ -1308,7 +1309,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
 
-  // if( const auto * qf = dynamic_cast<const DQuadFunction *> (f) ) {
+  // if( const auto * qf = dynamic_cast< const DQuadFunction * > (f) ) {
   //
   //  // This may happen if we change from LP to QP
   //  if( q_objective.empty() ) {
@@ -1316,7 +1317,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
   //  }
   //
   //  for( auto i : sbst->subset() ) {
-  //   auto var = static_cast<const ColVariable *>(qf->get_active_var( i ));
+  //   auto var = static_cast< const ColVariable * >( qf->get_active_var( i ) );
   //   auto idx = index_of_variable( var );
   //   objective[ idx ] = qf->get_linear_coefficient( i );
   //   q_objective[ idx ] = qf->get_quadratic_coefficient( i );
@@ -1381,10 +1382,10 @@ void MILPSolver::constraint_function_modification( const FunctionMod * mod )
  // TODO: update constraint matrix
  // C05FunctionModLin
  // --------------------------------------------------------------------------
- // if( const auto * modl = dynamic_cast<C05FunctionModLin *>(mod) ) {
+ // if( const auto * modl = dynamic_cast< C05FunctionModLin * >( mod ) ) {
  //
  //  for( int i = 0; i < modl->vars().size(); ++i ) {
- //   auto var = static_cast<const ColVariable *>(modl->vars()[ i ]);
+ //   auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
  //   auto col = index_of_variable( var );
  //
  //   auto it = lower_bound( matind.begin() + matbeg[ col ],
