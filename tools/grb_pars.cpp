@@ -139,11 +139,6 @@ int main( int argc, char ** argv ) {
  std::map< int, std::string > dbl_parameters;
  std::map< int, std::string > str_parameters;
 
- int GRB_PARAM_INT_TOT = GRB_IntParam_OBBT; // last int parameter
- int GRB_PARAM_DBL_TOT = GRB_DoubleParam_WLSTokenRefresh; // last dbl parameter
- int GRB_PARAM_STR_TOT = GRB_StringParam_Dummy; // last str parameter
- int GRB_PARAM_TOT = GRB_PARAM_INT_TOT + GRB_PARAM_DBL_TOT + GRB_PARAM_STR_TOT;
-
  #define GRB_PARAMTYPE_INT 1
  #define GRB_PARAMTYPE_DBL 2
  #define GRB_PARAMTYPE_STR 3
@@ -157,46 +152,33 @@ int main( int argc, char ** argv ) {
   std::cout << "GRB_VERSION is " << GRB_VERSION << std::endl;
  }
 
- for( int i = 0; i <= GRB_PARAM_TOT; ++i ) {
-
-  status = GRBgetparamname( envptr, i, &name );
-
-  if( status == GRB_ERROR_UNKNOWN_PARAMETER ) {
-   continue;
-  }
-
+ for ( int i = 0 ; GRBgetparamname( envptr, i, &name ) == 0 ; ++i ){
+ 
   if( strlen( name ) == 0 ) {
-   continue;
+   break;
   }
 
-  if( status == 0 ) {
+  int type;
+  type = GRBgetparamtype( envptr, name );
 
-    int type;
-    type = GRBgetparamtype( envptr, name );
+  switch( type ) {
+    case GRB_PARAMTYPE_INT:
+        int_parameters.insert( { int_counter++,std::string( name ) } );
+        break;
+    
+    case GRB_PARAMTYPE_DBL:
+        dbl_parameters.insert( { dbl_counter++,std::string( name ) } );
+        break;
 
-    switch( type ) {
-        case GRB_PARAMTYPE_INT:
-            int_parameters.insert( { int_counter++,std::string( name ) } );
-            break;
+    case GRB_PARAMTYPE_STR:
+        str_parameters.insert( { str_counter++,std::string( name ) } );
+        break;
+
+    default:
+        std::cerr << "Unknown type from GRBgetparamtype()" << std::endl;
+        return( 1 );  
         
-        case GRB_PARAMTYPE_DBL:
-            dbl_parameters.insert( { dbl_counter++,std::string( name ) } );
-            break;
-
-        case GRB_PARAMTYPE_STR:
-            str_parameters.insert( { str_counter++,std::string( name ) } );
-            break;
-
-        default:
-            std::cerr << "Unknown type from GRBgetparamtype()" << std::endl;
-            return( 1 );  
-        }
-        
-    } 
-  else {
-   std::cerr << "Unknown error in GRBgetparamname()" << std::endl;
-   return( 1 );
-  }
+    }
  }
 
  // Generate defs file

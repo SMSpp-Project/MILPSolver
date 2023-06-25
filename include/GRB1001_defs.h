@@ -3,8 +3,8 @@
 #ifndef __GRB1001_DEFS
 #define __GRB1001_DEFS
 
-#define GRB_NUM_INT_PARS 113
-#define GRB_NUM_DBL_PARS 41
-#define GRB_NUM_STR_PARS 25
+#define GRB_NUM_INT_PARS 114
+#define GRB_NUM_DBL_PARS 42
+#define GRB_NUM_STR_PARS 26
 
 #endif //__GRB1001_DEFS
