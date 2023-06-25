@@ -224,13 +224,25 @@ void GRBMILPSolver::load_problem( void )
   ++n_nz_row[ row ];
  }
 
- // constructing the transposed matrix
+ // constructing the transposed matrix and transforming sense in grb_sense
  std::vector< double > matval_t( matval.size() , 0.0 );
  std::vector< int > matind_t( matind.size() , 0);
  std::vector< int > matbeg_t( numrows , 0 );
+ std::vector< char > grb_sense( numrows , 'R' );
  // filling matbeg_t
- for( int j = 1 ; j < numrows ; ++j )
-  matbeg_t[ j ] = matbeg_t[ j - 1 ] + n_nz_row[ j - 1 ];
+ for( int j = 0 ; j < numrows ; ++j ){
+  switch( sense[ j ] ) {
+    case( 'L' ): grb_sense[ j ] = GRB_LESS_EQUAL;
+            break;
+    case( 'E' ): grb_sense[ j ] = GRB_EQUAL;
+            break;
+    case( 'G' ): grb_sense[ j ] = GRB_GREATER_EQUAL;
+            break;
+    }
+  
+  if( j > 0 )
+    matbeg_t[ j ] = matbeg_t[ j - 1 ] + n_nz_row[ j - 1 ];
+ }
  
  int z = 0;
  std::vector< int > inserted_el_row( numrows , 0 );
@@ -247,27 +259,29 @@ void GRBMILPSolver::load_problem( void )
   
  // adding constraints
  int n_ranged_con = 0;
- for (int j = 0; j < numrows; ++j) {
-  std::vector< char * > temp_var_r_name(numrows);
-  char * name = use_custom_names ? rowname[ j ] : NULL; // retrieve constraint name
+ for( int j = 0 ; j < numrows ; ++j ){
 
-  if( sense[j] != 'R' ) { // not ranged case
-    char con_sense;
-    switch( sense[ j ] ) {
-      case( 'L' ): con_sense = GRB_LESS_EQUAL;
-            break;
-    case( 'E' ): con_sense = GRB_EQUAL;
-            break;
-    case( 'G' ): con_sense = GRB_GREATER_EQUAL;
-            break;
-    }
+  int tmp = j;
+  int tot_nnz = 0;
+  while( grb_sense[ j ] != 'R' &&  j < numrows ){
+    tot_nnz = tot_nnz + n_nz_row[ j ];
+    ++j;
+  }
+
+  if( sense[ tmp ] != 'R' ) { // not ranged case
+    int n_constrs = j - tmp;
     
-    GRBaddconstr( model , n_nz_row[ j ] , & matind_t[ matbeg_t[ j ] ] , 
-                  & matval_t[ matbeg_t[ j ] ] , con_sense , grb_rhs[ j ] ,
-                  name );
-    GRBupdatemodel( model );
+    if( use_custom_names )
+      GRBaddconstrs( model , n_constrs , tot_nnz , & matbeg_t[ tmp ] , 
+                    & matind_t[ tmp ] , & matval_t[ tmp ] , & grb_sense[ tmp ] ,
+                    & grb_rhs[ tmp ] , & rowname[ tmp ] );
+    else
+      GRBaddconstrs( model , n_constrs , tot_nnz , & matbeg_t[ tmp ] , 
+                    & matind_t[ tmp ] , & matval_t[ tmp ] , & grb_sense[ tmp ] ,
+                    & grb_rhs[ tmp ] , NULL );
   }
   else { // ranged case
+    char * name = use_custom_names ? rowname[ j ] : NULL; // retrieve constraint name
     if( rngval[j] > 0 )
       GRBaddrangeconstr( model , n_nz_row[ j ] , & matind_t[ matbeg_t[ j ] ] , 
                          & matval_t[ matbeg_t[ j ] ] , grb_rhs[ j ] , grb_rhs[ j ] + rngval[j] ,
@@ -276,11 +290,6 @@ void GRBMILPSolver::load_problem( void )
       GRBaddrangeconstr( model , n_nz_row[ j ] , & matind_t[ matbeg_t[ j ] ] , 
                          & matval_t[ matbeg_t[ j ] ] , grb_rhs[ j ] + rngval[j] , grb_rhs[ j ] ,
                          name );
-    GRBupdatemodel( model );
-    char * prova;
-    int p_status;
-    p_status = GRBgetstrattrelement( model , GRB_STR_ATTR_VARNAME , numcols + n_ranged_con , & temp_var_r_name[n_ranged_con] );
-    p_status = GRBgetstrattrelement( model , GRB_STR_ATTR_VARNAME , numcols + n_ranged_con , & prova );
     ++n_ranged_con;
   }
  }
