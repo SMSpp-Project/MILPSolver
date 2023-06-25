@@ -119,6 +119,7 @@ const std::array< std::string, GRB_NUM_INT_PARS > GRBMILPSolver::SMSpp_to_GUROBI
  "StartNumber",
  "PartitionPlace",
  "FuncPieces",
+ "OutputFlag",
 };
 
 const std::array< std::string, GRB_NUM_DBL_PARS > GRBMILPSolver::SMSpp_to_GUROBI_dbl_pars{
@@ -163,6 +164,7 @@ const std::array< std::string, GRB_NUM_DBL_PARS > GRBMILPSolver::SMSpp_to_GUROBI
  "FuncPieceLength",
  "FuncPieceError",
  "FuncPieceRatio",
+ "FuncMaxVal",
 };
 
 const std::array< std::string, GRB_NUM_STR_PARS > GRBMILPSolver::SMSpp_to_GUROBI_str_pars{
@@ -191,6 +193,7 @@ const std::array< std::string, GRB_NUM_STR_PARS > GRBMILPSolver::SMSpp_to_GUROBI
  "WLSToken",
  "LogFile",
  "ResultFile",
+ "Dummy",
 };
 
 const std::array< std::pair< std::string, int >, GRB_NUM_INT_PARS >
@@ -309,6 +312,7 @@ const std::array< std::pair< std::string, int >, GRB_NUM_INT_PARS >
   { "StartNumber", intFirstGUROBIPar + 110 },
   { "PartitionPlace", intFirstGUROBIPar + 111 },
   { "FuncPieces", intFirstGUROBIPar + 112 },
+  { "OutputFlag", intFirstGUROBIPar + 113 },
  }
 };
 
@@ -356,6 +360,7 @@ const std::array< std::pair< std::string, int >, GRB_NUM_DBL_PARS >
   { "FuncPieceLength", dblFirstGUROBIPar + 38 },
   { "FuncPieceError", dblFirstGUROBIPar + 39 },
   { "FuncPieceRatio", dblFirstGUROBIPar + 40 },
+  { "FuncMaxVal", dblFirstGUROBIPar + 41 },
  }
 };
 
@@ -387,5 +392,6 @@ const std::array< std::pair< std::string, int >, GRB_NUM_STR_PARS >
   { "WLSToken", strFirstGUROBIPar + 22 },
   { "LogFile", strFirstGUROBIPar + 23 },
   { "ResultFile", strFirstGUROBIPar + 24 },
+  { "Dummy", strFirstGUROBIPar + 25 },
  }
 };
