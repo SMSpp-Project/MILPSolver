@@ -108,7 +108,7 @@ int main( int argc , char ** argv )
 {
 
  // Manage options and help
- path = ".";
+ path = "../include";
  // path = std::filesystem::current_path();
  docopt_desc = "CPLEX parameter map generator.\n";
  exe = get_filename( argv[ 0 ] );

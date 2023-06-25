@@ -112,14 +112,14 @@ int main( int argc , char ** argv )
 {
 
  // Manage options and help
- path = ".";
+ path = "../include";
  // path = std::filesystem::current_path();
  docopt_desc = "Gurobi parameter map generator.\n";
  exe = get_filename( argv[ 0 ] );
  process_args( argc , argv );
 
- // if (! std::filesystem::exists(path)) {
- //  std::filesystem::create_directory(path);
+ // if( ! std::filesystem::exists( path ) ) {
+ //  std::filesystem::create_directory( path );
  // }
 
  std::string GRB_VERSION =
