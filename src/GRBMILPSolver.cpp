@@ -30,8 +30,6 @@
 
 #include <queue>
 
-#include <ranges>
-
 #include <LinearFunction.h>
 
 #include <DQuadFunction.h>
@@ -93,12 +91,12 @@ GRBMILPSolver::GRBMILPSolver( void ) :
 {
  int status = 0;
  status = GRBemptyenv( &env );
- if ( status != 0 )
+ if( status != 0 )
   throw( std::runtime_error( "GRBemptyenv returned with status " +
 			     std::to_string( status ) ) );
  
  status = GRBstartenv( env );
- if ( status != 0 )
+ if( status != 0 )
   throw( std::runtime_error( "GRBstartenv returned with status " +
 			     std::to_string( status ) ) );
 
@@ -150,7 +148,7 @@ void GRBMILPSolver::load_problem( void )
  MILPSolver::load_problem();
 
  int status = 0;
- if( model ){
+ if( model ) {
   GRBfreemodel( model );
   model = nullptr;
  }
@@ -199,8 +197,8 @@ void GRBMILPSolver::load_problem( void )
   int n_qp = 0;
 
   // creating a vector containg only non-zero coefficients for quadratic terms and corresponding indices
-  for ( int i = 0; i<numcols; ++i){
-	 if ( double_q_obj[n_qp] != 0 ){
+  for ( int i = 0; i<numcols; ++i) {
+	 if( double_q_obj[n_qp] != 0 ) {
 	  n_qp = n_qp + 1;
 	  qp_indices.push_back( i );
 	 }
@@ -219,7 +217,7 @@ void GRBMILPSolver::load_problem( void )
 
  std::vector<int> n_nz_row( numrows, 0 );
  // retrieving number of non zeros in each row
- for ( int i = 0 ; i < matind.size() ; ++i ){
+ for ( int i = 0 ; i < matind.size() ; ++i ) {
   int row = matind[ i ];
   ++n_nz_row[ row ];
  }
@@ -235,7 +233,7 @@ void GRBMILPSolver::load_problem( void )
  int z = 0;
  std::vector<int> inserted_el_row( numrows , 0 );
  // filling matind_t and matval_t
- for ( int i = 0 ; i < matind.size() ; ++i ){
+ for ( int i = 0 ; i < matind.size() ; ++i ) {
   int row = matind[ i ];
   while ( z != numcols-1 && i == matbeg[ z+1 ]) // we stepped to the next column
     ++z;
@@ -247,11 +245,11 @@ void GRBMILPSolver::load_problem( void )
   
  // adding constraints
  int n_ranged_con = 0;
- for (int j = 0; j < numrows; ++j){
+ for (int j = 0; j < numrows; ++j) {
   std::vector<char *> temp_var_r_name(numrows);
   char * name = use_custom_names ? rowname[ j ] : NULL; // retrieve constraint name
 
-  if ( sense[j] != 'R' ){ // not ranged case
+  if( sense[j] != 'R' ) { // not ranged case
     char con_sense;
     switch( sense[ j ] ) {
       case( 'L' ): con_sense = GRB_LESS_EQUAL;
@@ -268,7 +266,7 @@ void GRBMILPSolver::load_problem( void )
     GRBupdatemodel( model );
   }
   else { // ranged case
-    if ( rngval[j] > 0 )
+    if( rngval[j] > 0 )
       GRBaddrangeconstr( model , n_nz_row[ j ] , & matind_t[ matbeg_t[ j ] ] , 
                          & matval_t[ matbeg_t[ j ] ] , grb_rhs[ j ] , grb_rhs[ j ] + rngval[j] ,
                          name );
@@ -286,7 +284,7 @@ void GRBMILPSolver::load_problem( void )
  }
 
  status = GRBupdatemodel( model );
- if ( status != 0 )
+ if( status != 0 )
   throw( std::runtime_error( "GRBupdatemodel returned with status " +
 			     std::to_string( status ) ) );
 
@@ -346,7 +344,7 @@ int GRBMILPSolver::compute( bool changedvars )
   throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
- if( ! output_file.empty() ){
+ if( ! output_file.empty() ) {
   std::string output_file_lp;
   std::stringstream X(output_file);
   std::getline( X , output_file_lp , '.');
@@ -362,10 +360,10 @@ int GRBMILPSolver::compute( bool changedvars )
  int * qcp = nullptr;
  GRBgetintattr( model , GRB_INT_ATTR_IS_QCP , qcp );
 
- //if ( *qp == 1 )
+ //if( *qp == 1 )
   // DEBUG_LOG( "GUROBI problem type: QP" << std::endl );
   //is_qp = true;
- //else if ( *qcp == 1 )
+ //else if( *qcp == 1 )
   // DEBUG_LOG( "GUROBI problem type: QCP" << std::endl );
   //is_qp = true;
  //else
@@ -467,40 +465,40 @@ int GRBMILPSolver::decode_model_status( int status )
    // Optimization terminated because the total number of simplex iterations performed exceeded
    // the value specified in the IterationLimit parameter, or because the total number of barrier
    // iterations exceeded the value specified in the BarIterLimit parameter
-   return ( kStopIter );
+   return( kStopIter );
   case GRB_NODE_LIMIT:
    // Optimization terminated because the total number of branchand-cut nodes
    // explored exceeded the value specified in the NodeLimit parameter
-   return ( kStopIter );
+   return( kStopIter );
   case GRB_TIME_LIMIT:
    // Optimization terminated because the time expended exceeded the value 
    // specified in the TimeLimit parameter
-   return ( kStopTime );
+   return( kStopTime );
   case GRB_SOLUTION_LIMIT:
    // Optimization terminated because the number of solutions
    // found reached the value specified in the SolutionLimit parameter
-   return ( kOK );
+   return( kOK );
   case GRB_INTERRUPTED:
    //  Optimization was terminated by the user
-   return ( kError );
+   return( kError );
   case GRB_NUMERIC:
    // Optimization was terminated due to unrecoverable numerical
    // difficulties
-   return ( kError );
+   return( kError );
   case GRB_SUBOPTIMAL:
    // Unable to satisfy optimality tolerances; a sub-optimal solution is available
-   return ( kOK );
+   return( kOK );
   case GRB_INPROGRESS:
    // An asynchronous optimization call was made, but the 
    // associated optimization run is not yet complete
-   return ( kError );
+   return( kError );
   case GRB_USER_OBJ_LIMIT:
    // User specified an objective limit (a bound on either the best
    // objective or the best bound), and that limit has been reached
-   return ( kOK );
+   return( kOK );
   case GRB_WORK_LIMIT:
   case GRB_MEM_LIMIT:
-   return ( kError );
+   return( kError );
   default:;
  }
 
@@ -783,17 +781,17 @@ void GRBMILPSolver::get_var_solution( const std::vector< double > & x )
 bool GRBMILPSolver::has_dual_solution( void )
 { //TOCHECK
  int has_dual_basis;
- if ( GRBgetintattr( model , GRB_INT_ATTR_HASDUALNORM , & has_dual_basis ) )
+ if( GRBgetintattr( model , GRB_INT_ATTR_HASDUALNORM , & has_dual_basis ) )
   throw( std::runtime_error( "An error occurred in getting GRB_HASDUALNORM" ) );
  
  switch( has_dual_basis ) {
   case 1: // has basis, so can be computed
   case 2: // available
-   return ( true );
+   return( true );
   // case 0: no basis
  }
 
- return ( false );
+ return( false );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -941,10 +939,10 @@ bool GRBMILPSolver::has_dual_direction( void )
  int status_p = GRBgetdblattr( model , GRB_DBL_ATTR_FARKASPROOF , & proof );
  int status_y = GRBgetdblattrarray( model , GRB_DBL_ATTR_FARKASDUAL , 0 , numrows , y.data() );
 
- if ( status_p == 0 && status_y == 0 )
-  return ( true );
+ if( status_p == 0 && status_y == 0 )
+  return( true );
  else
-  return ( false );
+  return( false );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1232,7 +1230,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
       rngval = con_rhs - con_lhs;
       }
    
-   if ( sense != 'R' ){
+   if( sense != 'R' ) {
     GRBsetcharattrelement( model , GRB_CHAR_ATTR_SENSE , index , sense );
     GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
    }
@@ -1446,7 +1444,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
   std::vector< double > oldval ( nqz );
 
   int status = GRBgetq( model, & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
-  if ( status != 0 )
+  if( status != 0 )
    throw( std::runtime_error( "Error while quering quadratic coefficients with GRBgetq" ) );
 
   for( auto v : *vars )
@@ -1459,10 +1457,10 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), cidx);
     double old_var_q_coeff;
 
-    if ( arr_idx_row == oldind_row.end() ) // no quadratic coefficient was already set for the variable
+    if( arr_idx_row == oldind_row.end() ) // no quadratic coefficient was already set for the variable
       old_var_q_coeff = 0.0;
     else{
-      if ( *arr_idx_row != *arr_idx_col )
+      if( *arr_idx_row != *arr_idx_col )
         throw( std::runtime_error( "Error while modifing quadratic coefficients" ) );
 
       old_var_q_coeff = oldval[ arr_idx_row - oldind_row.begin() ];
@@ -1623,7 +1621,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   std::vector< double > oldval ( nqz );
 
   int status = GRBgetq( model, & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
-  if ( status != 0 )
+  if( status != 0 )
    throw( std::runtime_error( "Error while quering quadratic coefficients with GRBgetq" ) );
 
   for( auto v : mod->vars() ) {
@@ -1642,7 +1640,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
      auto arr_idx_row = std::find(oldind_row.begin(), oldind_row.end(), idx);
      auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), idx);
     
-     if ( *arr_idx_row != *arr_idx_col )
+     if( *arr_idx_row != *arr_idx_col )
       throw( std::runtime_error( "Error while modifing quadratic coefficients" ) );
 
      q_value = oldval[ *arr_idx_row ];
@@ -1797,7 +1795,7 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
     }
 
  // update the GUROBI problem
- if ( sense != 'R' )
+ if( sense != 'R' )
   GRBaddconstr( model , rmatind.size() , rmatind.data() , 
                   rmatval.data() , sense , rhs ,
                   NULL );
@@ -1970,13 +1968,13 @@ int GRBMILPSolver::callback( GRBmodel *model,
     break;                    // nothing to do
 
    double depth; // find the depth of the current node
-   if ( GRBcbget( cbdata , where , GRB_CB_MIPNODE_NODCNT , & depth ) )
+   if( GRBcbget( cbdata , where , GRB_CB_MIPNODE_NODCNT , & depth ) )
     throw( std::runtime_error(
                 "Unable to get the depth with GRB_CB_MIPNODE_NODCNT" ) );
 
    int status;
    GRBcbget( cbdata , where , GRB_CB_MIPNODE_STATUS , & status);
-   if (status == GRB_OPTIMAL) {
+   if(status == GRB_OPTIMAL) {
 
     // if we are at a depth for which separation is not enabled
     if( ( ( ! depth ) && ( ! ( CutSepPar & 1 ) ) ) ||
@@ -2029,7 +2027,7 @@ int GRBMILPSolver::callback( GRBmodel *model,
       for (int c = 0 ; c < rhs.size() ; ++c ) {
         int nnz; // number of non zero coefficients in the actual cut
         int idx = rmatbeg[ c ];
-        if ( c < rhs.size() - 1)
+        if( c < rhs.size() - 1)
           nnz = rmatbeg[ c + 1 ] - rmatbeg[ c ]; 
         else
           nnz = rmatind.size() - rmatbeg[ c ];
@@ -2083,11 +2081,11 @@ int GRBMILPSolver::callback( GRBmodel *model,
    f_callback_mutex.unlock();
 
    // if any lazy constraint was generated, add them
-   if( ! rmatbeg.empty() ){
+   if( ! rmatbeg.empty() ) {
     for (int c = 0 ; c < rhs.size() ; ++c ) {
       int nnz; // number of non zero coefficients in the actual lazy costraint
       int idx = rmatbeg[ c ];
-      if ( c < rhs.size() - 1)
+      if( c < rhs.size() - 1)
         nnz = rmatbeg[ c + 1 ] - rmatbeg[ c ]; 
       else
         nnz = rmatind.size() - rmatbeg[ c ];
@@ -2267,7 +2265,7 @@ void GRBMILPSolver::set_par( idx_type par , int value )
   return;
   }
 
- if( par == intMaxIter ){ // intMaxIter is an int parameter in sms++ but a double in Gurobi
+ if( par == intMaxIter ) { // intMaxIter is an int parameter in sms++ but a double in Gurobi
   set_par( par , (double)value );
   return;
  }
@@ -2347,7 +2345,7 @@ void GRBMILPSolver::set_par( idx_type par ,
   for( Index i = sz ; i < v_ConfigDB.size() ; ++i )
    delete v_ConfigDB[ i ];
   // resize the Configuration DB: if the new size is larger than the
-  // old ones, the new Configuration defaut to nullptr
+  // old ones, the new Configuration default to nullptr
   v_ConfigDB.resize( sz , nullptr );
   // resize the configuration names: this makes the next step easier, as
   // any non-existing element will be an empty string and therefore not
@@ -2590,7 +2588,7 @@ Solver::idx_type GRBMILPSolver::int_par_str2idx(
                         SMSpp_to_GUROBI_int_pars.end() ,
                         gurobi_par);
 
- if ( array_pos != SMSpp_to_GUROBI_int_pars.end() ){
+ if( array_pos != SMSpp_to_GUROBI_int_pars.end() ) {
   int pos = std::distance( SMSpp_to_GUROBI_int_pars.begin(), array_pos );
   auto idx_par = GUROBI_to_SMSpp_int_pars[pos].second;
   return( idx_par );
@@ -2617,7 +2615,7 @@ const std::string & GRBMILPSolver::int_par_idx2str( idx_type idx ) const
  static std::string par_name;
  par_name.reserve( 512 );
 
- if( ( idx >= intFirstGUROBIPar ) && ( idx < intLastAlgParGRBS ) ){
+ if( ( idx >= intFirstGUROBIPar ) && ( idx < intLastAlgParGRBS ) ) {
   par_name = SMSpp_to_GUROBI_int_pars[ idx - intFirstGUROBIPar ];
   return( par_name );
   }
@@ -2642,7 +2640,7 @@ Solver::idx_type GRBMILPSolver::dbl_par_str2idx( const std::string & name )
                         SMSpp_to_GUROBI_dbl_pars.end() ,
                         gurobi_par);
 
- if ( array_pos != SMSpp_to_GUROBI_dbl_pars.end() ){
+ if( array_pos != SMSpp_to_GUROBI_dbl_pars.end() ) {
   int pos = std::distance( SMSpp_to_GUROBI_dbl_pars.begin(), array_pos );
   auto idx_par = GUROBI_to_SMSpp_dbl_pars[pos].second;
   return( idx_par );
@@ -2661,7 +2659,7 @@ const std::string & GRBMILPSolver::dbl_par_idx2str( idx_type idx ) const
  static std::string par_name;
  par_name.reserve( 512 );
 
- if( ( idx >= dblFirstGUROBIPar ) && ( idx < dblLastAlgParGRBS ) ){
+ if( ( idx >= dblFirstGUROBIPar ) && ( idx < dblLastAlgParGRBS ) ) {
   par_name = SMSpp_to_GUROBI_dbl_pars[ idx - dblFirstGUROBIPar ];
   return( par_name );
   }
@@ -2686,7 +2684,7 @@ Solver::idx_type GRBMILPSolver::str_par_str2idx( const std::string & name )
                         SMSpp_to_GUROBI_str_pars.end() ,
                         gurobi_par);
 
- if ( array_pos != SMSpp_to_GUROBI_str_pars.end() ){
+ if( array_pos != SMSpp_to_GUROBI_str_pars.end() ) {
   int pos = std::distance( SMSpp_to_GUROBI_str_pars.begin(), array_pos );
   auto idx_par = GUROBI_to_SMSpp_str_pars[pos].second;
   return( idx_par );
@@ -2705,7 +2703,7 @@ const std::string & GRBMILPSolver::str_par_idx2str( idx_type idx ) const
  static std::string par_name;
  par_name.reserve( 512 );
 
- if( ( idx >= strFirstGUROBIPar ) && ( idx < strLastAlgParGRBS ) ){
+ if( ( idx >= strFirstGUROBIPar ) && ( idx < strLastAlgParGRBS ) ) {
   par_name = SMSpp_to_GUROBI_str_pars[ idx - strFirstGUROBIPar ];
   return( par_name );
   }
