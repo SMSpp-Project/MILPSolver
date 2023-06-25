@@ -30,7 +30,7 @@
 #include <getopt.h>
 // #include <filesystem>
 
-#include <gurobi_c++.h>
+#include <gurobi_c.h>
 
 /*--------------------------------------------------------------------------*/
 
