@@ -197,7 +197,7 @@ void GRBMILPSolver::load_problem( void )
   int n_qp = 0;
 
   // creating a vector containg only non-zero coefficients for quadratic terms and corresponding indices
-  for ( int i = 0; i<numcols; ++i) {
+  for( int i = 0; i < numcols ; ++i ) {
 	 if( double_q_obj[n_qp] != 0 ) {
 	  n_qp = n_qp + 1;
 	  qp_indices.push_back( i );
@@ -215,29 +215,29 @@ void GRBMILPSolver::load_problem( void )
 
  // transposing the coefficient matrix
 
- std::vector<int> n_nz_row( numrows, 0 );
- // retrieving number of non zeros in each row
- for ( int i = 0 ; i < matind.size() ; ++i ) {
+ std::vector< int > n_nz_row( numrows, 0 );
+ // retrieving number of nonzeros in each row
+ for( int i = 0 ; i < matind.size() ; ++i ) {
   int row = matind[ i ];
   ++n_nz_row[ row ];
  }
 
  // constructing the transposed matrix
- std::vector<double> matval_t( matval.size() , 0.0 );
- std::vector<int> matind_t( matind.size() , 0);
- std::vector<int> matbeg_t( numrows , 0 );
+ std::vector< double > matval_t( matval.size() , 0.0 );
+ std::vector< int > matind_t( matind.size() , 0);
+ std::vector< int > matbeg_t( numrows , 0 );
  // filling matbeg_t
- for ( int j = 1 ; j < numrows ; ++j )
-  matbeg_t[ j ] = matbeg_t[ j-1 ] + n_nz_row[ j-1 ];
+ for( int j = 1 ; j < numrows ; ++j )
+  matbeg_t[ j ] = matbeg_t[ j - 1 ] + n_nz_row[ j - 1 ];
  
  int z = 0;
- std::vector<int> inserted_el_row( numrows , 0 );
+ std::vector< int > inserted_el_row( numrows , 0 );
  // filling matind_t and matval_t
- for ( int i = 0 ; i < matind.size() ; ++i ) {
+ for( int i = 0 ; i < matind.size() ; ++i ) {
   int row = matind[ i ];
-  while ( z != numcols-1 && i == matbeg[ z+1 ]) // we stepped to the next column
+  while( z != numcols - 1 && i == matbeg[ z + 1 ] ) // we stepped to the next column
     ++z;
-  int pos = matbeg_t[ row ] + inserted_el_row[ row ]; //where we have to insert the new value
+  int pos = matbeg_t[ row ] + inserted_el_row[ row ]; // where we have to insert the new value
   ++inserted_el_row[ row ];
   matval_t[ pos ] = matval[ i ];
   matind_t[ pos ] = z;
@@ -246,7 +246,7 @@ void GRBMILPSolver::load_problem( void )
  // adding constraints
  int n_ranged_con = 0;
  for (int j = 0; j < numrows; ++j) {
-  std::vector<char *> temp_var_r_name(numrows);
+  std::vector< char * > temp_var_r_name(numrows);
   char * name = use_custom_names ? rowname[ j ] : NULL; // retrieve constraint name
 
   if( sense[j] != 'R' ) { // not ranged case
@@ -810,10 +810,10 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
 
  if( numrows > 0 )
   if( GRBgetdblattrarray( model , GRB_DBL_ATTR_PI , 0 , numrows , pi.data() ) )
-   throw( std::runtime_error( "Unable to get dual values quering the attribute GBL_PI" ) );
+   throw( std::runtime_error( "Unable to get dual values querying the attribute GBL_PI" ) );
 
  if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , numcols , dj.data() ) )
-  throw( std::runtime_error( "Unable to get reduced costs quering the attribute GBL_RC") );
+  throw( std::runtime_error( "Unable to get reduced costs querying the attribute GBL_RC") );
 
  int row = 0;
  int row_dynamic = static_cons;
@@ -969,7 +969,7 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
   throw( std::runtime_error( "an error occurred in getting Farkas certificate" ) );
 
  if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , numcols , dj.data() ) )
-  throw( std::runtime_error( "Unable to get reduced costs quering the attribute GBL_RC") ); 
+  throw( std::runtime_error( "Unable to get reduced costs querying the attribute GBL_RC") );
 
  int row = 0;
  int row_dynamic = static_cons;
@@ -1154,7 +1154,7 @@ void GRBMILPSolver::objective_modification( const ObjectiveMod * mod )
 
  /* ObjectiveMod class does not include any modification types except
   * for eSetMin and eSetMax.
-  * To change OF coefficents, a FunctionMod must be used. */
+  * To change OF coefficients, a FunctionMod must be used. */
 
  switch( mod->type() ) {
   case ObjectiveMod::eSetMin: GRBsetintattr( model , GRB_INT_ATTR_MODELSENSE , GRB_MINIMIZE ); break;
@@ -1170,7 +1170,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::const_modification( mod );
 
- /* To change the coefficents, a FunctionMod must be used. */
+ /* To change the coefficients, a FunctionMod must be used. */
 
  auto * con = dynamic_cast< FRowConstraint * >( mod->constraint() );
  if( ! con )  // this should not happen
@@ -1445,7 +1445,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
   int status = GRBgetq( model, & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
   if( status != 0 )
-   throw( std::runtime_error( "Error while quering quadratic coefficients with GRBgetq" ) );
+   throw( std::runtime_error( "Error while querying quadratic coefficients with GRBgetq" ) );
 
   for( auto v : *vars )
    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
@@ -1461,7 +1461,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
       old_var_q_coeff = 0.0;
     else{
       if( *arr_idx_row != *arr_idx_col )
-        throw( std::runtime_error( "Error while modifing quadratic coefficients" ) );
+        throw( std::runtime_error( "Error while modifying quadratic coefficients" ) );
 
       old_var_q_coeff = oldval[ arr_idx_row - oldind_row.begin() ];
     }
@@ -1622,7 +1622,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
 
   int status = GRBgetq( model, & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
   if( status != 0 )
-   throw( std::runtime_error( "Error while quering quadratic coefficients with GRBgetq" ) );
+   throw( std::runtime_error( "Error while querying quadratic coefficients with GRBgetq" ) );
 
   for( auto v : mod->vars() ) {
    auto var = ColV( v );
@@ -1641,7 +1641,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
      auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), idx);
     
      if( *arr_idx_row != *arr_idx_col )
-      throw( std::runtime_error( "Error while modifing quadratic coefficients" ) );
+      throw( std::runtime_error( "Error while modifying quadratic coefficients" ) );
 
      q_value = oldval[ *arr_idx_row ];
     }
@@ -2025,7 +2025,7 @@ int GRBMILPSolver::callback( GRBmodel *model,
             );*/
 
       for (int c = 0 ; c < rhs.size() ; ++c ) {
-        int nnz; // number of non zero coefficients in the actual cut
+        int nnz; // number of nonzero coefficients in the actual cut
         int idx = rmatbeg[ c ];
         if( c < rhs.size() - 1)
           nnz = rmatbeg[ c + 1 ] - rmatbeg[ c ]; 
@@ -2083,7 +2083,7 @@ int GRBMILPSolver::callback( GRBmodel *model,
    // if any lazy constraint was generated, add them
    if( ! rmatbeg.empty() ) {
     for (int c = 0 ; c < rhs.size() ; ++c ) {
-      int nnz; // number of non zero coefficients in the actual lazy costraint
+      int nnz; // number of nonzero coefficients in the actual lazy constraint
       int idx = rmatbeg[ c ];
       if( c < rhs.size() - 1)
         nnz = rmatbeg[ c + 1 ] - rmatbeg[ c ]; 
@@ -2448,7 +2448,7 @@ const std::string & GRBMILPSolver::get_dflt_str_par( idx_type par ) const
  // note: this implementation is not thread safe and it may lead to elements
  //       of value[] to be allocated more than once with some memory being
  //       lost, but the chances are too slim and the potential drawback too
- //       limted to warrant even a humble std::atomic_flag
+ //       limited to warrant even a humble std::atomic_flag
  static std::vector< std::string > value( strLastAlgParGRBS -
 					  strFirstGUROBIPar );
 
