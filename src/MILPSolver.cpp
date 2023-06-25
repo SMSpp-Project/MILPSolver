@@ -1191,8 +1191,8 @@ void MILPSolver::var_modification( const VariableMod * mod )
 void MILPSolver::objective_modification( const ObjectiveMod * mod )
 {
  switch( mod->type() ) {
-  case ObjectiveMod::eSetMin: objsense = 1; break;
-  case ObjectiveMod::eSetMax: objsense = -1; break;
+  case( ObjectiveMod::eSetMin ): objsense = 1; break;
+  case( ObjectiveMod::eSetMax ): objsense = -1; break;
   default:
    throw( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
   }
@@ -1216,16 +1216,16 @@ void MILPSolver::const_modification( const ConstraintMod * mod )
  RowConstraint::RHSValue con_rhs = NAN;
 
  switch( mod->type() ) {
-  case ConstraintMod::eRelaxConst:
+  case( ConstraintMod::eRelaxConst ):
    sense[ idx ] = 'G';
    rhs[ idx ] = -Inf< double >();
    rngval[ idx ] = 0;
    break;
 
-  case ConstraintMod::eEnforceConst:
-  case RowConstraintMod::eChgLHS:
-  case RowConstraintMod::eChgRHS:
-  case RowConstraintMod::eChgBTS:
+  case( ConstraintMod::eEnforceConst ):
+  case( RowConstraintMod::eChgLHS ):
+  case( RowConstraintMod::eChgRHS ):
+  case( RowConstraintMod::eChgBTS ):
 
    con_lhs = con->get_lhs();
    con_rhs = con->get_rhs();
@@ -1272,13 +1272,13 @@ void MILPSolver::bound_modification( const OneVarConstraintMod * mod )
  int idx = index_of_variable( var );
 
  switch( mod->type() ) {
-  case RowConstraintMod::eChgLHS:
+  case( RowConstraintMod::eChgLHS ):
    lb[ idx ] = get_problem_lb( *var );
    break;
-  case RowConstraintMod::eChgRHS:
+  case( RowConstraintMod::eChgRHS ):
    ub[ idx ] = get_problem_ub( *var );
    break;
-  case RowConstraintMod::eChgBTS: {
+  case( RowConstraintMod::eChgBTS ): {
    auto bd = MILPSolver::get_problem_bounds( *var );
    lb[ idx ] = bd[ 0 ];
    ub[ idx ] = bd[ 1 ];

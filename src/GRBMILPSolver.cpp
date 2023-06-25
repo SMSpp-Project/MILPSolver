@@ -435,69 +435,69 @@ int GRBMILPSolver::decode_model_status( int status )
  * a GUROBI solution as returned by GRBgetintattr( model , GRB_INT_ATTR_STATUS , model_status ),
  * as listed in GUROBI Callable Library API manual.*/
  switch(status) {
-  //case GRB_LOADED
-  case GRB_OPTIMAL:
+  //case( GRB_LOADED )
+  case( GRB_OPTIMAL ):
    // Model was solved to optimality (subject to tolerances), and
    // an optimal solution is available.
    return( kOK );
-  case GRB_INFEASIBLE:
+  case( GRB_INFEASIBLE ):
    // Problem was proven to be infeasible.
    return( kInfeasible );
-  case GRB_INF_OR_UNBD:
+  case( GRB_INF_OR_UNBD ):
    // Model was proven to be either infeasible or unbounded. To
    // obtain a more definitive conclusion, set the DualReductions
    // parameter to 0 and reoptimize
    //!!   return( kInfeasible );
    return( kUnbounded );
-  case GRB_UNBOUNDED:
+  case( GRB_UNBOUNDED ):
    // Model was proven to be unbounded. 
    //!! Important note: an unbounded status indicates the presence of an unbounded ray
    //!! that allows the objective to improve without limit. It says
    //!! nothing about whether the model has a feasible solution. If
    //!! you require information on feasibility, you should set the objective to zero and reoptimize
    return( kUnbounded );
-  case GRB_CUTOFF:
+  case( GRB_CUTOFF ):
    // Optimal objective for model was proven to be worse than
    // the value specified in the Cutoff parameter. No solution
    // information is available.
    return( kOK );
-  case GRB_ITERATION_LIMIT:
+  case( GRB_ITERATION_LIMIT ):
    // Optimization terminated because the total number of simplex iterations performed exceeded
    // the value specified in the IterationLimit parameter, or because the total number of barrier
    // iterations exceeded the value specified in the BarIterLimit parameter
    return( kStopIter );
-  case GRB_NODE_LIMIT:
-   // Optimization terminated because the total number of branchand-cut nodes
+  case( GRB_NODE_LIMIT ):
+   // Optimization terminated because the total number of branch-and-cut nodes
    // explored exceeded the value specified in the NodeLimit parameter
    return( kStopIter );
-  case GRB_TIME_LIMIT:
+  case( GRB_TIME_LIMIT ):
    // Optimization terminated because the time expended exceeded the value 
    // specified in the TimeLimit parameter
    return( kStopTime );
-  case GRB_SOLUTION_LIMIT:
+  case( GRB_SOLUTION_LIMIT ):
    // Optimization terminated because the number of solutions
    // found reached the value specified in the SolutionLimit parameter
    return( kOK );
-  case GRB_INTERRUPTED:
+  case( GRB_INTERRUPTED ):
    //  Optimization was terminated by the user
    return( kError );
-  case GRB_NUMERIC:
+  case( GRB_NUMERIC ):
    // Optimization was terminated due to unrecoverable numerical
    // difficulties
    return( kError );
-  case GRB_SUBOPTIMAL:
+  case( GRB_SUBOPTIMAL ):
    // Unable to satisfy optimality tolerances; a sub-optimal solution is available
    return( kOK );
-  case GRB_INPROGRESS:
+  case( GRB_INPROGRESS ):
    // An asynchronous optimization call was made, but the 
    // associated optimization run is not yet complete
    return( kError );
-  case GRB_USER_OBJ_LIMIT:
+  case( GRB_USER_OBJ_LIMIT ):
    // User specified an objective limit (a bound on either the best
    // objective or the best bound), and that limit has been reached
    return( kOK );
-  case GRB_WORK_LIMIT:
-  case GRB_MEM_LIMIT:
+  case( GRB_WORK_LIMIT ):
+  case( GRB_MEM_LIMIT ):
    return( kError );
   default:;
  }
@@ -518,38 +518,38 @@ int GRBMILPSolver::decode_grb_error( int error )
   * without doing extensive tests. So we are implementing just the ones we
   * encounter as we go. */
  switch( error ) {
-  //case GRB_ERROR_OUT_OF_MEMORY:      
-  //case GRB_ERROR_NULL_ARGUMENT:       
-  //case GRB_ERROR_INVALID_ARGUMENT:         
-  //case GRB_ERROR_UNKNOWN_ATTRIBUTE:      
-  //case GRB_ERROR_DATA_NOT_AVAILABLE:   
-  //case GRB_ERROR_INDEX_OUT_OF_RANGE:  
-  //case GRB_ERROR_UNKNOWN_PARAMETER:    
-  //case GRB_ERROR_VALUE_OUT_OF_RANGE:    
-  //case GRB_ERROR_NO_LICENSE:
-  //case GRB_ERROR_SIZE_LIMIT_EXCEEDED:   
-  //case GRB_ERROR_CALLBACK:  
-  //case GRB_ERROR_FILE_READ:      
-  //case GRB_ERROR_FILE_WRITE:    
-  //case GRB_ERROR_NUMERIC:           
-  //case GRB_ERROR_IIS_NOT_INFEASIBLE:     
-  //case GRB_ERROR_NOT_FOR_MIP:  
-  //case GRB_ERROR_OPTIMIZATION_IN_PROGRESS:
-  //case GRB_ERROR_DUPLICATES:
-  //case GRB_ERROR_NODEFILE:         
-  //case GRB_ERROR_Q_NOT_PSD:           
-  //case GRB_ERROR_QCP_EQUALITY_CONSTRAINT:  
-  //case GRB_ERROR_NETWORK:
-  //case GRB_ERROR_JOB_REJECTED:         
-  //case GRB_ERROR_NOT_SUPPORTED:       
-  //case GRB_ERROR_EXCEED_2B_NONZEROS:      
-  //case GRB_ERROR_INVALID_PIECEWISE_OBJ:  
-  //case GRB_ERROR_UPDATEMODE_CHANGE:
-  //case GRB_ERROR_CLOUD:       
-  //case GRB_ERROR_MODEL_MODIFICATION:    
-  //case GRB_ERROR_CSWORKER:     
-  //case GRB_ERROR_TUNE_MODEL_TYPES:        
-  //case GRB_ERROR_SECURITY:
+  //case( GRB_ERROR_OUT_OF_MEMORY ):
+  //case( GRB_ERROR_NULL_ARGUMENT ):
+  //case( GRB_ERROR_INVALID_ARGUMENT ):
+  //case( GRB_ERROR_UNKNOWN_ATTRIBUTE ):
+  //case( GRB_ERROR_DATA_NOT_AVAILABLE ):
+  //case( GRB_ERROR_INDEX_OUT_OF_RANGE ):
+  //case( GRB_ERROR_UNKNOWN_PARAMETER ):
+  //case( GRB_ERROR_VALUE_OUT_OF_RANGE ):
+  //case( GRB_ERROR_NO_LICENSE ):
+  //case( GRB_ERROR_SIZE_LIMIT_EXCEEDED ):
+  //case( GRB_ERROR_CALLBACK ):
+  //case( GRB_ERROR_FILE_READ ):
+  //case( GRB_ERROR_FILE_WRITE ):
+  //case( GRB_ERROR_NUMERIC ):
+  //case( GRB_ERROR_IIS_NOT_INFEASIBLE ):
+  //case( GRB_ERROR_NOT_FOR_MIP ):
+  //case( GRB_ERROR_OPTIMIZATION_IN_PROGRESS ):
+  //case( GRB_ERROR_DUPLICATES ):
+  //case( GRB_ERROR_NODEFILE ):
+  //case( GRB_ERROR_Q_NOT_PSD ):
+  //case( GRB_ERROR_QCP_EQUALITY_CONSTRAINT ):
+  //case( GRB_ERROR_NETWORK ):
+  //case( GRB_ERROR_JOB_REJECTED ):
+  //case( GRB_ERROR_NOT_SUPPORTED ):
+  //case( GRB_ERROR_EXCEED_2B_NONZEROS ):
+  //case( GRB_ERROR_INVALID_PIECEWISE_OBJ ):
+  //case( GRB_ERROR_UPDATEMODE_CHANGE ):
+  //case( GRB_ERROR_CLOUD ):
+  //case( GRB_ERROR_MODEL_MODIFICATION ):
+  //case( GRB_ERROR_CSWORKER ):
+  //case( GRB_ERROR_TUNE_MODEL_TYPES ):
+  //case( GRB_ERROR_SECURITY ):
   }
 
  throw( std::runtime_error( "GUROBI returned unmanaged error " +
@@ -565,13 +565,13 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
  GRBgetintattr( model , GRB_INT_ATTR_MODELSENSE , & sense );
 
  switch( sense ) {
-  case GRB_MINIMIZE:  // Minimization problem- - - - - - - - - - - - - - - - - - -
+  case( GRB_MINIMIZE ):  // Minimization problem- - - - - - - - - - - - - - - -
    switch( sol_status ) {
-    case kUnbounded:  lower_bound = -Inf< OFValue >(); break;
-    case kInfeasible: lower_bound = Inf< OFValue >();  break;
-    case kOK:
-    case kStopIter:
-    case kStopTime:
+    case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
+    case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
+    case( kOK ):
+    case( kStopIter ):
+    case( kStopTime ):
       int m_status;
       GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
       // when a gurobi model stop with cutoff status, 
@@ -593,22 +593,22 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     }
    break;
 
-  case GRB_MAXIMIZE:  // Maximization problem- - - - - - - - - - - - - - - - - - -
+  case( GRB_MAXIMIZE ):  // Maximization problem- - - - - - - - - - - - - - - -
    switch( sol_status ) {
-    case kUnbounded:  lower_bound = Inf< OFValue >(); break;
-    case kInfeasible: lower_bound = -Inf< OFValue >(); break;
+    case( kUnbounded ):  lower_bound = Inf< OFValue >(); break;
+    case( kInfeasible ): lower_bound = -Inf< OFValue >(); break;
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
-    case kStopIter:
-    case kStopTime:
+    case( kStopIter ):
+    case( kStopTime ):
      if( ! has_var_solution() ) {
       lower_bound = - Inf< OFValue >();
       break;
       }
      lower_bound += constant_value;
 
-    case kOK:
+    case( kOK ):
      int m_status;
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
@@ -643,22 +643,22 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
  GRBgetintattr( model , GRB_INT_ATTR_MODELSENSE , & sense );
 
  switch( sense ) {
-  case GRB_MINIMIZE:  // Minimization problem- - - - - - - - - - - - - - - - - - -
+  case( GRB_MINIMIZE ):  // Minimization problem- - - - - - - - - - - - - - - -
    switch( sol_status ) {
-    case kUnbounded:  upper_bound = -Inf< OFValue >(); break;
-    case kInfeasible: upper_bound = Inf< OFValue >(); break;
+    case( kUnbounded ):  upper_bound = -Inf< OFValue >(); break;
+    case( kInfeasible ): upper_bound = Inf< OFValue >(); break;
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
-    case kStopIter:
-    case kStopTime:
+    case( kStopIter ):
+    case( kStopTime ):
      if( ! has_var_solution() ) {
       upper_bound = Inf< OFValue >();
       break;
       }
      upper_bound += constant_value;
 
-    case kOK:
+    case( kOK ):
      int m_status;
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
@@ -679,14 +679,14 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     }
    break;
 
-  case GRB_MAXIMIZE:  // Maximization problem- - - - - - - - - - - - - - - - - - -
+  case( GRB_MAXIMIZE ):  // Maximization problem- - - - - - - - - - - - - - - -
    switch( sol_status ) {
-    case kUnbounded:  upper_bound = Inf< OFValue >(); break;
-    case kInfeasible: upper_bound = -Inf< OFValue >(); break;
+    case( kUnbounded ):  upper_bound = Inf< OFValue >(); break;
+    case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
 
-    case kOK:
-    case kStopIter:
-    case kStopTime:
+    case( kOK ):
+    case( kStopIter ):
+    case( kStopTime ):
      int m_status;
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
@@ -785,10 +785,10 @@ bool GRBMILPSolver::has_dual_solution( void )
   throw( std::runtime_error( "An error occurred in getting GRB_HASDUALNORM" ) );
  
  switch( has_dual_basis ) {
-  case 1: // has basis, so can be computed
-  case 2: // available
+  case( 1 ): // has basis, so can be computed
+  case( 2 ): // available
    return( true );
-  // case 0: no basis
+  // case( 0 ): no basis
  }
 
  return( false );
@@ -1157,8 +1157,12 @@ void GRBMILPSolver::objective_modification( const ObjectiveMod * mod )
   * To change OF coefficients, a FunctionMod must be used. */
 
  switch( mod->type() ) {
-  case ObjectiveMod::eSetMin: GRBsetintattr( model , GRB_INT_ATTR_MODELSENSE , GRB_MINIMIZE ); break;
-  case ObjectiveMod::eSetMax: GRBsetintattr( model , GRB_INT_ATTR_MODELSENSE , GRB_MAXIMIZE ); break;
+  case( ObjectiveMod::eSetMin ):
+   GRBsetintattr( model , GRB_INT_ATTR_MODELSENSE , GRB_MINIMIZE );
+   break;
+  case( ObjectiveMod::eSetMax ):
+   GRBsetintattr( model , GRB_INT_ATTR_MODELSENSE , GRB_MAXIMIZE );
+   break;
   default: throw( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
   }
  }
@@ -1187,7 +1191,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
  RowConstraint::RHSValue con_rhs = NAN;
 
  switch( mod->type() ) {
-  case ConstraintMod::eRelaxConst:
+  case( ConstraintMod::eRelaxConst ):
    // In order to relax the constraint all we do is transform it
    // into an inequality (<=) with RHS equal to infinity
 
@@ -1197,10 +1201,10 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
    GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
    break;
 
-  case ConstraintMod::eEnforceConst:
-  case RowConstraintMod::eChgLHS:
-  case RowConstraintMod::eChgRHS:
-  case RowConstraintMod::eChgBTS:
+  case( ConstraintMod::eEnforceConst ):
+  case( RowConstraintMod::eChgLHS ):
+  case( RowConstraintMod::eChgRHS ):
+  case( RowConstraintMod::eChgBTS ):
    // In order to enforce a relaxed constraint all we need to do is
    // reverse the process of relaxing it, by changing the sense and
    // the rhs back to the original form of the constraint
@@ -1278,19 +1282,19 @@ void GRBMILPSolver::bound_modification( const OneVarConstraintMod * mod )
 
  switch( mod->type() ) {
 
-  case RowConstraintMod::eChgLHS: {
+  case( RowConstraintMod::eChgLHS ): {
    std::array< double , 1 > bd = { GRBMILPSolver::get_problem_lb( *var ) };
    GRBsetdblattrelement( model , GRB_DBL_ATTR_LB , vi , bd[0] );
    break;
    }
 
-  case RowConstraintMod::eChgRHS: {
+  case( RowConstraintMod::eChgRHS ): {
    std::array< double , 1 > bd = { GRBMILPSolver::get_problem_ub( *var ) };
    GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , vi , bd[ 0 ] );
    break;
    }
 
-  case RowConstraintMod::eChgBTS: {
+  case( RowConstraintMod::eChgBTS ): {
    auto bd = GRBMILPSolver::get_problem_bounds( *var );
    GRBsetdblattrelement( model , GRB_DBL_ATTR_LB , vi , bd[0] );
    GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , vi , bd[ 1 ] );
@@ -1610,7 +1614,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // Quadratic objective function
 
   // In Gurobi to change quadratic coefficients we need to retrieve all the old coeff.,
-  // and then add the difference between the new and the old ones. In this case there if we want to delete 
+  // and then add the difference between the new and the old ones. In this case there if we want to delete
   // a quadratic coefficent, we can just subtract its old value
 
   int nqz;
