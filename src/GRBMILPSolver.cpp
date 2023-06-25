@@ -94,6 +94,8 @@ GRBMILPSolver::GRBMILPSolver( void ) :
  if( status != 0 )
   throw( std::runtime_error( "GRBemptyenv returned with status " +
 			     std::to_string( status ) ) );
+
+ GRBsetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , 0 ); // suppress Gurobi logging
  
  status = GRBstartenv( env );
  if( status != 0 )
