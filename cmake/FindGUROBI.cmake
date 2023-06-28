@@ -57,14 +57,14 @@ if (UNIX)
     endif ()
 
 else ()
-    # Windows (usually C:/Program Files)
-    set(GUROBI_DIRS "C:/Program Files")
+    # Windows (usually C:)
+    set(GUROBI_DIRS "C:")
 
     if (CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(GUROBI_ARCH x64)
     else ()
         set(GUROBI_ARCH x86)
-        set(GUROBI_DIRS "C:/Program Files (x86)" ${GUROBI_DIRS})
+        set(GUROBI_DIRS "C:" ${GUROBI_DIRS})
     endif ()
 endif ()
 
