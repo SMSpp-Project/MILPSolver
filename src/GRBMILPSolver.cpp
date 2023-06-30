@@ -231,7 +231,7 @@ void GRBMILPSolver::load_problem( void )
  std::vector< int > matbeg_t( numrows , 0 );
  std::vector< char > grb_sense( numrows , 'R' );
  // filling matbeg_t
- for( int j = 0 ; j < numrows ; ++j ){
+ for( int j = 0 ; j < numrows ; ++j ) {
   switch( sense[ j ] ) {
     case( 'L' ): grb_sense[ j ] = GRB_LESS_EQUAL;
             break;
@@ -259,11 +259,11 @@ void GRBMILPSolver::load_problem( void )
  }
   
  // adding constraints (grouping non ranged and singularly ranged)
- for( int j = 0 ; j < numrows ; ++j ){
+ for( int j = 0 ; j < numrows ; ++j ) {
 
   int tmp = j;
   int tot_nnz = 0;
-  while( grb_sense[ j ] != 'R' &&  j < numrows ){
+  while( grb_sense[ j ] != 'R' &&  j < numrows ) {
     tot_nnz = tot_nnz + n_nz_row[ j ];
     ++j;
   }
@@ -281,7 +281,7 @@ void GRBMILPSolver::load_problem( void )
     std::vector< double > matval_group_con( tot_nnz , 0 );
 
     // filling matind and matval for the group of constraint
-    for( int i = 0 ; i < tot_nnz ; ++i ){
+    for( int i = 0 ; i < tot_nnz ; ++i ) {
       matind_group_con[ i ] = matind_t[ matbeg_t[ tmp ] + i ];
       matval_group_con[ i ] = matval_t[ matbeg_t[ tmp ] + i ];
     }
@@ -394,11 +394,11 @@ int GRBMILPSolver::compute( bool changedvars )
  int qcp;
  GRBgetintattr( model , GRB_INT_ATTR_IS_QCP , &qcp );
 
- if( qp == 1 ){
+ if( qp == 1 ) {
   DEBUG_LOG( "GUROBI problem type: QP" << std::endl );
   is_qp = true;
  }
- else if( qcp == 1 ){
+ else if( qcp == 1 ) {
   DEBUG_LOG( "GUROBI problem type: QCP" << std::endl );
   is_qp = true;
  }
@@ -414,13 +414,13 @@ int GRBMILPSolver::compute( bool changedvars )
    // the callback has to be set
    GRBsetcallbackfunc( model , & GRBMILPSolver_callback , this );
 
-   if( ( CutSepPar & 3 ) ){  // we do user cut separation, thus we have to set the possibility in Gurobi
+   if( CutSepPar & 3 ) {  // we do user cut separation, thus we have to set the possibility in Gurobi
     GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRECRUSH , 1 );
     auto md = ( CutSepPar >> 3 ) & 3;
     GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_CUTS , md );
    }
    
-   if( ( CutSepPar & 4 ) )  // we do lazy constraint separation, thus we have to set the possibility in Gurobi
+   if( CutSepPar & 4 )  // we do lazy constraint separation, thus we have to set the possibility in Gurobi
     GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_LAZYCONSTRAINTS , 1 );
    
    f_callback_set = true;
@@ -794,7 +794,7 @@ void GRBMILPSolver::get_var_solution( Configuration * solc )
   x = x_grb;
  else{
   int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ){
+  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
     if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
       x[ j - aux_counter ] = x_grb[ j ];
     else
@@ -873,7 +873,7 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
   dj = dj_grb;
  else{
   int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ){
+  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
     if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
       dj[ j - aux_counter ] = dj_grb[ j ];
     else
@@ -1043,7 +1043,7 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
   dj = dj_grb;
  else{
   int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ){
+  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
     if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
       dj[ j - aux_counter ] = dj_grb[ j ];
     else
@@ -1181,7 +1181,7 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
   throw( std::logic_error( "GRBMILPSolver: tried to query index of unknown variable"
 			   ) );
  
- if( n_ranged_con != 0 ){
+ if( n_ranged_con != 0 ) {
   int tmp_count = 0;
     while( idx > map_rng_con_aux_var[ tmp_count ].second )
       ++tmp_count;
@@ -1201,7 +1201,7 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
   throw( std::logic_error( "GRBMILPSolver: tried to query index of unknown dynamic variable"
 			   ) );
  
- if( n_ranged_con != 0 ){
+ if( n_ranged_con != 0 ) {
   int tmp_count = 0;
     while( idx > map_rng_con_aux_var[ tmp_count ].second )
       ++tmp_count;
@@ -1310,14 +1310,14 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
  // find if con is a ranged constraint
  auto it_rng = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
     [&index]( std::pair< int , int > const& elem ) {
-    return elem.first == index;
+    return( elem.first == index );
   });
  bool is_rng = ( it_rng != map_rng_con_aux_var.end() ); // 0 isn't a ranged constraint
 
  switch( mod->type() ) {
   case( ConstraintMod::eRelaxConst ):
    
-   if( !is_rng ){
+   if( ! is_rng ) {
     // In order to relax the constraint all we do is transform it
     // into an inequality (<=) with RHS equal to infinity
 
@@ -1328,7 +1328,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
     break;
    }
    else{
-    // In order to relax the ranged constraint all we do is retrive the
+    // In order to relax the ranged constraint all we do is retrieve the
     // auxiliary variable associated and set the UB to infinity
     
     int idx_aux_var = ( *it_rng ).second;
@@ -1375,9 +1375,10 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
    else{
     // GRBMILPSolver doesn't support change in linear constraint sense from
     // non ranged to ranged
-    if( !is_rng ) 
-      throw( std::invalid_argument( "Tried to convert a non ranged constraint into a ranged one. 
-      GRBMILPSolver doesn't support this function." ) );
+    if( ! is_rng )
+      throw( std::invalid_argument( "Tried to convert a non ranged constraint "
+                                    "into a ranged one. GRBMILPSolver does not "
+                                    "support this function." ) );
     
     int idx_aux_var = ( *it_rng ).second;
     GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , con_rhs );
@@ -1761,7 +1762,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
 
   // In Gurobi to change quadratic coefficients we need to retrieve all the old coeff.,
   // and then add the difference between the new and the old ones. In this case there if we want to delete
-  // a quadratic coefficent, we can just subtract its old value
+  // a quadratic coefficient, we can just subtract its old value
 
   int nqz;
   GRBgetintattr( model , GRB_INT_ATTR_NUMQNZS , & nqz );
@@ -1776,7 +1777,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
 
   for( auto v : mod->vars() ) {
    auto var = ColV( v );
-   if( auto ind = grb_index_of_variable( var ) ; ind < Inf< int >() ){
+   if( auto ind = grb_index_of_variable( var ) ; ind < Inf< int >() ) {
 
     indices.push_back( ind );
     double value = 0;
@@ -2020,11 +2021,11 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  if( index == Inf< int >() )
   throw( std::runtime_error( "Dynamic constraint not found" ) );
 
- if( n_ranged_con != 0 ){
+ if( n_ranged_con != 0 ) {
   // find if con is a ranged constraint
   auto it_rng = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
       [&index]( std::pair< int , int > const& elem ) {
-      return elem.first == index;
+      return( elem.first == index );
     });
   bool is_rng = ( it_rng != map_rng_con_aux_var.end() ); // 0 isn't a ranged constraint
 
@@ -2035,10 +2036,10 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
   // Update map : find the first pair with idx con greater than index
   auto it_rng_s = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
       [&index]( std::pair< int , int > const& elem ) {
-      return elem.first > index;
+      return( elem.first > index );
     });
   // Update map : decrease the idx of rng con
-  while( it_rng_s != map_rng_con_aux_var.end() ){
+  while( it_rng_s != map_rng_con_aux_var.end() ) {
     --( *it_rng_s ).first;
     ++it_rng_s;
   }
@@ -2058,14 +2059,14 @@ void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
  int index = grb_index_of_dynamic_variable( var );
 
 
- if( n_ranged_con != 0 ){
+ if( n_ranged_con != 0 ) {
  // Update map : find the first pair with idx aux var greater than index
   auto it_rng = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
       [&index]( std::pair< int , int > const& elem ) {
-      return elem.second > index;
+      return( elem.second > index );
     });
   // Update map : decrease the idx of aux var
-  while( it_rng != map_rng_con_aux_var.end() ){
+  while( it_rng != map_rng_con_aux_var.end() ) {
     --( *it_rng ).second;
     ++it_rng;
   }
