@@ -48,7 +48,7 @@ MILPSINC = -I$(MILPSSDR)include/
 
 MILPSH = $(MILPSSDR)include/MILPSolver.h \
 	$(MILPSSDR)include/CPXMILPSolver.h \
-	$(MILPSSDR)include/SCIPMILPSolver.h
+	$(MILPSSDR)include/SCIPMILPSolver.h \
 	$(MILPSSDR)include/GRBMILPSolver.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

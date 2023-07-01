@@ -46,7 +46,7 @@ libSCIPDIR = $(MILPSSDR)../extlib/
 include $(libSCIPDIR)makefile-libSCIP
 
 # define input macros for libGUROBI complete makefile, then include it
-libGUROBIDIR = $(MILPSSDR)/extlib/
+libGUROBIDIR = $(MILPSSDR)../extlib/
 include $(libGUROBIDIR)makefile-libGUROBI
 
 # include the makefile requiring all external modules in input
