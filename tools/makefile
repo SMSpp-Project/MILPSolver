@@ -57,7 +57,7 @@ clean::
 #include $(libSCIPDIR)makefile-libSCIP
 
 # define input macros for libGUROBI complete makefile, then include it
-libGUROBIDIR = $(DIR)/../extlib/
+libGUROBIDIR = $(DIR)../../extlib/
 include $(libGUROBIDIR)makefile-libGUROBI.mak
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
