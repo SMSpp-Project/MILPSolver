@@ -1783,19 +1783,20 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     double value = 0;
     double q_value = 0;
 
-    if( mod->added() )
+    if( mod->added() ) {
      if( auto idx = qf->is_active( var ) ; idx < nav ) {
        value = qf->get_linear_coefficient( idx );
        q_value = qf->get_quadratic_coefficient( idx );
        }
-    else {
-     auto arr_idx_row = std::find(oldind_row.begin(), oldind_row.end(), idx);
-     auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), idx);
+     else {
+       auto arr_idx_row = std::find(oldind_row.begin(), oldind_row.end(), idx);
+       auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), idx);
 
-     if( *arr_idx_row != *arr_idx_col )
-      throw( std::runtime_error( "Error while modifying quadratic coefficients" ) );
-
-     q_value = oldval[ *arr_idx_row ];
+       if( *arr_idx_row != *arr_idx_col )
+       throw( std::runtime_error( "Error while modifying quadratic coefficients" ) );
+       
+       q_value = - oldval[ *arr_idx_row ];
+      }
     }
 
     values.push_back( value );
