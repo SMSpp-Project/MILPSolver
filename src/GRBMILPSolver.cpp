@@ -200,7 +200,7 @@ void GRBMILPSolver::load_problem( void )
   int n_qp = 0;
 
   // creating a vector containg only non-zero coefficients for quadratic terms and corresponding indices
-  for( int i = 0; i < numcols ; ++i ) {
+  for( int i = 0 ; i < numcols ; ++i ) {
 	 if( double_q_obj[n_qp] != 0 ) {
 	  n_qp = n_qp + 1;
 	  qp_indices.push_back( i );
@@ -1489,7 +1489,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    cidx.resize( nsz );
    nval.resize( nsz );
 
-   for (int i = 0; i < cidx.size(); ++i )
+   for( int i = 0 ; i < cidx.size() ; ++i )
     GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx[ i ] , nval[ i ]  );
 
    return;
@@ -1526,7 +1526,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    cidx.resize( nsz );
    nval.resize( nsz );
 
-   for (int i = 0; i < cidx.size(); ++i )
+   for( int i = 0 ; i < cidx.size() ; ++i )
     GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx[ i ] , nval[ i ]  );
 
    return;
@@ -1752,7 +1752,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     }
    }
 
-  for (int i = 0; i < indices.size(); ++i )
+  for( int i = 0 ; i < indices.size() ; ++i )
     GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , indices[ i ] , values[ i ]  );
   return;
   }
@@ -1791,7 +1791,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     else {
      auto arr_idx_row = std::find(oldind_row.begin(), oldind_row.end(), idx);
      auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), idx);
-    
+
      if( *arr_idx_row != *arr_idx_col )
       throw( std::runtime_error( "Error while modifying quadratic coefficients" ) );
 
@@ -1804,7 +1804,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     }
    }
 
-  for (int i = 0; i < indices.size(); ++i )
+  for( int i = 0 ; i < indices.size() ; ++i )
     GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , indices[ i ] , values[ i ]  );
 
   GRBupdatemodel( model );
@@ -2205,7 +2205,7 @@ int GRBMILPSolver::callback( GRBmodel *model,
 
     // if any user cut was generated, add them
     if( ! rmatbeg.empty() ) {
-      for (int c = 0 ; c < rhs.size() ; ++c ) {
+      for( int c = 0 ; c < rhs.size() ; ++c ) {
         int nnz; // number of nonzero coefficients in the actual cut
         int idx = rmatbeg[ c ];
         if( c < rhs.size() - 1)
@@ -2263,7 +2263,7 @@ int GRBMILPSolver::callback( GRBmodel *model,
 
    // if any lazy constraint was generated, add them
    if( ! rmatbeg.empty() ) {
-    for (int c = 0 ; c < rhs.size() ; ++c ) {
+    for( int c = 0 ; c < rhs.size() ; ++c ) {
       int nnz; // number of nonzero coefficients in the actual lazy constraint
       int idx = rmatbeg[ c ];
       if( c < rhs.size() - 1)
