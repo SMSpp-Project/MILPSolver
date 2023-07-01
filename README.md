@@ -33,7 +33,8 @@ Currently available derived classes are:
   "truly" FOSS by dint of being distributed under the Apache 2.0 License as
   opposed to the previous academic license preventing roialty-free commercial
   use)
-
+- `GRBMILPSolver`, providing the interface with the commercial
+  [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
 
 ## Getting started
 
@@ -48,6 +49,9 @@ These instructions will let you build MILPSolver on your system.
 - for `SCIPMILPSolver` you will need
   [SCIP](https://www.scipopt.org)(currently supported versions: 7.0.0, 7.0.1,
   7.0.2, 7.0.3, 8.0.0, 8.0.3)
+- for `GRBMILPSolver` you will need
+  [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
+  (currently supported versions: 10.0.1, 10.0.2)
 
 All actual *MILPSolver are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
@@ -71,10 +75,11 @@ The library has the same configuration options of
 [SMS++](https://gitlab.com/smspp/smspp-project/-/wikis/Customize-the-configuration).
 Moreover, you can use the following configuration options:
 
-| Variable               | Description | Default value |
-| ---------------------- | ----------- | ------------- |
-| `MILPSolver_USE_CPLEX` | Use CPLEX   | ON            |
-| `MILPSolver_USE_SCIP`  | Use SCIP    | ON            |
+| Variable                 | Description | Default value |
+| ------------------------ | ----------- | ------------- |
+| `MILPSolver_USE_CPLEX`   | Use CPLEX   | ON            |
+| `MILPSolver_USE_SCIP`    | Use SCIP    | ON            |
+| `MILPSolver_USE_GUROBI`  | Use GUROBI  | ON            |
 
 Optionally, install the library in the system with:
 
@@ -129,16 +134,16 @@ Options:
 
 ### Parameter generators
 
-`CPXMILPSolver` and `SCIPMILPSolver` support, respectively, CPLEX and SCIP
-parameter names in the `Configuration` files. To do so, they need header
-files that depend on the versions of CPLEX and SCIP currently installed on
-the system; such headers can be generated with the `cpx_pars` and `scip_pars`
-tools.
+`CPXMILPSolver` , `SCIPMILPSolver` and `GRBMILPSolver` support, respectively, 
+CPLEX , SCIP and GUROBI parameter names in the `Configuration` files. To do so, 
+they need header files that depend on the versions of CPLEX , SCIP and GUROBI 
+currently installed on the system; such headers can be generated with the 
+`cpx_pars` , `scip_pars` and `grb_pars` tools.
 
 > **Note:**
 > We provide header files for the versions we already support, so you will
-> need these tools only if you have an unsupported version of either CPLEX
-> or SCIP.
+> need these tools only if you have an unsupported version of either CPLEX ,
+> SCIP or GUROBI.
 
 
 ## Getting help
