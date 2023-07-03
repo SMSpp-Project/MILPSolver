@@ -59,13 +59,6 @@ SMSpp_insert_in_factory_cpp_0( CPXMILPSolver );
 /*----------------------------- FUNCTIONS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-const ColVariable * ColV( const Variable * v )
-{
- return( static_cast< const ColVariable * >( v ) );
- }
-
-/*--------------------------------------------------------------------------*/
-
 int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
 			    CPXLONG contextid , void * userhandle )
 {
@@ -1332,7 +1325,7 @@ void CPXMILPSolver::var_modification( const VariableMod * mod )
 
  bool is_mip = int_vars > 0;  // is a MIP after the change
 
- auto var = ColV( mod->variable() );
+ auto var = static_cast< const ColVariable * >( mod->variable() );
  auto idx = index_of_variable( var );
  if( idx == Inf< int >() )  // the Variable is not (yet) there (?)
   return;                   // nothing to do
@@ -1513,7 +1506,7 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
  static std::array< char , 2 > lu = { 'L' , 'U' };
 
  auto con = static_cast< OneVarConstraint * >( mod->constraint() );
- auto var = ColV( con->get_active_var( 0 ) );
+ auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
  if( ! var )  // this should never happen
   return;     // but in case, there is nothing to do
 
@@ -1591,7 +1584,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( auto v :  modl->vars() )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      *(nvit++) = cp[ idx ].second;
-     *(cidxit++) = index_of_variable( ColV( v ) );
+     *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
      }
 
    auto nsz = std::distance( nval.begin() , nvit );
@@ -1624,7 +1617,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( auto v :  modl->vars() )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      *(nvit++) = std::get< 1 >( cp[ idx ] );
-     *(cidxit++) = index_of_variable( ColV( v ) );
+     *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
      }
 
    auto nsz = std::distance( nval.begin() , nvit );
@@ -1686,7 +1679,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   for( auto v : *vars )
    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
     *(nvit++) = std::get< 1 >( cp[ idx ] );
-    auto cidx = index_of_variable( ColV( v ) );
+    auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
     *(cidxit++) = cidx;
     // quadratic coefficients need be changed one at a time
     CPXchgqpcoef( env , lp , cidx , cidx , 2 * std::get< 2 >( cp[ idx ] ) );
@@ -1748,7 +1741,7 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
  for( auto v :  modl->vars() )
   if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
    *(nvit++) = cp[ idx ].second;
-   *(cidxit++) = index_of_variable( ColV( v ) );
+   *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
    }
 
  auto nsz = std::distance( nval.begin() , nvit );
@@ -1804,7 +1797,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // Linear objective function
 
   for( auto v : mod->vars() ) {
-   auto var = ColV( v );
+   auto var = static_cast< const ColVariable * >( v );
    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
     if( mod->added() ) {
@@ -1824,7 +1817,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // Quadratic objective function
 
   for( auto v : mod->vars() ) {
-   auto var = ColV( v );
+   auto var = static_cast< const ColVariable * >( v );
    if( auto ind = index_of_variable( var ) ; ind < Inf< int >() ) {
     indices.push_back( ind );
     double value = 0;
@@ -1902,7 +1895,7 @@ void CPXMILPSolver::constraint_fvars_modification(
 
  // get indices and coefficients
  for( auto v : mod->vars() ) {
-  auto var = ColV( v );
+  auto var = static_cast< const ColVariable * >( v );
   if( auto vidx = index_of_variable( var ) ; vidx < Inf< int >() ) {
    indices.push_back( vidx );
    if( mod->added() ) {
@@ -2069,7 +2062,7 @@ void CPXMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::add_dynamic_bound( con );
 
- auto var = ColV( con->get_active_var( 0 ) );
+ auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
  if( ! var )
   throw( std::logic_error( "CPXMILPSolver: added a bound on no Variable" ) );
 
@@ -2123,7 +2116,7 @@ void CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  // note: this only works because remove_dynamic_constraint[s]() do *not*
  //       clear the removed OneVarConstraint, and therefore we can easily
  //       reconstruct which ColVariable it was about
- auto var = ColV( con->get_active_var( 0 ) );
+ auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
  if( ! var )  // this should never happen
   return;     // but in case, there is nothing to do
 
