@@ -22,6 +22,7 @@
 #           $(SMS++INC)    = the -I$( core SMS++ directory )                 #
 #           $(SMS++OBJ)    = the core SMS++ library                          #
 #           $(libCPLEXINC) = the -I$( Cplex library )                        #
+#           $(libGUROBIINC)= the -I$( Gurobi library )                       #
 #           $(libSCIPINC)  = the -I$( SCIP library )                         #
 #           $(MILPSSDR)    = the directory where the source is               #
 #                                                                            #
@@ -40,13 +41,15 @@
 
 MILPSOBJ = $(MILPSSDR)obj/MILPSolver.o \
 	$(MILPSSDR)obj/CPXMILPSolver.o \
-	$(MILPSSDR)obj/SCIPMILPSolver.o
+	$(MILPSSDR)obj/SCIPMILPSolver.o \
+	$(MILPSSDR)obj/GRBMILPSolver.o
 
 MILPSINC = -I$(MILPSSDR)include/
 
 MILPSH = $(MILPSSDR)include/MILPSolver.h \
 	$(MILPSSDR)include/CPXMILPSolver.h \
-	$(MILPSSDR)include/SCIPMILPSolver.h
+	$(MILPSSDR)include/SCIPMILPSolver.h \
+	$(MILPSSDR)include/GRBMILPSolver.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -71,5 +74,11 @@ $(MILPSSDR)obj/SCIPMILPSolver.o: $(MILPSSDR)src/SCIPMILPSolver.cpp \
 	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)src/SCIPMILPSolver.cpp -o $@ \
 	$(MILPSINC) $(SMS++INC) $(libSCIPINC) $(SW)
+
+$(MILPSSDR)obj/GRBMILPSolver.o: $(MILPSSDR)src/GRBMILPSolver.cpp \
+	$(MILPSSDR)include/GRBMILPSolver.h \
+	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)src/GRBMILPSolver.cpp -o $@ \
+	$(MILPSINC) $(SMS++INC) $(libGUROBIINC) $(SW)
 
 ########################## End of makefile ###################################

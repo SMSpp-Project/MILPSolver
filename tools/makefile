@@ -2,17 +2,22 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of cpx_pars / scip_pars                                         #
+#   makefile of cpx_pars / scip_pars  /  grb_pars                            #
 #                                                                            #
 #                              Antonio Frangioni                             #
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
 #                                                                            #
+#                              Enrico Calandrini                             #
+#                          Dipartimento di Matematica                        #
+#                              Universita' di Pisa                           #
+#                                                                            #
 ##############################################################################
 
 # module name: uncomment the one that you want to build
-NAME = scip_pars
+#NAME = scip_pars
 #NAME = cpx_pars
+NAME = grb_pars
 
 # basic directory
 DIR = ./
@@ -23,7 +28,7 @@ DIR = ./
 SW = -O3 -std=c++17 -DNDEBUG
 
 # compiler
-CC = clang++
+CC = g++
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -48,8 +53,12 @@ clean::
 #include $(libCPLEXDIR)makefile-libCPLEX
 
 # define input macros for libSCIP complete makefile, then include it
-libSCIPDIR = $(DIR)../../extlib/
-include $(libSCIPDIR)makefile-libSCIP
+#libSCIPDIR = $(DIR)../../extlib/
+#include $(libSCIPDIR)makefile-libSCIP
+
+# define input macros for libGUROBI complete makefile, then include it
+libGUROBIDIR = $(DIR)../../extlib/
+include $(libGUROBIDIR)makefile-libGUROBI.mak
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -57,7 +66,7 @@ include $(libSCIPDIR)makefile-libSCIP
 MOBJ =  
 
 # libreries
-MLIB =  $(libCPLEXLIB) $(libSCIPLIB)
+MLIB =  $(libGUROBILIB) #$(libCPLEXLIB) #$(libSCIPLIB)
 
 $(NAME): $(MOBJ) $(DIR)$(NAME).o
 	$(CC) -o $(NAME) $(DIR)$(NAME).o $(MOBJ) $(MLIB) $(SW)
@@ -65,7 +74,7 @@ $(NAME): $(MOBJ) $(DIR)$(NAME).o
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
 # include directives
-MINC =  $(libCPLEXINC) $(libSCIPINC)
+MINC =  $(libGUROBIINC) #$(libCPLEXINC) #$(libSCIPINC)
 
 # includes
 MH =    

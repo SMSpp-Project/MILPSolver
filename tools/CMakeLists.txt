@@ -16,6 +16,12 @@ if (MILPSolver_USE_SCIP)
     target_include_directories(scip_pars PRIVATE ${SCIP_INCLUDE_DIRS})
 endif ()
 
+if (MILPSolver_USE_GUROBI)
+    add_executable(grb_pars grb_pars.cpp)
+    target_compile_features(grb_pars PRIVATE cxx_std_17)
+    target_link_libraries(grb_pars PRIVATE GUROBI::Gurobi)
+endif ()
+
 # ----- MILP Solver tool ---------------------------------------------------- #
 add_executable(milp_solver solver.cpp)
 target_link_libraries(milp_solver PRIVATE SMS++::MILPSolver)

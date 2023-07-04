@@ -343,17 +343,17 @@ Solver::OFValue SCIPMILPSolver::get_lb( void )
  OFValue lower_bound = 0;
 
  switch( SCIPgetObjsense( scip ) ) {
-  case SCIP_OBJSENSE_MINIMIZE:
+  case( SCIP_OBJSENSE_MINIMIZE ):
    switch( sol_status ) {
-    case kUnbounded:  lower_bound = -Inf< OFValue >(); break;
-    case kInfeasible: lower_bound = Inf< OFValue >();  break;
+    case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
+    case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
     default:          lower_bound = SCIPgetDualbound( scip ) + constant_value;
     }
    break;
-  case SCIP_OBJSENSE_MAXIMIZE:
+  case( SCIP_OBJSENSE_MAXIMIZE ):
    switch( sol_status ) {
-    case kUnbounded:  lower_bound = Inf< OFValue >();  break;
-    case kInfeasible: lower_bound = -Inf< OFValue >(); break;
+    case( kUnbounded ):  lower_bound = Inf< OFValue >();  break;
+    case( kInfeasible ): lower_bound = -Inf< OFValue >(); break;
     default:          lower_bound = SCIPgetPrimalbound( scip ) + constant_value;
     }
    break;
@@ -371,17 +371,17 @@ Solver::OFValue SCIPMILPSolver::get_ub( void )
  OFValue upper_bound = 0;
 
  switch( SCIPgetObjsense( scip ) ) {
-  case SCIP_OBJSENSE_MINIMIZE:
+  case( SCIP_OBJSENSE_MINIMIZE ):
    switch( sol_status ) {
-    case kUnbounded:  upper_bound = -Inf< OFValue >(); break;
-    case kInfeasible: upper_bound = Inf< OFValue >();  break;
+    case( kUnbounded ):  upper_bound = -Inf< OFValue >(); break;
+    case( kInfeasible ): upper_bound = Inf< OFValue >();  break;
     default:          upper_bound = SCIPgetPrimalbound( scip ) + constant_value;
     }
    break;
-  case SCIP_OBJSENSE_MAXIMIZE:
+  case( SCIP_OBJSENSE_MAXIMIZE ):
    switch( sol_status ) {
-    case kUnbounded:  upper_bound = Inf< OFValue >();  break;
-    case kInfeasible: upper_bound = -Inf< OFValue >(); break;
+    case( kUnbounded ):  upper_bound = Inf< OFValue >();  break;
+    case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
     default:          upper_bound = SCIPgetDualbound( scip ) + constant_value;
     }
    break;
@@ -573,11 +573,11 @@ void SCIPMILPSolver::objective_modification( const ObjectiveMod * mod )
   * To change OF coefficients, a FunctionMod must be used. */
 
  switch( mod->type() ) {
-  case ObjectiveMod::eSetMin:
+  case( ObjectiveMod::eSetMin ):
    SCIP_CALL_ABORT( SCIPsetObjsense( scip , SCIP_OBJSENSE_MINIMIZE ) );
    break;
 
-  case ObjectiveMod::eSetMax:
+  case( ObjectiveMod::eSetMax ):
    SCIP_CALL_ABORT( SCIPsetObjsense( scip , SCIP_OBJSENSE_MAXIMIZE ) );
    break;
 
@@ -610,7 +610,7 @@ void SCIPMILPSolver::const_modification( const ConstraintMod * mod )
  SCIP_CONS * scip_con = cons[ idx ];
 
  switch( mod->type() ) {
-  case ConstraintMod::eRelaxConst:
+  case( ConstraintMod::eRelaxConst ):
    // In order to relax the constraint all we do is transform it
    // into an inequality with RHS equal to infinity
    SCIP_CALL_ABORT( SCIPchgLhsLinear( scip , scip_con ,
@@ -619,10 +619,10 @@ void SCIPMILPSolver::const_modification( const ConstraintMod * mod )
 				      SCIPinfinity( scip ) ) );
    break;
 
-  case ConstraintMod::eEnforceConst:
-  case RowConstraintMod::eChgLHS:
-  case RowConstraintMod::eChgRHS:
-  case RowConstraintMod::eChgBTS:
+  case( ConstraintMod::eEnforceConst ):
+  case( RowConstraintMod::eChgLHS ):
+  case( RowConstraintMod::eChgRHS ):
+  case( RowConstraintMod::eChgBTS ):
    // In order to enforce a relaxed constraint all we need to do is
    // reverse the process of relaxing it, by changing the sense and
    // the rhs back to the original form of the constraint
@@ -669,19 +669,19 @@ void SCIPMILPSolver::bound_modification( const OneVarConstraintMod * mod )
  auto scip_var = vars[ idx ];
 
  switch( mod->type() ) {
-  case RowConstraintMod::eChgLHS: {
+  case( RowConstraintMod::eChgLHS ): {
    SCIP_Real lb = SCIPMILPSolver::get_problem_lb( *var );
    SCIP_CALL_ABORT( SCIPchgVarLb( scip , scip_var , lb ) );
    break;
    }
 
-  case RowConstraintMod::eChgRHS: {
+  case( RowConstraintMod::eChgRHS ): {
    SCIP_Real ub = SCIPMILPSolver::get_problem_ub( *var );
    SCIP_CALL_ABORT( SCIPchgVarUb( scip , scip_var , ub ) );
    break;
    }
 
-  case RowConstraintMod::eChgBTS: {
+  case( RowConstraintMod::eChgBTS ): {
    auto bd = SCIPMILPSolver::get_problem_bounds( *var );
    SCIP_CALL_ABORT( SCIPchgVarLb( scip , scip_var , bd[ 0 ] ) );
    SCIP_CALL_ABORT( SCIPchgVarUb( scip , scip_var , bd[ 1 ] ) );
@@ -1097,13 +1097,13 @@ void SCIPMILPSolver::set_par( idx_type par, int value )
 {
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
-  case intMaxIter:
+  case( intMaxIter ):
    SCIP_CALL_ABORT( SCIPsetLongintParam( scip, "limits/nodes", value ) );
    return;
-  case intMaxSol:
+  case( intMaxSol ):
    SCIP_CALL_ABORT( SCIPsetIntParam( scip, "limits/solutions", value ) );
    return;
-  case intLogVerb:
+  case( intLogVerb ):
    SCIP_CALL_ABORT( SCIPsetIntParam( scip, "display/verblevel", value ) );
    return;
   }
@@ -1138,30 +1138,30 @@ void SCIPMILPSolver::set_par( idx_type par , double value )
 {
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
-  case dblMaxTime:
+  case( dblMaxTime ):
    SCIP_CALL_ABORT( SCIPsetRealParam( scip , "limits/time" , value ) );
    return;
-   // case dblRelAcc: // TODO
+   // case( dblRelAcc ): // TODO
    //  return;
-   // case dblAbsAcc: // TODO
+   // case( dblAbsAcc ): // TODO
    //  return;
-   // case dblUpCutOff:
+   // case( dblUpCutOff ):
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE ) {
    //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
    //  }
    //  return;
-   // case dblLwCutOff:
+   // case( dblLwCutOff ):
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MAXIMIZE ) {
    //   SCIP_CALL_ABORT( SCIPsetObjlimit( scip, value ) );
    //  }
    //  return;
-  case dblRAccSol:
+  case( dblRAccSol ):
    SCIP_CALL_ABORT( SCIPsetRealParam( scip , "limits/gap" , value ) );
    return;
-  case dblAAccSol:
+  case( dblAAccSol ):
    SCIP_CALL_ABORT( SCIPsetRealParam( scip , "limits/absgap" , value ) );
    return;
-  case dblFAccSol:
+  case( dblFAccSol ):
    SCIP_CALL_ABORT( SCIPsetRealParam( scip , "numerics/feastol" , value ) );
    return;
   }
@@ -1237,14 +1237,14 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const
 
  // solver parameters explicitly mapped in SCIP
  switch( par ) {
-  case intMaxIter:
+  case( intMaxIter ):
    SCIP_CALL_ABORT( SCIPgetLongintParam( scip , "limits/nodes" , & long_val
 					 ) );
    return( ( int ) long_val );
-  case intMaxSol:
+  case( intMaxSol ):
    SCIP_CALL_ABORT( SCIPgetIntParam( scip , "limits/solutions" , & value ) );
    return( value );
-  case intLogVerb:
+  case( intLogVerb ):
    SCIP_CALL_ABORT( SCIPgetIntParam( scip , "display/verblevel" , & value ) );
    return( value );
   }
@@ -1259,14 +1259,14 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const
   SCIP_PARAMTYPE type = SCIPparamGetType( param );
 
   switch( type ) {
-   case SCIP_PARAMTYPE_BOOL:
+   case( SCIP_PARAMTYPE_BOOL ):
     SCIP_CALL_ABORT( SCIPgetBoolParam( scip , scip_par.c_str() , & bool_val
 				       ) );
     return( ( int ) bool_val );
-   case SCIP_PARAMTYPE_INT:
+   case( SCIP_PARAMTYPE_INT ):
     SCIP_CALL_ABORT( SCIPgetIntParam( scip , scip_par.c_str() , & value ) );
     return( value );
-   case SCIP_PARAMTYPE_LONGINT:
+   case( SCIP_PARAMTYPE_LONGINT ):
     SCIP_CALL_ABORT( SCIPgetLongintParam( scip , scip_par.c_str() ,
 					  & long_val ) );
     return( ( int ) long_val );
@@ -1285,27 +1285,27 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const
 
  // sxolver parameters explicitly mapped in SCIP
  switch( par ) {
-  case dblMaxTime:
+  case( dblMaxTime ):
    SCIP_CALL_ABORT( SCIPgetRealParam( scip , "limits/time" , & value ) );
    return( value );
-   // case dblRelAcc:   // TODO
+   // case( dblRelAcc ):   // TODO
    //  return( 1e-6 );
-   // case dblAbsAcc:   // TODO
+   // case( dblAbsAcc ):   // TODO
    //  return( Inf< OFValue >() );
-   // case dblUpCutOff:
+   // case( dblUpCutOff ):
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE ) {
    //   return( SCIPgetObjlimit( scip ) );
    //  }
    //  return( Inf< OFValue >() );
-   // case dblLwCutOff:
+   // case( dblLwCutOff ):
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MAXIMIZE ) {
    //   return( SCIPgetObjlimit( scip ) );
    //  }
    //  return( -Inf< OFValue >() );
-  case dblRAccSol:
+  case( dblRAccSol ):
    SCIP_CALL_ABORT( SCIPgetRealParam( scip , "limits/gap" , & value ) );
    return( value );
-  case dblAAccSol:
+  case( dblAAccSol ):
    SCIP_CALL_ABORT( SCIPgetRealParam( scip , "limits/absgap" , & value ) );
    return( value );
   case( dblFAccSol ):
@@ -1340,12 +1340,12 @@ const std::string & SCIPMILPSolver::get_str_par( idx_type par ) const
   SCIP_PARAMTYPE type = SCIPparamGetType( param );
 
   switch( type ) {
-   case SCIP_PARAMTYPE_CHAR:
+   case( SCIP_PARAMTYPE_CHAR ):
     value.resize( 1 );
     SCIP_CALL_ABORT( SCIPgetCharParam( scip , scip_par.c_str() ,
 				       value.data() ) );
     return( value );
-   case SCIP_PARAMTYPE_STRING:
+   case( SCIP_PARAMTYPE_STRING ):
     SCIP_CALL_ABORT( SCIPgetStringParam( scip , scip_par.c_str() ,
 					 & str_val ) );
     value = str_val;
@@ -1367,13 +1367,13 @@ int SCIPMILPSolver::get_dflt_int_par( idx_type par ) const
 
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
-  case intMaxIter:
+  case( intMaxIter ):
    param = SCIPgetParam( scip , "limits/nodes" );
    return( ( int ) SCIPparamGetLongintDefault( param ) );
-  case intMaxSol:
+  case( intMaxSol ):
    param = SCIPgetParam( scip , "limits/solutions" );
    return( SCIPparamGetIntDefault( param ) );
-  case intLogVerb:
+  case( intLogVerb ):
    param = SCIPgetParam( scip, "display/verblevel" );
    return( SCIPparamGetIntDefault( param ) );
   }
@@ -1387,11 +1387,11 @@ int SCIPMILPSolver::get_dflt_int_par( idx_type par ) const
   param = SCIPgetParam( scip , scip_par.c_str() );
 
   switch( SCIPparamGetType( param ) ) {
-   case SCIP_PARAMTYPE_BOOL:
+   case( SCIP_PARAMTYPE_BOOL ):
     return( ( int ) SCIPparamGetBoolDefault( param ) );
-   case SCIP_PARAMTYPE_INT:
+   case( SCIP_PARAMTYPE_INT ):
     return( SCIPparamGetIntDefault( param ) );
-   case SCIP_PARAMTYPE_LONGINT:
+   case( SCIP_PARAMTYPE_LONGINT ):
     return( ( int ) SCIPparamGetLongintDefault( param ) );
    default:;  // here just to avoid a pesky warning
    }
@@ -1408,30 +1408,30 @@ double SCIPMILPSolver::get_dflt_dbl_par( idx_type par ) const
  SCIP_PARAM * param;
 
  switch( par ) {
-  case dblMaxTime:
+  case( dblMaxTime ):
    param = SCIPgetParam( scip , "limits/time" );
    return( SCIPparamGetRealDefault( param ) );
-   // case dblRelAcc:   // TODO
+   // case( dblRelAcc ):   // TODO
    //  return( 1e-6 );
-   // case dblAbsAcc:   // TODO
+   // case( dblAbsAcc ):   // TODO
    //  return( Inf< OFValue >() );
-   // case dblUpCutOff:
+   // case( dblUpCutOff ):
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE ) {
    //   return( -Inf< OFValue >() );
    //  }
    //  return( Inf< OFValue >() );
-   // case dblLwCutOff:
+   // case( dblLwCutOff ):
    //  if( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MAXIMIZE ) {
    //   return( Inf< OFValue >() );
    //  }
    //  return( -Inf< OFValue >() );
-  case dblRAccSol:
+  case( dblRAccSol ):
    param = SCIPgetParam( scip , "limits/gap" );
    return( SCIPparamGetRealDefault( param ) );
-  case dblAAccSol:
+  case( dblAAccSol ):
    param = SCIPgetParam( scip , "limits/absgap" );
    return( SCIPparamGetRealDefault( param ) );
-  case dblFAccSol:
+  case( dblFAccSol ):
    param = SCIPgetParam( scip , "numerics/feastol" );
    return( SCIPparamGetRealDefault( param ) );
   }
@@ -1465,11 +1465,11 @@ const std::string & SCIPMILPSolver::get_dflt_str_par( idx_type par ) const
   SCIP_PARAM * param = SCIPgetParam( scip , scip_par.c_str() );
 
   switch( SCIPparamGetType( param ) ) {
-   case SCIP_PARAMTYPE_CHAR:
+   case( SCIP_PARAMTYPE_CHAR ):
     value.resize( 1 );
     value[ 0 ] = SCIPparamGetCharDefault( param );
     return( value );
-   case SCIP_PARAMTYPE_STRING:
+   case( SCIP_PARAMTYPE_STRING ):
     str_val = SCIPparamGetStringDefault( param );
     value = str_val;
     return( value );
