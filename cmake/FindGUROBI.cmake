@@ -104,7 +104,7 @@ else ()
     # ----- Find the GUROBI include directory ------------------------------- #
     set(GUROBI_DIR ${GUROBI_DIR}/linux64) # TODO: Generalize to other system
     # Note that find_path() creates a cache entry
-    find_path(GUROBI_INCLUDE_DIR gurobi_c.h gurobi_c++.h
+    find_path(GUROBI_INCLUDE_DIR gurobi_c.h
               PATHS ${GUROBI_DIR}/include
               DOC "GUROBI include directory.")
 
