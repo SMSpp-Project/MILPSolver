@@ -176,6 +176,10 @@ conduct, and the process for submitting merge requests to us.
   Dipartimento di Informatica  
   Università di Pisa
 
+- **Enrico Calandrini**
+  Dipartimento di Informatica \n
+  Universita' di Pisa \n
+
 
 ## License
 

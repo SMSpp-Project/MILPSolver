@@ -247,13 +247,17 @@ void GRBMILPSolver::load_problem( void )
 
   int tmp = j;
   int tot_nnz = 0;
+  int n_constrs = 0; // number of non ranged constraints in group
   while( grb_sense[ j ] != 'R' &&  j < numrows ) {
+    ++n_constrs;
     tot_nnz = tot_nnz + n_nz_row[ j ];
-    ++j;
+    if( grb_sense[ j + 1 ] != 'R' )
+      ++j;
+    else
+      break;
   }
 
   if( sense[ tmp ] != 'R' ) { // not ranged case
-    int n_constrs = j - tmp;
 
     std::vector< int > matbeg_group_con( n_constrs , 0 );
   
@@ -1300,26 +1304,16 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
 
  switch( mod->type() ) {
   case( ConstraintMod::eRelaxConst ):
-   
-   if( ! is_rng ) {
     // In order to relax the constraint all we do is transform it
-    // into an inequality (<=) with RHS equal to infinity
+    // into an inequality (<=) with RHS equal to infinity.
+    // NOTE: for ranged constraint we can do the same BUT in the reverse 
+    // process we have to remember to set the sense to ==
 
     sense = GRB_LESS_EQUAL;
     rhs = GRB_INFINITY;
     GRBsetcharattrelement( model , GRB_CHAR_ATTR_SENSE , index , sense );
     GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
     break;
-   }
-   else{
-    // In order to relax the ranged constraint all we do is retrieve the
-    // auxiliary variable associated and set the UB to infinity
-    
-    int idx_aux_var = ( *it_rng ).second;
-    rhs = GRB_INFINITY;
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , rhs );
-    break;
-   }
 
   case( ConstraintMod::eEnforceConst ):
   case( RowConstraintMod::eChgLHS ):
@@ -1350,6 +1344,8 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
       }
      else {
       sense = 'R';
+      rhs = con_rhs;
+      rngval = con_rhs - con_lhs;
       }
    
    if( sense != 'R' ) {
@@ -1365,7 +1361,9 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
                                     "support this function." ) );
     
     int idx_aux_var = ( *it_rng ).second;
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , con_rhs );
+    GRBsetcharattrelement( model , GRB_CHAR_ATTR_SENSE , index , GRB_EQUAL );
+    GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , rngval );
+    GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
    }
    
    break;
