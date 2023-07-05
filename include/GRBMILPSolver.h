@@ -5,21 +5,18 @@
  * Header file for the GRBMILPSolver class.
  *
  * GRBMILPSolver implements a general purpose solver that is able to tackle a
- * MILP problem expressed by a Block using Gurobi Optimizer.
+ * MILP problem expressed by a Block using Gurobi Optimizer. Only supports
+ * Gurobi versions >= 10.0.1.
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Niccolo' Iardella \n
+ * \author Enrico Calandrini \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Enrico Calandrini \n
- *         Dipartimento di Matematica \n
- *         Universita' di Pisa \n
- *
- * \copyright &copy; Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; Antonio Frangioni, Enrico Calandrini
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/

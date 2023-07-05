@@ -58,7 +58,7 @@ clean::
 
 # define input macros for libGUROBI complete makefile, then include it
 libGUROBIDIR = $(DIR)../../extlib/
-include $(libGUROBIDIR)makefile-libGUROBI.mak
+include $(libGUROBIDIR)makefile-libGUROBI
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 

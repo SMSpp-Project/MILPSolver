@@ -8,19 +8,11 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Niccolo' Iardella \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
- *
- * \author Kostas Tavlaridis-Gyparakis \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
- *
  * \author Enrico Calandrini \n
- *         Dipartimento di Matematica \n
+ *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy by Antonio Frangioni, Enrico Calandrini
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
@@ -63,14 +55,13 @@ SMSpp_insert_in_factory_cpp_0( GRBMILPSolver );
 /*----------------------------- FUNCTIONS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-int GRBMILPSolver_callback( GRBmodel *model,
-           void *cbdata,
-           int where,
-           void *usrdata)
+int GRBMILPSolver_callback( GRBmodel * model , void * cbdata , int where ,
+			    void * usrdata )
 {
  // just defer to the class method
  return( static_cast< GRBMILPSolver * >( usrdata
-					 )->callback( model , cbdata , where ) );
+					 )->callback( model , cbdata , where )
+	 );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -80,7 +71,7 @@ int GRBMILPSolver_callback( GRBmodel *model,
 GRBMILPSolver::GRBMILPSolver( void ) :
  MILPSolver() , env( nullptr ) , model( nullptr ) , f_callback_set( false ) ,
  throw_reduced_cost_exception( 0 ) , CutSepPar( 0 ) , 
- last_static_rng_con( -1 ) , n_ranged_con( 0 ),
+ last_static_rng_con( -1 ) , n_ranged_con( 0 ) ,
  UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
 {
  int status = 0;
@@ -89,14 +80,14 @@ GRBMILPSolver::GRBMILPSolver( void ) :
   throw( std::runtime_error( "GRBemptyenv returned with status " +
 			     std::to_string( status ) ) );
 
- GRBsetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , 0 ); // suppress Gurobi logging
+ GRBsetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , 0 );
+ // suppress Gurobi logging
  
  status = GRBstartenv( env );
  if( status != 0 )
   throw( std::runtime_error( "GRBstartenv returned with status " +
 			     std::to_string( status ) ) );
-
-}
+ }
 
 /*--------------------------------------------------------------------------*/
 
