@@ -1186,7 +1186,7 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
 			   ) );
  
  if( n_ranged_con != 0 ) {
-  int tmp_count = 0;
+  int tmp_count = last_static_rng_con + 1;
     while( idx > map_rng_con_aux_var[ tmp_count ].second )
       ++tmp_count;
   
@@ -2008,8 +2008,8 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 
  if( n_ranged_con != 0 ) {
   // find if con is a ranged constraint
-  auto it_rng = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
-      [&index]( std::pair< int , int > const& elem ) {
+  auto it_rng = std::find_if( map_rng_con_aux_var.begin() + last_static_rng_con + 1, 
+      map_rng_con_aux_var.end(), [&index]( std::pair< int , int > const& elem ) {
       return( elem.first == index );
     });
   bool is_rng = ( it_rng != map_rng_con_aux_var.end() ); // 0 isn't a ranged constraint
@@ -2019,8 +2019,8 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
     map_rng_con_aux_var.erase( it_rng );
 
   // Update map : find the first pair with idx con greater than index
-  auto it_rng_s = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
-      [&index]( std::pair< int , int > const& elem ) {
+  auto it_rng_s = std::find_if( map_rng_con_aux_var.begin() + last_static_rng_con + 1,
+      map_rng_con_aux_var.end(), [&index]( std::pair< int , int > const& elem ) {
       return( elem.first > index );
     });
   // Update map : decrease the idx of rng con

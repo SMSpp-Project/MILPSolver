@@ -658,12 +658,12 @@ class GRBMILPSolver : public MILPSolver {
   *                   a new ranged constraint, Gurobi add both constraint and auxiliary 
   *                   variable at the end of the model. Thus, the new couple
   *                   ( idx_rng_con , idx_aux_var ) will have values greater than the
-  *                   previously added. 
+  *                   previously added ones. 
   * */
  // the vector of pair ( ranged constraint - axiliary variable )
  std::vector<std::pair < int , int >> map_rng_con_aux_var;
 
- // last static ranged constraint aadded
+ // last static ranged constraint added
  int last_static_rng_con;
 
  // total number of ranged constraints
