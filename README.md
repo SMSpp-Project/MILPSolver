@@ -177,8 +177,8 @@ conduct, and the process for submitting merge requests to us.
   Università di Pisa
 
 - **Enrico Calandrini**
-  Dipartimento di Informatica \n
-  Universita' di Pisa \n
+  Dipartimento di Informatica
+  Universita' di Pisa
 
 
 ## License
