@@ -24,10 +24,6 @@
 #    This find module is provided because GUROBI does not provide             #
 #    a CMake configuration file on its own.                                   #
 #                                                                             #
-#                              Niccolo' Iardella                              #
-#                         Dipartimento di Informatica                         #
-#                             Universita' di Pisa                             #
-#                                                                             #
 #                              Enrico Calandrini                              #
 #                         Dipartimento di Matematica                          #
 #                             Universita' di Pisa                             #
@@ -49,12 +45,11 @@ if (UNIX)
     if (APPLE)
         # macOS (usually /Library)
         set(GUROBI_DIRS /Library)
-        set(GUROBI_LIB_PATH_SUFFIXES lib)
     else ()
         # Other Unix-based systems (usually /opt)
         set(GUROBI_DIRS /opt)
-        set(GUROBI_LIB_PATH_SUFFIXES lib)
     endif ()
+    set(GUROBI_LIB_PATH_SUFFIXES lib)
 
 else ()
     # Windows (usually C:)
