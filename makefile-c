@@ -60,6 +60,6 @@ MILPSOBJ := $(MILPSOBJ) $(SMS++OBJ)
 MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libSCIPINC) $(libGUROBIINC)
 
 # external libreries for MILPSolver
-MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libSCIPLIB) $(libGUROBIINC)
+MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libSCIPLIB) $(libGUROBILIB)
 
 ############################ End of makefile #################################
