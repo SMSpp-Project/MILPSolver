@@ -666,9 +666,6 @@ class GRBMILPSolver : public MILPSolver {
  // last static ranged constraint added
  int last_static_rng_con;
 
- // total number of ranged constraints
- int n_ranged_con;
-
  // function to retrieve actual idx of variable considering auxiliary ones
  int grb_index_of_variable( const ColVariable * var ) const;
 

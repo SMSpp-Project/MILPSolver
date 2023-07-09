@@ -70,8 +70,7 @@ int GRBMILPSolver_callback( GRBmodel * model , void * cbdata , int where ,
 
 GRBMILPSolver::GRBMILPSolver( void ) :
  MILPSolver() , env( nullptr ) , model( nullptr ) , f_callback_set( false ) ,
- throw_reduced_cost_exception( 0 ) , CutSepPar( 0 ) , 
- last_static_rng_con( -1 ) , n_ranged_con( 0 ) ,
+ last_static_rng_con( -1 ) , throw_reduced_cost_exception( 0 ) , CutSepPar( 0 ) ,
  UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
 {
  int status = 0;
@@ -243,6 +242,7 @@ void GRBMILPSolver::load_problem( void )
  }
   
  // adding constraints (grouping non ranged and singularly ranged)
+ int n_ranged_con = 0;
  for( int j = 0 ; j < numrows ; ++j ) {
 
   int tmp = j;
@@ -772,6 +772,7 @@ Solver::OFValue GRBMILPSolver::get_var_value( void )
 
 void GRBMILPSolver::get_var_solution( Configuration * solc )
 {
+ int n_ranged_con = map_rng_con_aux_var.size();
  std::vector< double > x( numcols , 0 );
  std::vector< double > x_grb( numcols + n_ranged_con, 0 );
 
@@ -846,6 +847,7 @@ bool GRBMILPSolver::is_dual_feasible( void )
 
 void GRBMILPSolver::get_dual_solution( Configuration * solc )
 {
+ int n_ranged_con = map_rng_con_aux_var.size();
  std::vector< double > pi( numrows , 0 );
  std::vector< double > dj( numcols , 0 );
  std::vector< double > dj_grb( numcols + n_ranged_con , 0 );
@@ -1003,6 +1005,7 @@ bool GRBMILPSolver::has_dual_direction( void )
 
 void GRBMILPSolver::get_dual_direction( Configuration * dirc )
 {
+ int n_ranged_con = map_rng_con_aux_var.size();
  std::vector< double > y( numrows , 0 );
  std::vector< double > dj( numcols , 0 );
  std::vector< double > dj_grb( numcols + n_ranged_con , 0 );
@@ -1166,15 +1169,16 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
 {
  auto idx = index_of_variable( var );
  if( idx == Inf< int >() )
-  throw( std::logic_error( "GRBMILPSolver: tried to query index of unknown variable"
-			   ) );
+  return( idx );
+
+ int n_ranged_con = map_rng_con_aux_var.size();
  
  if( n_ranged_con != 0 ) {
   int tmp_count = 0;
-    while( idx > map_rng_con_aux_var[ tmp_count ].second )
+    while( idx >= map_rng_con_aux_var[ tmp_count ].second  && tmp_count < n_ranged_con ){
       ++tmp_count;
-  
-  idx = idx + tmp_count;
+      ++idx;
+    }
   }
 
   return( idx );
@@ -1186,13 +1190,16 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
 {
  auto idx = index_of_dynamic_variable( var );
  if( idx == Inf< int >() )
-  throw( std::logic_error( "GRBMILPSolver: tried to query index of unknown dynamic variable"
-			   ) );
+  return( idx );
+
+ int n_ranged_con = map_rng_con_aux_var.size();
  
  if( n_ranged_con != 0 ) {
   int tmp_count = last_static_rng_con + 1;
-    while( idx > map_rng_con_aux_var[ tmp_count ].second )
+    while( idx >= map_rng_con_aux_var[ tmp_count ].second  && tmp_count < n_ranged_con ){
       ++tmp_count;
+      ++idx;
+    }
   
   idx = idx + tmp_count;
   }
@@ -1215,6 +1222,8 @@ void GRBMILPSolver::var_modification( const VariableMod * mod )
 
  auto var = static_cast< const ColVariable * >( mod->variable() );
  auto idx = grb_index_of_variable( var );
+ if( idx == Inf< int >() )  // the Variable is not (yet) there (?)
+  return;                   // nothing to do
         
  // react to changes in the integrality - - - - - - - - - - - - - - - - - - -
  if( ColVariable::is_integer( mod->old_state() ) !=
@@ -1400,6 +1409,8 @@ void GRBMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   return;
 
  auto vi = grb_index_of_variable( var );
+ if( vi == Inf< int >() )  // the ColVariable has been removed
+  return;                  // is strange, but there is nothing to do
 
  switch( mod->type() ) {
 
@@ -1626,7 +1637,6 @@ void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_function_modification( mod );
-
  auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
@@ -1662,9 +1672,7 @@ void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
  for( auto v :  modl->vars() )
   if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
    *(nvit++) = cp[ idx ].second;
-   auto cidx = grb_index_of_variable( static_cast< const ColVariable * >( v ) );
-     
-    *(cidxit++) = cidx ;
+   *(cidxit++) = grb_index_of_variable( static_cast< const ColVariable * >( v ) );
    }
 
  auto nsz = std::distance( nval.begin() , nvit );
@@ -1891,6 +1899,7 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
 
  int nzcnt = lf->get_num_active_var();
 
+ int n_ranged_con = map_rng_con_aux_var.size();
  std::array< int , 2 > rmatbeg = { 0 , nzcnt };
  std::vector< int > rmatind;
  rmatind.reserve( nzcnt );
@@ -1944,6 +1953,8 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
                          NULL );
   }
 
+ GRBupdatemodel( model );
+
  }  // end( GRBMILPSolver::add_dynamic_constraint )
 
 /*--------------------------------------------------------------------------*/
@@ -1974,6 +1985,8 @@ void GRBMILPSolver::add_dynamic_variable( const ColVariable * var )
  // update the GUROBI problem
  GRBaddvar( model , 0 , nullptr , nullptr , 0.0 , 
             bd[ 0 ] , bd[ 1 ] , new_ctype , nullptr );
+ 
+ GRBupdatemodel( model );
 
  }  // end( GRBMILPSolver::add_dynamic_variable )
 
@@ -1989,6 +2002,9 @@ void GRBMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
   throw( std::logic_error( "GRBMILPSolver: added a bound on no Variable" ) );
 
  auto idx = grb_index_of_variable( var );
+ if( idx == Inf< int >() )
+  throw( std::logic_error( "GRBMILPSolver: added a bound on unknown Variable"
+			   ) );
 
  auto bd = GRBMILPSolver::get_problem_bounds( *var );
 
@@ -2004,6 +2020,7 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  if( index == Inf< int >() )
   throw( std::runtime_error( "Dynamic constraint not found" ) );
 
+ int n_ranged_con = map_rng_con_aux_var.size();
  if( n_ranged_con != 0 ) {
   // find if con is a ranged constraint
   auto it_rng = std::find_if( map_rng_con_aux_var.begin() + last_static_rng_con + 1, 
@@ -2040,7 +2057,7 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
  int index = grb_index_of_dynamic_variable( var );
-
+ int n_ranged_con = map_rng_con_aux_var.size();
 
  if( n_ranged_con != 0 ) {
  // Update map : find the first pair with idx aux var greater than index
@@ -2077,6 +2094,8 @@ void GRBMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
   return;     // but in case, there is nothing to do
 
  int idx = grb_index_of_variable( var );
+ if( idx == Inf< int >() )  // the ColVariable has been removed
+  return;                   // is strange, but there is nothing to do
 
  auto bd = GRBMILPSolver::get_problem_bounds( *var );
 
