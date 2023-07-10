@@ -2124,7 +2124,7 @@ void CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  if( idx == Inf< int >() )  // the ColVariable has been removed
   return;                   // is strange, but there is nothing to do
 
- std::array< int , 2 > indices = { 2 , idx };
+ std::array< int , 2 > indices = { idx , idx };
  static std::array< char , 2 > lu = { 'L' , 'U' };
  auto bd = CPXMILPSolver::get_problem_bounds( *var );
 
