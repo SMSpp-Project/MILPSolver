@@ -1,14 +1,15 @@
 /*--------------------------------------------------------------------------*/
-/*-------------------------- File test.cpp -----------------------------*/
+/*-------------------------- File test.cpp ---------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
  * Main for testing PolyhedralFunction
  *
  * A "random" PolyhedralFunction is constructed and represented in terms of 
- * linear inequalities for two otherwise "empty" Block. The two Block are 
- * solved by two different *MILPSolver and the results are compared. 
- * The two Block are then repeatedly randomly modified "in the same way", 
- * and re-solved several times.
+ * linear inequalities for a "empty" Block. The Block is solved by a number s
+ * of different *MILPSolver (you can decide how many solver attach to the 
+ * block) and the results are compared. 
+ * The Block is then repeatedly randomly modified "in the same way", and 
+ * re-solved several times.
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
@@ -49,19 +50,6 @@
 #endif
 
 /*--------------------------------------------------------------------------*/
-// if HAVE_CONSTRAINTS == 1, then about 50% of the variables will have a
-// non-negativity constraint implemented via ColVariable::is_positive()
-// if HAVE_CONSTRAINTS == 2, then about 50% of the variables will have
-// bound constraints; of these, 33% will only have 0 lower bound, 33% will
-// only have random upper bound, and the rest will have both. of the
-// remaining 50% of the variables, another 50%  will have a
-// non-negativity constraint implemented via ColVariable::is_positive()
-// if HAVE_CONSTRAINT == 3, then the same situation described in the case 2 
-// will be reproduced, but the bound constraint will be FRowConstraint.
-
-#define HAVE_CONSTRAINTS 2
-
-/*--------------------------------------------------------------------------*/
 
 // if nonzero, the Solver attached to the LPBlock is detached and re-attached
 // to it at all iterations
@@ -97,11 +85,6 @@
  #define RED( x ) #x
  #define GREEN( x ) #x
 #endif
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
-#define DYNAMIC_VARS 0
-// if 1, half of the variables are dynamic
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
@@ -180,11 +163,7 @@ const FunctionValue INF = SMSpp_di_unipi_it::Inf< FunctionValue >();
 /*------------------------------- GLOBALS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-AbstractBlock * LPBlock1;   // the problem expressed as an LP ( with the 1st 
-                            // solver attached )
-
-AbstractBlock * LPBlock2;   // the problem expressed as an LP ( with the 2nd 
-                            // solver attached )
+AbstractBlock * LPBlock;   // the problem expressed as an LP
 
 bool convex = true;        // true if the PolyhedralFunction is convex
 
@@ -193,12 +172,8 @@ double bound = 1000;       // a tentative bound to detect unbounded instances
 FunctionValue BND;         // the bound in the PolyhedralFunction (if any)
 
 Index nvar = 10;           // number of variables
-#if DYNAMIC_VARS > 0
- Index nsvar;              // number of static variables
- Index ndvar;              // number of dynamic variables
-#else
- #define nsvar nvar        // all variables are static
-#endif
+Index nsvar;              // number of static variables
+Index ndvar;              // number of dynamic variables
 
 Index m;                   // number of rows
 
@@ -208,24 +183,13 @@ std::uniform_real_distribution<> dis( 0.0 , 1.0 );
 MultiVector A;
 RealVector b;
 
-ColVariable * vLP1;                 // pointer to v LP1 variable
-ColVariable * vLP2;                 // pointer to v LP2 variable
+ColVariable * vLP;                 // pointer to v LP variable
 
-std::vector< ColVariable > * xLP1;  // pointer to (static) x LP1 variables
-std::vector< ColVariable > * xLP2;  // pointer to (static) x LP2 variables
-#if DYNAMIC_VARS > 0
- std::list< ColVariable > * xLP1d;  // pointer to (dynamic) x LP1 variables
- std::list< ColVariable > * xLP2d;  // pointer to (dynamic) x LP2 variables
-#endif
+std::vector< ColVariable > * xLP;  // pointer to (static) x LP variables
 
-#if HAVE_CONSTRAINTS == 2
- std::list< BoxConstraint > * LPbnd1;   // BoxConstraint for first LPBlock
- std::list< BoxConstraint > * LPbnd2;  // BoxConstraint for second LPBlock
-#endif
-#if HAVE_CONSTRAINTS == 3
- std::list< FRowConstraint > * LPbnd1;  // FRowConstrait for first LPBlock
- std::list< FRowConstraint > * LPbnd2;  // FRowConstrait for second LPBlock
-#endif
+std::list< ColVariable > * xLPd;  // pointer to (dynamic) x LP variables
+
+std::list< FRowConstraint > * LPbnd;  // FRowConstrait for LPBlock
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ FUNCTIONS ---------------------------------*/
@@ -332,18 +296,18 @@ static Subset GenerateRand( Index m , Index k )
 
  /*--------------------------------------------------------------------------*/
 
-static void ConstructfirstLPConstraint( Index i , FRowConstraint & ci ,
+static void ConstructLPConstraint( Index i , FRowConstraint & ci ,
 				   bool setblock = true )
 {
  // construct constraint ci out of A[ i ] and b[ i ]:
  //
  // in the convex case, the constraint is
  //
- //          b[ i ] <= vLP1 - \sum_j Ai[ j ] * xLP1[ j ] <= INF
+ //          b[ i ] <= vLP1 - \sum_j Ai[ j ] * xLP[ j ] <= INF
  //
  // in the concave case, the constraint is
  //
- //          -INF <= vLP1 - \sum_j Ai[ j ] * xLP1[ j ] <= b[ i ]
+ //          -INF <= vLP1 - \sum_j Ai[ j ] * xLP[ j ] <= b[ i ]
  //
  // note: constraints are constructed dense (elements == 0, which are
  //       anyway quite unlikely, are ignored) to make things simpler
@@ -363,73 +327,20 @@ static void ConstructfirstLPConstraint( Index i , FRowConstraint & ci ,
  Index j = 0;
 
  // first, v
- vars[ j ] = std::make_pair( vLP1 , 1 );
+ vars[ j ] = std::make_pair( vLP , 1 );
 
  // then, static x
  for( ; j < nsvar ; ++j )
-  vars[ j + 1 ] = std::make_pair( &((*xLP1)[ j ] ) , - A[ i ][ j ] );
+  vars[ j + 1 ] = std::make_pair( &((*xLP)[ j ] ) , - A[ i ][ j ] );
 
- #if DYNAMIC_VARS > 0
-  // finally, dynamic x
-  auto xLPdit = xLP1d->begin();
-  for( ; j < nvar ; ++j , ++xLPdit )
+ // finally, dynamic x
+ auto xLPdit = xLPd->begin();
+ for( ; j < nvar ; ++j , ++xLPdit )
    vars[ j + 1 ] = std::make_pair( &(*xLPdit) , - A[ i ][ j ] );
- #endif
 
  ci.set_function( new LinearFunction( std::move( vars ) ) );
  if( setblock )
-  ci.set_Block( LPBlock1 );
- }
-
-/*--------------------------------------------------------------------------*/
-
-static void ConstructsecondLPConstraint( Index i , FRowConstraint & ci ,
-				   bool setblock = true )
-{
- // construct constraint ci out of A[ i ] and b[ i ]:
- //
- // in the convex case, the constraint is
- //
- //          b[ i ] <= vLP2 - \sum_j Ai[ j ] * xLP[ j ] <= INF
- //
- // in the concave case, the constraint is
- //
- //          -INF <= vLP2 - \sum_j Ai[ j ] * xLP[ j ] <= b[ i ]
- //
- // note: constraints are constructed dense (elements == 0, which are
- //       anyway quite unlikely, are ignored) to make things simpler
- //
- // note: variable x[ i ] is given index i + 1, variable v has index 0
-
- if( convex ) {
-  ci.set_lhs( b[ i ] );
-  ci.set_rhs( INF );
-  }
- else {
-  ci.set_lhs( -INF );
-  ci.set_rhs( b[ i ] );
-  }
- LinearFunction::v_coeff_pair vars( nvar + 1 );
-
- Index j = 0;
-
- // first, v
- vars[ j ] = std::make_pair( vLP2 , 1 );
-
- // then, static x
- for( ; j < nsvar ; ++j )
-  vars[ j + 1 ] = std::make_pair( &((*xLP2)[ j ] ) , - A[ i ][ j ] );
-
- #if DYNAMIC_VARS > 0
-  // finally, dynamic x
-  auto xLPdit = xLP2d->begin();
-  for( ; j < nvar ; ++j , ++xLPdit )
-   vars[ j + 1 ] = std::make_pair( &(*xLPdit) , - A[ i ][ j ] );
- #endif
-
- ci.set_function( new LinearFunction( std::move( vars ) ) );
- if( setblock )
-  ci.set_Block( LPBlock2 );
+  ci.set_Block( LPBlock );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -454,150 +365,40 @@ static void ChangeLPConstraint( Index i , FRowConstraint & ci , ModParam iAM )
 
 /*--------------------------------------------------------------------------*/
 
-#if HAVE_CONSTRAINTS > 0
-
-static inline void SetNN( ColVariable & LPxi1 , ColVariable & LPxi2 )
+static inline void SetNN( ColVariable & LPxi )
 {
  if( dis( rg ) < 0.5 ) {
-  LPxi1.is_positive( true , eNoMod );
-  LPxi2.is_positive( true , eNoMod );
+  LPxi.is_positive( true , eNoMod );
+  //LPxi2.is_positive( true , eNoMod );
   }
  }
 
 /*--------------------------------------------------------------------------*/
 
-#if DYNAMIC_VARS > 0
-
-static void RemoveBox( AbstractBlock & AB , Range rng )
-{
- // the dynamic variable from the "xd" group in the Range are removed: if
- // anything is "active" in those are BoxConstraints from the "xbnd" group
- // that has to be removed as well
-
- auto xd = AB.get_dynamic_variable< ColVariable >( 0 );
- auto it = std::next( xd->begin() , rng.first );
- for( Index i = rng.first ; i < rng.second ; ++i , ++it ) {
-  if( ! it->get_num_active() )
-   continue;
-  int numbox = it->get_num_active();
-  for( int j = 0 ; j < numbox ; ++j ){
-   std::vector< typename std::list< BoxConstraint >::iterator > rmvd;
-   auto & box = *(AB.get_dynamic_constraint< BoxConstraint >( "xbnd" ));
-   auto bc = dynamic_cast< BoxConstraint * >( it->get_active( 0 ) );
-   if( ! bc ) {
-   cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
-   exit( 1 );
-   }
-   auto to_remove = std::find_if( box.begin() , box.end() ,
-			  [ bc ]( BoxConstraint & x ) {
-			   return( & x == bc );
-			   } );
-  if( to_remove == box.end() ) {
-   cout << "BoxConstraint not found" << endl;
-   exit( 1 );
-   }
-  rmvd.push_back( to_remove );
-  AB.remove_dynamic_constraints( box , rmvd ); 
-  }
- }
- }
-
-/*--------------------------------------------------------------------------*/
-
-static void RemoveBox( AbstractBlock & AB , const Subset & sbst )
-{
- // the dynamic variable from the "xd" group in the (ordered) Subset are
- // removed: if anything is "active" in those is a BoxConstraint from the
- // "xbnd" group that has to be removed as well
-
- auto xd = AB.get_dynamic_variable< ColVariable >( "xd" );
- Index prev = 0;
- auto it = xd->begin();
- for( auto ind : sbst ) {
-  it = std::next( it , ind - prev );
-  prev = ind;
-  if( ! it->get_num_active() )
-   continue;
-  int numbox = it->get_num_active();
-  for( int j = 0 ; j < numbox ; ++j ){
-   std::vector< typename std::list< BoxConstraint >::iterator > rmvd;
-   auto & box = *(AB.get_dynamic_constraint< BoxConstraint >( "xbnd" ));
-   auto bc = dynamic_cast< BoxConstraint * >( it->get_active( 0 ) );
-   if( ! bc ) {
-    cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
-    exit( 1 );
-    }
-   auto to_remove = std::find_if( box.begin() , box.end() ,
-			  [ bc ]( BoxConstraint & x ) {
-			   return( & x == bc );
-			   } );
-   if( to_remove == box.end() ) {
-    cout << "BoxConstraint not found" << endl;
-    exit( 1 );
-    }
-   rmvd.push_back( to_remove );
-   AB.remove_dynamic_constraints( box , rmvd ); 
-   }
-  }
- }
-
-/*--------------------------------------------------------------------------*/
-
-#endif // DYNAMIC_VARS > 0
-
-#if HAVE_CONSTRAINTS == 2
-
-static inline void SetBox( ColVariable & LPxi1 , ColVariable & LPxi2 )
+static inline void SetFRow( ColVariable & LPxi )
 {
  if( dis( rg ) < 0.5 ) {
-  LPbnd1->resize( LPbnd1->size() + 1 );
-  LPbnd2->resize( LPbnd2->size() + 1 );
-  LPbnd1->back().set_variable( & LPxi1 );
-  LPbnd2->back().set_variable( & LPxi2 );
+  LPbnd->resize( LPbnd->size() + 1 );
+  //LPbnd2->resize( LPbnd2->size() + 1 );
+  LinearFunction::v_coeff_pair vars_LP( 1 );
+  //LinearFunction::v_coeff_pair vars_LP2( 1 );
+  vars_LP[ 0 ] = std::make_pair( & LPxi , 1 );
+  //vars_LP2[ 0 ] = std::make_pair( & LPxi2 , 1 );
+  LPbnd->back().set_function( new LinearFunction( std::move( vars_LP ) ) );
+  //LPbnd2->back().set_function( new LinearFunction( std::move( vars_LP2 ) ) );
   auto p = dis( rg );
   auto lhs = p < 0.666 ? 0 : -INF;
   auto rhs = p > 0.333 ? dis( rg ) : INF;
-  LPbnd1->back().set_lhs( lhs , eNoMod );
-  LPbnd2->back().set_lhs( lhs , eNoMod );
-  LPbnd1->back().set_rhs( rhs , eNoMod );
-  LPbnd2->back().set_rhs( rhs , eNoMod );
+  LPbnd->back().set_lhs( lhs , eNoMod );
+  //LPbnd2->back().set_lhs( lhs , eNoMod );
+  LPbnd->back().set_rhs( rhs , eNoMod );
+  //LPbnd2->back().set_rhs( rhs , eNoMod );
   }
  else
-  SetNN( LPxi1 , LPxi2 );
+  SetNN( LPxi );
  }
 
 /*--------------------------------------------------------------------------*/
-
-#endif // HAVE CONSTRAINT == 2
-
-#if HAVE_CONSTRAINTS == 3
-
-static inline void SetFRow( ColVariable & LPxi1 , ColVariable & LPxi2 )
-{
- if( dis( rg ) < 0.5 ) {
-  LPbnd1->resize( LPbnd1->size() + 1 );
-  LPbnd2->resize( LPbnd2->size() + 1 );
-  LinearFunction::v_coeff_pair vars_LP1( 1 );
-  LinearFunction::v_coeff_pair vars_LP2( 1 );
-  vars_LP1[ 0 ] = std::make_pair( & LPxi1 , 1 );
-  vars_LP2[ 0 ] = std::make_pair( & LPxi2 , 1 );
-  LPbnd1->back().set_function( new LinearFunction( std::move( vars_LP1 ) ) );
-  LPbnd2->back().set_function( new LinearFunction( std::move( vars_LP2 ) ) );
-  auto p = dis( rg );
-  auto lhs = p < 0.666 ? 0 : -INF;
-  auto rhs = p > 0.333 ? dis( rg ) : INF;
-  LPbnd1->back().set_lhs( lhs , eNoMod );
-  LPbnd2->back().set_lhs( lhs , eNoMod );
-  LPbnd1->back().set_rhs( rhs , eNoMod );
-  LPbnd2->back().set_rhs( rhs , eNoMod );
-  }
- else
-  SetNN( LPxi1 , LPxi2 );
- }
-
-/*--------------------------------------------------------------------------*/
-
-#if DYNAMIC_VARS > 0
 
 static void RemoveFRow( AbstractBlock & AB , Range rng )
 {
@@ -619,18 +420,18 @@ static void RemoveFRow( AbstractBlock & AB , Range rng )
    cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
    exit( 1 );
    }
-  auto to_remove = std::find_if( frow.begin() , frow.end() ,
+   auto to_remove = std::find_if( frow.begin() , frow.end() ,
 			  [ rc ]( FRowConstraint & x ) {
 			   return( & x == rc );
 			   } );
-  if( to_remove == frow.end() ) {
-   cout << "FRowConstraint not found" << endl;
-   exit( 1 );
+   if( to_remove == frow.end() ) {
+    cout << "FRowConstraint not found" << endl;
+    exit( 1 );
+    }
+   rmvd.push_back( to_remove );
+   AB.remove_dynamic_constraints( frow , rmvd ); 
    }
-  rmvd.push_back( to_remove );
-  AB.remove_dynamic_constraints( frow , rmvd ); 
   }
- }
  }
 
 /*--------------------------------------------------------------------------*/
@@ -660,30 +461,19 @@ static void RemoveFRow( AbstractBlock & AB , const Subset & sbst )
     cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
     exit( 1 );
     }
-  auto to_remove = std::find_if( frow.begin() , frow.end() ,
+   auto to_remove = std::find_if( frow.begin() , frow.end() ,
 			  [ rc ]( FRowConstraint & x ) {
 			   return( & x == rc );
 			   } );
-  if( to_remove == frow.end() ) {
-   cout << "FRowConstraint not found" << endl;
-   exit( 1 );
+   if( to_remove == frow.end() ) {
+    cout << "FRowConstraint not found" << endl;
+    exit( 1 );
+    }
+   rmvd.push_back( to_remove );
+   AB.remove_dynamic_constraints( frow , rmvd ); 
    }
-  rmvd.push_back( to_remove );
-  AB.remove_dynamic_constraints( frow , rmvd ); 
   }
  }
- }
-
-
-/*--------------------------------------------------------------------------*/
-
-#endif // DYNAMIC_VARS > 0
-
-#endif // HAVE_CONSTRAINT == 3
-
-#endif // HAVE_CONSTRAINT > 0
-
-/*--------------------------------------------------------------------------*/
 
 /*--------------------------------------------------------------------------*/
 
@@ -711,75 +501,86 @@ static void printAb( const MultiVector & tA , const RealVector & tb ,
 
 /*--------------------------------------------------------------------------*/
 
-static bool SolveBoth( void ) 
+// Some functions used to check results of solvers in loop
+
+bool CompareSolution( double const d1 , double const d2 ){
+  return ( abs( d1 - d2 ) >= 2e-7 *
+			 max( double( 1 ) , abs( max( d1 , d2 ) ) ) );
+}
+
+bool allEqual(std::vector<double> const &v) {
+    return std::adjacent_find( v.begin(), v.end(), CompareSolution ) == v.end();
+}
+
+bool allTrue(std::vector<bool> const &v) {
+    return std::all_of( v.begin(), v.end(), [](bool i){ return i == true; } );
+}
+
+bool allInfeasible(std::vector<int> const &v) {
+    return std::all_of( v.begin(), v.end(), [](int i){ return i == Solver::kInfeasible; } );
+}
+
+bool allUnbounded(std::vector<int> const &v) {
+    return std::all_of( v.begin(), v.end(), [](int i){ return i == Solver::kUnbounded; } );
+}
+
+/*--------------------------------------------------------------------------*/
+
+static bool SolveAll( void ) 
 {
  try {
-  // solve the first LPBlock- - - - - - - - - - - - - - - - - - - - - - - - -
-  Solver * slvrLP1 = (LPBlock1->get_registered_solvers()).front();
-  #if DETACH_LP
-   LPBlock1->unregister_Solver( slvrLP1 );
-   LPBlock1->register_Solver( slvrLP1 , true );  // push it to the front
-  #endif
-  int rtrnLP1 = slvrLP1->compute( false );
-  bool hsLP1 = ( ( rtrnLP1 >= Solver::kOK ) && ( rtrnLP1 < Solver::kError ) )
-              || ( rtrnLP1 == Solver::kLowPrecision );
-  double foLP1 = hsLP1 ? ( convex ? slvrLP1->get_ub() : slvrLP1->get_lb() )
-                     : ( convex ? INF : -INF );
+  auto slvr_list = LPBlock->get_registered_solvers();
+  auto itslvr = slvr_list.begin();
+  int num_slvr = slvr_list.size();
+  std::vector<int> rtrnLP( num_slvr );
+  std::vector<bool> hsLP( num_slvr );
+  std::vector<double> foLP( num_slvr );
 
-// solve the second LPBlock- - - - - - - - - - - - - - - - - - - - - - - - -
-  Solver * slvrLP2 = (LPBlock2->get_registered_solvers()).front();
-  #if DETACH_LP
-   LPBlock2->unregister_Solver( slvrLP2 );
-   LPBlock2->register_Solver( slvrLP2 , true );  // push it to the front
-  #endif
-  int rtrnLP2 = slvrLP2->compute( false );
-  bool hsLP2 = ( ( rtrnLP2 >= Solver::kOK ) && ( rtrnLP2 < Solver::kError ) )
-              || ( rtrnLP2 == Solver::kLowPrecision );
-  double foLP2 = hsLP2 ? ( convex ? slvrLP2->get_ub() : slvrLP2->get_lb() )
-                     : ( convex ? INF : -INF );
+  for( int j = 0 ; j < num_slvr ; ++j , ++itslvr ){
 
-  if( hsLP1 && hsLP2 && ( abs( foLP1 - foLP2 ) <= 2e-7 *
-			 max( double( 1 ) , abs( max( foLP1 , foLP2 ) ) ) ) ) {
+    // solve the LPBlock with the j^th solvers- - - - - - - - - - - - - - - - - - 
+    Solver * slvrLP = *itslvr;
+    #if DETACH_LP
+     LPBlock->unregister_Solver( slvrLP );
+     LPBlock->register_Solver( slvrLP , true );  // push it to the front
+    #endif
+    rtrnLP[ j ] = slvrLP->compute( false );
+    hsLP[ j ] = ( ( rtrnLP[j] >= Solver::kOK ) && ( rtrnLP[ j ] < Solver::kError ) )
+                || ( rtrnLP[ j ] == Solver::kLowPrecision );
+    foLP[ j ] = hsLP[ j ] ? ( convex ? slvrLP->get_ub() : slvrLP->get_lb() )
+                      : ( convex ? INF : -INF );
+    }
+
+  if( allTrue( hsLP ) && ( allEqual( foLP ) ) ) {
    LOG1( "OK(f)" << endl );
    return( true );
    }
 
-  if( ( rtrnLP1 == Solver::kInfeasible ) &&
-      ( rtrnLP2== Solver::kInfeasible ) ) {
+  if( allInfeasible( rtrnLP ) ) {
     LOG1( "OK(?e?)" << endl );
     return( true );
     }
 
-  if( ( rtrnLP1 == Solver::kUnbounded ) &&
-      ( rtrnLP2 == Solver::kUnbounded ) ) {
+  if( allUnbounded( rtrnLP ) ) {
    LOG1( "OK(u)" << endl );
    return( true );
    }
 
   #if( LOG_LEVEL >= 1 )
-   cout << "LPBlock1 = ";
-   if( hsLP1 )
-    cout << foLP1;
-   else
-    if( rtrnLP1 == Solver::kInfeasible )
-     cout << "    Unfeas(?)";
-    else
-     if( rtrnLP1 == Solver::kUnbounded )
-      cout << "      Unbounded";
-     else
-      cout << "      Error!";
 
-   cout << "LPBlock2 = ";
-   if( hsLP2 )
-    cout << foLP2;
-   else
-    if( rtrnLP2 == Solver::kInfeasible )
-     cout << "    Unfeas(?)";
+   for( int j = 0 ; j < num_slvr ; ++j ){
+    cout << "Solver" << j <<  " = ";
+    if( hsLP[ j ] )
+     cout << foLP[ j ] << " -- ";
     else
-     if( rtrnLP2 == Solver::kUnbounded )
-      cout << "      Unbounded";
+     if( rtrnLP[ j ] == Solver::kInfeasible )
+      cout << " Unfeas(?) -- ";
+    else
+     if( rtrnLP[ j ] == Solver::kUnbounded )
+      cout << " Unbounded -- ";
      else
-      cout << "      Error!";
+      cout << " Error! -- ";
+   }
    cout << endl;
   #endif
 
@@ -830,10 +631,8 @@ int main( int argc , char **argv )
            "             2 = modify rows, 3 = modify constants"
 		<< endl <<
            "             4 = change global lower/upper bound"
-          #if DYNAMIC_VARS > 0
 		<< endl <<
            "             5 = add variables, 6 = delete variables"
-	  #endif
 	        << endl <<
            "       nvar: number of variables [10]"
 	        << endl <<
@@ -853,10 +652,8 @@ int main( int argc , char **argv )
   exit( 1 );
   }
 
- #if DYNAMIC_VARS > 0
-  nsvar = nvar / 2;      // half of the variables are dynamic
-  ndvar = nvar - nsvar;  // the other half are static
- #endif
+ nsvar = nvar / 2;      // half of the variables are dynamic
+ ndvar = nvar - nsvar;  // the other half are static
 
  m = nvar * dens;
  if( m < 1 ) {
@@ -886,188 +683,87 @@ int main( int argc , char **argv )
  // construction and loading of the objects - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- // construct the first LP- - - - - - - - - - - - - - - - - - - - - - - - - -
+ // construct the LP- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  {
   // ensure all original pointers go out of scope immediately after that
   // the construction has finished
 
-  LPBlock1 = new AbstractBlock();
+  LPBlock = new AbstractBlock();
 
   // construct the Variable
-  xLP1 = new std::vector< ColVariable >( nsvar );
-  #if DYNAMIC_VARS > 0
-   xLP1d = new std::list< ColVariable >( ndvar );
-  #endif
+  xLP = new std::vector< ColVariable >( nsvar );
+  xLPd = new std::list< ColVariable >( ndvar );
 
-  vLP1 = new ColVariable;
-  vLP1->set_Block( LPBlock1 );
+  vLP = new ColVariable;
+  vLP->set_Block( LPBlock );
 
   // construct the m dynamic Constraint
-  auto ALP1 = new std::list< FRowConstraint >( m );
-  auto ALP1it = ALP1->begin();
+  auto ALP = new std::list< FRowConstraint >( m );
+  auto ALPit = ALP->begin();
   for( Index i = 0 ; i < m ; )
-   ConstructfirstLPConstraint( i++ , *(ALP1it++) );
+   ConstructLPConstraint( i++ , *(ALPit++) );
 
   // construct the static lower bound Constraint
-  auto LB1c = new BoxConstraint( LPBlock1 , vLP1 , -INF , INF );
+  auto LBc = new BoxConstraint( LPBlock , vLP , -INF , INF );
   if( BND != INF ) {
    if( convex )
-    LB1c->set_lhs( -BND );
+    LBc->set_lhs( -BND );
    else
-    LB1c->set_rhs( BND );
+    LBc->set_rhs( BND );
    }
 
   // construct the Objective
-  auto objLP1 = new FRealObjective();
-  objLP1->set_function( new LinearFunction( { std::make_pair( vLP1 , 1 ) } ) );
-  objLP1->set_sense( convex ? Objective::eMin : Objective::eMax , eNoMod );
+  auto objLP = new FRealObjective();
+  objLP->set_function( new LinearFunction( { std::make_pair( vLP , 1 ) } ) );
+  objLP->set_sense( convex ? Objective::eMin : Objective::eMax , eNoMod );
   
   // now set the Variable, Constraint and Objective in the AbstractBlock
-  LPBlock1->add_static_variable( *vLP1 , "v" );
-  LPBlock1->add_static_variable( *xLP1 , "x" );
-  #if DYNAMIC_VARS > 0
-   LPBlock1->add_dynamic_variable( *xLP1d , "xd" );
-  #endif
-  LPBlock1->add_dynamic_constraint( *ALP1 , "cuts" );
-  LPBlock1->add_static_constraint( *LB1c , "vbnd" );
-  LPBlock1->set_objective( objLP1 );
-  }
-
- // construct the second LP- - - - - - - - - - - - - - - - - - - - - - - - - -
- {
-  // ensure all original pointers go out of scope immediately after that
-  // the construction has finished
-
-  LPBlock2 = new AbstractBlock();
-
-  // construct the Variable
-  xLP2 = new std::vector< ColVariable >( nsvar );
-  #if DYNAMIC_VARS > 0
-   xLP2d = new std::list< ColVariable >( ndvar );
-  #endif
-
-  vLP2 = new ColVariable;
-  vLP2->set_Block( LPBlock2 );
-
-  // construct the m dynamic Constraint
-  auto ALP2 = new std::list< FRowConstraint >( m );
-  auto ALP2it = ALP2->begin();
-  for( Index i = 0 ; i < m ; )
-   ConstructsecondLPConstraint( i++ , *(ALP2it++) );
-
-  // construct the static lower bound Constraint
-  auto LB2c = new BoxConstraint( LPBlock2 , vLP2 , -INF , INF );
-  if( BND != INF ) {
-   if( convex )
-    LB2c->set_lhs( -BND );
-   else
-    LB2c->set_rhs( BND );
-   }
-
-  // construct the Objective
-  auto objLP2 = new FRealObjective();
-  objLP2->set_function( new LinearFunction( { std::make_pair( vLP2 , 1 ) } ) );
-  objLP2->set_sense( convex ? Objective::eMin : Objective::eMax , eNoMod );
-  
-  // now set the Variable, Constraint and Objective in the AbstractBlock
-  LPBlock2->add_static_variable( *vLP2 , "v" );
-  LPBlock2->add_static_variable( *xLP2 , "x" );
-  #if DYNAMIC_VARS > 0
-   LPBlock2->add_dynamic_variable( *xLP2d , "xd" );
-  #endif
-  LPBlock2->add_dynamic_constraint( *ALP2 , "cuts" );
-  LPBlock2->add_static_constraint( *LB2c , "vbnd" );
-  LPBlock2->set_objective( objLP2 );
+  LPBlock->add_static_variable( *vLP , "v" );
+  LPBlock->add_static_variable( *xLP , "x" );
+  LPBlock->add_dynamic_variable( *xLPd , "xd" );
+  LPBlock->add_dynamic_constraint( *ALP , "cuts" );
+  LPBlock->add_static_constraint( *LBc , "vbnd" );
+  LPBlock->set_objective( objLP );
   }
 
  // define bound constraints- - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- #if HAVE_CONSTRAINTS == 1
- {
-  auto & LP1x = *(LPBlock1->get_static_variable_v< ColVariable >( "x" ));
-  auto & LP2x = *(LPBlock2->get_static_variable_v< ColVariable >( "x" ));
+  LPbnd = new std::list< FRowConstraint >;
+  auto & LPx = *(LPBlock->get_static_variable_v< ColVariable >( "x" ));
   for( Index i = 0 ; i < nsvar ; ++i )
-   SetNN( LP1x[ i ] , LP2x[ i ] );
-  #if DYNAMIC_VARS > 0
-   auto LP1xd = LPBlock1->get_dynamic_variable< ColVariable >( "xd" )->begin();
-   auto LP2xd = LPBlock2->get_dynamic_variable< ColVariable >( "xd")->begin();
-   for( Index i = 0 ; i < ndvar ; ++i )
-    SetNN( *(LP1xd++) , *(LP2xd++) );
-  #endif
-  }
- #endif
- #if HAVE_CONSTRAINTS == 2
- {
-  LPbnd1 = new std::list< BoxConstraint >;
-  LPbnd2 = new std::list< BoxConstraint >;
-  auto & LP1x = *(LPBlock1->get_static_variable_v< ColVariable >( "x" ));
-  auto & LP2x = *(LPBlock2->get_static_variable_v< ColVariable >( "x" ));
-  for( Index i = 0 ; i < nsvar ; ++i )
-   SetBox( LP1x[ i ] , LP2x[ i ] );
-  #if DYNAMIC_VARS > 0
-   auto LP1xd = LPBlock1->get_dynamic_variable< ColVariable >( "xd" )->begin();
-   auto LP2xd = LPBlock2->get_dynamic_variable< ColVariable >( "xd" )->begin();
-   for( Index i = 0 ; i < ndvar ; ++i )
-    SetBox( *(LP1xd++) , *(LP2xd++) );
-  #endif
+   SetFRow( LPx[ i ] );
+
+  auto LPxd = LPBlock->get_dynamic_variable< ColVariable >( "xd" )->begin();
+  for( Index i = 0 ; i < ndvar ; ++i )
+   SetFRow( *(LPxd++) );
 
   // note: the list may be empty, but it is intentionally added anyway
-  LPBlock1->add_dynamic_constraint( *LPbnd1 , "xbnd" );
-  LPBlock2->add_dynamic_constraint( *LPbnd2 , "xbnd" );
-  }
- #endif
- #if HAVE_CONSTRAINTS == 3
- {
-  LPbnd1 = new std::list< FRowConstraint >;
-  LPbnd2 = new std::list< FRowConstraint >;
-  auto & LP1x = *(LPBlock1->get_static_variable_v< ColVariable >( "x" ));
-  auto & LP2x = *(LPBlock2->get_static_variable_v< ColVariable >( "x" ));
-  for( Index i = 0 ; i < nsvar ; ++i )
-   SetFRow( LP1x[ i ] , LP2x[ i ] );
-  #if DYNAMIC_VARS > 0
-   auto LP1xd = LPBlock1->get_dynamic_variable< ColVariable >( "xd" )->begin();
-   auto LP2xd = LPBlock2->get_dynamic_variable< ColVariable >( "xd" )->begin();
-   for( Index i = 0 ; i < ndvar ; ++i )
-    SetFRow( *(LP1xd++) , *(LP2xd++) );
-  #endif
-
-  // note: the list may be empty, but it is intentionally added anyway
-  LPBlock1->add_dynamic_constraint( *LPbnd1 , "xbnd" );
-  LPBlock2->add_dynamic_constraint( *LPbnd2 , "xbnd" );
-  }
- #endif
+  LPBlock->add_dynamic_constraint( *LPbnd , "xbnd" );
  
- // attach the Solver to the Block- - - - - - - - - - - - - - - - - - - - - -
- // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- // Here you can decide which solver attach to specific block - - - - - - - -
+ // attach the Solvers to the Block- - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+ // Here you can decide which and how many solver attach to the block - - - -
 
  Solver * solver1 = new CPXMILPSolver();
- LPBlock1->register_Solver( solver1 );
 
- //Solver * solver1 = new GRBMILPSolver();
- //LPBlock1->register_Solver( solver1 );
-
- //Solver * solver1 = new SCIPMILPSolver();
- //LPBlock1->register_Solver( solver1 );
-
+ LPBlock->register_Solver( solver1 );
+ 
  Solver * solver2 = new GRBMILPSolver();
- LPBlock2->register_Solver( solver2 );
 
- //Solver * solver2 = new CPXMILPSolver();
- //LPBlock2->register_Solver( solver2 );
-
- //Solver * solver2 = new SCIPMILPSolver();
- //LPBlock2->register_Solver( solver2 );
+ LPBlock->register_Solver( solver2 );
 
  // open log-file - - - - - - - - - - -  - - - - - - - - - - - - - - - - - -
  //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  #if( LOG_LEVEL >= 3 )
-  ((LPBlock1->get_registered_solvers()).front())->set_par(
-                            MILPSolver::strOutputFile , "LP1Block.lp" );
-  ((LPBlock2->get_registered_solvers()).front())->set_par(
-                            MILPSolver::strOutputFile , "LP2Block.lp" );
+   auto slvr_list = LPBlock->get_registered_solvers();
+   auto itslvr = slvr_list.begin();
+   for( int j = 0 ; j < slvr_list.size() ; ++j ){
+    (*itslvr)->set_par( MILPSolver::strOutputFile , 
+      "Solver" + std::to_string( j ) + "-LP1Block.lp" );
+    ++itslvr;
+    }
  #endif
 
  // first solver call - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -1075,7 +771,7 @@ int main( int argc , char **argv )
 
  LOG1( "First call: " );
 
- bool AllPassed = SolveBoth();
+ bool AllPassed = SolveAll();
  
  // main loop - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1105,40 +801,22 @@ int main( int argc , char **argv )
     GenerateAb( tochange , nvar );
 
     // add them to the first LP
-    vLP1 = LPBlock1->get_static_variable< ColVariable >( "v" );
-    xLP1 = LPBlock1->get_static_variable_v< ColVariable >( "x" );
-    #if DYNAMIC_VARS > 0
-     xLP1d = LPBlock1->get_dynamic_variable< ColVariable >( "xd" );
-    #endif
+    vLP = LPBlock->get_static_variable< ColVariable >( "v" );
+    xLP = LPBlock->get_static_variable_v< ColVariable >( "x" );
+    xLPd = LPBlock->get_dynamic_variable< ColVariable >( "xd" );
 
-    std::list< FRowConstraint > nc1( tochange );
-    auto nc1it = nc1.begin();
+    std::list< FRowConstraint > nc( tochange );
+    auto ncit = nc.begin();
     for( Index i = 0 ; i < tochange ; )
-     ConstructfirstLPConstraint( i++ , *(nc1it++) );
-    auto cnst1 = LPBlock1->get_dynamic_constraint< FRowConstraint >( "cuts" );
-    LPBlock1->add_dynamic_constraints( *cnst1 , nc1 );
-
-    // add them to the second LP
-    vLP2 = LPBlock2->get_static_variable< ColVariable >( "v" );
-    xLP2 = LPBlock2->get_static_variable_v< ColVariable >( "x" );
-    #if DYNAMIC_VARS > 0
-     xLP2d = LPBlock2->get_dynamic_variable< ColVariable >( "xd" );
-    #endif
-
-    std::list< FRowConstraint > nc2( tochange );
-    auto nc2it = nc2.begin();
-    for( Index i = 0 ; i < tochange ; )
-     ConstructsecondLPConstraint( i++ , *(nc2it++) );
-    auto cnst2 = LPBlock2->get_dynamic_constraint< FRowConstraint >( "cuts" );
-    LPBlock2->add_dynamic_constraints( *cnst2 , nc2 );
-
+     ConstructLPConstraint( i++ , *(ncit++) );
+    auto cnst = LPBlock->get_dynamic_constraint< FRowConstraint >( "cuts" );
+    LPBlock->add_dynamic_constraints( *cnst , nc );
 
     // update m
     m += tochange;
 
     // sanity checks
-    PANIC( m == cnst1->size() );
-    PANIC( m == cnst2->size() );
+    PANIC( m == cnst->size() );
     }
 
   // delete rows- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1147,8 +825,7 @@ int main( int argc , char **argv )
    if( Index tochange = min( m - 1 , Index( dis( rg ) * n_change ) ) ) {
     LOG1( "deleted " << tochange << " rows" );
 
-    auto cnst1 = LPBlock1->get_dynamic_constraint< FRowConstraint >( "cuts" );
-    auto cnst2 = LPBlock2->get_dynamic_constraint< FRowConstraint >( "cuts" );
+    auto cnst = LPBlock->get_dynamic_constraint< FRowConstraint >( "cuts" );
     
     if( dis( rg ) <= 0.5 ) {  // in 50% of the cases do a ranged change
      LOG1( "(r) - " );
@@ -1157,36 +834,25 @@ int main( int argc , char **argv )
      Index stp = strt + tochange;
 
      // remove them from the first LP
-     LPBlock1->remove_dynamic_constraints( *cnst1 , Range( strt , stp ) );
-
-     // remove them from the second LP
-     LPBlock2->remove_dynamic_constraints( *cnst2 , Range( strt , stp ) );
+     LPBlock->remove_dynamic_constraints( *cnst , Range( strt , stp ) );
      }
     else {  // in the other 50% of the cases, do a sparse change
      LOG1( "(s) - " );
      Subset nms( GenerateRand( m , tochange ) );
 
-     // remove them from the first LP
+     // remove them from the LP
      if( tochange == 1 )
-      LPBlock1->remove_dynamic_constraint( *cnst1 , std::next( cnst1->begin() ,
+      LPBlock->remove_dynamic_constraint( *cnst , std::next( cnst->begin() ,
 							     nms[ 0 ] ) );
      else
-      LPBlock1->remove_dynamic_constraints( *cnst1 , Subset( nms ) , true );
-    
-     // remove them from the second LP
-     if( tochange == 1 )
-      LPBlock2->remove_dynamic_constraint( *cnst2 , std::next( cnst2->begin() ,
-							     nms[ 0 ] ) );
-     else
-      LPBlock2->remove_dynamic_constraints( *cnst2 , Subset( nms ) , true );
+      LPBlock->remove_dynamic_constraints( *cnst , Subset( nms ) , true );
      }
 
     // update m
     m -= tochange;
 
     // sanity checks
-    PANIC( m == cnst1->size() );
-    PANIC( m == cnst2->size() );
+    PANIC( m == cnst->size() );
     }
 
   // modify rows- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1197,19 +863,10 @@ int main( int argc , char **argv )
 
     GenerateAb( tochange , nvar );
 
-    vLP1 = LPBlock1->get_static_variable< ColVariable >( "v" );
-    xLP1 = LPBlock1->get_static_variable_v< ColVariable >( "x" );
-    #if DYNAMIC_VARS > 0
-     xLP1d = LPBlock1->get_dynamic_variable< ColVariable >( "xd" );
-    #endif
-    auto cnst1 = LPBlock1->get_dynamic_constraint< FRowConstraint >( "cuts" );
-
-    vLP2 = LPBlock2->get_static_variable< ColVariable >( "v" );
-    xLP2 = LPBlock2->get_static_variable_v< ColVariable >( "x" );
-    #if DYNAMIC_VARS > 0
-     xLP2d = LPBlock2->get_dynamic_variable< ColVariable >( "xd" );
-    #endif
-    auto cnst2 = LPBlock2->get_dynamic_constraint< FRowConstraint >( "cuts" );
+    vLP = LPBlock->get_static_variable< ColVariable >( "v" );
+    xLP = LPBlock->get_static_variable_v< ColVariable >( "x" );
+    xLPd = LPBlock->get_dynamic_variable< ColVariable >( "xd" );
+    auto cnst = LPBlock->get_dynamic_constraint< FRowConstraint >( "cuts" );
 
     if( dis( rg ) <= 0.5 ) {  // in 50% of the cases do a ranged change
      LOG1( "(r) - " );
@@ -1218,60 +875,34 @@ int main( int argc , char **argv )
      Index stp = strt + tochange;
 
      // send all the Modification to the same channel
-     Observer::ChnlName chnl1 = LPBlock1->open_channel();
-     const auto iAM1 = Observer::make_par( eModBlck , chnl1 );
+     Observer::ChnlName chnl = LPBlock->open_channel();
+     const auto iAM = Observer::make_par( eModBlck , chnl );
 
-     // modify them in the first LP
-     auto cit1 = std::next( cnst1->begin() , strt );
+     // modify them in the LP
+     auto cit = std::next( cnst->begin() , strt );
      for( Index i = 0 ; i < tochange ; ++i )
-      ChangeLPConstraint( i , *(cit1++) , iAM1 );
+      ChangeLPConstraint( i , *(cit++) , iAM );
 
-     LPBlock1->close_channel( chnl1 );  // close the channel
-
-     // send all the Modification to the same channel
-     Observer::ChnlName chnl2 = LPBlock2->open_channel();
-     const auto iAM2 = Observer::make_par( eModBlck , chnl2 );
-
-     // modify them in the second LP
-     auto cit2 = std::next( cnst2->begin() , strt );
-     for( Index i = 0 ; i < tochange ; ++i )
-      ChangeLPConstraint( i , *(cit2++) , iAM2 );
-
-     LPBlock2->close_channel( chnl2 );  // close the channel
+     LPBlock->close_channel( chnl );  // close the channel
      }
     else {  // in the other 50% of the cases, do a sparse change
      LOG1( "(s) - " );
      Subset nms( GenerateRand( m , tochange ) );
 
      // send all the Modification to the same channel
-     Observer::ChnlName chnl1 = LPBlock1->open_channel();
-     const auto iAM1 = Observer::make_par( eModBlck , chnl1 );
+     Observer::ChnlName chnl = LPBlock->open_channel();
+     const auto iAM = Observer::make_par( eModBlck , chnl );
 
-     // modify them in the first LP
+     // modify them in the LP
      Index prev = 0;
-     auto cit1 = cnst1->begin();
+     auto cit = cnst->begin();
      for( Index i = 0 ; i < tochange ; ++i ) {
-      cit1 = std::next( cit1 , nms[ i ] - prev );
+      cit = std::next( cit , nms[ i ] - prev );
       prev = nms[ i ];
-      ChangeLPConstraint( i , *cit1 , iAM1 );
+      ChangeLPConstraint( i , *cit , iAM );
       }
 
-     LPBlock1->close_channel( chnl1 );  // close the channel
-
-     // send all the Modification to the same channel
-     Observer::ChnlName chnl2 = LPBlock2->open_channel();
-     const auto iAM2 = Observer::make_par( eModBlck , chnl2 );
-
-     // modify them in the first LP
-     prev = 0;
-     auto cit2 = cnst2->begin();
-     for( Index i = 0 ; i < tochange ; ++i ) {
-      cit2 = std::next( cit2 , nms[ i ] - prev );
-      prev = nms[ i ];
-      ChangeLPConstraint( i , *cit2 , iAM2 );
-      }
-
-     LPBlock2->close_channel( chnl2 );  // close the channel
+     LPBlock->close_channel( chnl );  // close the channel
     }
    }
 
@@ -1283,9 +914,7 @@ int main( int argc , char **argv )
 
     Generateb( tochange );
      
-    auto cnst1 = LPBlock1->get_dynamic_constraint< FRowConstraint >( "cuts" );
-    auto cnst2 = LPBlock2->get_dynamic_constraint< FRowConstraint >( "cuts" );
-
+    auto cnst = LPBlock->get_dynamic_constraint< FRowConstraint >( "cuts" );
 
     if( dis( rg ) <= 0.5 ) {  // in 50% of the cases do a ranged change
      LOG1( "(r) - " );
@@ -1293,58 +922,33 @@ int main( int argc , char **argv )
      Index strt = dis( rg ) * ( m - tochange );
      Index stp = strt + tochange;
 
-     // change them in the first LP
-     auto cit1 = std::next( cnst1->begin() , strt );
+     // change them in the LP
+     auto cit = std::next( cnst->begin() , strt );
      if( convex )
       for( Index i = 0 ; i < tochange ; )
-       (*(cit1++)).set_lhs( b[ i++ ] );
+       (*(cit++)).set_lhs( b[ i++ ] );
      else
       for( Index i = 0 ; i < tochange ; )
-       (*(cit1++)).set_rhs( b[ i++ ] );
- 
-     // change them in the second LP
-     auto cit2 = std::next( cnst2->begin() , strt );
-     if( convex )
-      for( Index i = 0 ; i < tochange ; )
-       (*(cit2++)).set_lhs( b[ i++ ] );
-     else
-      for( Index i = 0 ; i < tochange ; )
-       (*(cit2++)).set_rhs( b[ i++ ] );
+       (*(cit++)).set_rhs( b[ i++ ] );
      }
     else {  // in the other 50% of the cases, do a sparse change
      LOG1( "(s) - " );
      Subset nms( GenerateRand( m , tochange ) );
 
-     // change them in the first LP
+     // change them in the LP
      Index prev = 0;
-     auto cit1 = cnst1->begin();
+     auto cit = cnst->begin();
      if( convex )
       for( Index i = 0 ; i < tochange ; ) {
-       cit1 = std::next( cit1 , nms[ i ] - prev );
+       cit = std::next( cit , nms[ i ] - prev );
        prev = nms[ i ];
-       (*cit1).set_lhs( b[ i++ ] );
+       (*cit).set_lhs( b[ i++ ] );
        }
      else
       for( Index i = 0 ; i < tochange ; ) {
-       cit1 = std::next( cit1 , nms[ i ] - prev );
+       cit = std::next( cit , nms[ i ] - prev );
        prev = nms[ i ];
-       (*cit1).set_rhs( b[ i++ ] );
-       }
-
-     // change them in the second LP
-     prev = 0;
-     auto cit2 = cnst2->begin();
-     if( convex )
-      for( Index i = 0 ; i < tochange ; ) {
-       cit2 = std::next( cit2 , nms[ i ] - prev );
-       prev = nms[ i ];
-       (*cit2).set_lhs( b[ i++ ] );
-       }
-     else
-      for( Index i = 0 ; i < tochange ; ) {
-       cit2 = std::next( cit2 , nms[ i ] - prev );
-       prev = nms[ i ];
-       (*cit2).set_rhs( b[ i++ ] );
+       (*cit).set_rhs( b[ i++ ] );
        }
      }
     }
@@ -1356,132 +960,63 @@ int main( int argc , char **argv )
 
    GenerateBND();
 
-   // change it in the first LP
-   auto cnst1 = LPBlock1->get_static_constraint< BoxConstraint >( "vbnd" );
+   // change it in the LP
+   auto cnst = LPBlock->get_static_constraint< BoxConstraint >( "vbnd" );
    if( convex )
-    cnst1->set_lhs( -BND );
+    cnst->set_lhs( -BND );
    else
-    cnst1->set_rhs( BND );
-
-   // change it in the second LP
-   auto cnst2 = LPBlock2->get_static_constraint< BoxConstraint >( "vbnd" );
-   if( convex )
-    cnst2->set_lhs( -BND );
-   else
-    cnst2->set_rhs( BND );
+    cnst->set_rhs( BND );
    }
 
  // add variables- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-  #if DYNAMIC_VARS > 0
   if( ( wchg & 32 ) && ( dis( rg ) <= p_change ) ) {
    Index tochange = std::max( Index( 1 ) , Index( dis( rg ) * nsvar / 4 ) );
    LOG1( "added " << tochange << " variables - " );
 
    GenerateA( m , tochange );
 
-   // add them in the first LP
-   std::list< ColVariable > nxLP1d( tochange );
-   std::vector< ColVariable * > nxp1( tochange );
-   auto nxlp1it = nxLP1d.begin();
+   // add them in the LP
+   std::list< ColVariable > nxLPd( tochange );
+   std::vector< ColVariable * > nxp( tochange );
+   auto nxlpit = nxLPd.begin();
    for( Index i = 0 ; i < tochange ; )
-    nxp1[ i++ ] = &(*(nxlp1it++));
+    nxp[ i++ ] = &(*(nxlpit++));
 
-   LPBlock1->add_dynamic_variables(
-	   *(LPBlock1->get_dynamic_variable< ColVariable >( "xd" )) , nxLP1d );
+   LPBlock->add_dynamic_variables(
+	   *(LPBlock->get_dynamic_variable< ColVariable >( "xd" )) , nxLPd );
 
-   auto cnst1_it =
-        LPBlock1->get_dynamic_constraint< FRowConstraint >( "cuts" )->begin();
+   auto cnst_it =
+        LPBlock->get_dynamic_constraint< FRowConstraint >( "cuts" )->begin();
    if( tochange == 1 )
     for( Index i = 0 ; i < m ; ++i ) {
-     auto fi1 = static_cast< p_LF >( (cnst1_it++)->get_function() );
-     fi1->add_variable( nxp1[ 0 ] , - A[ i ][ 0 ] );
+     auto fi = static_cast< p_LF >( (cnst_it++)->get_function() );
+     fi->add_variable( nxp[ 0 ] , - A[ i ][ 0 ] );
      }
    else
     for( Index i = 0 ; i < m ; ++i ) {
-     auto fi1 = static_cast< p_LF >( (cnst1_it++)->get_function() );
-     LinearFunction::v_coeff_pair ncp1( tochange );
-     for( Index j = 0 ; j < ncp1.size() ; ++j ) {
-      ncp1[ j ].first = nxp1[ j ];
-      ncp1[ j ].second = - A[ i ][ j ];
+     auto fi = static_cast< p_LF >( (cnst_it++)->get_function() );
+     LinearFunction::v_coeff_pair ncp( tochange );
+     for( Index j = 0 ; j < ncp.size() ; ++j ) {
+      ncp[ j ].first = nxp[ j ];
+      ncp[ j ].second = - A[ i ][ j ];
       }
-     fi1->add_variables( std::move( ncp1 ) );
-     }
-
-   // add them in the second LP
-   std::list< ColVariable > nxLP2d( tochange );
-   std::vector< ColVariable * > nxp2( tochange );
-   auto nxlp2it = nxLP2d.begin();
-   for( Index i = 0 ; i < tochange ; )
-    nxp2[ i++ ] = &(*(nxlp2it++));
-
-   LPBlock2->add_dynamic_variables(
-	   *(LPBlock2->get_dynamic_variable< ColVariable >( "xd" )) , nxLP2d );
-
-   auto cnst2_it =
-        LPBlock2->get_dynamic_constraint< FRowConstraint >( "cuts" )->begin();
-   if( tochange == 1 )
-    for( Index i = 0 ; i < m ; ++i ) {
-     auto fi2 = static_cast< p_LF >( (cnst2_it++)->get_function() );
-     fi2->add_variable( nxp2[ 0 ] , - A[ i ][ 0 ] );
-     }
-   else
-    for( Index i = 0 ; i < m ; ++i ) {
-     auto fi2 = static_cast< p_LF >( (cnst2_it++)->get_function() );
-     LinearFunction::v_coeff_pair ncp2( tochange );
-     for( Index j = 0 ; j < ncp2.size() ; ++j ) {
-      ncp2[ j ].first = nxp2[ j ];
-      ncp2[ j ].second = - A[ i ][ j ];
-      }
-     fi2->add_variables( std::move( ncp2 ) );
+     fi->add_variables( std::move( ncp) );
      }
 
    // generate bound constraints
-   #if HAVE_CONSTRAINTS > 0
-    auto & LP1xd = *(LPBlock1->get_dynamic_variable< ColVariable >( "xd" ));
-    auto LP1xd_it = LP1xd.begin();
-    auto & LP2xd = *(LPBlock2->get_dynamic_variable< ColVariable >( "xd" ));
-    auto LP2xd_it = LP2xd.begin();
-    std::next( LP1xd_it , ndvar );
-    std::next( LP2xd_it , ndvar );
+   auto & LPxd = *(LPBlock->get_dynamic_variable< ColVariable >( "xd" ));
+   auto LPxd_it = LPxd.begin();
+   std::next( LPxd_it , ndvar );
+   
+   LPbnd = new std::list< FRowConstraint >;
 
-    #if HAVE_CONSTRAINTS == 1
-     for( ; LP1xd_it != LP1xd.end() ; )
-      SetNN( *(LP1xd_it++) , *(LP2xd_it++) );
-    #endif
-    #if HAVE_CONSTRAINTS == 2
-     LPbnd1 = new std::list< BoxConstraint >;
-     LPbnd2 = new std::list< BoxConstraint >;
+   for( ; LPxd_it != LPxd.end() ; )
+    SetFRow( *(LPxd_it++) );
 
-     for( ; LP1xd_it != LP1xd.end() ; )
-      SetBox( *(LP1xd_it++) , *(LP2xd_it++) );
-
-     if( ! LPbnd1->empty() ) {
-      LPBlock1->add_dynamic_constraints(
-	 *(LPBlock1->get_dynamic_constraint< BoxConstraint >( "xbnd" )) ,
-	 *LPbnd1 );
-      LPBlock2->add_dynamic_constraints(
-	 *(LPBlock2->get_dynamic_constraint< BoxConstraint >( "xbnd" )) ,
-	 *LPbnd2 );
-      }
-    #endif
-    #if HAVE_CONSTRAINTS == 3
-     LPbnd1 = new std::list< FRowConstraint >;
-     LPbnd2 = new std::list< FRowConstraint >;
-
-     for( ; LP1xd_it != LP1xd.end() ; )
-      SetFRow( *(LP1xd_it++) , *(LP2xd_it++) );
-
-     if( ! LPbnd1->empty() ) {
-      LPBlock1->add_dynamic_constraints(
-	 *(LPBlock1->get_dynamic_constraint< FRowConstraint >( "xbnd" )) ,
-	 *LPbnd1 );
-      LPBlock2->add_dynamic_constraints(
-	 *(LPBlock2->get_dynamic_constraint< FRowConstraint >( "xbnd" )) ,
-	 *LPbnd2 );
-      }
-    #endif
-   #endif
+   if( ! LPbnd->empty() )
+    LPBlock->add_dynamic_constraints(
+	   *(LPBlock->get_dynamic_constraint< FRowConstraint >( "xbnd" )) , *LPbnd );
 
    // update nvar and ndvar
    nvar += tochange;
@@ -1489,15 +1024,9 @@ int main( int argc , char **argv )
 
    // sanity checks
    PANIC( ndvar ==
-	      LPBlock1->get_dynamic_variable< ColVariable >( "xd" )->size() );
+	      LPBlock->get_dynamic_variable< ColVariable >( "xd" )->size() );
    for( auto & ci :
- 	    *(LPBlock1->get_dynamic_constraint< FRowConstraint >( "cuts" )) )
-    PANIC( nvar + 1 == ci.get_num_active_var() );
-
-    PANIC( ndvar ==
-	      LPBlock2->get_dynamic_variable< ColVariable >( "xd" )->size() );
-   for( auto & ci :
- 	    *(LPBlock2->get_dynamic_constraint< FRowConstraint >( "cuts" )) )
+ 	    *(LPBlock->get_dynamic_constraint< FRowConstraint >( "cuts" )) )
     PANIC( nvar + 1 == ci.get_num_active_var() );
    }
 
@@ -1513,127 +1042,67 @@ int main( int argc , char **argv )
      Index strt = dis( rg ) * ( ndvar - tochange );
      Index stp = strt + tochange;
 
-     // remove them from the first LP
-     auto xLP1d = LPBlock1->get_dynamic_variable< ColVariable >( 0 );
-     auto cnst1_it =
-             LPBlock1->get_dynamic_constraint< FRowConstraint >( 0 )->begin();
+     // remove them from the LP
+     auto xLPd = LPBlock->get_dynamic_variable< ColVariable >( 0 );
+     auto cnst_it =
+             LPBlock->get_dynamic_constraint< FRowConstraint >( 0 )->begin();
      if( tochange == 1 )
       for( Index i = 0 ; i < m ; ++i ) {
-       auto fi1 = static_cast< p_LF >( (cnst1_it++)->get_function() );
-       fi1->remove_variable( strt + nsvar + 1 );
+       auto fi = static_cast< p_LF >( (cnst_it++)->get_function() );
+       fi->remove_variable( strt + nsvar + 1 );
        }
      else
       for( Index i = 0 ; i < m ; ++i ) {
-       auto fi1 = static_cast< p_LF >( (cnst1_it++)->get_function() );
-       fi1->remove_variables( Range( strt + nsvar + 1 , stp + nsvar + 1 ) );
+       auto fi = static_cast< p_LF >( (cnst_it++)->get_function() );
+       fi->remove_variables( Range( strt + nsvar + 1 , stp + nsvar + 1 ) );
        }
 
-     // remove them from the second LP
-     auto xLP2d = LPBlock2->get_dynamic_variable< ColVariable >( 0 );
-     auto cnst2_it =
-             LPBlock2->get_dynamic_constraint< FRowConstraint >( 0 )->begin();
-     if( tochange == 1 )
-      for( Index i = 0 ; i < m ; ++i ) {
-       auto fi2 = static_cast< p_LF >( (cnst2_it++)->get_function() );
-       fi2->remove_variable( strt + nsvar + 1 );
-       }
-     else
-      for( Index i = 0 ; i < m ; ++i ) {
-       auto fi2 = static_cast< p_LF >( (cnst2_it++)->get_function() );
-       fi2->remove_variables( Range( strt + nsvar + 1 , stp + nsvar + 1 ) );
-      }
-    
-     #if HAVE_CONSTRAINTS == 2
-      // the variables can now only be active in the associated box
-      // constraint, if any: exploit this to identify the box constraint
-      // and remove it
-      RemoveBox( *LPBlock1 , Range( strt , stp ) );
-      RemoveBox( *LPBlock2 , Range( strt , stp ) );
-     #endif
-     #if HAVE_CONSTRAINTS == 3
-      // the variables can now only be active in the associated frow
-      // constraint, if any: exploit this to identify the frow constraint
-      // and remove it
-      RemoveFRow( *LPBlock1 , Range( strt , stp ) );
-      RemoveFRow( *LPBlock2 , Range( strt , stp ) );
-     #endif
+     // the variables can now only be active in the associated frow
+     // constraint, if any: exploit this to identify the frow constraint
+     // and remove it
+     RemoveFRow( *LPBlock , Range( strt , stp ) );
      
-     LPBlock1->remove_dynamic_variables( *xLP1d , Range( strt , stp ) );
-     LPBlock2->remove_dynamic_variables( *xLP2d , Range( strt , stp ) );
+     LPBlock->remove_dynamic_variables( *xLPd , Range( strt , stp ) );
      }
     else {  // in the other 50% of the cases, do a sparse change
      LOG1( "(s) - " );
      Subset nms( GenerateRand( ndvar , tochange ) );
 
-     // remove them from the first LP
-     auto xLP1d = LPBlock1->get_dynamic_variable< ColVariable >( 0 );
-     auto cnst1_it =
-             LPBlock1->get_dynamic_constraint< FRowConstraint >( 0 )->begin();
-     auto xLP2d = LPBlock2->get_dynamic_variable< ColVariable >( 0 );
-     auto cnst2_it =
-             LPBlock2->get_dynamic_constraint< FRowConstraint >( 0 )->begin();
+     // remove them from the LP
+     auto xLPd = LPBlock->get_dynamic_variable< ColVariable >( 0 );
+     auto cnst_it =
+             LPBlock->get_dynamic_constraint< FRowConstraint >( 0 )->begin();
      if( tochange == 1 ) {
-      for( Index i = 0 ; i < m ; ++i ) {
-       auto fi1 = static_cast< p_LF >( (cnst1_it++)->get_function() );
-       fi1->remove_variable( nms[ 0 ] + nsvar + 1 );
-       
-       auto fi2 = static_cast< p_LF >( (cnst2_it++)->get_function() );
-       fi2->remove_variable( nms[ 0 ] + nsvar + 1 );
-       }
+      for( Index i = 0 ; i < m ; ++i ){
+       auto fi = static_cast< p_LF >( (cnst_it++)->get_function() );
+       fi->remove_variable( nms[ 0 ] + nsvar + 1 );
+      }
+      
+      // the variables can now only be active in the associated frow
+      // constraint, if any: exploit this to identify the frow constraint
+      // and remove it
+      RemoveFRow( *LPBlock , Range( nms[ 0 ] , nms[ 0 ] + 1 ) );
 
-      #if HAVE_CONSTRAINTS == 2
-       // the variables can now only be active in the associated box
-       // constraint, if any: exploit this to identify the box constraint
-       // and remove it
-       RemoveBox( *LPBlock1 , Range( nms[ 0 ] , nms[ 0 ] + 1 ) );
-       RemoveBox( *LPBlock2 , Range( nms[ 0 ] , nms[ 0 ] + 1 ) );
-      #endif
-      #if HAVE_CONSTRAINTS == 3
-       // the variables can now only be active in the associated frow
-       // constraint, if any: exploit this to identify the frow constraint
-       // and remove it
-       RemoveFRow( *LPBlock1 , Range( nms[ 0 ] , nms[ 0 ] + 1 ) );
-       RemoveFRow( *LPBlock2 , Range( nms[ 0 ] , nms[ 0 ] + 1 ) );
-      #endif
-
-      auto vp1 = std::next( xLP1d->begin() , nms[ 0 ] );
-      LPBlock1->remove_dynamic_variable( *xLP1d , vp1 );
-      auto vp2 = std::next( xLP2d->begin() , nms[ 0 ] );
-      LPBlock2->remove_dynamic_variable( *xLP2d , vp2 );
+      auto vp = std::next( xLPd->begin() , nms[ 0 ] );
+      LPBlock->remove_dynamic_variable( *xLPd , vp );
       }
      else {
       for( Index i = 0 ; i < m ; ++i ) {
-       auto fi1 = static_cast< p_LF >( (cnst1_it++)->get_function() );
-       auto fi2 = static_cast< p_LF >( (cnst2_it++)->get_function() );
+       auto fi = static_cast< p_LF >( (cnst_it++)->get_function() );
 
        Subset nms1( nms );
-       Subset nms2( nms );
        for( auto & n1i : nms1 )
 	      n1i = n1i + nsvar + 1;
-       for( auto & n2i : nms2 )
-	      n2i = n2i + nsvar + 1;
 
-       fi1->remove_variables( std::move( nms1 ) , true );
-       fi2->remove_variables( std::move( nms2 ) , true );
+       fi->remove_variables( std::move( nms1 ) , true );
        }
 
-      #if HAVE_CONSTRAINTS == 2
-       // the variables can now only be active in the associated box
-       // constraint, if any: exploit this to identify the box constraint
-       // and remove it
-       RemoveBox( *LPBlock1 , nms );
-       RemoveBox( *LPBlock2 , nms );
-      #endif
-      #if HAVE_CONSTRAINTS == 3
-       // the variables can now only be active in the associated frow
-       // constraint, if any: exploit this to identify the frow constraint
-       // and remove it
-       RemoveFRow( *LPBlock1 , nms );
-       RemoveFRow( *LPBlock2 , nms );
-      #endif
+      // the variables can now only be active in the associated frow
+      // constraint, if any: exploit this to identify the frow constraint
+      // and remove it
+      RemoveFRow( *LPBlock , nms );
       
-      LPBlock1->remove_dynamic_variables( *xLP1d , Subset( nms ) );
-      LPBlock2->remove_dynamic_variables( *xLP2d , Subset( nms ) );
+      LPBlock->remove_dynamic_variables( *xLPd , Subset( nms ) );
      }
     }
 
@@ -1643,34 +1112,30 @@ int main( int argc , char **argv )
 
     // sanity checks
     PANIC( ndvar ==
-	         LPBlock1->get_dynamic_variable< ColVariable >( 0 )->size() );
-    PANIC( ndvar ==
-	         LPBlock2->get_dynamic_variable< ColVariable >( 0 )->size() );
+	         LPBlock->get_dynamic_variable< ColVariable >( 0 )->size() );
     for( auto & ci :
-	          *(LPBlock1->get_dynamic_constraint< FRowConstraint >( 0 )) )
-     PANIC( nvar + 1 == ci.get_num_active_var() );
-    for( auto & ci :
-	          *(LPBlock2->get_dynamic_constraint< FRowConstraint >( 0 )) )
+	          *(LPBlock->get_dynamic_constraint< FRowConstraint >( 0 )) )
      PANIC( nvar + 1 == ci.get_num_active_var() );
     }
-  #endif
 
   // if verbose, print out stuff- - - - - - - - - - - - - - - - - - - - - - -
 
   #if( LOG_LEVEL >= 3 )
-   ((LPBlock1->get_registered_solvers()).front())->set_par(
-		                     MILPSolver::strOutputFile , "LP1Block-" +
-		                     std::to_string( rep ) + ".lp" );
-    ((LPBlock2->get_registered_solvers()).front())->set_par(
-		                     MILPSolver::strOutputFile , "LP2Block-" +
-		                     std::to_string( rep ) + ".lp" );
+   auto slvr_list = LPBlock->get_registered_solvers();
+   auto itslvr = slvr_list.begin();
+   for( int j = 0 ; j < slvr_list.size() ; ++j ){
+    (*itslvr)->set_par( MILPSolver::strOutputFile , 
+      "Solver" + std::to_string( j ) + "-LPBlock-" + 
+        std::to_string( rep ) + ".lp" );
+    ++itslvr;
+    }
   #endif
 
   // finally, re-solve the problems- - - - - - - - - - - - - - - - - - - - -
   // ... every SKIP_BEAT + 1 rounds
 
   if( ! ( ++rep % ( SKIP_BEAT + 1 ) ) )
-   AllPassed &= SolveBoth();
+   AllPassed &= SolveAll();
   #if( LOG_LEVEL >= 1 )
   else
    cout << endl;
@@ -1688,9 +1153,7 @@ int main( int argc , char **argv )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  // delete the Blocks
- delete( LPBlock1 );
- delete( LPBlock2 );
-
+ delete( LPBlock );
 
  // terminate - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
