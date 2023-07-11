@@ -31,17 +31,11 @@
 include(FindPackageHandleStandardArgs)
 
 # ----- Find Gurobi directories and lib suffixes ---------------------------- #
-# Based on the OS and architecture, generate:
+# Based on the OS generate:
 # - a list of possible Gurobi directories
 # - a list of possible lib suffixes to find the library
 
 if (UNIX)
-    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(GUROBI_ARCH x86-64)
-    else ()
-        set(GUROBI_ARCH x86)
-    endif ()
-
     if (APPLE)
         # macOS (usually /Library)
         set(GUROBI_DIRS /Library)
@@ -50,17 +44,6 @@ if (UNIX)
         set(GUROBI_DIRS /opt)
     endif ()
     set(GUROBI_LIB_PATH_SUFFIXES lib)
-
-else ()
-    # Windows (usually C:)
-    set(GUROBI_DIRS "C:")
-
-    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(GUROBI_ARCH x64)
-    else ()
-        set(GUROBI_ARCH x86)
-        set(GUROBI_DIRS "C:" ${GUROBI_DIRS})
-    endif ()
 endif ()
 
 # ----- Find the path to GUROBI --------------------------------------------- #
@@ -104,20 +87,13 @@ else ()
               DOC "GUROBI include directory.")
 
     # ----- Find the GUROBI library ----------------------------------------- #
-    if (UNIX)
-        # Note that find_library() creates a cache entry
-        find_library(GUROBI_LIBRARY
-                     NAMES gurobi gurobi100 gurobi1002
-                     PATHS ${GUROBI_DIR}
-                     PATH_SUFFIXES ${GUROBI_LIB_PATH_SUFFIXES}
-                     DOC "GUROBI library.")
-        set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY} CACHE FILEPATH "Debug GUROBI library.")
-
-    elseif (NOT GUROBI_LIBRARY)
-
-        # TODO
-
-    endif ()
+    # Note that find_library() creates a cache entry
+    find_library(GUROBI_LIBRARY
+                 NAMES gurobi gurobi100 gurobi1002
+                 PATHS ${GUROBI_DIR}
+                 PATH_SUFFIXES ${GUROBI_LIB_PATH_SUFFIXES}
+                 DOC "GUROBI library.")
+    set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY} CACHE FILEPATH "Debug GUROBI library.")
 
     # ----- Parse the version ----------------------------------------------- #
     if (GUROBI_INCLUDE_DIR)
