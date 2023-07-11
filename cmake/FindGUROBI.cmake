@@ -64,9 +64,7 @@ if (NOT GUROBI_DIR)
         set(GUROBI_DIR_ GUROBI_DIR-NOTFOUND)
     endif ()
     # Set the path in the cache
-    set(GUROBI_DIR ${GUROBI_DIR_} #CACHE PATH
-        #"Path to Gurobi directory."
-        )
+    set(GUROBI_DIR ${GUROBI_DIR_} CACHE PATH "Path to Gurobi directory.")
 endif ()
 
 # ----- Requirements -------------------------------------------------------- #
