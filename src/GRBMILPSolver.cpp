@@ -1200,8 +1200,6 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
       ++tmp_count;
       ++idx;
     }
-  
-  idx = idx + tmp_count;
   }
 
   return( idx );
@@ -2029,9 +2027,24 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
     });
   bool is_rng = ( it_rng != map_rng_con_aux_var.end() ); // 0 isn't a ranged constraint
 
-  // The element ( index , aux_var ) has to be removed from the map
-  if( is_rng )
+  // The element ( index , aux_var ) has to be removed from the map and also the 
+  // auxiliary variable has to be removed from the Gurobi model
+  if( is_rng ){
+    int index_aux_var = (*it_rng).second;
+    GRBdelvars( model , 1 , &index_aux_var );
     map_rng_con_aux_var.erase( it_rng );
+
+    // Update map : find the first pair with idx aux var greater than index
+    auto it_rng_var = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
+      [&index_aux_var]( std::pair< int , int > const& elem ) {
+      return( elem.second > index_aux_var );
+    });
+    // Update map : decrease the idx of aux var
+    while( it_rng_var != map_rng_con_aux_var.end() ) {
+      --( *it_rng_var ).second;
+      ++it_rng_var;
+    }
+  }
 
   // Update map : find the first pair with idx con greater than index
   auto it_rng_s = std::find_if( map_rng_con_aux_var.begin() + last_static_rng_con + 1,
