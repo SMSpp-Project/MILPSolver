@@ -97,7 +97,7 @@ if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_LIBRARY_DEBUG)
 else ()
 
     # ----- Find the GUROBI include directory ------------------------------- #
-    set(GUROBI_DIR ${GUROBI_DIR}/linux64) # TODO: Generalize to other system
+    set(GUROBI_DIR ${GUROBI_DIR}/linux64)
     # Note that find_path() creates a cache entry
     find_path(GUROBI_INCLUDE_DIR gurobi_c.h
               PATHS ${GUROBI_DIR}/include
@@ -111,10 +111,11 @@ else ()
                      PATHS ${GUROBI_DIR}
                      PATH_SUFFIXES ${GUROBI_LIB_PATH_SUFFIXES}
                      DOC "GUROBI library.")
-        set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY} #CACHE FILEPATH "Debug GUROBI library."
-        )
+        set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY} CACHE FILEPATH "Debug GUROBI library.")
 
-    elseif (NOT GUROBI_LIBRARY) # TODO
+    elseif (NOT GUROBI_LIBRARY)
+
+        # TODO
 
     endif ()
 
