@@ -61,3 +61,9 @@ add_test(NAME MILPSolver_test_dual
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 # --------------------------------------------------------------------------- #
+
+# ----- MILPSolver_test_PolyhedralFunction----------------------------------- #
+
+add_subdirectory(PolyhedralFunction)
+
+# --------------------------------------------------------------------------- #

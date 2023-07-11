@@ -57,6 +57,13 @@ option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 #    add_compile_definitions(MILPSOLVER_DEBUG)
 #endif ()
 
+# ----- Policies ----------------------------------------------------------- #
+# Introduced in 3.19 to handle arbitrary characters in test names
+# See: https://cmake.org/cmake/help/latest/policy/CMP0110.html
+if (POLICY CMP0110)
+    cmake_policy(SET CMP0110 NEW)
+endif ()
+
 # ----- Requirements -------------------------------------------------------- #
 # If it's not being called by the umbrella, we need to
 # look for the system-installed libraries.
