@@ -27,7 +27,7 @@ DIR = ./
 # production switches with address sanitizer
 #SW = -O3 -std=c++17 -DNDEBUG -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined -Wno-enum-compare
 # production switches
-# SW = -O3 -std=c++17 -ferror-limit=1 -DNDEBUG -DCLANG_1200_0_32_27_PATCH -Wno-enum-compare
+SW = -O3 -std=c++17 -ferror-limit=1 -DNDEBUG -DCLANG_1200_0_32_27_PATCH -Wno-enum-compare
 
 # compiler
 CC = clang++
@@ -56,7 +56,7 @@ include $(SMS++SDR)lib/makefile-c
 
 # MILPSolver
 MILPSSDR = ../../
-include $(MILPSSDR)makefile-c
+include $(MILPSSDR)makefile-s
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
