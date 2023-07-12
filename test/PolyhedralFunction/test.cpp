@@ -114,9 +114,9 @@
 
 #include "PolyhedralFunction.h"
 
-#include "CPXMILPSolver.h"
+//#include "CPXMILPSolver.h"
 
-#include "GRBMILPSolver.h"
+//#include "GRBMILPSolver.h"
 
 //#include "SCIPMILPSolver.h"
 
@@ -741,17 +741,34 @@ int main( int argc , char **argv )
   // note: the list may be empty, but it is intentionally added anyway
   LPBlock->add_dynamic_constraint( *LPbnd , "xbnd" );
  
- // attach the Solvers to the Block- - - - - - - - - - - - - - - - - - - - - -
- // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
- // Here you can decide which and how many solver attach to the block - - - -
+// attach two Solver to the LPBlock- - - - - - - - - - - - - - - 
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // do it by using a single a BlockSolverConfig, read from file
+ 
+ auto lpbsc = dynamic_cast< BlockSolverConfig * >(
+		     Configuration::deserialize( "LPPar.txt" ) );
+ if( ! lpbsc ) {
+  cerr << "Error: configuration file not a BlockSolverConfig" << endl;
+  exit( 1 );    
+  }
 
+ lpbsc->apply( LPBlock );
+ lpbsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup
+
+ // check Solvers - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ if( LPBlock->get_registered_solvers().empty() ) {
+  cerr << "Error: BlockSolverConfig did not register any Solver" << endl;
+  exit( 1 );    
+  }
+/*
  Solver * solver1 = new CPXMILPSolver();
 
  LPBlock->register_Solver( solver1 );
  
  Solver * solver2 = new GRBMILPSolver();
 
- LPBlock->register_Solver( solver2 );
+ LPBlock->register_Solver( solver2 );*/
 
  // open log-file - - - - - - - - - - -  - - - - - - - - - - - - - - - - - -
  //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
