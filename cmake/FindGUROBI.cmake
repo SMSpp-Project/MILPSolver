@@ -91,7 +91,7 @@ else ()
                  PATHS ${GUROBI_DIR}
                  PATH_SUFFIXES ${GUROBI_LIB_PATH_SUFFIXES}
                  DOC "GUROBI library.")
-    set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY} CACHE FILEPATH "Debug GUROBI library.")
+    set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY})
 
     # ----- Parse the version ----------------------------------------------- #
     if (GUROBI_INCLUDE_DIR)
