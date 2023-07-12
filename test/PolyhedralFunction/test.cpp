@@ -2,14 +2,19 @@
 /*-------------------------- File test.cpp ---------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
- * Main for testing PolyhedralFunction
+ * Main for testing Linear Programs
  *
- * A "random" PolyhedralFunction is constructed and represented in terms of 
- * linear inequalities for a "empty" Block. The Block is solved by a number s
- * of different *MILPSolver (you can decide how many solver attach to the 
- * block) and the results are compared. 
- * The Block is then repeatedly randomly modified "in the same way", and 
- * re-solved several times.
+ * A "random" Linear Program is constructed that represents a polyhedral
+ * function, either convex or concave (the Objective contains a single
+ * variable with coefficient 1 that is minimised in the convex case and
+ * maximised in the concave one, plus either an upper or a lower bound in
+ * the convex/concave case), so that it is always feasible (but it may be
+ * unbounded below/above, represented in terms of linear inequalities in
+ * an otherwise "empty" AbstractBlock. The AbstractBlock is solved by any
+ * number of different *MILPSolver (you can decide how many solver attach
+ * to the Block by changing the LPPar.txt BlockSolverConfig file) and the
+ * results are compared.  The Block is then repeatedly randomly modified
+ * "in all possible ways", and re-solved several times.
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
@@ -57,7 +62,7 @@
 #define DETACH_LP 0
 
 /*--------------------------------------------------------------------------*/
-// if nonzero, the two Block are not solved at every round of changes, but
+// if nonzero, the Block is not solved at every round of changes, but
 // only every SKIP_BEAT + 1 rounds. this allows changes to accumulate, and
 // therefore puts more pressure on the Modification handling of the Solver
 // (in case this tries to do "smart" things rather than dumbly processing
@@ -112,14 +117,6 @@
 
 #include "OneVarConstraint.h"
 
-#include "PolyhedralFunction.h"
-
-//#include "CPXMILPSolver.h"
-
-//#include "GRBMILPSolver.h"
-
-//#include "SCIPMILPSolver.h"
-
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- USING -----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -144,11 +141,14 @@ using c_Subset = Block::c_Subset;
 using FunctionValue = Function::FunctionValue;
 using c_FunctionValue = Function::c_FunctionValue;
 
-using MultiVector = PolyhedralFunction::MultiVector;
-using RealVector = PolyhedralFunction::RealVector;
+using RealVector = std::vector< FunctionValue >;
+///< a real n-vector, useful for both the rows of A and b
+
+using c_RealVector = const RealVector;   ///< a const RealVector
+
+using MultiVector = std::vector< RealVector >;
 
 using p_LF = LinearFunction *;
-using p_PF = PolyhedralFunction *;
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------- CONSTANTS --------------------------------*/
@@ -165,7 +165,7 @@ const FunctionValue INF = SMSpp_di_unipi_it::Inf< FunctionValue >();
 
 AbstractBlock * LPBlock;   // the problem expressed as an LP
 
-bool convex = true;        // true if the PolyhedralFunction is convex
+bool convex = true;        // true if the polyhedral function is convex
 
 double bound = 1000;       // a tentative bound to detect unbounded instances
 
@@ -367,10 +367,8 @@ static void ChangeLPConstraint( Index i , FRowConstraint & ci , ModParam iAM )
 
 static inline void SetNN( ColVariable & LPxi )
 {
- if( dis( rg ) < 0.5 ) {
+ if( dis( rg ) < 0.5 )
   LPxi.is_positive( true , eNoMod );
-  //LPxi2.is_positive( true , eNoMod );
-  }
  }
 
 /*--------------------------------------------------------------------------*/
@@ -379,20 +377,14 @@ static inline void SetFRow( ColVariable & LPxi )
 {
  if( dis( rg ) < 0.5 ) {
   LPbnd->resize( LPbnd->size() + 1 );
-  //LPbnd2->resize( LPbnd2->size() + 1 );
   LinearFunction::v_coeff_pair vars_LP( 1 );
-  //LinearFunction::v_coeff_pair vars_LP2( 1 );
   vars_LP[ 0 ] = std::make_pair( & LPxi , 1 );
-  //vars_LP2[ 0 ] = std::make_pair( & LPxi2 , 1 );
   LPbnd->back().set_function( new LinearFunction( std::move( vars_LP ) ) );
-  //LPbnd2->back().set_function( new LinearFunction( std::move( vars_LP2 ) ) );
   auto p = dis( rg );
   auto lhs = p < 0.666 ? 0 : -INF;
   auto rhs = p > 0.333 ? dis( rg ) : INF;
   LPbnd->back().set_lhs( lhs , eNoMod );
-  //LPbnd2->back().set_lhs( lhs , eNoMod );
   LPbnd->back().set_rhs( rhs , eNoMod );
-  //LPbnd2->back().set_rhs( rhs , eNoMod );
   }
  else
   SetNN( LPxi );
@@ -503,26 +495,35 @@ static void printAb( const MultiVector & tA , const RealVector & tb ,
 
 // Some functions used to check results of solvers in loop
 
-bool CompareSolution( double const d1 , double const d2 ){
-  return ( abs( d1 - d2 ) >= 2e-7 *
-			 max( double( 1 ) , abs( max( d1 , d2 ) ) ) );
-}
+bool CompareSolution( double const d1 , double const d2 )
+{
+ return( abs( d1 - d2 ) >= 2e-7 *
+	 max( double( 1 ) , abs( max( d1 , d2 ) ) ) );
+ }
 
-bool allEqual(std::vector<double> const &v) {
-    return std::adjacent_find( v.begin(), v.end(), CompareSolution ) == v.end();
-}
+bool allEqual( std::vector< double > const & v )
+{
+ return( std::adjacent_find( v.begin() , v.end() , CompareSolution )
+	 == v.end() );
+ }
 
-bool allTrue(std::vector<bool> const &v) {
-    return std::all_of( v.begin(), v.end(), [](bool i){ return i == true; } );
-}
+bool allTrue( std::vector< bool > const & v )
+{
+ return( std::all_of( v.begin() , v.end() ,
+		      []( bool i ){ return( i == true ); } ) );
+ }
 
-bool allInfeasible(std::vector<int> const &v) {
-    return std::all_of( v.begin(), v.end(), [](int i){ return i == Solver::kInfeasible; } );
-}
+bool allInfeasible( std::vector< int > const & v )
+{
+ return( std::all_of( v.begin() , v.end() ,
+		      []( int i ){ return( i == Solver::kInfeasible ); } ) );
+ }
 
-bool allUnbounded(std::vector<int> const &v) {
-    return std::all_of( v.begin(), v.end(), [](int i){ return i == Solver::kUnbounded; } );
-}
+bool allUnbounded( std::vector< int > const  & v )
+{
+ return( std::all_of( v.begin() , v.end() ,
+		      []( int i ){ return( i == Solver::kUnbounded ); } ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -532,13 +533,13 @@ static bool SolveAll( void )
   auto slvr_list = LPBlock->get_registered_solvers();
   auto itslvr = slvr_list.begin();
   int num_slvr = slvr_list.size();
-  std::vector<int> rtrnLP( num_slvr );
-  std::vector<bool> hsLP( num_slvr );
-  std::vector<double> foLP( num_slvr );
+  std::vector< int > rtrnLP( num_slvr );
+  std::vector< bool > hsLP( num_slvr );
+  std::vector< double > foLP( num_slvr );
 
-  for( int j = 0 ; j < num_slvr ; ++j , ++itslvr ){
-
+  for( int j = 0 ; j < num_slvr ; ++j , ++itslvr ) {
     // solve the LPBlock with the j^th solvers- - - - - - - - - - - - - - - - - - 
+
     Solver * slvrLP = *itslvr;
     #if DETACH_LP
      LPBlock->unregister_Solver( slvrLP );
@@ -567,7 +568,6 @@ static bool SolveAll( void )
    }
 
   #if( LOG_LEVEL >= 1 )
-
    for( int j = 0 ; j < num_slvr ; ++j ){
     cout << "Solver" << j <<  " = ";
     if( hsLP[ j ] )
@@ -580,7 +580,7 @@ static bool SolveAll( void )
       cout << " Unbounded -- ";
      else
       cout << " Error! -- ";
-   }
+    }
    cout << endl;
   #endif
 
@@ -729,19 +729,19 @@ int main( int argc , char **argv )
  // define bound constraints- - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-  LPbnd = new std::list< FRowConstraint >;
-  auto & LPx = *(LPBlock->get_static_variable_v< ColVariable >( "x" ));
-  for( Index i = 0 ; i < nsvar ; ++i )
-   SetFRow( LPx[ i ] );
+ LPbnd = new std::list< FRowConstraint >;
+ auto & LPx = *(LPBlock->get_static_variable_v< ColVariable >( "x" ));
+ for( Index i = 0 ; i < nsvar ; ++i )
+  SetFRow( LPx[ i ] );
 
-  auto LPxd = LPBlock->get_dynamic_variable< ColVariable >( "xd" )->begin();
-  for( Index i = 0 ; i < ndvar ; ++i )
-   SetFRow( *(LPxd++) );
+ auto LPxd = LPBlock->get_dynamic_variable< ColVariable >( "xd" )->begin();
+ for( Index i = 0 ; i < ndvar ; ++i )
+  SetFRow( *(LPxd++) );
 
-  // note: the list may be empty, but it is intentionally added anyway
-  LPBlock->add_dynamic_constraint( *LPbnd , "xbnd" );
+ // note: the list may be empty, but it is intentionally added anyway
+ LPBlock->add_dynamic_constraint( *LPbnd , "xbnd" );
  
-// attach two Solver to the LPBlock- - - - - - - - - - - - - - - 
+ // attach (at least) two Solver to the LPBlock - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // do it by using a single a BlockSolverConfig, read from file
  
@@ -761,26 +761,15 @@ int main( int argc , char **argv )
   cerr << "Error: BlockSolverConfig did not register any Solver" << endl;
   exit( 1 );    
   }
-/*
- Solver * solver1 = new CPXMILPSolver();
-
- LPBlock->register_Solver( solver1 );
- 
- Solver * solver2 = new GRBMILPSolver();
-
- LPBlock->register_Solver( solver2 );*/
 
  // open log-file - - - - - - - - - - -  - - - - - - - - - - - - - - - - - -
  //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
  #if( LOG_LEVEL >= 3 )
    auto slvr_list = LPBlock->get_registered_solvers();
    auto itslvr = slvr_list.begin();
-   for( int j = 0 ; j < slvr_list.size() ; ++j ){
-    (*itslvr)->set_par( MILPSolver::strOutputFile , 
-      "Solver" + std::to_string( j ) + "-LP1Block.lp" );
-    ++itslvr;
-    }
+   for( int j = 0 ; j < slvr_list.size() ; ++j )
+    (*(itslvr++))->set_par( MILPSolver::strOutputFile , 
+			    "Solver" + std::to_string( j ) + ".lp" );
  #endif
 
  // first solver call - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
