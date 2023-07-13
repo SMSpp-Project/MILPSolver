@@ -3,7 +3,8 @@ tools/cpx_pars
 tools/grb_pars
 tools/scip_pars
 test_cuts/test
-test/PolyhedralFunction/PolyhedralFunctionLP_test
+test_dynamic/test
+test_dual/test_dual
 
 ### C/C++ template
 # Prerequisites
