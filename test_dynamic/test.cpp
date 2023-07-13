@@ -659,7 +659,7 @@ int main( int argc , char **argv )
   default: cerr << "Usage: " << argv[ 0 ] <<
 	   " seed [wchg nvar dens #rounds #chng %chng]"
  		<< endl <<
-           "       wchg: what to change, coded bit-wise [127]"
+           "       wchg: what to change, coded bit-wise [255]"
 		<< endl <<
            "             0 = add rows, 1 = delete rows "
 		<< endl <<
@@ -668,6 +668,8 @@ int main( int argc , char **argv )
            "             4 = change global lower/upper bound"
 		<< endl <<
            "             5 = add variables, 6 = delete variables"
+    << endl <<
+           "             7 = change variables bounds"
 	        << endl <<
            "       nvar: number of variables [10]"
 	        << endl <<

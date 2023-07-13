@@ -1,39 +1,39 @@
-# /MILPSolver/test/PolyhedralFunction
+# /MILPSolver/test_dynamic
 
-A tester which provides very comprehensive tests for `PolyhedralFunction`
-and some tests for any `CDASolver`  able to handle Linear Programs (such 
-as `MILPSolver` and its derived classes `CPXMILPSolver` , `SCIPMILPSolver` 
-and `GRBMILPSolver`), as well as for some of the mechanics of the "core" 
-SMS++ library.
+A tester which provides very comprehensive tests for any `CDASolver` 
+able to handle Linear Programs (such as `MILPSolver` and its derived 
+classes `CPXMILPSolver` , `SCIPMILPSolver` and `GRBMILPSolver`), as 
+well as for some of the mechanics of the "core" SMS++ library.
 
 This executable, given the input parameter n, constructs a "random"
-`PolyhedralFunction` and represent it as a Linear Program in two different
-`AbstractBlock` (LPBlock1 and LPBlock2) having n `ColVariable`, a
-"linear objective" (`FRealObjective` with a `LinearFunction` inside) and
-"linear constraints" (`FRowConstraint` with a `LinearFunction` inside). 
-The built ColVariable can have simple bound constraints
-imposed on them if the macro `HAVE_CONSTRAINTS` is properly set.
+Linear Program with n `ColVariable`, a "linear objective" 
+(`FRealObjective` with a `LinearFunction` inside) and "linear constraints"
+(`FRowConstraint` with a `LinearFunction` inside) and represent it in an 
+`AbstractBlock` (LPBlock). Moreover, the built ColVariable can have simple
+bound constraints imposed on them, which are implemented as ranged 
+constraints if both rhs and lhs are finite.
 
-Two appropriate `CDASolver` are respectively attached to LPBlock1 and 
-LPBlock2, which can be any `Solver` capable of handling Linear Programs 
-(say, some derived class of `MILPSolver` such as `CPXMILPSolver` , 
-`SCIPMILPSolver` or `GRBMILPSolver`).
+Two appropriate `CDASolver` are attached to the LPBlock, which can be any
+`Solver` capable of handling Linear Programs (say, some derived class 
+of `MILPSolver` such as `CPXMILPSolver` , `SCIPMILPSolver` or 
+`GRBMILPSolver`).
 
-After all this is done, the two LPBlocks are solved with the
-registered `Solver` and the results (termination status and objective
-value, if applicable) are compared.
+After all this is done, the LPBlock is solved with registered `Solvers` 
+and the results (termination status and objective value, if applicable) 
+are compared.
 
-The `PolyhedralFunction` and the LP are then repeatedly randomly modified
-"in the same way", and re-solved several times; each time the results
-of the two `Solver` are compared.
+The LP is then repeatedly randomly modified, and re-solved several times; 
+each time the results of the two `Solver` are compared.
 
 The usage of the executable is the following:
 
-       ./PolyhedralFunction_test seed [wchg nvar dens #rounds #chng %chng]
-       wchg: what to change, coded bit-wise [127]
+       ./DynamicLP_test seed [wchg nvar dens #rounds #chng %chng]
+       wchg: what to change, coded bit-wise [255]
              0 = add rows, 1 = delete rows 
              2 = modify rows, 3 = modify constants
              4 = change global lower/upper bound
+             5 = add variables, 6 = delete variables
+             7 = change variables bounds
        nvar: number of variables [10]
        dens: rows / variables [4]
        #rounds: how many iterations [40]
@@ -42,8 +42,7 @@ The usage of the executable is the following:
 
 A batch file is provided that runs a not-so-large set of tests with
 different sizes and seeds of the random generator; all these passing is a
-good sign that no regressions have been done for the tested modules, and
-in particular for `PolyhedralFunction`.
+good sign that no regressions have been done for the tested modules.
 
 A makefile is also provided that builds the executable including the
 `MILPSolver` module and all its dependencies (and, obviously, the 
