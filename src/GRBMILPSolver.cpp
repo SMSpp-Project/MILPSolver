@@ -1358,6 +1358,14 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
    if( sense != 'R' ) {
     GRBsetcharattrelement( model , GRB_CHAR_ATTR_SENSE , index , sense );
     GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
+    
+    if( is_rng ){
+     // we are modifying a previously ranged constraint into a non ranged one.
+     // We allow this to happen, but we have to set the bound on the auxiliary
+     // variable to 0
+     int idx_aux_var = ( *it_rng ).second;
+     GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , rngval );
+    }
    }
    else{
     // GRBMILPSolver doesn't support change in linear constraint sense from
