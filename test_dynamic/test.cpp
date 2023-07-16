@@ -30,7 +30,7 @@
 /*-------------------------------- MACROS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#define LOG_LEVEL 0
+#define LOG_LEVEL 3
 // 0 = only pass/fail
 // 1 = result of each test
 // 2 = + solver log
@@ -53,6 +53,14 @@
  #define LOG1( x )
  #define CLOG1( y , x )
 #endif
+
+/*--------------------------------------------------------------------------*/
+
+// if nonzero, all the new variables are initialized with ranged bounds. This 
+// is beecause some *MILPSolver could have restrictions on the use of ranged 
+// constraints and in this way we make sure that no constraint changes from
+// non ranged to ranged one.
+#define INITIALIZE_RANGED_BOUND 1
 
 /*--------------------------------------------------------------------------*/
 
@@ -376,20 +384,33 @@ static inline void SetNN( ColVariable & LPxi )
 
 static inline void SetFRow( ColVariable & LPxi )
 {
- if( dis( rg ) < 0.5 ) {
+ #if INITIALIZE_RANGED_BOUND
   LPbnd->resize( LPbnd->size() + 1 );
   LinearFunction::v_coeff_pair vars_LP( 1 );
   vars_LP[ 0 ] = std::make_pair( & LPxi , 1 );
   LPbnd->back().set_function( new LinearFunction( std::move( vars_LP ) ) );
   auto p = dis( rg );
-  auto lhs = p < 0.666 ? 0 : -INF;
-  auto rhs = p < 0.333 ? dis( rg ) : INF;
+  auto lhs = p > 0.333 ? 0 : p;
+  auto rhs = p > 0.666 ? p : 1;
   LPbnd->back().set_lhs( lhs , eNoMod );
   LPbnd->back().set_rhs( rhs , eNoMod );
   ++nranged;
-  }
- else
-  SetNN( LPxi );
+ #else
+  if( dis( rg ) < 0.5 ) {
+    LPbnd->resize( LPbnd->size() + 1 );
+    LinearFunction::v_coeff_pair vars_LP( 1 );
+    vars_LP[ 0 ] = std::make_pair( & LPxi , 1 );
+    LPbnd->back().set_function( new LinearFunction( std::move( vars_LP ) ) );
+    auto p = dis( rg );
+    auto lhs = p < 0.666 ? 0 : -INF;
+    auto rhs = p < 0.333 ? dis( rg ) : INF;
+    LPbnd->back().set_lhs( lhs , eNoMod );
+    LPbnd->back().set_rhs( rhs , eNoMod );
+    ++nranged;
+    }
+  else
+    SetNN( LPxi );
+ #endif
  }
 
 /*--------------------------------------------------------------------------*/
@@ -791,7 +812,7 @@ int main( int argc , char **argv )
   }
 
  lpbsc->apply( LPBlock );
- lpbsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup*/
+ lpbsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup
 
  // check Solvers - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -1013,9 +1034,11 @@ int main( int argc , char **argv )
    }
 
  // add variables- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ Index added_ndvar = 0; // number of dynamic variables added in current loop
 
   if( ( wchg & 32 ) && ( dis( rg ) <= p_change ) ) {
    Index tochange = std::max( Index( 1 ) , Index( dis( rg ) * nsvar / 4 ) );
+   added_ndvar = tochange;
    LOG1( "added " << tochange << " variables - " );
 
    GenerateA( m , tochange );
@@ -1049,13 +1072,13 @@ int main( int argc , char **argv )
      }
 
    // generate bound constraints
-   auto & LPxd = *(LPBlock->get_dynamic_variable< ColVariable >( "xd" ));
-   auto LPxd_it = LPxd.begin();
-   std::next( LPxd_it , ndvar );
+   auto LPxd = LPBlock->get_dynamic_variable< ColVariable >( 0 );
+   auto LPxd_it = LPxd->begin();
+   LPxd_it = std::next( LPxd_it , ndvar );
    
    LPbnd = new std::list< FRowConstraint >;
 
-   for( ; LPxd_it != LPxd.end() ; )
+   for( ; LPxd_it != LPxd->end() ; )
     SetFRow( *(LPxd_it++) );
 
    if( ! LPbnd->empty() )
@@ -1068,7 +1091,7 @@ int main( int argc , char **argv )
 
    // sanity checks
    PANIC( ndvar ==
-	      LPBlock->get_dynamic_variable< ColVariable >( "xd" )->size() );
+	      LPBlock->get_dynamic_variable< ColVariable >( 0 )->size() );
    for( auto & ci :
  	    *(LPBlock->get_dynamic_constraint< FRowConstraint >( "cuts" )) )
     PANIC( nvar + 1 == ci.get_num_active_var() );
@@ -1163,14 +1186,18 @@ int main( int argc , char **argv )
     }
 
   // change ranged constraint rhs and lhs - - - - - - - - - - - - - - - - - - - -
+
+  // in order to avoid strange behaviour, we don't want that the bounds on variables
+  // added in the current loop changes
+  Index n_oldranged = nranged - added_ndvar;
   if( ( wchg & 128 ) && ( dis( rg ) <= p_change ) )
-   if( Index tochange = Index( dis( rg ) * nranged ) ) {
+   if( Index tochange = Index( dis( rg ) * n_oldranged ) ) {
     LOG1( "changed " << tochange << " rng limit" );
 
     if( dis( rg ) <= 0.5 ) {  // in 50% of the cases do a ranged removal
      LOG1( "(r) - " );
 
-     Index strt = dis( rg ) * ( nranged - tochange );
+     Index strt = dis( rg ) * ( n_oldranged - tochange );
      Index stp = strt + tochange;
 
      // the variables can now only be active in the associated frow
@@ -1180,7 +1207,7 @@ int main( int argc , char **argv )
      }
     else {  // in the other 50% of the cases, do a sparse change
      LOG1( "(s) - " );
-     Subset nms( GenerateRand( nranged , tochange ) );
+     Subset nms( GenerateRand( n_oldranged , tochange ) );
 
      ChangeFRow( *LPBlock , nms );
      }
