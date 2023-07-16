@@ -48,24 +48,23 @@ endif ()
 
 # ----- Find the path to GUROBI --------------------------------------------- #
 
-if (NOT GUROBI_DIR)
-    foreach (dir ${GUROBI_DIRS})
-        file(GLOB GUROBI_DIRS "${dir}/gurobi*")
+foreach (dir ${GUROBI_DIRS})
+    file(GLOB GUROBI_DIRS "${dir}/gurobi*")
+    if (NOT GUROBI_DIR IN_LIST GUROBI_DIRS)
+        message(STATUS "Specified Gurobi: ${GUROBI_DIR} not found")
         list(SORT GUROBI_DIRS)
         list(REVERSE GUROBI_DIRS)
         if (GUROBI_DIRS)
-            list(GET GUROBI_DIRS 0 GUROBI_DIR_)
-            message(STATUS "Found Gurobi: ${GUROBI_DIR_}")
+            list(GET GUROBI_DIRS 0 GUROBI_DIR)
+            message(STATUS "Using Gurobi: ${GUROBI_DIR}")
             break()
+        else ()
+            set(GUROBI_DIR GUROBI_DIR-NOTFOUND)
         endif ()
-    endforeach ()
-
-    if (NOT GUROBI_DIR_)
-        set(GUROBI_DIR_ GUROBI_DIR-NOTFOUND)
+    else ()
+        break()
     endif ()
-    # Set the path in the cache
-    set(GUROBI_DIR ${GUROBI_DIR_})
-endif ()
+endforeach ()
 
 # ----- Requirements -------------------------------------------------------- #
 # This sets the variable CMAKE_THREAD_LIBS_INIT, see:
