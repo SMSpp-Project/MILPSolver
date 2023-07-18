@@ -30,7 +30,7 @@
 /*-------------------------------- MACROS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#define LOG_LEVEL 3
+#define LOG_LEVEL 0
 // 0 = only pass/fail
 // 1 = result of each test
 // 2 = + solver log
@@ -56,11 +56,12 @@
 
 /*--------------------------------------------------------------------------*/
 
-// if nonzero, all the new variables are initialized with ranged bounds. This 
-// is beecause some *MILPSolver could have restrictions on the use of ranged 
-// constraints and in this way we make sure that no constraint changes from
-// non ranged to ranged one.
-#define INITIALIZE_RANGED_BOUND 1
+// if nonzero, we avoid that bounds on variable initialized with rhs (or
+// equally lhs) infinite become ranged (i.e. both rhs and lhs finite).
+// This is beecause some *MILPSolver could have restrictions on the use of 
+// ranged constraints and in this way we make sure that no constraint changes 
+// from non ranged to ranged one.
+#define CONTROL_RANGED 1
 
 /*--------------------------------------------------------------------------*/
 
@@ -199,6 +200,14 @@ std::vector< ColVariable > * xLP;  // pointer to (static) x LP variables
 std::list< ColVariable > * xLPd;  // pointer to (dynamic) x LP variables
 
 std::list< FRowConstraint > * LPbnd;  // FRowConstrait for LPBlock
+
+#if CONTROL_RANGED
+  // vector to store information about variable bound: 
+  // if bound_ranged[i] == true, then the i-th variable has been initialized
+  // with ranged bound.
+  std::vector< bool > * bound_ranged;
+#endif
+
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ FUNCTIONS ---------------------------------*/
@@ -374,43 +383,43 @@ static void ChangeLPConstraint( Index i , FRowConstraint & ci , ModParam iAM )
 
 /*--------------------------------------------------------------------------*/
 
-static inline void SetNN( ColVariable & LPxi )
-{
- if( dis( rg ) < 0.5 )
-  LPxi.is_positive( true , eNoMod );
- }
+static std::pair< double , double > Generate_lhs_rhs( double const p ){
+  double lhs , rhs;
+  if( p < 0.333 ){ // lhs finite, rhs INF
+      lhs = dis( rg );
+      rhs = INF;
+    }
+    else if( p >= 0.333 && p < 0.666){ // both lhs and rhs finite
+      auto p2 = dis( rg );
+      lhs = p2 < 0.5 ? p2 : 0;
+      rhs = p2 < 0.5 ? 1 : p2;
+    }
+    else{ // lhs -INF, rhs finite
+      lhs = -INF;
+      rhs = dis( rg );
+    }
+  return { lhs , rhs };
+}
 
 /*--------------------------------------------------------------------------*/
 
 static inline void SetFRow( ColVariable & LPxi )
 {
- #if INITIALIZE_RANGED_BOUND
   LPbnd->resize( LPbnd->size() + 1 );
   LinearFunction::v_coeff_pair vars_LP( 1 );
   vars_LP[ 0 ] = std::make_pair( & LPxi , 1 );
   LPbnd->back().set_function( new LinearFunction( std::move( vars_LP ) ) );
   auto p = dis( rg );
-  auto lhs = p > 0.333 ? 0 : p;
-  auto rhs = p > 0.666 ? p : 1;
-  LPbnd->back().set_lhs( lhs , eNoMod );
-  LPbnd->back().set_rhs( rhs , eNoMod );
+  std::pair< double , double > bounds = Generate_lhs_rhs( p );
+  LPbnd->back().set_lhs( bounds.first , eNoMod );
+  LPbnd->back().set_rhs( bounds.second , eNoMod );
   ++nranged;
- #else
-  if( dis( rg ) < 0.5 ) {
-    LPbnd->resize( LPbnd->size() + 1 );
-    LinearFunction::v_coeff_pair vars_LP( 1 );
-    vars_LP[ 0 ] = std::make_pair( & LPxi , 1 );
-    LPbnd->back().set_function( new LinearFunction( std::move( vars_LP ) ) );
-    auto p = dis( rg );
-    auto lhs = p < 0.666 ? 0 : -INF;
-    auto rhs = p < 0.333 ? dis( rg ) : INF;
-    LPbnd->back().set_lhs( lhs , eNoMod );
-    LPbnd->back().set_rhs( rhs , eNoMod );
-    ++nranged;
-    }
-  else
-    SetNN( LPxi );
- #endif
+  #if CONTROL_RANGED
+    if( bounds.first == -INF || bounds.second == INF )
+      bound_ranged->push_back( false );
+    else
+      bound_ranged->push_back( true );
+  #endif
  }
 
 /*--------------------------------------------------------------------------*/
@@ -422,16 +431,19 @@ static void RemoveFRow( AbstractBlock & AB , Range rng )
  // that has to be removed as well
 
  auto xd = AB.get_dynamic_variable< ColVariable >( "xd" );
- auto it = std::next( xd->begin() , rng.first );
- for( Index i = rng.first ; i < rng.second ; ++i , ++it ) {
-  if( ! it->get_num_active() )
+ auto itxd = std::next( xd->begin() , rng.first );
+ #if CONTROL_RANGED
+  auto itcontrol = std::next( bound_ranged->begin() , rng.first + nsvar );
+ #endif
+ for( Index i = rng.first ; i < rng.second ; ++i , ++itxd ) {
+  if( ! itxd->get_num_active() )
    continue;
   --nranged;
-  int numbox = it->get_num_active();
+  int numbox = itxd->get_num_active();
   for( int j = 0 ; j < numbox ; ++j ){
    std::vector< typename std::list< FRowConstraint >::iterator > rmvd;
    auto & frow = *(AB.get_dynamic_constraint< FRowConstraint >( "xbnd" ));
-   auto rc = dynamic_cast< FRowConstraint * >( it->get_active( 0 ) );
+   auto rc = dynamic_cast< FRowConstraint * >( itxd->get_active( 0 ) );
   if( ! rc ) {
    cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
    exit( 1 );
@@ -447,6 +459,9 @@ static void RemoveFRow( AbstractBlock & AB , Range rng )
    rmvd.push_back( to_remove );
    AB.remove_dynamic_constraints( frow , rmvd ); 
    }
+  #if CONTROL_RANGED
+    bound_ranged->erase( itcontrol );
+  #endif
   }
  }
 
@@ -460,18 +475,24 @@ static void RemoveFRow( AbstractBlock & AB , const Subset & sbst )
 
  auto xd = AB.get_dynamic_variable< ColVariable >( "xd" );
  Index prev = 0;
- auto it = xd->begin();
+ auto itxd = xd->begin();
+ int n_removed = 0;
  for( auto ind : sbst ) {
-  it = std::next( it , ind - prev );
+  itxd = std::next( itxd , ind - prev );
+  #if CONTROL_RANGED
+    auto itcontrol = std::next( bound_ranged->begin() , nsvar + ind - n_removed );
+    bound_ranged->erase( itcontrol );
+  #endif
+  ++n_removed;
   --nranged;
   prev = ind;
-  if( ! it->get_num_active() )
+  if( ! itxd->get_num_active() )
    continue;
-  int numbox = it->get_num_active();
+  int numbox = itxd->get_num_active();
   for( int j = 0 ; j < numbox ; ++j ){
    std::vector< typename std::list< FRowConstraint >::iterator > rmvd;
    auto & frow = *(AB.get_dynamic_constraint< FRowConstraint >( "xbnd" ));
-   auto rc = dynamic_cast< FRowConstraint * >( it->get_active( 0 ) );
+   auto rc = dynamic_cast< FRowConstraint * >( itxd->get_active( 0 ) );
    if( ! rc ) {
     cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
     exit( 1 );
@@ -497,14 +518,39 @@ static void ChangeFRow( AbstractBlock & AB , const Subset & sbst )
  auto frow = AB.get_dynamic_constraint< FRowConstraint >( "xbnd" );
  Index prev = 0;
  auto frowit = frow->begin();
+
+ #if CONTROL_RANGED
+  auto itcontrol = bound_ranged->begin();
+ #endif
+
  for( auto ind : sbst ) {
-  frowit = std::next( frowit , ind - prev );
-  prev = ind;
-  auto p = dis( rg );
-  auto lhs = p < 0.666 ? 0 : -INF;
-  auto rhs = p < 0.333 ? dis( rg ) : INF;
-  (*frowit).set_lhs( lhs );
-  (*frowit).set_rhs( rhs );
+  #if CONTROL_RANGED
+    itcontrol = std::next( itcontrol , ind - prev );
+    frowit = std::next( frowit , ind - prev );
+    prev = ind;
+    double lhs, rhs;
+    if( *itcontrol == false ){
+      // we have to check that the bound doesn't become ranged
+      auto p = dis( rg );
+      lhs = p < 0.5 ? p : -INF;
+      rhs = p < 0.5 ? INF : p;
+      }
+    else{ // any situation could be reproduced
+      auto p = dis( rg );
+      std::pair< double , double > bounds = Generate_lhs_rhs( p );
+      lhs = bounds.first;
+      rhs = bounds.second;
+      }
+    (*frowit).set_lhs( lhs );
+    (*frowit).set_rhs( rhs );
+  #else
+    frowit = std::next( frowit , ind - prev );
+    prev = ind;
+    auto p = dis( rg );
+    std::pair< double , double > bounds = Generate_lhs_rhs( p );
+    (*frowit).set_lhs( bounds.first );
+    (*frowit).set_rhs( bounds.second );
+  #endif
  }
 }
 
@@ -514,12 +560,34 @@ static void ChangeFRow( AbstractBlock & AB , Range rng )
 {
  auto frow = AB.get_dynamic_constraint< FRowConstraint >( "xbnd" );
  auto frowit = std::next( frow->begin() , rng.first );
+ #if CONTROL_RANGED
+  auto itcontrol = std::next( bound_ranged->begin() , rng.first );
+ #endif
  for( Index i = rng.first ; i < rng.second ; ++i , ++frowit ) {
-  auto p = dis( rg );
-  auto lhs = p < 0.666 ? 0 : -INF;
-  auto rhs = p < 0.333 ? dis( rg ) : INF;
-  (*frowit).set_lhs( lhs );
-  (*frowit).set_rhs( rhs );
+  #if CONTROL_RANGED
+    double lhs;
+    double rhs;
+    if( *itcontrol == false ){
+      // we have to check that the bound doesn't become ranged
+      auto p = dis( rg );
+      lhs = p < 0.5 ? p : -INF;
+      rhs = p < 0.5 ? INF : p;
+      }
+    else{ // any situation could be reproduced
+      auto p = dis( rg );
+      std::pair< double , double > bounds = Generate_lhs_rhs( p );
+      lhs = bounds.first;
+      rhs = bounds.second;      
+      }
+    (*frowit).set_lhs( lhs );
+    (*frowit).set_rhs( rhs );
+    ++itcontrol;
+  #else
+    auto p = dis( rg );
+    std::pair< double , double > bounds = Generate_lhs_rhs( p );
+    (*frowit).set_lhs( bounds.first );
+    (*frowit).set_rhs( bounds.second );
+  #endif
  }
 }
 
@@ -789,6 +857,9 @@ int main( int argc , char **argv )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  LPbnd = new std::list< FRowConstraint >;
+ #if CONTROL_RANGED
+  bound_ranged = new std::vector< bool >;
+ #endif
  auto & LPx = *(LPBlock->get_static_variable_v< ColVariable >( "x" ));
  for( Index i = 0 ; i < nsvar ; ++i )
   SetFRow( LPx[ i ] );
