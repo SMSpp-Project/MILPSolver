@@ -3,7 +3,7 @@
 iter=50
 
 for what in 31 63 127 255; do
-  for size in 3 50 200; do
+  for size in 3 50 100; do
     for dens in 1.1 3 10; do
       for (( seed = 0 ; seed < 20 ; seed++ )); do
 
