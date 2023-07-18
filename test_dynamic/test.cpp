@@ -81,7 +81,7 @@
 // SKIP_BEAT + 1, so that the input parameter still dictates the number of
 // Block solutions
 
-#define SKIP_BEAT 0
+#define SKIP_BEAT 3
 
 /*--------------------------------------------------------------------------*/
 
@@ -513,7 +513,8 @@ static void RemoveFRow( AbstractBlock & AB , const Subset & sbst )
 
 /*--------------------------------------------------------------------------*/
 
-static void ChangeFRow( AbstractBlock & AB , const Subset & sbst )
+static void ChangeFRow( AbstractBlock & AB , const Subset & sbst , 
+                const bool control_rep )
 {
  auto frow = AB.get_dynamic_constraint< FRowConstraint >( "xbnd" );
  Index prev = 0;
@@ -540,6 +541,11 @@ static void ChangeFRow( AbstractBlock & AB , const Subset & sbst )
       std::pair< double , double > bounds = Generate_lhs_rhs( p );
       lhs = bounds.first;
       rhs = bounds.second;
+      if( control_rep == true )
+        if( lhs == -INF )
+         lhs = 0;
+        else if( rhs == INF )
+         rhs = 1;
       }
     (*frowit).set_lhs( lhs );
     (*frowit).set_rhs( rhs );
@@ -556,7 +562,8 @@ static void ChangeFRow( AbstractBlock & AB , const Subset & sbst )
 
 /*--------------------------------------------------------------------------*/
 
-static void ChangeFRow( AbstractBlock & AB , Range rng )
+static void ChangeFRow( AbstractBlock & AB , Range rng ,
+                  const bool control_rep )
 {
  auto frow = AB.get_dynamic_constraint< FRowConstraint >( "xbnd" );
  auto frowit = std::next( frow->begin() , rng.first );
@@ -577,7 +584,12 @@ static void ChangeFRow( AbstractBlock & AB , Range rng )
       auto p = dis( rg );
       std::pair< double , double > bounds = Generate_lhs_rhs( p );
       lhs = bounds.first;
-      rhs = bounds.second;      
+      rhs = bounds.second;
+      if( control_rep == true )
+        if( lhs == -INF )
+         lhs = 0;
+        else if( rhs == INF )
+         rhs = 1;    
       }
     (*frowit).set_lhs( lhs );
     (*frowit).set_rhs( rhs );
@@ -1274,13 +1286,13 @@ int main( int argc , char **argv )
      // the variables can now only be active in the associated frow
      // constraint, if any: exploit this to identify the frow constraint
      // and remove it
-     ChangeFRow( *LPBlock , Range( strt , stp ) );
+     ChangeFRow( *LPBlock , Range( strt , stp ) , ( rep % ( SKIP_BEAT + 1 ) != 0 ) );
      }
     else {  // in the other 50% of the cases, do a sparse change
      LOG1( "(s) - " );
      Subset nms( GenerateRand( n_oldranged , tochange ) );
 
-     ChangeFRow( *LPBlock , nms );
+     ChangeFRow( *LPBlock , nms , ( rep % ( SKIP_BEAT + 1 ) != 0 )  );
      }
    }
 
