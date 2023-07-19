@@ -9,7 +9,7 @@
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 
-if ( TARGET SMS++::MILPSolver )
+if (TARGET SMS++::MILPSolver)
     add_executable(DynamicLP_test test.cpp)
 
     target_link_libraries(DynamicLP_test PRIVATE
