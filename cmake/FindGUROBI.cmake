@@ -24,8 +24,8 @@
 #    This find module is provided because GUROBI does not provide             #
 #    a CMake configuration file on its own.                                   #
 #                                                                             #
-#                              Enrico Calandrini                              #
-#                         Dipartimento di Matematica                          #
+#                                 Donato Meoli                                #
+#                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
