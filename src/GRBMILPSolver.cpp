@@ -1716,10 +1716,6 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
 				) );
- std::vector< int > indices;
- indices.reserve( nv );
- std::vector< double > values;
- values.reserve( nv );
 
  auto f = mod->function();
  auto nav = f->get_num_active_var();
@@ -1737,19 +1733,17 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   for( auto v : mod->vars() ) {
    auto var = static_cast< const ColVariable * >( v );
    if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
+    double value = 0;
     
-    indices.push_back( idx );
     if( mod->added() ) {
      auto cidx = lf->is_active( var );
-     values.push_back( cidx < nav ? lf->get_coefficient( cidx ) : 0 );
+     value = cidx < nav ? lf->get_coefficient( cidx ) : 0;
      }
-    else
-     values.push_back( 0 );
+
+    GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , idx , value  );
     }
    }
-
-  for( int i = 0 ; i < indices.size() ; ++i )
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , indices[ i ] , values[ i ]  );
+  
   return;
   }
 
@@ -1774,8 +1768,6 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   for( auto v : mod->vars() ) {
    auto var = static_cast< const ColVariable * >( v );
    if( auto ind = grb_index_of_variable( var ) ; ind < Inf< int >() ) {
-
-    indices.push_back( ind );
     double value = 0;
     double q_value = 0;
 
@@ -1786,8 +1778,8 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
        }
      }
     else { // removed variable
-       auto arr_idx_row = std::find(oldind_row.begin(), oldind_row.end(), idx);
-       auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), idx);
+       auto arr_idx_row = std::find(oldind_row.begin(), oldind_row.end(), ind);
+       auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), ind);
 
        if( *arr_idx_row != *arr_idx_col )
        throw( std::runtime_error( "Error while modifying quadratic coefficients" ) );
@@ -1795,14 +1787,10 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
        q_value = - oldval[ *arr_idx_row ];
       }
 
-    values.push_back( value );
-
+    GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , ind , value );
     GRBaddqpterms( model, 1 , & ind , & ind , & q_value );
     }
    }
-
-  for( int i = 0 ; i < indices.size() ; ++i )
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , indices[ i ] , values[ i ]  );
 
   GRBupdatemodel( model );
   return;
