@@ -1175,7 +1175,7 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
  
  if( n_ranged_con != 0 ) {
   int tmp_count = 0;
-    while( idx >= map_rng_con_aux_var[ tmp_count ].second  && tmp_count < n_ranged_con ){
+    while( idx >= map_rng_con_aux_var[ tmp_count ].second  && tmp_count < n_ranged_con ) {
       ++tmp_count;
       ++idx;
     }
@@ -1196,7 +1196,7 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
  
  if( n_ranged_con != 0 ) {
   int tmp_count = last_static_rng_con + 1;
-    while( idx >= map_rng_con_aux_var[ tmp_count ].second  && tmp_count < n_ranged_con ){
+    while( idx >= map_rng_con_aux_var[ tmp_count ].second  && tmp_count < n_ranged_con ) {
       ++tmp_count;
       ++idx;
     }
@@ -1359,7 +1359,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
     GRBsetcharattrelement( model , GRB_CHAR_ATTR_SENSE , index , sense );
     GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
     
-    if( is_rng ){
+    if( is_rng ) {
      // we are modifying a previously ranged constraint into a non ranged one.
      // We allow this to happen, but we have to set the bound on the auxiliary
      // variable to 0
@@ -1779,7 +1779,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     double value = 0;
     double q_value = 0;
 
-    if( mod->added() ){
+    if( mod->added() ) {
      if( auto idx = qf->is_active( var ) ; idx < nav ) {
        value = qf->get_linear_coefficient( idx );
        q_value = qf->get_quadratic_coefficient( idx );
@@ -2037,7 +2037,7 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 
   // The element ( index , aux_var ) has to be removed from the map and also the 
   // auxiliary variable has to be removed from the Gurobi model
-  if( is_rng ){
+  if( is_rng ) {
     int index_aux_var = (*it_rng).second;
     GRBdelvars( model , 1 , &index_aux_var );
     map_rng_con_aux_var.erase( it_rng );

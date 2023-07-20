@@ -383,13 +383,13 @@ static void ChangeLPConstraint( Index i , FRowConstraint & ci , ModParam iAM )
 
 /*--------------------------------------------------------------------------*/
 
-static std::pair< double , double > Generate_lhs_rhs( double const p ){
+static std::pair< double , double > Generate_lhs_rhs( double const p ) {
   double lhs , rhs;
-  if( p < 0.333 ){ // lhs finite, rhs INF
+  if( p < 0.333 ) { // lhs finite, rhs INF
       lhs = dis( rg );
       rhs = INF;
     }
-    else if( p >= 0.333 && p < 0.666){ // both lhs and rhs finite
+    else if( p >= 0.333 && p < 0.666) { // both lhs and rhs finite
       auto p2 = dis( rg );
       lhs = p2 < 0.5 ? p2 : 0;
       rhs = p2 < 0.5 ? 1 : p2;
@@ -440,7 +440,7 @@ static void RemoveFRow( AbstractBlock & AB , Range rng )
    continue;
   --nranged;
   int numbox = itxd->get_num_active();
-  for( int j = 0 ; j < numbox ; ++j ){
+  for( int j = 0 ; j < numbox ; ++j ) {
    std::vector< typename std::list< FRowConstraint >::iterator > rmvd;
    auto & frow = *(AB.get_dynamic_constraint< FRowConstraint >( "xbnd" ));
    auto rc = dynamic_cast< FRowConstraint * >( itxd->get_active( 0 ) );
@@ -489,7 +489,7 @@ static void RemoveFRow( AbstractBlock & AB , const Subset & sbst )
   if( ! itxd->get_num_active() )
    continue;
   int numbox = itxd->get_num_active();
-  for( int j = 0 ; j < numbox ; ++j ){
+  for( int j = 0 ; j < numbox ; ++j ) {
    std::vector< typename std::list< FRowConstraint >::iterator > rmvd;
    auto & frow = *(AB.get_dynamic_constraint< FRowConstraint >( "xbnd" ));
    auto rc = dynamic_cast< FRowConstraint * >( itxd->get_active( 0 ) );
@@ -530,7 +530,7 @@ static void ChangeFRow( AbstractBlock & AB , const Subset & sbst ,
     frowit = std::next( frowit , ind - prev );
     prev = ind;
     double lhs, rhs;
-    if( *itcontrol == false ){
+    if( *itcontrol == false ) {
       // we have to check that the bound doesn't become ranged
       auto p = dis( rg );
       lhs = p < 0.5 ? p : -INF;
@@ -574,7 +574,7 @@ static void ChangeFRow( AbstractBlock & AB , Range rng ,
   #if CONTROL_RANGED
     double lhs;
     double rhs;
-    if( *itcontrol == false ){
+    if( *itcontrol == false ) {
       // we have to check that the bound doesn't become ranged
       auto p = dis( rg );
       lhs = p < 0.5 ? p : -INF;
@@ -646,19 +646,19 @@ bool allEqual( std::vector< double > const & v )
 bool allTrue( std::vector< bool > const & v )
 {
  return( std::all_of( v.begin() , v.end() ,
-		      []( bool i ){ return( i == true ); } ) );
+		      []( bool i ) { return( i == true ); } ) );
  }
 
 bool allInfeasible( std::vector< int > const & v )
 {
  return( std::all_of( v.begin() , v.end() ,
-		      []( int i ){ return( i == Solver::kInfeasible ); } ) );
+		      []( int i ) { return( i == Solver::kInfeasible ); } ) );
  }
 
 bool allUnbounded( std::vector< int > const  & v )
 {
  return( std::all_of( v.begin() , v.end() ,
-		      []( int i ){ return( i == Solver::kUnbounded ); } ) );
+		      []( int i ) { return( i == Solver::kUnbounded ); } ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -704,7 +704,7 @@ static bool SolveAll( void )
    }
 
   #if( LOG_LEVEL >= 1 )
-   for( int j = 0 ; j < num_slvr ; ++j ){
+   for( int j = 0 ; j < num_slvr ; ++j ) {
     cout << "Solver" << j <<  " = ";
     if( hsLP[ j ] )
      cout << foLP[ j ] << " -- ";
@@ -1223,7 +1223,7 @@ int main( int argc , char **argv )
      auto cnst_it =
              LPBlock->get_dynamic_constraint< FRowConstraint >( 0 )->begin();
      if( tochange == 1 ) {
-      for( Index i = 0 ; i < m ; ++i ){
+      for( Index i = 0 ; i < m ; ++i ) {
        auto fi = static_cast< p_LF >( (cnst_it++)->get_function() );
        fi->remove_variable( nms[ 0 ] + nsvar + 1 );
       }
@@ -1301,7 +1301,7 @@ int main( int argc , char **argv )
   #if( LOG_LEVEL >= 3 )
    auto slvr_list = LPBlock->get_registered_solvers();
    auto itslvr = slvr_list.begin();
-   for( int j = 0 ; j < slvr_list.size() ; ++j ){
+   for( int j = 0 ; j < slvr_list.size() ; ++j ) {
     (*itslvr)->set_par( MILPSolver::strOutputFile , 
       "Solver" + std::to_string( j ) + "-LPBlock-" + 
         std::to_string( rep ) + ".lp" );
