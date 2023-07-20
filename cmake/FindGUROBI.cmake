@@ -43,11 +43,11 @@ if (UNIX)
         # Other Unix-based systems (usually /opt)
         set(GUROBI_DIRS /opt)
     endif ()
-    set(GUROBI_LIB_PATH_SUFFIXES lib)
 else ()
     # Windows (usually C:)
     set(GUROBI_DIRS "C:")
 endif ()
+set(GUROBI_LIB_PATH_SUFFIXES lib)
 
 # ----- Find the path to GUROBI --------------------------------------------- #
 
@@ -79,40 +79,49 @@ if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_LIBRARY_DEBUG)
     set(GUROBI_FOUND TRUE)
 else ()
 
+    if (UNIX)
+        set(GUROBI_HOME ${GUROBI_DIR}/linux64)
+    else () # Windows
+        if (ARCH MATCHES x64)
+            set(GUROBI_HOME ${GUROBI_DIR}/win64)
+        elseif (ARCH MATCHES x86)
+            set(GUROBI_HOME ${GUROBI_DIR}/win32)
+        endif ()
+    endif ()
+
     # ----- Find the GUROBI include directory ------------------------------- #
-    set(GUROBI_DIR ${GUROBI_DIR}/linux64)
     # Note that find_path() creates a cache entry
     find_path(GUROBI_INCLUDE_DIR
               NAMES gurobi_c.h
-              PATHS ${GUROBI_DIR}/include
+              PATHS ${GUROBI_HOME}/include
               DOC "GUROBI include directory.")
-
-    # ----- Macro: find_win_gurobi_library ----------------------------------- #
-    # On Windows the version is appended to the library name which cannot be
-    # handled by find_library, so here a macro to search manually.
-    macro(find_win_gurobi_library var path_suffixes)
-        foreach (s ${path_suffixes})
-            file(GLOB GUROBI_LIBRARY_CANDIDATES "${GUROBI_DIR}/${s}/gurobi*.lib")
-            if (GUROBI_LIBRARY_CANDIDATES)
-                list(GET GUROBI_LIBRARY_CANDIDATES 0 ${var})
-                break()
-            endif ()
-        endforeach ()
-        if (NOT ${var})
-            set(${var} NOTFOUND)
-        endif ()
-    endmacro()
 
     if (UNIX)
         # ----- Find the GUROBI library ----------------------------------------- #
         # Note that find_library() creates a cache entry
         find_library(GUROBI_LIBRARY
                      NAMES gurobi gurobi100 gurobi1002
-                     PATHS ${GUROBI_DIR}
+                     PATHS ${GUROBI_HOME}
                      PATH_SUFFIXES ${GUROBI_LIB_PATH_SUFFIXES}
                      DOC "GUROBI library.")
         set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY})
     elseif (NOT GUROBI_LIBRARY)
+
+        # ----- Macro: find_win_gurobi_library ----------------------------------- #
+        # On Windows the version is appended to the library name which cannot be
+        # handled by find_library, so here a macro to search manually.
+        macro(find_win_gurobi_library var path_suffixes)
+            foreach (s ${path_suffixes})
+                file(GLOB GUROBI_LIBRARY_CANDIDATES "${GUROBI_HOME}/${s}/gurobi*.lib")
+                if (GUROBI_LIBRARY_CANDIDATES)
+                    list(GET GUROBI_LIBRARY_CANDIDATES 0 ${var})
+                    break()
+                endif ()
+            endforeach ()
+            if (NOT ${var})
+                set(${var} NOTFOUND)
+            endif ()
+        endmacro()
 
         # Library
         find_win_gurobi_library(GUROBI_LIB "${GUROBI_LIB_PATH_SUFFIXES}")
@@ -124,7 +133,7 @@ else ()
 
         # DLL
         if (GUROBI_LIBRARY MATCHES ".*/(gurobi.*)\\.lib")
-            file(GLOB GUROBI_DLL_ "${GUROBI_DIR}/bin/*/${CMAKE_MATCH_1}.dll")
+            file(GLOB GUROBI_DLL_ "${GUROBI_HOME}/bin/${CMAKE_MATCH_1}.dll")
             set(GUROBI_DLL ${GUROBI_DLL_})
         endif ()
     endif ()
