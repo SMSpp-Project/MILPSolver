@@ -100,7 +100,7 @@ else ()
         # ----- Find the GUROBI library ----------------------------------------- #
         # Note that find_library() creates a cache entry
         find_library(GUROBI_LIBRARY
-                     NAMES gurobi gurobi100 gurobi1002
+                     NAMES gurobi gurobi95 gurobi100 gurobi1002
                      PATHS ${GUROBI_HOME}
                      PATH_SUFFIXES ${GUROBI_LIB_PATH_SUFFIXES}
                      DOC "GUROBI library.")
