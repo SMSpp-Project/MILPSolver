@@ -53,7 +53,7 @@ set(GUROBI_LIB_PATH_SUFFIXES lib)
 
 foreach (dir ${GUROBI_DIRS})
     file(GLOB GUROBI_DIRS "${dir}/gurobi*")
-    if (NOT GUROBI_DIR IN_LIST GUROBI_DIRS)
+    if (NOT IS_DIRECTORY "${GUROBI_DIR}")
         message(STATUS "Specified Gurobi: ${GUROBI_DIR} not found")
         list(SORT GUROBI_DIRS)
         list(REVERSE GUROBI_DIRS)
