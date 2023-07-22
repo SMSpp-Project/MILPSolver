@@ -30,12 +30,12 @@ target_link_libraries(milp_solver PRIVATE SMS++::MILPSolver)
 # may wrongly appear unused, and by default the linker does not include them,
 # so we have to force the linking.
 if (BUILD_SHARED_LIBS)
-    if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if (UNIX AND (NOT APPLE))
         target_link_options(milp_solver PRIVATE
                             "LINKER:--no-as-needed")
     endif ()
 else ()
-    if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    if (APPLE)
         target_link_options(milp_solver PRIVATE
                             "LINKER:-all_load")
     else ()
