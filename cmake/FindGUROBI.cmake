@@ -82,9 +82,9 @@ else ()
     if (UNIX)
         set(GUROBI_HOME ${GUROBI_DIR}/linux64)
     else () # Windows
-        if (ARCH MATCHES x64)
+        if (WIN64)
             set(GUROBI_HOME ${GUROBI_DIR}/win64)
-        elseif (ARCH MATCHES x86)
+        elseif (WIN32)
             set(GUROBI_HOME ${GUROBI_DIR}/win32)
         endif ()
     endif ()
@@ -100,7 +100,7 @@ else ()
         # ----- Find the GUROBI library ----------------------------------------- #
         # Note that find_library() creates a cache entry
         find_library(GUROBI_LIBRARY
-                     NAMES gurobi gurobi95 gurobi100 gurobi1002
+                     NAMES gurobi gurobi100 gurobi1002
                      PATHS ${GUROBI_HOME}
                      PATH_SUFFIXES ${GUROBI_LIB_PATH_SUFFIXES}
                      DOC "GUROBI library.")
