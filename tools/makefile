@@ -17,7 +17,8 @@
 # module name: uncomment the one that you want to build
 #NAME = scip_pars
 #NAME = cpx_pars
-NAME = grb_pars
+#NAME = grb_pars
+NAME = highs_pars
 
 # basic directory
 DIR = ./
@@ -57,8 +58,12 @@ clean::
 #include $(libSCIPDIR)makefile-libSCIP
 
 # define input macros for libGUROBI complete makefile, then include it
-libGUROBIDIR = $(DIR)../../extlib/
-include $(libGUROBIDIR)makefile-libGUROBI
+#libGUROBIDIR = $(DIR)../../smspp-project/extlib/
+#include $(libGUROBIDIR)makefile-libGUROBI
+
+# define input macros for libGUROBI complete makefile, then include it
+libHiGHSDIR = $(DIR)../../smspp-project/extlib/
+include $(libHiGHSDIR)makefile-libHiGHS
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -66,15 +71,15 @@ include $(libGUROBIDIR)makefile-libGUROBI
 MOBJ =  
 
 # libreries
-MLIB =  $(libGUROBILIB) #$(libCPLEXLIB) #$(libSCIPLIB)
+MLIB =  $(libHiGHSLIB) #$(libGUROBILIB) #$(libCPLEXLIB) #$(libSCIPLIB) 
 
 $(NAME): $(MOBJ) $(DIR)$(NAME).o
-	$(CC) -o $(NAME) $(DIR)$(NAME).o $(MOBJ) $(MLIB) $(SW)
+	$(CC) -o $(NAME) $(DIR)$(NAME).o $(MOBJ) $(MINC) $(MLIB) $(SW)
 
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
 # include directives
-MINC =  $(libGUROBIINC) #$(libCPLEXINC) #$(libSCIPINC)
+MINC =  $(libHIGHSINC) #$(libGUROBIINC) #$(libCPLEXINC) #$(libSCIPINC)
 
 # includes
 MH =    

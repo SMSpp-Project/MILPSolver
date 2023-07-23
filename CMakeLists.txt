@@ -51,6 +51,7 @@ include(BuildType)
 option(MILPSolver_USE_CPLEX "Whether MILPSolver will use CPLEX or not." ON)
 option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." OFF)
 option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
+option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 
 # A lot of debug prints
 #if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -92,6 +93,14 @@ if (MILPSolver_USE_GUROBI)
     find_package(GUROBI)
     if (NOT GUROBI_FOUND)
         set(MILPSolver_USE_GUROBI OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_HiGHS)
+    # Needed for HiGHSMILPSolver
+    find_package(HiGHS)
+    if (NOT HiGHS_FOUND)
+        set(MILPSolver_USE_HiGHS OFF)
     endif ()
 endif ()
 
@@ -156,6 +165,14 @@ if (MILPSolver_USE_GUROBI)
     target_link_libraries(${modName} PUBLIC GUROBI::Gurobi)
 endif ()
 
+if (MILPSolver_USE_HiGHS)
+    message(STATUS "MILPSolver: HiGHS found, configuring HiGHSMILPSolver")
+    message(STATUS "HiGHS include directory is ${HiGHS_INCLUDE_DIRS}")
+    target_include_directories(${modName} PUBLIC ${HiGHS_INCLUDE_DIRS}) 
+    target_sources(${modName} PRIVATE src/HiGHSMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC HiGHS::HiGHS)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -202,6 +219,12 @@ if (MILPSolver_USE_GUROBI)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "GRB*")
+endif ()
+
+if (MILPSolver_USE_HiGHS)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "HiGHS*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

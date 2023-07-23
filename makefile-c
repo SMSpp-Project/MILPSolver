@@ -49,6 +49,10 @@ include $(libSCIPDIR)makefile-libSCIP
 libGUROBIDIR = $(MILPSSDR)../extlib/
 include $(libGUROBIDIR)makefile-libGUROBI
 
+# define input macros for libGUROBI complete makefile, then include it
+libHiGHSDIR = $(MILPSSDR)../extlib/
+include $(libHiGHSDIR)makefile-libHiGHS
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -57,9 +61,9 @@ include $(MILPSSDR)/makefile
 # append external -I directives to MILPSINC, MILPSOBJ and MILPSH as defined
 # by the makefile, thus the := assignment has to be used (use GNU make)
 MILPSOBJ := $(MILPSOBJ) $(SMS++OBJ)
-MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libSCIPINC) $(libGUROBIINC)
+MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libGUROBIINC) $(libHiGHSINC)
 
 # external libreries for MILPSolver
-MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libSCIPLIB) $(libGUROBILIB)
+MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB)
 
 ############################ End of makefile #################################

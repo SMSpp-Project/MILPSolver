@@ -35,6 +35,8 @@ Currently available derived classes are:
   use)
 - `GRBMILPSolver`, providing the interface with the commercial
   [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
+- `HiGHSMILPSolver`, providing the interface with the open-source
+  [HiGHS](https://highs.dev)
 
 ## Getting started
 
@@ -52,6 +54,8 @@ These instructions will let you build MILPSolver on your system.
 - for `GRBMILPSolver` you will need
   [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
   (currently supported versions: 10.0.1, 10.0.2)
+- for `HiGHSMILPSolver` you will need
+  [HiGHS](https://highs.dev)(currently supported versions: 1.5.3)
 
 All actual *MILPSolver are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
@@ -80,6 +84,7 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_CPLEX`   | Use CPLEX   | ON            |
 | `MILPSolver_USE_SCIP`    | Use SCIP    | ON            |
 | `MILPSolver_USE_GUROBI`  | Use GUROBI  | ON            |
+| `MILPSolver_USE_HiGHS`   | Use HiGHS   | ON            |
 
 Optionally, install the library in the system with:
 
@@ -134,16 +139,17 @@ Options:
 
 ### Parameter generators
 
-`CPXMILPSolver` , `SCIPMILPSolver` and `GRBMILPSolver` support, respectively, 
-CPLEX , SCIP and GUROBI parameter names in the `Configuration` files. To do so, 
-they need header files that depend on the versions of CPLEX , SCIP and GUROBI 
-currently installed on the system; such headers can be generated with the 
-`cpx_pars` , `scip_pars` and `grb_pars` tools.
+`CPXMILPSolver` , `SCIPMILPSolver` , `GRBMILPSolver` and `HiGHSMILPSolver` 
+support, respectively, CPLEX , SCIP , GUROBI and HiGHS parameter names in 
+the `Configuration` files. To do so, they need header files that depend on 
+the versions of CPLEX , SCIP , GUROBI and HiGHS currently installed on the
+system; such headers can be generated with the `cpx_pars` , `scip_pars` ,
+`grb_pars` and `high_pars` tools.
 
 > **Note:**
 > We provide header files for the versions we already support, so you will
 > need these tools only if you have an unsupported version of either CPLEX ,
-> SCIP or GUROBI.
+> SCIP , GUROBI or HiGHS.
 
 
 ## Getting help
