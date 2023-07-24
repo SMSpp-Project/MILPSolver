@@ -640,7 +640,19 @@ class HiGHSMILPSolver : public MILPSolver {
   * Block. Thus, HighsMILPSolver will use this mutex to ensure mutual exclusion
   * of the Highs threads for the critical sections of the callback(). */
  std::mutex f_callback_mutex;
- 
+
+ /* HiGHS read the Hessian matrix in sparse column form, so we have 
+    * to prepare three different vector:
+    * - q_obj_begin: An array of length [numcols] containing the starting index 
+    *   of each column in `index`;
+    * - q_obj_ind: An array of length [num_nz_q] with indices of hessian matrix 
+    *   entries 
+    * - q_obj_val: An array of length [num_nz_q] with values of hessian matrix 
+    *   entries */
+  std::vector< int > q_obj_begin;
+  std::vector< int > q_obj_ind;
+  std::vector< double > q_obj_val;
+  
  /** @name Handling of Highs parameters (options)
   *
   * The following maps are used to keep a relationship between SMS++ parameter

@@ -224,16 +224,14 @@ void HiGHSMILPSolver::load_problem( void )
     * NOTE: since MILPSolver actually support only qp problem where the nonzeros 
     * are on the diagonal of the Hessian matrix, there are some semplification
     * we can make. */
-    std::vector< int > q_obj_begin;
-    std::vector< int > q_obj_ind;
-    std::vector< double > q_obj_val = q_objective;
+    q_obj_val = q_objective;
   
     int num_nz_q = 0;
 
     // creating a vector containg only non-zero coefficients for quadratic terms 
     // and corresponding indices
     for( int i = 0 ; i < numcols ; ++i ) {
-      q_obj_begin[ i ] = num_nz_q;
+      q_obj_begin.push_back( num_nz_q );
 	    if( q_obj_val[num_nz_q] != 0 ) {
         q_obj_val[num_nz_q] = q_obj_val[num_nz_q] * 2;
 	      ++num_nz_q;
@@ -877,71 +875,37 @@ void HiGHSMILPSolver::get_dual_solution( Configuration * solc )
 
 /*--------------------------------------------------------------------------*/
 
-bool HiGHSMILPSolver::has_dual_direction( void ) // TODO
+bool HiGHSMILPSolver::has_dual_direction( void )
 {
- /*double proof;
  std::vector< double > y( numrows , 0 );
-
- int model_status;
- GRBgetintattr( model , GRB_INT_ATTR_STATUS , & model_status );
-
- switch( model_status ) {
-  case( GRB_INFEASIBLE ):
-  case( GRB_INF_OR_UNBD ):
-  case( GRB_UNBOUNDED ):  GRBsetintattr( model , GRB_INT_PAR_INFUNBDINFO , 1 ); 
-   break;
-  default: throw( std::runtime_error( "Status of the Gurobi model not infeasible or unbounded" ) );                       
- }
-
- int status_p = GRBgetdblattr( model , GRB_DBL_ATTR_FARKASPROOF , & proof );
- int status_y = GRBgetdblattrarray( model , GRB_DBL_ATTR_FARKASDUAL , 0 , numrows , y.data() );
-
- if( status_p == 0 && status_y == 0 )
-  return( true );
- else*/
- return( false );
+ int has_dual_ray;
+ Highs_getDualRay( highs , & has_dual_ray , y.data() );
+ return( bool( has_dual_ray ) );
 }
 
 /*--------------------------------------------------------------------------*/
 
-void HiGHSMILPSolver::get_dual_direction( Configuration * dirc ) // TODO
+void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
 {
- /*int n_ranged_con = map_rng_con_aux_var.size();
  std::vector< double > y( numrows , 0 );
  std::vector< double > dj( numcols , 0 );
- std::vector< double > dj_grb( numcols + n_ranged_con , 0 );
 
- double proof;
+ int has_dual_ray;
 
- // FARKASPROOF and FARKASDUAL gives a Farkas certificate y so that:
+ // We are searching a Farkas certificate y so that:
  // y' * A * x >= y' * b
  //   If it is a <= constraint then y[i] <= 0 holds;
  //   If it is a >= constraint then y[i] >= 0 holds.
 
- int status_proof = GRBgetdblattr( model , GRB_DBL_ATTR_FARKASPROOF , & proof );
- int status_y = GRBgetdblattrarray( model , GRB_DBL_ATTR_FARKASDUAL , 0 , numrows , y.data() );
-
- // reverse the sign of y due to Gurobi approach
- for( auto i = y.begin() ; i != y.end() ; ++i  )
-  *i = -*i;
-
- if( status_proof != 0 || status_y != 0 )
+ if( Highs_getDualRay( highs , & has_dual_ray , y.data() ) == kHighsStatusError )
   throw( std::runtime_error( "an error occurred in getting Farkas certificate" ) );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , numcols + n_ranged_con , dj_grb.data() ) )
-  throw( std::runtime_error( "Unable to get reduced costs querying the attribute GBL_RC") );
+ // reverse the sign of y due to Gurobi approach
+ //for( auto i = y.begin() ; i != y.end() ; ++i  )
+  //*i = -*i;
 
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
-  dj = dj_grb;
- else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
-      dj[ j - aux_counter ] = dj_grb[ j ];
-    else
-      ++aux_counter;
-  }
- }
+ if( Highs_setSolution( highs , NULL , NULL , dj.data() , NULL ) == kHighsStatusError )
+  throw( std::runtime_error( "Unable to get reduced costs with Highs_setSolution") );
 
  int row = 0;
  int row_dynamic = static_cons;
@@ -979,7 +943,7 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc ) // TODO
     * of this Variable. If such a OneVarConstraint exists, the reduced cost of
     * this Variable will be dual of that OneVarConstraint. If there is no such
     * OneVarConstraint, the reduced cost of this variable will be lost. */
-   /*var_lb = var->get_value();
+   var_lb = var->get_value();
    var_ub = var->get_value();
 
    for( auto b: active_bounds ) {
@@ -1016,15 +980,15 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc ) // TODO
    else
     if( lhs_con || rhs_con )
      throw( std::logic_error(
-	       "GRBMILPSolver::get_dual_direction: invalid dual value" ) );
+	       "HiGHSMILPSolver::get_dual_direction: invalid dual value" ) );
 
   if( throw_reduced_cost_exception ) {
    if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
     /* The Variable is fixed but it has no associated OneVarConstraint
      * with both bounds equal to the value of the Variable. */
 
-    /*throw( std::logic_error(
-     "GRBMILPSolver::get_dual_direction: variable with index " +
+    throw( std::logic_error(
+     "HiGHSMILPSolver::get_dual_direction: variable with index " +
      std::to_string( i ) + " is fixed to " +
      std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
      "with both bounds equal to the value of this variable." ) );
@@ -1034,14 +998,14 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc ) // TODO
      /* The Variable is not fixed and it has no associated OneVarConstraint.
       * An exception is thrown if it has a finite nonzero bound. */
 
-     /*if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
+     if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
 	 ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
       throw( std::logic_error(
-                "GRBMILPSolver::get_dual_direction: variable with index " +
+                "HiGHSMILPSolver::get_dual_direction: variable with index " +
 		std::to_string( i ) + " has no OneVarConstraint." ) );
      }
    }
-  }*/
+  }
  }  // end( HiGHSMILPSolver::get_dual_direction )
 
 /*--------------------------------------------------------------------------*/
@@ -1391,26 +1355,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
   // In HiGHS we can pass quadratic coefficients to the model only by providing
   // the whole Hessian matrix. Thus, it is important to retrieve the old matrix 
   // and fill it with the new values.
-  // NOTE: with Highs_getModel we are retrieving all the data of the model, but 
-  // we actually need only those regarding the hessian matrix. Thus, for all the
-  // others, we pass a null pointer
-
-  int nnz_old_hessian = Highs_getHessianNumNz( highs );
-
-  std::vector< int > q_obj_begin ( numcols );
-  std::vector< int > q_obj_ind ( nnz_old_hessian );
-  std::vector< double > q_obj_val ( nnz_old_hessian );
-
-  int status = Highs_getModel( highs, kHighsMatrixFormatColwise , 
-                        kHighsHessianFormatTriangular , NULL , NULL , NULL , 
-                        NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , 
-                        NULL , NULL , NULL , q_obj_begin.data() , q_obj_ind.data() , 
-                        q_obj_val.data() , NULL);
-
-  if( status == kHighsStatusError )
-      throw( std::runtime_error( "Highs_getModel returned with kHighsStatus " 
-                                + std::to_string( status ) ) );
-
+  int nnz_old_hessian = q_obj_val.size();
   int nnz_new_hessian = nnz_old_hessian;
 
   for( auto v : *vars )
@@ -1436,7 +1381,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      q_obj_ind.insert( std::next( q_obj_ind.begin() , pos_var ) , cidx );
     }
     else{ // there was already a value in the hessian diagonal for the variable cidx
-      if( std::get< 1 >( cp[ idx ] ) ){ // the new quadratic coefficient is zero, 
+      if( std::get< 1 >( cp[ idx ]) == 0 ){ // the new quadratic coefficient is zero, 
                                         // just remove it
        --nnz_new_hessian;
        int pos_var = q_obj_begin[ cidx ];
@@ -1456,7 +1401,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
     }
    }
 
-  status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
+  int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
                       kHighsHessianFormatTriangular , q_obj_begin.data() ,
                       q_obj_ind.data() , q_obj_val.data()
                       );
@@ -1585,22 +1530,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // In HiGHS we can pass quadratic coefficients to the model only by providing
   // the whole Hessian matrix. Thus, it is important to retrieve the old matrix 
   // and fill it with the new values.
-  // NOTE: with Highs_getModel we are retrieving all the data of the model, but 
-  // we actually need only those regarding the hessian matrix. Thus, for all the
-  // others, we pass a null pointer
-
   int nnz_old_hessian = Highs_getHessianNumNz( highs );
-
-  std::vector< int > q_obj_begin ( numcols );
-  std::vector< int > q_obj_ind ( nnz_old_hessian );
-  std::vector< double > q_obj_val ( nnz_old_hessian );
-
-  Highs_getModel( highs, kHighsMatrixFormatColwise , kHighsHessianFormatTriangular ,
-                        NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL ,
-                        NULL , NULL , NULL , NULL , NULL , NULL ,
-                        q_obj_begin.data() ,q_obj_ind.data() , q_obj_val.data() ,
-                        NULL);
-
   int nnz_new_hessian = nnz_old_hessian;
 
   for( auto v : mod->vars() ) {
