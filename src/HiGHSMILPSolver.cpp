@@ -120,6 +120,9 @@ void HiGHSMILPSolver::load_problem( void )
  if( model_status == kHighsModelStatusModelEmpty )
   Highs_clearModel(highs);
 
+ // Set default HiGHS log to 0
+ Highs_setBoolOptionValue( highs , "output_flag" , 0 );
+
  std::vector< double > highs_lb = lb;
  std::vector< double > highs_ub = ub;
  std::vector< double > highs_rhs = rhs;
@@ -1715,7 +1718,7 @@ void HiGHSMILPSolver::constraint_fvars_modification(
     auto idx = lf->is_active( var );
     value = idx < nav ? lf->get_coefficient( idx ) : 0;
     }
-   Highs_changeColCost( highs , vidx , value );
+   Highs_changeCoeff( highs , cidx , vidx , value );
    }
   }
  }  // end( HiGHSMILPSolver::constraint_fvars_modification )
