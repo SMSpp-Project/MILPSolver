@@ -75,6 +75,9 @@ HiGHSMILPSolver::HiGHSMILPSolver( void ) :
 {
  // Create a Highs instance
  highs = Highs_create();
+
+ // Set default HiGHS log to 0
+ Highs_setBoolOptionValue( highs , "output_flag" , 0 );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -120,9 +123,6 @@ void HiGHSMILPSolver::load_problem( void )
  if( model_status == kHighsModelStatusModelEmpty )
   Highs_clearModel(highs);
 
- // Set default HiGHS log to 0
- Highs_setBoolOptionValue( highs , "output_flag" , 0 );
-
  std::vector< double > highs_lb = lb;
  std::vector< double > highs_ub = ub;
  std::vector< double > highs_rhs = rhs;
@@ -150,7 +150,7 @@ void HiGHSMILPSolver::load_problem( void )
      // variables type as integer, and set the bounds to [0,1].
      highs_xctype[ i ] = kHighsVarTypeInteger;
      highs_lb[ i ] = 0.0 - kHighsTiny;
-     highs_lb[ i ] = 1.0 + kHighsTiny;
+     highs_ub[ i ] = 1.0 + kHighsTiny;
      break;
     default:
      throw( std::runtime_error( "xctype[" + std::to_string( i ) +
@@ -209,51 +209,8 @@ void HiGHSMILPSolver::load_problem( void )
   if( status == kHighsStatusError )
     throw( std::runtime_error( "Highs_passLp returned with kHighsStatus " +
 			      std::to_string( status ) ) );
-
-  if( is_qp ){ // QP problem, the Hessian matrix need to be added
-
-    /* HiGHS read the Hessian matrix in sparse column form, so we have 
-    * to prepare three different vector:
-    * - q_obj_begin: An array of length [numcols] containing the starting index 
-    *   of each column in `index`;
-    * - q_obj_ind: An array of length [num_nz_q] with indices of hessian matrix 
-    *   entries 
-    * - q_obj_val: An array of length [num_nz_q] with values of hessian matrix 
-    *   entries
-    * 
-    * NOTE: since MILPSolver actually support only qp problem where the nonzeros 
-    * are on the diagonal of the Hessian matrix, there are some semplification
-    * we can make. */
-    q_obj_val = q_objective;
-  
-    int num_nz_q = 0;
-
-    // creating a vector containg only non-zero coefficients for quadratic terms 
-    // and corresponding indices
-    for( int i = 0 ; i < numcols ; ++i ) {
-      q_obj_begin.push_back( num_nz_q );
-	    if( q_obj_val[num_nz_q] != 0 ) {
-        q_obj_val[num_nz_q] = q_obj_val[num_nz_q] * 2;
-	      ++num_nz_q;
-	      q_obj_ind.push_back( i );
-	    }
-	    else{
-        auto iter = q_obj_val.begin();
-	      q_obj_val.erase( std::next( iter , num_nz_q ) );
-      }
-    }
-
-    status = Highs_passHessian( highs, numcols , num_nz_q ,
-                      kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                      q_obj_ind.data() , q_obj_val.data() 
-                      );
-    
-    if( status == kHighsStatusError )
-      throw( std::runtime_error( "Highs_passHessian returned with kHighsStatus " +
-			      std::to_string( status ) ) );
   }
- }
- else if( is_mip && ! is_qp ){ // MIP problem
+ else{ // MIP problem
   status = Highs_passMip( highs , numcols , numrows ,
                           matval.size() , kHighsMatrixFormatColwise , objsense ,
                           0.0 , objective.data() , highs_lb.data() , 
@@ -266,10 +223,50 @@ void HiGHSMILPSolver::load_problem( void )
     throw( std::runtime_error( "Highs_passMip returned with kHighsStatus " +
 			      std::to_string( status ) ) );
  }
- else if( is_mip && is_qp ) // MIP & QP problem
-    throw( std::runtime_error( 
-  "HiGHS cannot solve QP models where some of the variables must take integer values" ) );
  
+ if( is_qp ){ // QP problem, the Hessian matrix need to be added
+
+  /* HiGHS read the Hessian matrix in sparse column form, so we have 
+  * to prepare three different vector:
+  * - q_obj_begin: An array of length [numcols] containing the starting index 
+  *   of each column in `index`;
+  * - q_obj_ind: An array of length [num_nz_q] with indices of hessian matrix 
+  *   entries 
+  * - q_obj_val: An array of length [num_nz_q] with values of hessian matrix 
+  *   entries
+  * 
+  * NOTE: since MILPSolver actually support only qp problem where the nonzeros 
+  * are on the diagonal of the Hessian matrix, there are some semplification
+  * we can make. */
+  q_obj_val = q_objective;
+
+  int num_nz_q = 0;
+
+  // creating a vector containg only non-zero coefficients for quadratic terms 
+  // and corresponding indices
+  for( int i = 0 ; i < numcols ; ++i ) {
+    q_obj_begin.push_back( num_nz_q );
+    if( q_obj_val[num_nz_q] != 0 ) {
+      q_obj_val[num_nz_q] = q_obj_val[num_nz_q] * 2;
+      ++num_nz_q;
+      q_obj_ind.push_back( i );
+    }
+    else{
+      auto iter = q_obj_val.begin();
+      q_obj_val.erase( std::next( iter , num_nz_q ) );
+    }
+  }
+
+ status = Highs_passHessian( highs, numcols , num_nz_q ,
+                      kHighsHessianFormatTriangular , q_obj_begin.data() ,
+                      q_obj_ind.data() , q_obj_val.data() 
+                      );
+    
+ if( status == kHighsStatusError )
+  throw( std::runtime_error( "Highs_passHessian returned with kHighsStatus " +
+        std::to_string( status ) ) );
+ }
+
  // names must be added manually
  if( use_custom_names ){
   for( int j = 0 ; j < numcols ; ++j )
@@ -333,6 +330,12 @@ int HiGHSMILPSolver::compute( bool changedvars )
  // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
  if( MILPSolver::compute( changedvars ) != kOK )
   throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
+
+ // HiGHS doesn't actually supports MIQP problem
+ if( int_vars > 0 && q_obj_val.size() > 0 )
+  if( relax_int_vars == false ) // we are not relaxing int variables
+    throw( std::runtime_error( 
+  "HiGHS cannot solve QP models where some of the variables must take integer values" ) );
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() ) {
@@ -1056,6 +1059,7 @@ void HiGHSMILPSolver::var_modification( const VariableMod * mod )
   if( var->is_integer() && ( ! relax_int_vars ) ) {
    // Integer or Binary
    new_ctype = kHighsVarTypeInteger;
+   
    if( var->is_unitary() && var->is_positive() ){ //Binary
     lb = 0.0 - kHighsTiny;
     ub = 1.0 + kHighsTiny;
@@ -1365,9 +1369,12 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
     *(cidxit++) = cidx;
     
     auto q_obj_ind_idx = std::find( q_obj_ind.begin() , q_obj_ind.end(), cidx);
+    auto new_q_coeff = std::get< 2 >( cp[ idx ]) * 2;
 
-    if( q_obj_ind_idx == q_obj_ind.end() ){ // no quadratic coefficient was already 
-                                            // set for the variable
+    if( q_obj_ind_idx == q_obj_ind.end() && new_q_coeff != 0){ 
+    // no quadratic coefficient was already set for the variable and
+    // the quadratic coefficient is nonzero
+
      ++nnz_new_hessian;
      auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
      // Update q_obj_begin
@@ -1377,15 +1384,17 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
       }
      int pos_var = q_obj_begin[ cidx ];
      q_obj_val.insert( std::next( q_obj_val.begin() , pos_var ) ,
-                     std::get< 1 >( cp[ idx ] ) );
+                     new_q_coeff );
      q_obj_ind.insert( std::next( q_obj_ind.begin() , pos_var ) , cidx );
     }
-    else{ // there was already a value in the hessian diagonal for the variable cidx
-      if( std::get< 1 >( cp[ idx ]) == 0 ){ // the new quadratic coefficient is zero, 
-                                        // just remove it
+    else if( q_obj_ind_idx != q_obj_ind.end() ){ 
+    // there was already a value in the hessian diagonal for the variable cidx
+
+      if( new_q_coeff == 0 ){ // the new quadratic coefficient is zero, 
+                              // just remove it
        --nnz_new_hessian;
        int pos_var = q_obj_begin[ cidx ];
-       auto it_q_begin = std::next( q_obj_begin.begin() , cidx );
+       auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
        // Update q_obj_begin
        while( it_q_begin != q_obj_begin.end() ) {
         --( *it_q_begin );
@@ -1396,7 +1405,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
       }
       else{ // just update the array q_obj_val with the new value
         int pos_var = q_obj_begin[ cidx ];
-        q_obj_val[ pos_var ] = std::get< 1 >( cp[ idx ] );
+        q_obj_val[ pos_var ] = new_q_coeff;
       }
     }
    }
@@ -1544,7 +1553,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     if( mod->added() ) {
      if( auto idx = qf->is_active( var ) ; idx < nav ) {
        value = qf->get_linear_coefficient( idx );
-       q_value = qf->get_quadratic_coefficient( idx );
+       q_value = (qf->get_quadratic_coefficient( idx ))*2;
        if( q_value != 0 ) { // we have actually to add an entry in the Hessian matrix
         ++nnz_new_hessian;
         auto it_q_begin = std::next( q_obj_begin.begin() , ind + 1 );
@@ -1576,16 +1585,15 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
      }
     }
 
-  int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
-                    kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                    q_obj_ind.data() , q_obj_val.data()
-                    );
-                  
-  if( status == kHighsStatusError )
-      throw( std::runtime_error( 
-      "Redefinition of HiGHS hessian matrix returned with kHighsStatus " +
-         std::to_string( status ) ) );
-
+    int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
+                        kHighsHessianFormatTriangular , q_obj_begin.data() ,
+                        q_obj_ind.data() , q_obj_val.data()
+                        );
+                    
+    if( status == kHighsStatusError )
+        throw( std::runtime_error( 
+        "Redefinition of HiGHS hessian matrix returned with kHighsStatus " + 
+            std::to_string( status ) ) );
   return;
   }
 
@@ -2121,7 +2129,7 @@ std::string HiGHSMILPSolver::highs_int_par_map( idx_type par ) const
  switch( par ) {
   case( intMaxIter ): return( "mip_max_nodes" );
   case( intMaxSol ):  return( "mip_max_improving_sols" );
-  case( intLogVerb ): return( "log_to_console" );
+  case( intLogVerb ): return( "output_flag" );
   case( intMaxThread ): return( "threads" );
   }
 
