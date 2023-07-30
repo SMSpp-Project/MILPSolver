@@ -84,7 +84,11 @@ if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_LIBRARY_DEBUG)
 else ()
 
     if (UNIX)
-        set(GUROBI_HOME ${GUROBI_DIR}/linux64)
+        if (APPLE)
+            set(GUROBI_HOME ${GUROBI_DIR}/macos_universal2)
+        else ()
+            set(GUROBI_HOME ${GUROBI_DIR}/linux64)
+        endif ()
     else () # Windows
         if (WIN64)
             set(GUROBI_HOME ${GUROBI_DIR}/win64)
@@ -201,8 +205,8 @@ endif ()
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(GUROBI_INCLUDE_DIR
-                    GUROBI_LIBRARY
-                    GUROBI_LIBRARY_DEBUG
-                    GUROBI_VERSION)
+                 GUROBI_LIBRARY
+                 GUROBI_LIBRARY_DEBUG
+                 GUROBI_VERSION)
 
 # --------------------------------------------------------------------------- #
