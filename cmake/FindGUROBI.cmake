@@ -105,7 +105,7 @@ else ()
               DOC "GUROBI include directory.")
 
     if (UNIX)
-        # ----- Find the GUROBI library ----------------------------------------- #
+        # ----- Find the GUROBI library ------------------------------------- #
         # Note that find_library() creates a cache entry
         find_library(GUROBI_LIBRARY
                      NAMES gurobi gurobi100 gurobi1002
@@ -115,7 +115,7 @@ else ()
         set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY})
     elseif (NOT GUROBI_LIBRARY)
 
-        # ----- Macro: find_win_gurobi_library ----------------------------------- #
+        # ----- Macro: find_win_gurobi_library ------------------------------ #
         # On Windows the version is appended to the library name which cannot be
         # handled by find_library, so here a macro to search manually.
         macro(find_win_gurobi_library var path_suffixes)
