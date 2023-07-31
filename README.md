@@ -49,13 +49,13 @@ These instructions will let you build MILPSolver on your system.
   [IBM ILOG CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio)
   (currently supported versions: 12.8, 12.10, 20.10, 22.01)
 - for `SCIPMILPSolver` you will need
-  [SCIP](https://www.scipopt.org)(currently supported versions: 7.0.0, 7.0.1,
+  [SCIP](https://www.scipopt.org) (currently supported versions: 7.0.0, 7.0.1,
   7.0.2, 7.0.3, 8.0.0, 8.0.3)
 - for `GRBMILPSolver` you will need
   [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
   (currently supported versions: 10.0.1, 10.0.2)
 - for `HiGHSMILPSolver` you will need
-  [HiGHS](https://highs.dev)(currently supported versions: 1.5.3)
+  [HiGHS](https://highs.dev) (currently supported versions: 1.5.3)
 
 All actual *MILPSolver are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a

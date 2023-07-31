@@ -21,7 +21,7 @@
 cmake_minimum_required(VERSION 3.12)
 cmake_policy(VERSION 3.12)
 project(MILPSolver
-        VERSION 0.6.0
+        VERSION 0.7.0
         DESCRIPTION "SMS++ MILPSolver module"
         HOMEPAGE_URL https://gitlab.com/smspp/milpsolver
         LANGUAGES C CXX)
@@ -167,7 +167,6 @@ endif ()
 
 if (MILPSolver_USE_HiGHS)
     message(STATUS "MILPSolver: HiGHS found, configuring HiGHSMILPSolver")
-    message(STATUS "HiGHS include directory is ${HiGHS_INCLUDE_DIRS}")
     target_include_directories(${modName} PUBLIC ${HiGHS_INCLUDE_DIRS}) 
     target_sources(${modName} PRIVATE src/HiGHSMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC HiGHS::HiGHS)
