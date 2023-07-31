@@ -51,20 +51,6 @@ using namespace SMSpp_di_unipi_it;
 SMSpp_insert_in_factory_cpp_0( HiGHSMILPSolver );
 
 /*--------------------------------------------------------------------------*/
-/*----------------------------- FUNCTIONS ----------------------------------*/
-/*--------------------------------------------------------------------------*/
-
-/*????
-int HiGHSMILPSolver_callback( GRBmodel * model , void * cbdata , int where ,
-			    void * usrdata )
-{
- // just defer to the class method
- return( static_cast< GRBMILPSolver * >( usrdata
-					 )->callback( model , cbdata , where )
-	 );
- }
-
-/*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -349,31 +335,24 @@ int HiGHSMILPSolver::compute( bool changedvars )
  // the actual call to HiGHS- - - - - - - - - - - - - - - - - - - - - - - - -
 
  if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
-  /*??????
   if( ( CutSepPar & 7 ) ||
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
    // the callback has to be set 
-   //GRBsetcallbackfunc( model , & GRBMILPSolver_callback , this );
-
-   if( CutSepPar & 3 ) {  // we do user cut separation, thus we have to set 
-    // the possibility in Gurobi
-    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRECRUSH , 1 );
-    auto md = ( CutSepPar >> 3 ) & 3;
-    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_CUTS , md );
-   }
-   
-   if( CutSepPar & 4 )  // we do lazy constraint separation, thus we have to set 
-    // the possibility in Gurobi
-    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_LAZYCONSTRAINTS , 1 );
-   
+   std::cerr << "WARNING: setting the callback in HiGHSMILPSolver is not " <<
+                  "supported yet" << std::endl;
    f_callback_set = true;
+
+   if( CutSepPar & 3 ) // we do user cut separation
+    throw( std::runtime_error( 
+      "HiGHS still doesn't support user cut separation" ) );
+   
+   if( CutSepPar & 4 )  // we do lazy constraint separation
+    throw( std::runtime_error( 
+      "HiGHS still doesn't support lazy constraint separation" ) );
    }
-  else {
-   if( f_callback_set ) {    // the callback was set
-    GRBsetcallbackfunc( model , NULL , nullptr );  // un-set it
+  else
+   if( f_callback_set )  // the callback was set
     f_callback_set = false;
-    }
-  }*/
 
   if( Highs_run( highs ) == -1 ){ //error
 
@@ -645,17 +624,17 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
 
 bool HiGHSMILPSolver::has_var_solution( void )
 {
- int sol_type , status;
- status = Highs_getIntInfoValue( highs , "basis_validity" , & sol_type );
+ int sol_status , status;
+ status = Highs_getIntInfoValue( highs , "primal_solution_status" , & sol_status );
 
  if( status == kHighsStatusError )
   throw( std::runtime_error( 
   "An error occurred in getting basis_validity with Highs_getIntInfoValue" ) );
 
- if( sol_type == kHighsBasisValidityValid ) // The basis information is valid.
-   return( true );
- else // There is no basis information.
-   return( false );
+ if( sol_status == kHighsSolutionStatusFeasible ) // The solution is feasible
+  return( true );
+ else // There is no solution information or the solution is not feasible
+  return( false );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1831,296 +1810,6 @@ void HiGHSMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 
  Highs_changeColBounds( highs , idx , bd[ 0 ] , bd[ 1 ] );
  }
-
-/*--------------------------------------------------------------------------*/
-
-/*int GRBMILPSolver::callback( GRBmodel *model,
-           void *cbdata,
-           int where )
-{
- // main switch: depending on where - - - - - - - - - - - - - - - - - - -
- // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
- switch( where ) {
-  case( GRB_CB_POLLING ): break; /* Ignore polling callback */
-  //?case( GRB_CB_PRESOLVE ): break; /* Ignore presolve callback */
-  /*case( GRB_CB_SIMPLEX ):
-   // Currently in simplex- - - - - - - - - - - - - - - - - - - - - - - - 
-   // check upper / lower bounds and in case stop ??
-   break;
-  case( GRB_CB_MIP ): {
-   // Currently in MIP- - - - - - - - - - - - - - - - - - - - - - - -
-   // check upper / lower bounds and in case stop
-
-   double solv , bndv;
-   GRBcbget( cbdata , where , GRB_CB_MIP_OBJBST , & solv );
-   GRBcbget( cbdata , where , GRB_CB_MIP_OBJBND , & bndv );
-
-   if( get_objsense() == 1 ) {
-    // a minimization problem: solv is upper bound and bndv is lower bound
-    if( solv >= 1e+75 )
-     solv = Inf< double >();
-
-    if( bndv <= - 1e+75 )
-     bndv = - Inf< double >();
-
-    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
-     GRBterminate( model );
-    }
-   else {
-    // a maximization problem: solv is lower bound and bndv is upper bound
-    if( solv <= -1e+75 )
-     solv = - Inf< double >();
-
-    if( bndv >= 1e+75 )
-     bndv = Inf< double >();
-
-    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) )
-     GRBterminate( model );
-    }
-   break;
-   }
-
-  case( GRB_CB_MIPNODE ): {
-   // MIP node callback - - - - - - - - - - - - - - - - - - - - - -
-   if( ! ( CutSepPar & 3 ) )  // but we don't do user cut separation
-    break;                    // nothing to do
-
-   double depth; // find the depth of the current node
-   if( GRBcbget( cbdata , where , GRB_CB_MIPNODE_NODCNT , & depth ) )
-    throw( std::runtime_error(
-                "Unable to get the depth with GRB_CB_MIPNODE_NODCNT" ) );
-
-   int status;
-   GRBcbget( cbdata , where , GRB_CB_MIPNODE_STATUS , & status);
-   if( status == GRB_OPTIMAL) {
-
-    // if we are at a depth for which separation is not enabled
-    if( ( ( ! depth ) && ( ! ( CutSepPar & 1 ) ) ) ||
-        ( depth && ( ! ( CutSepPar & 2 ) ) ) )
-     break;                    // nothing to do
-
-    // this is a critical section where different GUROBI threads may compete
-    // for access to the Block: ensure mutual exclusion
-    f_callback_mutex.lock();
-
-    // ensure no interference from other threads (except GUROBI ones) by also
-    // lock()-ing the Block
-    bool owned = f_Block->is_owned_by( f_id );
-    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
-     throw( std::runtime_error( "Unable to lock the Block" ) );
-
-    // get the solution of the relaxation
-    std::vector< double > x( numcols );
-    if( GRBcbget( cbdata , where, GRB_CB_MIPNODE_REL , x.data() ) )
-     throw( std::runtime_error(
-        "Unable to get the solution with GRB_CB_MIPNODE_REL" ) );
-    // GRBcbsolution( cbdata, x.data() , nullptr);
-
-    // write it in the Variable of the Block
-    get_var_solution( x );
-
-    // now perform the user cut separation with the right Configuration
-    std::vector< int > rmatbeg;
-    std::vector< int > rmatind;
-    std::vector< double > rmatval;
-    std::vector< double > rhs;
-    std::vector< char > sense;
-    perform_separation( get_cfg( depth ? 1 : 0 ) ,
-            rmatbeg , rmatind , rmatval , rhs , sense );
-    if( ! owned )
-      f_Block->unlock( f_id );  // unlock the Block
-
-    // critical section ends here, release the mutex
-    f_callback_mutex.unlock();
-
-    // if any user cut was generated, add them
-    if( ! rmatbeg.empty() ) {
-      for( int c = 0 ; c < rhs.size() ; ++c ) {
-        int nnz; // number of nonzero coefficients in the actual cut
-        int idx = rmatbeg[ c ];
-        if( c < rhs.size() - 1)
-          nnz = rmatbeg[ c + 1 ] - rmatbeg[ c ]; 
-        else
-          nnz = rmatind.size() - rmatbeg[ c ];
-
-        if( GRBcbcut( cbdata , nnz , & rmatind[ idx ] ,
-            & rmatval[ idx ] , sense[ c ] , rhs[ c ] ) )
-          throw( std::logic_error( "problem in GRBcbcut" ) );
-
-        }
-      }
-    }
-
-   break;
-   }
-  case( GRB_CB_MIPSOL ): {
-   // a feasible solution has been found- - - - - - - - - - - - - - - - - - -
-   if( ! ( CutSepPar & 4 ) )  // but we don't do lazy constraint separation
-    break;                    // nothing to do
-
-   // this is a critical section where different GUROBI threads may compete
-   // for access to the Block: ensure mutual exclusion
-   f_callback_mutex.lock();
-
-   // ensure no interference from other threads (except GUROBI ones) by also
-   // lock()-ing the Block
-   bool owned = f_Block->is_owned_by( f_id );
-   if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
-    throw( std::runtime_error( "Unable to lock the Block" ) );
-
-   // get the feasible solution
-   std::vector< double > x( numcols );
-   if( GRBcbget( cbdata , where , GRB_CB_MIPSOL_SOL, x.data() ) )
-    throw( std::runtime_error(
-       "Unable to get the solution with GRB_CB_MIPSOL_SOL" ) );
-
-   // write it in the Variable of the Block
-   get_var_solution( x );
-
-   // now perform the lazy constraint separation with the right Configuration
-   std::vector< int > rmatbeg;
-   std::vector< int > rmatind;
-   std::vector< double > rmatval;
-   std::vector< double > rhs;
-   std::vector< char > sense;
-   perform_separation( get_cfg( 2 ) ,
-		       rmatbeg , rmatind , rmatval , rhs , sense );
-   if( ! owned )
-    f_Block->unlock( f_id );  // unlock the Block
-
-   // critical section ends here, release the mutex
-   f_callback_mutex.unlock();
-
-   // if any lazy constraint was generated, add them
-   if( ! rmatbeg.empty() ) {
-    for( int c = 0 ; c < rhs.size() ; ++c ) {
-      int nnz; // number of nonzero coefficients in the actual lazy constraint
-      int idx = rmatbeg[ c ];
-      if( c < rhs.size() - 1)
-        nnz = rmatbeg[ c + 1 ] - rmatbeg[ c ]; 
-      else
-        nnz = rmatind.size() - rmatbeg[ c ];
-
-      if( GRBcblazy( cbdata , nnz , & rmatind[ idx ] ,
-                      & rmatval[ idx ] , sense[ c ] , rhs[ c ] ) )
-       throw( std::logic_error( "problem in GRBcblazy" ) );
-      }
-    }
-    
-    break;
-    }
-  case( GRB_CB_MESSAGE ): break;
-  case( GRB_CB_BARRIER ): break;
-  case( GRB_CB_MULTIOBJ ): break;
-  }  // end( main switch )- - - - - - - - - - - - - - - - - - - - - - - - - -
-     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
- return( 0 );
- }
-
-/*--------------------------------------------------------------------------*/
-
-/*void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
-					std::vector< int > & rmatbeg ,
-					std::vector< int > & rmatind ,
-					std::vector< double > & rmatval ,
-					std::vector< double > & rhs ,
-					std::vector< char > & sense )
-{
- // note: we assume the Block to have been lock()-ed already and the solution
- //       (be it from the relaxation or feasible) to have been written in the
- //       Variable of the Block
- //
- // since the Block is lock()-ed we assume that we can freely work with the
- // Modification list as no-one has a reason tochange it
-
- auto nM = v_mod.size();  // current number of Modification in the list
- auto it = v_mod.end();
- if( nM )                 // if the list is not empty
-  it = prev( it );        // initialize an iterator to the last element
-
- // call generate_dynamic_constraint()
- f_Block->generate_dynamic_constraints( cfg );
-
- if( v_mod.size() <= nM )  // check if new Modification have been inserted
-  return;                  // if not, nothing to do
-
- if( ! nM )                // if the list was empty at the beginning
-  it = v_mod.begin();      // start from the beginning
- else                      // the list was nonempty
-  ++it;                    // move to the first new element
-
- rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
-
- // main loop: check all new Modification for a Constraint addition
- for( ; it != v_mod.end() ; ++it ) {
-  // check if the Modification indicates an added FRowConstraint
-  auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >(
-								it->get() );
-  if( ! tmod )  // if not
-   continue;    // next
-
-  // add all the new constraint to the matrix, one by one
-  for( auto con : tmod->added() ) {
-   auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
-   if( ! lf )
-    throw( std::invalid_argument( "The Constraint is not linear" ) );
-
-   auto nzcnt = lf->get_num_active_var();
-   auto sz = rmatind.size();
-   rmatind.resize( sz + nzcnt );
-   rmatval.resize( sz + nzcnt );
-
-   // get the coefficients to fill the matrix
-   auto iit = rmatind.begin() + sz;
-   auto vit = rmatval.begin() + sz;
-   for( auto & el : lf->get_v_var() ) {
-    *(iit++) = grb_index_of_variable( el.first );
-    *(vit++) = el.second;
-    }
-
-   // get the bounds
-   auto con_lhs = con->get_lhs();
-   auto con_rhs = con->get_rhs();
-
-   if( con_lhs == con_rhs ) {
-    sense.push_back( GRB_EQUAL );
-    rhs.push_back( con_rhs );
-    }
-   else
-    if( con_lhs == -Inf< double >() ) {
-     sense.push_back( GRB_LESS_EQUAL );
-     rhs.push_back( con_rhs );
-     }
-    else
-     if( con_rhs == Inf< double >() ) {
-      sense.push_back( GRB_GREATER_EQUAL );
-      rhs.push_back( con_lhs );
-      }
-     else {
-      // kludge: the added constraint is ranged LHS <= lf( x ) <= RHS, but
-      // GUROBI does not allow cuts to be ranged: hence, separately add
-      // the two constraints lf( x ) >= LHS and lf( x ) <= RHS
-      sense.push_back( GRB_GREATER_EQUAL );
-      rhs.push_back( con_lhs );
-      auto nsz = rmatind.size();
-      rmatbeg.push_back( nsz );
-      sense.push_back( GRB_LESS_EQUAL );
-      rhs.push_back( con_rhs );
-      rmatind.resize( nsz + nzcnt );
-      std::copy( rmatind.begin() + sz , rmatind.begin() + nsz ,
-		                        rmatind.begin() + nsz );
-      rmatval.resize( nsz + nzcnt );
-      std::copy( rmatval.begin() + sz , rmatval.begin() + nsz ,
-		                        rmatval.begin() + nsz );
-      }
-
-   rmatbeg.push_back( rmatind.size() );
-
-   }  // end( for each added FRowConstraint )
-  }  // end( main loop )
- }  // end( HiGHSMILPSolver::perform_separation )
 
 /*--------------------------------------------------------------------------*/
 
