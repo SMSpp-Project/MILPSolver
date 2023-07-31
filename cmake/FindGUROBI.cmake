@@ -15,7 +15,7 @@
 #                                                                             #
 #    This module reads hints about search locations from variables:           #
 #                                                                             #
-#        GUROBI_DIR    - Custom path to GUROBI                                #
+#        GUROBI_ROOT          - Custom path to GUROBI                         #
 #                                                                             #
 #    The following IMPORTED target is also defined:                           #
 #                                                                             #
@@ -57,16 +57,16 @@ set(GUROBI_LIB_PATH_SUFFIXES lib)
 
 foreach (dir ${GUROBI_DIRS})
     file(GLOB GUROBI_DIRS "${dir}/gurobi*")
-    if (NOT IS_DIRECTORY "${GUROBI_DIR}")
-        message(STATUS "Specified Gurobi: ${GUROBI_DIR} not found")
+    if (NOT IS_DIRECTORY "${GUROBI_ROOT}")
+        message(STATUS "Specified Gurobi: ${GUROBI_ROOT} not found")
         list(SORT GUROBI_DIRS)
         list(REVERSE GUROBI_DIRS)
         if (GUROBI_DIRS)
-            list(GET GUROBI_DIRS 0 GUROBI_DIR)
-            message(STATUS "Using Gurobi: ${GUROBI_DIR}")
+            list(GET GUROBI_DIRS 0 GUROBI_ROOT)
+            message(STATUS "Using Gurobi: ${GUROBI_ROOT}")
             break()
         else ()
-            set(GUROBI_DIR GUROBI_DIR-NOTFOUND)
+            set(GUROBI_ROOT GUROBI_ROOT-NOTFOUND)
         endif ()
     else ()
         break()
@@ -84,12 +84,16 @@ if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_LIBRARY_DEBUG)
 else ()
 
     if (UNIX)
-        set(GUROBI_HOME ${GUROBI_DIR}/linux64)
+        if (APPLE)
+            set(GUROBI_HOME ${GUROBI_ROOT}/macos_universal2)
+        else ()
+            set(GUROBI_HOME ${GUROBI_ROOT}/linux64)
+        endif ()
     else () # Windows
         if (WIN64)
-            set(GUROBI_HOME ${GUROBI_DIR}/win64)
+            set(GUROBI_HOME ${GUROBI_ROOT}/win64)
         elseif (WIN32)
-            set(GUROBI_HOME ${GUROBI_DIR}/win32)
+            set(GUROBI_HOME ${GUROBI_ROOT}/win32)
         endif ()
     endif ()
 
@@ -101,7 +105,7 @@ else ()
               DOC "GUROBI include directory.")
 
     if (UNIX)
-        # ----- Find the GUROBI library ----------------------------------------- #
+        # ----- Find the GUROBI library ------------------------------------- #
         # Note that find_library() creates a cache entry
         find_library(GUROBI_LIBRARY
                      NAMES gurobi gurobi100 gurobi1002
@@ -111,7 +115,7 @@ else ()
         set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY})
     elseif (NOT GUROBI_LIBRARY)
 
-        # ----- Macro: find_win_gurobi_library ----------------------------------- #
+        # ----- Macro: find_win_gurobi_library ------------------------------ #
         # On Windows the version is appended to the library name which cannot be
         # handled by find_library, so here a macro to search manually.
         macro(find_win_gurobi_library var path_suffixes)
@@ -201,8 +205,8 @@ endif ()
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(GUROBI_INCLUDE_DIR
-                    GUROBI_LIBRARY
-                    GUROBI_LIBRARY_DEBUG
-                    GUROBI_VERSION)
+                 GUROBI_LIBRARY
+                 GUROBI_LIBRARY_DEBUG
+                 GUROBI_VERSION)
 
 # --------------------------------------------------------------------------- #
