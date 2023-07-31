@@ -34,7 +34,7 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
-# ----- Find HiGHS directories and lib suffixes ---------------------------- #
+# ----- Find HiGHS directories and lib suffixes ----------------------------- #
 # Based on the OS generate:
 # - a list of possible HiGHS directories
 # - a list of possible lib suffixes to find the library
@@ -53,7 +53,7 @@ else ()
 endif ()
 set(HiGHS_LIB_PATH_SUFFIXES lib)
 
-# ----- Find the path to HiGHS --------------------------------------------- #
+# ----- Find the path to HiGHS ---------------------------------------------- #
 
 foreach (dir ${HiGHS_DIRS})
     file(GLOB HiGHS_DIRS "${dir}/HiGHS")
