@@ -37,7 +37,7 @@
 # *INC is the -I<include directories>
 
 # define input macros for libCPLEX complete makefile, then include it
-libCPLEXDIR = $(MILPSSDR)../extlib/
+libCPLEXDIR = $(MILPSSDR)../smspp-project/extlib/
 include $(libCPLEXDIR)makefile-libCPLEX
 
 # define input macros for libSCIP complete makefile, then include it
@@ -45,11 +45,11 @@ libSCIPDIR = $(MILPSSDR)../extlib/
 include $(libSCIPDIR)makefile-libSCIP
 
 # define input macros for libGUROBI complete makefile, then include it
-libGUROBIDIR = $(MILPSSDR)../extlib/
+libGUROBIDIR = $(MILPSSDR)../smspp-project/extlib/
 include $(libGUROBIDIR)makefile-libGUROBI
 
 # define input macros for libGUROBI complete makefile, then include it
-libHiGHSDIR = $(MILPSSDR)../extlib/
+libHiGHSDIR = $(MILPSSDR)../smspp-project/extlib/
 include $(libHiGHSDIR)makefile-libHiGHS
 
 # include the makefile requiring all external modules in input
