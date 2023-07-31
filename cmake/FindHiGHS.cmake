@@ -98,6 +98,7 @@ else ()
     find_path(HiGHS_INCLUDE_DIR
               NAMES Highs.h interfaces/highs_c_api.h
               PATHS ${HiGHS_DIR}/include/highs
+              PATH_SUFFIXES highs
               DOC "HiGHS include directory.")
 
     if (UNIX)
