@@ -30,7 +30,7 @@
 #include <getopt.h>
 // #include <filesystem>
 
-#include <highs_c_api.h>
+#include <interfaces/highs_c_api.h>
 
 /*--------------------------------------------------------------------------*/
 
@@ -210,7 +210,7 @@ int main( int argc , char ** argv )
  maps_file.open( maps_path );
  maps_file << "/* FILE GENERATED AUTOMATICALLY, DO NOT EDIT */" << std::endl
            << std::endl
-           << "#include <highs_c_api.h>" << std::endl
+           << "#include <interfaces/highs_c_api.h>" << std::endl
            << "#include \"HiGHSMILPSolver.h\"" << std::endl
            << std::endl
            << "using namespace SMSpp_di_unipi_it;" << std::endl

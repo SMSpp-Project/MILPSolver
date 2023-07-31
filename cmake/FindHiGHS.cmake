@@ -15,7 +15,7 @@
 #                                                                             #
 #    This module reads hints about search locations from variables:           #
 #                                                                             #
-#        HiGHS_DIR    - Custom path to HiGHS                                  #
+#        HiGHS_ROOT          - Custom path to HiGHS                           #
 #                                                                             #
 #    The following IMPORTED target is also defined:                           #
 #                                                                             #
@@ -44,8 +44,8 @@ if (UNIX)
         # macOS (usually /Library)
         set(HiGHS_DIRS /Library)
     else ()
-        # Other Unix-based systems (usually /usr/local/include)
-        set(HiGHS_DIRS /usr/local/include)
+        # Other Unix-based systems (usually /opt)
+        set(HiGHS_DIRS /opt)
     endif ()
 else ()
     # Windows (usually C:)
@@ -56,17 +56,17 @@ set(HiGHS_LIB_PATH_SUFFIXES lib)
 # ----- Find the path to HiGHS --------------------------------------------- #
 
 foreach (dir ${HiGHS_DIRS})
-    file(GLOB HiGHS_DIRS "${dir}/highs")
-    if (NOT HiGHS_DIR IN_LIST HiGHS_DIRS)
-        message(STATUS "Specified HiGHS: ${HiGHS_DIR} not found")
+    file(GLOB HiGHS_DIRS "${dir}/HiGHS")
+    if (NOT HiGHS_ROOT IN_LIST HiGHS_DIRS)
+        message(STATUS "Specified HiGHS: ${HiGHS_ROOT} not found")
         list(SORT HiGHS_DIRS)
         list(REVERSE HiGHS_DIRS)
         if (HiGHS_DIRS)
-            list(GET HiGHS_DIRS 0 HiGHS_DIR)
-            message(STATUS "Using HiGHS: ${HiGHS_DIR}")
+            list(GET HiGHS_DIRS 0 HiGHS_ROOT)
+            message(STATUS "Using HiGHS: ${HiGHS_ROOT}")
             break()
         else ()
-            set(HiGHS_DIR HiGHS_DIR-NOTFOUND)
+            set(HiGHS_ROOT HiGHS_ROOT-NOTFOUND)
         endif ()
     else ()
         break()
@@ -84,39 +84,38 @@ if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG)
 else ()
 
     if (UNIX)
-        set(HiGHS_HOME ${HiGHS_DIR})
+        set(HiGHS_DIR ${HiGHS_ROOT})
     else () # Windows
         if (ARCH MATCHES x64)
-            set(HiGHS_HOME ${HiGHS_DIR}/win64)
+            set(HiGHS_DIR ${HiGHS_ROOT}/win64)
         elseif (ARCH MATCHES x86)
-            set(HiGHS_HOME ${HiGHS_DIR}/win32)
+            set(HiGHS_DIR ${HiGHS_ROOT}/win32)
         endif ()
     endif ()
 
-    # ----- Find the HiGHS include directory ------------------------------- #
+    # ----- Find the HiGHS include directory -------------------------------- #
     # Note that find_path() creates a cache entry
     find_path(HiGHS_INCLUDE_DIR
-              NAMES Highs.h highs_c_api.h
-              PATHS ${HiGHS_HOME}
+              NAMES Highs.h interfaces/highs_c_api.h
+              PATHS ${HiGHS_DIR}/include/highs
               DOC "HiGHS include directory.")
 
     if (UNIX)
-        # ----- Find the HiGHS library ----------------------------------------- #
+        # ----- Find the HiGHS library -------------------------------------- #
         # Note that find_library() creates a cache entry
         find_library(HiGHS_LIBRARY
                      NAMES highs
-                     PATHS /usr/local/lib
                      PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}
                      DOC "HiGHS library.")
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY})
     elseif (NOT HiGHS_LIBRARY)
 
-        # ----- Macro: find_win_HiGHS_library ----------------------------------- #
+        # ----- Macro: find_win_HiGHS_library ------------------------------- #
         # On Windows the version is appended to the library name which cannot be
         # handled by find_library, so here a macro to search manually.
         macro(find_win_HiGHS_library var path_suffixes)
             foreach (s ${path_suffixes})
-                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_HOME}/${s}/HiGHS*.lib")
+                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/HiGHS*.lib")
                 if (HiGHS_LIBRARY_CANDIDATES)
                     list(GET HiGHS_LIBRARY_CANDIDATES 0 ${var})
                     break()
@@ -137,7 +136,7 @@ else ()
 
         # DLL
         if (HiGHS_LIBRARY MATCHES ".*/(HiGHS.*)\\.lib")
-            file(GLOB HiGHS_DLL_ "${HiGHS_HOME}/bin/${CMAKE_MATCH_1}.dll")
+            file(GLOB HiGHS_DLL_ "${HiGHS_DIR}/bin/${CMAKE_MATCH_1}.dll")
             set(HiGHS_DLL ${HiGHS_DLL_})
         endif ()
     endif ()
@@ -145,7 +144,7 @@ else ()
     # ----- Parse the version ----------------------------------------------- #
     if (HiGHS_INCLUDE_DIR)
         file(STRINGS
-             "${HiGHS_DIR}/HConfig.h"
+             "${HiGHS_INCLUDE_DIR}/HConfig.h"
              _HiGHS_version_lines REGEX "#define HiGHS_VERSION_(MAJOR|MINOR|PATCH)")
         string(REGEX REPLACE ".*HIGHS_VERSION_MAJOR *\([0-9]*\).*" "\\1" _HiGHS_version_major "${_HiGHS_version_lines}")
         string(REGEX REPLACE ".*HIGHS_VERSION_MINOR *\([0-9]*\).*" "\\1" _HiGHS_version_minor "${_HiGHS_version_lines}")
@@ -200,8 +199,8 @@ endif ()
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(HiGHS_INCLUDE_DIR
-                    HiGHS_LIBRARY
-                    HiGHS_LIBRARY_DEBUG
-                    HiGHS_VERSION)
+                 HiGHS_LIBRARY
+                 HiGHS_LIBRARY_DEBUG
+                 HiGHS_VERSION)
 
 # --------------------------------------------------------------------------- #

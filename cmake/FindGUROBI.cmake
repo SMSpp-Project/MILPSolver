@@ -85,15 +85,15 @@ else ()
 
     if (UNIX)
         if (APPLE)
-            set(GUROBI_HOME ${GUROBI_ROOT}/macos_universal2)
+            set(GUROBI_DIR ${GUROBI_ROOT}/macos_universal2)
         else ()
-            set(GUROBI_HOME ${GUROBI_ROOT}/linux64)
+            set(GUROBI_DIR ${GUROBI_ROOT}/linux64)
         endif ()
     else () # Windows
         if (WIN64)
-            set(GUROBI_HOME ${GUROBI_ROOT}/win64)
+            set(GUROBI_DIR ${GUROBI_ROOT}/win64)
         elseif (WIN32)
-            set(GUROBI_HOME ${GUROBI_ROOT}/win32)
+            set(GUROBI_DIR ${GUROBI_ROOT}/win32)
         endif ()
     endif ()
 
@@ -101,7 +101,7 @@ else ()
     # Note that find_path() creates a cache entry
     find_path(GUROBI_INCLUDE_DIR
               NAMES gurobi_c.h
-              PATHS ${GUROBI_HOME}/include
+              PATHS ${GUROBI_DIR}/include
               DOC "GUROBI include directory.")
 
     if (UNIX)
@@ -109,7 +109,7 @@ else ()
         # Note that find_library() creates a cache entry
         find_library(GUROBI_LIBRARY
                      NAMES gurobi gurobi100 gurobi1002
-                     PATHS ${GUROBI_HOME}
+                     PATHS ${GUROBI_DIR}
                      PATH_SUFFIXES ${GUROBI_LIB_PATH_SUFFIXES}
                      DOC "GUROBI library.")
         set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY})
@@ -120,7 +120,7 @@ else ()
         # handled by find_library, so here a macro to search manually.
         macro(find_win_gurobi_library var path_suffixes)
             foreach (s ${path_suffixes})
-                file(GLOB GUROBI_LIBRARY_CANDIDATES "${GUROBI_HOME}/${s}/gurobi*.lib")
+                file(GLOB GUROBI_LIBRARY_CANDIDATES "${GUROBI_DIR}/${s}/gurobi*.lib")
                 if (GUROBI_LIBRARY_CANDIDATES)
                     list(GET GUROBI_LIBRARY_CANDIDATES 0 ${var})
                     break()
@@ -141,7 +141,7 @@ else ()
 
         # DLL
         if (GUROBI_LIBRARY MATCHES ".*/(gurobi.*)\\.lib")
-            file(GLOB GUROBI_DLL_ "${GUROBI_HOME}/bin/${CMAKE_MATCH_1}.dll")
+            file(GLOB GUROBI_DLL_ "${GUROBI_DIR}/bin/${CMAKE_MATCH_1}.dll")
             set(GUROBI_DLL ${GUROBI_DLL_})
         endif ()
     endif ()

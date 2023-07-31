@@ -1,6 +1,6 @@
 /* FILE GENERATED AUTOMATICALLY, DO NOT EDIT */
 
-#include <highs_c_api.h>
+#include <interfaces/highs_c_api.h>
 #include "HiGHSMILPSolver.h"
 
 using namespace SMSpp_di_unipi_it;

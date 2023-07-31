@@ -22,6 +22,12 @@ if (MILPSolver_USE_GUROBI)
     target_link_libraries(grb_pars PRIVATE GUROBI::Gurobi)
 endif ()
 
+if (MILPSolver_USE_HiGHS)
+    add_executable(highs_pars highs_pars.cpp)
+    target_compile_features(highs_pars PRIVATE cxx_std_17)
+    target_link_libraries(highs_pars PRIVATE HiGHS::HiGHS)
+endif ()
+
 # ----- MILP Solver tool ---------------------------------------------------- #
 add_executable(milp_solver solver.cpp)
 target_link_libraries(milp_solver PRIVATE SMS++::MILPSolver)
