@@ -24,7 +24,8 @@ BlockSolverConfig     # exact type of the Configuration object
 
 CPXMILPSolver 			# name of Solver
 #SCIPMILPSolver 		# name of Solver
-GRBMILPSolver 			# name of Solver
+#GRBMILPSolver 		# name of Solver
+HiGHSMILPSolver      # name of Solver
 
 2  # number of ComputeConfig in this BlockSolverConfig
 
@@ -78,10 +79,10 @@ ComputeConfig # exact type of the ComputeConfig object
 # now all the integer parameters
 intLogVerb 0
 
-2  # number of double parameters
+1  # number of double parameters
 # now all the double parameters
 dblRelAcc		1e-08
-IntFeasTol  1e-07	# Gurobi parameter (uncomment based on 2nd solver)
+#IntFeasTol  1e-07	# Gurobi parameter (uncomment based on 2nd solver)
 
 0  # number of string parameters
 # now all the double parameters

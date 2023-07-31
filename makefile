@@ -24,6 +24,7 @@
 #           $(libCPLEXINC) = the -I$( Cplex library )                        #
 #           $(libGUROBIINC)= the -I$( Gurobi library )                       #
 #           $(libSCIPINC)  = the -I$( SCIP library )                         #
+#           $(libHiGHSINC)  = the -I$( HiGHS library )                       #
 #           $(MILPSSDR)    = the directory where the source is               #
 #                                                                            #
 #   Output: $(MILPSOBJ)    = the final object(s) / library                   #
@@ -41,15 +42,17 @@
 
 MILPSOBJ = $(MILPSSDR)obj/MILPSolver.o \
 	$(MILPSSDR)obj/CPXMILPSolver.o \
+	$(MILPSSDR)obj/GRBMILPSolver.o \
+	$(MILPSSDR)obj/HiGHSMILPSolver.o \
 	$(MILPSSDR)obj/SCIPMILPSolver.o \
-	$(MILPSSDR)obj/GRBMILPSolver.o
 
 MILPSINC = -I$(MILPSSDR)include/
 
 MILPSH = $(MILPSSDR)include/MILPSolver.h \
 	$(MILPSSDR)include/CPXMILPSolver.h \
-	$(MILPSSDR)include/SCIPMILPSolver.h \
-	$(MILPSSDR)include/GRBMILPSolver.h
+	$(MILPSSDR)include/GRBMILPSolver.h \
+	$(MILPSSDR)include/HiGHSMILPSolver.h \
+	$(MILPSSDR)include/SCIPMILPSolver.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -80,5 +83,11 @@ $(MILPSSDR)obj/GRBMILPSolver.o: $(MILPSSDR)src/GRBMILPSolver.cpp \
 	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)src/GRBMILPSolver.cpp -o $@ \
 	$(MILPSINC) $(SMS++INC) $(libGUROBIINC) $(SW)
+
+$(MILPSSDR)obj/HiGHSMILPSolver.o: $(MILPSSDR)src/HiGHSMILPSolver.cpp \
+	$(MILPSSDR)include/HiGHSMILPSolver.h \
+	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)src/HiGHSMILPSolver.cpp -o $@ \
+	$(MILPSINC) $(SMS++INC) $(libHiGHSINC) $(SW)
 
 ########################## End of makefile ###################################
