@@ -541,11 +541,13 @@ static void ChangeFRow( AbstractBlock & AB , const Subset & sbst ,
       std::pair< double , double > bounds = Generate_lhs_rhs( p );
       lhs = bounds.first;
       rhs = bounds.second;
-      if( control_rep == true )
+      if( control_rep == true ){
         if( lhs == -INF )
          lhs = 0;
-        else if( rhs == INF )
+        else if( rhs == INF ){
          rhs = 1;
+        }
+       }
       }
     (*frowit).set_lhs( lhs );
     (*frowit).set_rhs( rhs );
@@ -585,11 +587,13 @@ static void ChangeFRow( AbstractBlock & AB , Range rng ,
       std::pair< double , double > bounds = Generate_lhs_rhs( p );
       lhs = bounds.first;
       rhs = bounds.second;
-      if( control_rep == true )
+      if( control_rep == true ){
         if( lhs == -INF )
          lhs = 0;
-        else if( rhs == INF )
+        else if( rhs == INF ){
          rhs = 1;    
+        }
+       }
       }
     (*frowit).set_lhs( lhs );
     (*frowit).set_rhs( rhs );
