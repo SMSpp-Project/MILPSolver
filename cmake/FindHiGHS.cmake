@@ -97,7 +97,7 @@ else ()
     # Note that find_path() creates a cache entry
     find_path(HiGHS_INCLUDE_DIR
               NAMES Highs.h interfaces/highs_c_api.h
-              PATHS ${HiGHS_DIR}/include/highs
+              PATHS ${HiGHS_DIR}/include
               PATH_SUFFIXES highs
               DOC "HiGHS include directory.")
 
