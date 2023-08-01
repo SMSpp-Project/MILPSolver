@@ -61,9 +61,9 @@ include $(MILPSSDR)/makefile
 # append external -I directives to MILPSINC, MILPSOBJ and MILPSH as defined
 # by the makefile, thus the := assignment has to be used (use GNU make)
 MILPSOBJ := $(MILPSOBJ) $(SMS++OBJ)
-MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libGUROBIINC) $(libHiGHSINC)
+MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libGUROBIINC) $(libHiGHSINC) $(libSCIPINC)
 
 # external libreries for MILPSolver
-MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB)
+MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB) $(libSCIPLIB)
 
 ############################ End of makefile #################################
