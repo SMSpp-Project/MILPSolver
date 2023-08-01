@@ -125,19 +125,13 @@ void HiGHSMILPSolver::load_problem( void )
   switch( xctype[ i ] ){
     case( 'C' ): highs_xctype[ i ] = kHighsVarTypeContinuous;
                 break;
+    case( 'B' ):
     case( 'I' ): highs_xctype[ i ] = kHighsVarTypeInteger;
                 break;
     case( 'S' ): highs_xctype[ i ] = kHighsVarTypeSemiContinuous;
                 break;
     case( 'N' ): highs_xctype[ i ] = kHighsVarTypeSemiInteger;
                 break;
-    case( 'B' ):
-     // HIGHS doesn't have esplicit binary type. So, we declare the 
-     // variables type as integer, and set the bounds to [0,1].
-     highs_xctype[ i ] = kHighsVarTypeInteger;
-     highs_lb[ i ] = 0.0 - kHighsTiny;
-     highs_ub[ i ] = 1.0 + kHighsTiny;
-     break;
     default:
      throw( std::runtime_error( "xctype[" + std::to_string( i ) +
             "] not a valid type" ) );
@@ -1035,16 +1029,9 @@ void HiGHSMILPSolver::var_modification( const VariableMod * mod )
   // construct new variable type
   char new_ctype;
   double lb, ub; // if is binary, we have to set lhs and rhs to [0,1]
-  if( var->is_integer() && ( ! relax_int_vars ) ) {
+  if( var->is_integer() && ( ! relax_int_vars ) )
    // Integer or Binary
    new_ctype = kHighsVarTypeInteger;
-   
-   if( var->is_unitary() && var->is_positive() ){ //Binary
-    lb = 0.0 - kHighsTiny;
-    ub = 1.0 + kHighsTiny;
-    Highs_changeColBounds( highs , idx , lb , ub );
-    }
-   }
   else
    new_ctype = kHighsVarTypeContinuous;  // Continuous
 
@@ -1718,18 +1705,9 @@ void HiGHSMILPSolver::add_dynamic_variable( const ColVariable * var )
 
  char new_ctype;  // get the new variable type
  
- if( var->is_integer() && ( ! relax_int_vars ) ) {
+ if( var->is_integer() && ( ! relax_int_vars ) )
   // Integer or Binary
   new_ctype = kHighsVarTypeInteger;
-  if( var->is_unitary() && var->is_positive() ){ //Binary
-   double lb = 0.0 - kHighsTiny;
-   double ub = 1.0 + kHighsTiny;
-   Highs_addVar( highs , lb , ub );
-   Highs_changeColIntegrality( highs , numcols - 1 , new_ctype );
-
-   return;
-   }
-  }
  else
   new_ctype = kHighsVarTypeContinuous;  // Continuous
 
