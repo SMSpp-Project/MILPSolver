@@ -83,15 +83,7 @@ if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG)
     set(HiGHS_FOUND TRUE)
 else ()
 
-    if (UNIX)
-        set(HiGHS_DIR ${HiGHS_ROOT})
-    else () # Windows
-        if (ARCH MATCHES x64)
-            set(HiGHS_DIR ${HiGHS_ROOT}/win64)
-        elseif (ARCH MATCHES x86)
-            set(HiGHS_DIR ${HiGHS_ROOT}/win32)
-        endif ()
-    endif ()
+    set(HiGHS_DIR ${HiGHS_ROOT})
 
     # ----- Find the HiGHS include directory -------------------------------- #
     # Note that find_path() creates a cache entry
