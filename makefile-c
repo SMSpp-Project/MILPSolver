@@ -15,7 +15,7 @@
 #           $(MILPSODR) = the directory where the objects have to be put     #
 #                                                                            #
 #   Output: $(MILPSOBJ) = the final object(s) / library                      #
-#           $(MILPSLIB) = external libraries + -L<libdirs>                   #
+#           $(MILPSLIB) = external libraries + -L< libdirs >                 #
 #           $(MILPSH)   = the .h files to include for MILPSolver             #
 #           $(MILPSINC) = the -I$( MILPSolver directory )                    #
 #                                                                            #
@@ -34,24 +34,20 @@
 # *INC is the -I<include directories>
 
 # define input macros for SMS++ complete makefile, then include it
-SMS++SDR = $(MILPSSDR)../smspp/
+SMS++SDR = $(MILPSSDR)/../SMS++
 include $(SMS++SDR)lib/makefile-inc
 
-# define input macros for libCPLEX complete makefile, then include it
-libCPLEXDIR = $(MILPSSDR)../smspp-project/extlib/
-include $(libCPLEXDIR)makefile-libCPLEX
+# include makefile for libCPLEX
+include $(MILPSSDR)/../extlib/makefile-libCPLEX
 
-# define input macros for libSCIP complete makefile, then include it
-libSCIPDIR = $(MILPSSDR)../smspp-project/extlib/
-include $(libSCIPDIR)makefile-libSCIP
+# include makefile for libGUROBI
+include $(MILPSSDR)/../extlib/makefile-libGUROBI
 
-# define input macros for libGUROBI complete makefile, then include it
-libGUROBIDIR = $(MILPSSDR)../smspp-project/extlib/
-include $(libGUROBIDIR)makefile-libGUROBI
+# include makefile for libSCIP
+include $(MILPSSDR)/../extlib/makefile-libSCIP
 
-# define input macros for libGUROBI complete makefile, then include it
-libHiGHSDIR = $(MILPSSDR)../smspp-project/extlib/
-include $(libHiGHSDIR)makefile-libHiGHS
+# include makefile for libHiGHS
+include $(MILPSSDR)/../extlib/makefile-libHiGHS
 
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
@@ -61,9 +57,11 @@ include $(MILPSSDR)/makefile
 # append external -I directives to MILPSINC, MILPSOBJ and MILPSH as defined
 # by the makefile, thus the := assignment has to be used (use GNU make)
 MILPSOBJ := $(MILPSOBJ) $(SMS++OBJ)
-MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libGUROBIINC) $(libHiGHSINC) $(libSCIPINC)
+MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libGUROBIINC) \
+	$(libHiGHSINC) $(libSCIPINC)
 
 # external libreries for MILPSolver
-MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB) $(libSCIPLIB)
+MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB) \
+	$(libSCIPLIB)
 
 ############################ End of makefile #################################
