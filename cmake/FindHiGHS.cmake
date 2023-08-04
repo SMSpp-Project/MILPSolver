@@ -47,11 +47,13 @@ if (UNIX)
         # Other Unix-based systems (usually /opt)
         set(HiGHS_DIRS /opt)
     endif ()
+    set(HiGHS_LIB_PATH_SUFFIXES lib)
 else ()
     # Windows (usually C:)
     set(HiGHS_DIRS "C:")
+    set(HiGHS_LIB_PATH_SUFFIXES build/DEBUG/bin) # TODO: RELEASE
+    set(HiGHS_LIB_PATH_SUFFIXES_DEBUG build/DEBUG/bin)
 endif ()
-set(HiGHS_LIB_PATH_SUFFIXES lib)
 
 # ----- Find the path to HiGHS ---------------------------------------------- #
 
@@ -108,9 +110,9 @@ else ()
         # ----- Macro: find_win_HiGHS_library ------------------------------- #
         # On Windows the version is appended to the library name which cannot be
         # handled by find_library, so here a macro to search manually.
-        macro(find_win_HiGHS_library var path_suffixes)
+        macro(find_win_HiGHS_library var path_suffixes lib_dll)
             foreach (s ${path_suffixes})
-                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/HiGHS*.lib")
+                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/highs*.${lib_dll}")
                 if (HiGHS_LIBRARY_CANDIDATES)
                     list(GET HiGHS_LIBRARY_CANDIDATES 0 ${var})
                     break()
@@ -122,16 +124,16 @@ else ()
         endmacro()
 
         # Library
-        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES}")
+        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES}" "lib")
         set(HiGHS_LIBRARY ${HiGHS_LIB})
 
         # Debug library
-        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES_DEBUG}")
+        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES_DEBUG}" "lib")
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIB})
 
         # DLL
-        if (HiGHS_LIBRARY MATCHES ".*/(HiGHS.*)\\.lib")
-            file(GLOB HiGHS_DLL_ "${HiGHS_DIR}/bin/${CMAKE_MATCH_1}.dll")
+        if (HiGHS_LIBRARY MATCHES ".*/(highs.*)\\.lib")
+            find_win_HiGHS_library(HiGHS_DLL_ "${HiGHS_LIB_PATH_SUFFIXES}" "dll")
             set(HiGHS_DLL ${HiGHS_DLL_})
         endif ()
     endif ()
@@ -140,7 +142,7 @@ else ()
     if (HiGHS_INCLUDE_DIR)
         file(STRINGS
              "${HiGHS_INCLUDE_DIR}/HConfig.h"
-             _HiGHS_version_lines REGEX "#define HiGHS_VERSION_(MAJOR|MINOR|PATCH)")
+             _HiGHS_version_lines REGEX "#define HIGHS_VERSION_(MAJOR|MINOR|PATCH)")
         string(REGEX REPLACE ".*HIGHS_VERSION_MAJOR *\([0-9]*\).*" "\\1" _HiGHS_version_major "${_HiGHS_version_lines}")
         string(REGEX REPLACE ".*HIGHS_VERSION_MINOR *\([0-9]*\).*" "\\1" _HiGHS_version_minor "${_HiGHS_version_lines}")
         string(REGEX REPLACE ".*HIGHS_VERSION_PATCH *\([0-9]*\).*" "\\1" _HiGHS_version_patch "${_HiGHS_version_lines}")
