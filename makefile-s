@@ -41,8 +41,8 @@ libCPLEXDIR = $(MILPSSDR)../smspp-project/extlib/
 include $(libCPLEXDIR)makefile-libCPLEX
 
 # define input macros for libSCIP complete makefile, then include it
-libSCIPDIR = $(MILPSSDR)../extlib/
-include $(libSCIPDIR)makefile-libSCIP
+#libSCIPDIR = $(MILPSSDR)../extlib/
+#include $(libSCIPDIR)makefile-libSCIP
 
 # define input macros for libGUROBI complete makefile, then include it
 libGUROBIDIR = $(MILPSSDR)../smspp-project/extlib/

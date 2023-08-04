@@ -5,7 +5,8 @@
 #   makefile of MILPSolver                                                   #
 #                                                                            #
 #   The makefile takes in input the -I directives for all the external       #
-#   libraries needed by MILPSolver, i.e., core SMS++ and Cplex. These are    #
+#   libraries needed by MILPSolver, i.e., core SMS++ and those of all the    #
+#   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS). These are #
 #   *not* copied into $(MILPSINC): adding those -I directives to the compile #
 #   commands will have to done by whatever "main" makefile is using this.    #
 #   Analogously, any external library and the corresponding -L< libdirs >    #
@@ -17,19 +18,19 @@
 #   least to the extent in which they are needed by the parts of SMS++       #
 #   used by MILPSolver.                                                      #
 #                                                                            #
-#   Input:  $(CC)          = compiler command                                #
-#           $(SW)          = compiler options                                #
-#           $(SMS++INC)    = the -I$( core SMS++ directory )                 #
-#           $(SMS++OBJ)    = the core SMS++ library                          #
-#           $(libCPLEXINC) = the -I$( Cplex library )                        #
-#           $(libGUROBIINC)= the -I$( Gurobi library )                       #
-#           $(libSCIPINC)  = the -I$( SCIP library )                         #
+#   Input:  $(CC)           = compiler command                               #
+#           $(SW)           = compiler options                               #
+#           $(SMS++INC)     = the -I$( core SMS++ directory )                #
+#           $(SMS++OBJ)     = the core SMS++ library                         #
+#           $(libCPLEXINC)  = the -I$( Cplex library )                       #
+#           $(libGUROBIINC) = the -I$( Gurobi library )                      #
+#           $(libSCIPINC)   = the -I$( SCIP library )                        #
 #           $(libHiGHSINC)  = the -I$( HiGHS library )                       #
-#           $(MILPSSDR)    = the directory where the source is               #
+#           $(MILPSSDR)     = the directory where the source is              #
 #                                                                            #
-#   Output: $(MILPSOBJ)    = the final object(s) / library                   #
-#           $(MILPSH)      = the .h files to include                         #
-#           $(MILPSINC)    = the -I$( source directory )                     #
+#   Output: $(MILPSOBJ)     = the final object(s) / library                  #
+#           $(MILPSH)       = the .h files to include                        #
+#           $(MILPSINC)     = the -I$( source directory )                    #
 #                                                                            #
 #                              Antonio Frangioni                             #
 #                         Dipartimento di Informatica                        #
@@ -40,19 +41,19 @@
 
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-MILPSOBJ = $(MILPSSDR)obj/MILPSolver.o \
+MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
 	$(MILPSSDR)obj/CPXMILPSolver.o \
-	$(MILPSSDR)obj/GRBMILPSolver.o \
-	$(MILPSSDR)obj/HiGHSMILPSolver.o \
-	$(MILPSSDR)obj/SCIPMILPSolver.o \
+	$(MILPSSDR)/obj/GRBMILPSolver.o \
+	$(MILPSSDR)/obj/HiGHSMILPSolver.o \
+	$(MILPSSDR)/obj/SCIPMILPSolver.o \
 
 MILPSINC = -I$(MILPSSDR)include/
 
-MILPSH = $(MILPSSDR)include/MILPSolver.h \
-	$(MILPSSDR)include/CPXMILPSolver.h \
-	$(MILPSSDR)include/GRBMILPSolver.h \
-	$(MILPSSDR)include/HiGHSMILPSolver.h \
-	$(MILPSSDR)include/SCIPMILPSolver.h
+MILPSH = $(MILPSSDR)/include/MILPSolver.h \
+	$(MILPSSDR)/include/CPXMILPSolver.h \
+	$(MILPSSDR)/include/GRBMILPSolver.h \
+	$(MILPSSDR)/include/HiGHSMILPSolver.h \
+	$(MILPSSDR)/include/SCIPMILPSolver.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -61,33 +62,33 @@ clean::
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
 
-$(MILPSSDR)obj/MILPSolver.o: $(MILPSSDR)src/MILPSolver.cpp \
-	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
-	$(CC) -c $(MILPSSDR)src/MILPSolver.cpp -o $@ \
+$(MILPSSDR)/obj/MILPSolver.o: $(MILPSSDR)/src/MILPSolver.cpp \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/MILPSolver.cpp -o $@ \
 	$(MILPSINC) $(SMS++INC) $(SW)
 
-$(MILPSSDR)obj/CPXMILPSolver.o: $(MILPSSDR)src/CPXMILPSolver.cpp \
-	$(MILPSSDR)include/CPXMILPSolver.h \
-	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
-	$(CC) -c $(MILPSSDR)src/CPXMILPSolver.cpp -o $@ \
+$(MILPSSDR)/obj/CPXMILPSolver.o: $(MILPSSDR)/src/CPXMILPSolver.cpp \
+	$(MILPSSDR)/include/CPXMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/CPXMILPSolver.cpp -o $@ \
 	$(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(SW)
 
-$(MILPSSDR)obj/SCIPMILPSolver.o: $(MILPSSDR)src/SCIPMILPSolver.cpp \
-	$(MILPSSDR)include/SCIPMILPSolver.h \
-	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
-	$(CC) -c $(MILPSSDR)src/SCIPMILPSolver.cpp -o $@ \
+$(MILPSSDR)/obj/SCIPMILPSolver.o: $(MILPSSDR)/src/SCIPMILPSolver.cpp \
+	$(MILPSSDR)/include/SCIPMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/SCIPMILPSolver.cpp -o $@ \
 	$(MILPSINC) $(SMS++INC) $(libSCIPINC) $(SW)
 
-$(MILPSSDR)obj/GRBMILPSolver.o: $(MILPSSDR)src/GRBMILPSolver.cpp \
-	$(MILPSSDR)include/GRBMILPSolver.h \
-	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
-	$(CC) -c $(MILPSSDR)src/GRBMILPSolver.cpp -o $@ \
+$(MILPSSDR)/obj/GRBMILPSolver.o: $(MILPSSDR)/src/GRBMILPSolver.cpp \
+	$(MILPSSDR)/include/GRBMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/GRBMILPSolver.cpp -o $@ \
 	$(MILPSINC) $(SMS++INC) $(libGUROBIINC) $(SW)
 
-$(MILPSSDR)obj/HiGHSMILPSolver.o: $(MILPSSDR)src/HiGHSMILPSolver.cpp \
-	$(MILPSSDR)include/HiGHSMILPSolver.h \
-	$(MILPSSDR)include/MILPSolver.h $(SMS++OBJ)
-	$(CC) -c $(MILPSSDR)src/HiGHSMILPSolver.cpp -o $@ \
+$(MILPSSDR)/obj/HiGHSMILPSolver.o: $(MILPSSDR)/src/HiGHSMILPSolver.cpp \
+	$(MILPSSDR)/include/HiGHSMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/HiGHSMILPSolver.cpp -o $@ \
 	$(MILPSINC) $(SMS++INC) $(libHiGHSINC) $(SW)
 
 ########################## End of makefile ###################################
