@@ -31,11 +31,11 @@
 # each module outputs some macros to be used here:
 # *OBJ is the final object/library
 # *H   is the list of all include files
-# *INC is the -I<include directories>
+# *INC is the -I< include directories >
 
 # define input macros for SMS++ complete makefile, then include it
 SMS++SDR = $(MILPSSDR)/../SMS++
-include $(SMS++SDR)lib/makefile-inc
+include $(SMS++SDR)/lib/makefile-inc
 
 # include makefile for libCPLEX
 include $(MILPSSDR)/../extlib/makefile-libCPLEX

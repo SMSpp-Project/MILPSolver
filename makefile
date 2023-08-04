@@ -38,16 +38,15 @@
 #                                                                            #
 ##############################################################################
 
-
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
-	$(MILPSSDR)obj/CPXMILPSolver.o \
+	$(MILPSSDR)/obj/CPXMILPSolver.o \
 	$(MILPSSDR)/obj/GRBMILPSolver.o \
 	$(MILPSSDR)/obj/HiGHSMILPSolver.o \
 	$(MILPSSDR)/obj/SCIPMILPSolver.o \
 
-MILPSINC = -I$(MILPSSDR)include/
+MILPSINC = -I$(MILPSSDR)/include/
 
 MILPSH = $(MILPSSDR)/include/MILPSolver.h \
 	$(MILPSSDR)/include/CPXMILPSolver.h \
@@ -58,7 +57,7 @@ MILPSH = $(MILPSSDR)/include/MILPSolver.h \
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
-	rm -f $(MILPSOBJ) $(MILPSSDR)*~
+	rm -f $(MILPSOBJ) $(MILPSSDR)/*~
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
 
