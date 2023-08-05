@@ -24,11 +24,8 @@
 #    This find module is provided because HiGHS does not provide              #
 #    a CMake configuration file on its own.                                   #
 #                                                                             #
-#                                 Donato Meoli                                #
-#                         Dipartimento di Informatica                         #
-#                             Universita' di Pisa                             #
-#                                                                             #
-#                               Enrico Calandrini                             #
+#                                Donato Meoli                                 #
+#                              Enrico Calandrini                              #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
