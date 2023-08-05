@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------*/
-/*--------------------------- File HiGHSMILPSolver.h -------------------------*/
+/*--------------------------- File HiGHSMILPSolver.h -----------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
  * Header file for the HiGHSMILPSolver class.
@@ -486,7 +486,7 @@ class HiGHSMILPSolver : public MILPSolver {
   * running must not *necessarily* be immediately acted upon by changing the
   * model that the Solver is solving. */
 
- /*int callback( GRBmodel *model , void *cbdata , int where );
+ //int callback( GRBmodel *model , void *cbdata , int where );
  
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
