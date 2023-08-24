@@ -6,7 +6,7 @@
 #                                                                            #
 #   The makefile defines internally all external libraries (comprised the    #
 #   SMS++ one) required by MILPSolver. Accordingly, all necessary OBJ, H,    #
-#   -I directives, external libraries + -L<libdirs> are added to the         #
+#   -I directives, external libraries + -L< libdirs > are added to the       #
 #   corresponding MILPS* macros.                                             #
 #                                                                            #
 #   Input:  $(CC)       = compiler command                                   #
@@ -60,7 +60,7 @@ MILPSOBJ := $(MILPSOBJ) $(SMS++OBJ)
 MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libGUROBIINC) \
 	$(libHiGHSINC) $(libSCIPINC)
 
-# external libreries for MILPSolver
+# external libraries for MILPSolver
 MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB) \
 	$(libSCIPLIB)
 
