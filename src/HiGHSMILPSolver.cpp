@@ -880,8 +880,8 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
  //for( auto i = y.begin() ; i != y.end() ; ++i  )
   //*i = -*i;
 
- if( Highs_setSolution( highs , NULL , NULL , dj.data() , NULL ) == kHighsStatusError )
-  throw( std::runtime_error( "Unable to get reduced costs with Highs_setSolution") );
+ if( Highs_getSolution( highs , NULL , NULL , dj.data() , NULL ) == kHighsStatusError )
+  throw( std::runtime_error( "Unable to get reduced costs with Highs_getSolution") );
 
  int row = 0;
  int row_dynamic = static_cons;
