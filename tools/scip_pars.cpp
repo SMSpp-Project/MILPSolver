@@ -141,7 +141,6 @@ int main( int argc , char ** argv )
  int int_counter = 0;
  int dbl_counter = 0;
  int str_counter = 0;
- int total = 0;
 
  SCIP_CALL_ABORT( SCIPcreate( &scip ) );
  if( verbose ) {

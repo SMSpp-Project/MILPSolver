@@ -37,16 +37,17 @@ target_link_libraries(milp_solver PRIVATE SMS++::MILPSolver)
 # so we have to force the linking.
 if (BUILD_SHARED_LIBS)
     if (UNIX AND (NOT APPLE))
-        target_link_options(milp_solver PRIVATE
-                            "LINKER:--no-as-needed")
+        add_link_options("-Wl,--no-as-needed")
     endif ()
 else ()
-    if (APPLE)
-        target_link_options(milp_solver PRIVATE
-                            "LINKER:-all_load")
-    else ()
-        target_link_options(milp_solver PRIVATE
-                            "LINKER:--whole-archive,--allow-multiple-definition")
+    if (UNIX)
+        if (APPLE)
+            add_link_options("-Wl,-all_load")
+        else ()
+            add_link_options("-Wl,--whole-archive,--allow-multiple-definition")
+        endif ()
+    else () # Windows
+        add_link_options("/WHOLEARCHIVE")
     endif ()
 endif ()
 
