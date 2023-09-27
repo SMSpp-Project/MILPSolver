@@ -2,7 +2,7 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of cpx_pars / scip_pars  /  grb_pars                            #
+#   makefile of cpx_pars / scip_pars  /  grb_pars  / highs_pars              #
 #                                                                            #
 #                              Antonio Frangioni                             #
 #                          Dipartimento di Informatica                       #
@@ -15,8 +15,8 @@
 ##############################################################################
 
 # module name: uncomment the one that you want to build
-#NAME = scip_pars
 #NAME = cpx_pars
+#NAME = scip_pars
 NAME = grb_pars
 #NAME = highs_pars
 
