@@ -46,8 +46,6 @@ else ()
         else ()
             add_link_options("-Wl,--whole-archive,--allow-multiple-definition")
         endif ()
-    else () # Windows
-        add_link_options("/WHOLEARCHIVE")
     endif ()
 endif ()
 
