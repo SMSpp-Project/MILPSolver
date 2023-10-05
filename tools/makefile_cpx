@@ -1,0 +1,38 @@
+##############################################################################
+############################## makefile_cpx ##################################
+##############################################################################
+#                                                                            #
+#   makefile of cpx_pars                                                     #
+#                                                                            #
+#                              Antonio Frangioni                             #
+#                          Dipartimento di Informatica                       #
+#                              Universita' di Pisa                           #
+#                                                                            #
+##############################################################################
+
+# module name
+CPX_PARS = cpx_pars
+
+# default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+default: $(CPX_PARS)
+
+# define & include the necessary modules- - - - - - - - - - - - - - - - - - -
+# each module outputs some macros to be used here:
+# *LIB is the external libraries + -L< libdirs >
+# *INC is the -I< include directories >
+
+# include makefile libCPLEX
+include $(DIR)/../../extlib/makefile-libCPLEX
+
+# main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(CPX_PARS): $(DIR)/$(CPX_PARS).o
+	$(CC) -o $(CPX_PARS) $(DIR)/$(CPX_PARS).o $(libCPLEXLIB) $(SW)
+
+# compile command - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(DIR)/$(CPX_PARS).o: $(DIR)/$(CPX_PARS).cpp
+	$(CC) -c $*.cpp -o $@ $(libCPLEXINC) $(SW)
+
+########################## End of makefile_cpx ###############################

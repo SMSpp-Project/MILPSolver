@@ -42,17 +42,17 @@
 
 MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
 	$(MILPSSDR)/obj/CPXMILPSolver.o \
-	$(MILPSSDR)/obj/GRBMILPSolver.o \
-	$(MILPSSDR)/obj/HiGHSMILPSolver.o \
-	$(MILPSSDR)/obj/SCIPMILPSolver.o \
+	$(MILPSSDR)/obj/GRBMILPSolver.o
+#	$(MILPSSDR)/obj/HiGHSMILPSolver.o \
+#	$(MILPSSDR)/obj/SCIPMILPSolver.o
 
 MILPSINC = -I$(MILPSSDR)/include
 
 MILPSH = $(MILPSSDR)/include/MILPSolver.h \
 	$(MILPSSDR)/include/CPXMILPSolver.h \
-	$(MILPSSDR)/include/GRBMILPSolver.h \
-	$(MILPSSDR)/include/HiGHSMILPSolver.h \
-	$(MILPSSDR)/include/SCIPMILPSolver.h
+	$(MILPSSDR)/include/GRBMILPSolver.h
+#	$(MILPSSDR)/include/HiGHSMILPSolver.h \
+#	$(MILPSSDR)/include/SCIPMILPSolver.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
