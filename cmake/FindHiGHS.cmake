@@ -44,12 +44,11 @@ if (UNIX)
         # Other Unix-based systems (usually /opt)
         set(HiGHS_DIRS /opt)
     endif ()
-    set(HiGHS_LIB_PATH_SUFFIXES lib)
+    set(HiGHS_LIB_PATH_SUFFIXES lib build/lib)
 else ()
     # Windows (usually C:)
     set(HiGHS_DIRS "C:")
-    set(HiGHS_LIB_PATH_SUFFIXES build/DEBUG/bin) # TODO: RELEASE
-    set(HiGHS_LIB_PATH_SUFFIXES_DEBUG build/DEBUG/bin)
+    set(HiGHS_LIB_PATH_SUFFIXES lib build/bin)
 endif ()
 
 # ----- Find the path to HiGHS ---------------------------------------------- #
@@ -90,9 +89,16 @@ else ()
     # Note that find_path() creates a cache entry
     find_path(HiGHS_INCLUDE_DIR
               NAMES Highs.h interfaces/highs_c_api.h
-              PATHS ${HiGHS_DIR}/include
-              PATH_SUFFIXES highs
+              PATHS ${HiGHS_DIR}
+              PATH_SUFFIXES include/highs src
               DOC "HiGHS include directory.")
+
+    # ----- Find the HiGHS config include directory ------------------------- #
+    # Note that find_path() creates a cache entry
+    find_path(HiGHS_CONFIG_INCLUDE_DIR
+              NAMES HConfig.h
+              PATHS ${HiGHS_DIR}/build
+              DOC "HiGHS config include directory.")
 
     if (UNIX)
         # ----- Find the HiGHS library -------------------------------------- #
@@ -109,7 +115,7 @@ else ()
         # handled by find_library, so here a macro to search manually.
         macro(find_win_HiGHS_library var path_suffixes lib_dll)
             foreach (s ${path_suffixes})
-                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/highs*.${lib_dll}")
+                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/libhighs*.${lib_dll}")
                 if (HiGHS_LIBRARY_CANDIDATES)
                     list(GET HiGHS_LIBRARY_CANDIDATES 0 ${var})
                     break()
@@ -118,28 +124,28 @@ else ()
             if (NOT ${var})
                 set(${var} NOTFOUND)
             endif ()
-        endmacro()
+        endmacro ()
 
         # Library
-        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES}" "lib")
+        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES}" "dll.a")
         set(HiGHS_LIBRARY ${HiGHS_LIB})
 
         # Debug library
-        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES_DEBUG}" "lib")
+        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES_DEBUG}" "dll.a")
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIB})
 
         # DLL
-        if (HiGHS_LIBRARY MATCHES ".*/(highs.*)\\.lib")
+        if (HiGHS_LIBRARY MATCHES ".*/(libhighs.*)\\.dll.a")
             find_win_HiGHS_library(HiGHS_DLL_ "${HiGHS_LIB_PATH_SUFFIXES}" "dll")
             set(HiGHS_DLL ${HiGHS_DLL_})
         endif ()
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
-    if (HiGHS_INCLUDE_DIR)
+    if (HiGHS_CONFIG_INCLUDE_DIR)
         file(STRINGS
-             "${HiGHS_INCLUDE_DIR}/HConfig.h"
-             _HiGHS_version_lines REGEX "#define HIGHS_VERSION_(MAJOR|MINOR|PATCH)")
+                "${HiGHS_CONFIG_INCLUDE_DIR}/HConfig.h"
+                _HiGHS_version_lines REGEX "#define HIGHS_VERSION_(MAJOR|MINOR|PATCH)")
         string(REGEX REPLACE ".*HIGHS_VERSION_MAJOR *\([0-9]*\).*" "\\1" _HiGHS_version_major "${_HiGHS_version_lines}")
         string(REGEX REPLACE ".*HIGHS_VERSION_MINOR *\([0-9]*\).*" "\\1" _HiGHS_version_minor "${_HiGHS_version_lines}")
         string(REGEX REPLACE ".*HIGHS_VERSION_PATCH *\([0-9]*\).*" "\\1" _HiGHS_version_patch "${_HiGHS_version_lines}")
@@ -159,13 +165,13 @@ else ()
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
             HiGHS
-            REQUIRED_VARS HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG HiGHS_INCLUDE_DIR
+            REQUIRED_VARS HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG HiGHS_INCLUDE_DIR HiGHS_CONFIG_INCLUDE_DIR
             VERSION_VAR HiGHS_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
 if (HiGHS_FOUND)
-    set(HiGHS_INCLUDE_DIRS "${HiGHS_INCLUDE_DIR}")
+    set(HiGHS_INCLUDE_DIRS "${HiGHS_INCLUDE_DIR}" "${HiGHS_CONFIG_INCLUDE_DIR}")
     set(HiGHS_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
@@ -185,7 +191,7 @@ if (HiGHS_FOUND)
                 HiGHS::HiGHS PROPERTIES
                 IMPORTED_LOCATION "${HiGHS_LIBRARY}"
                 IMPORTED_LOCATION_DEBUG "${HiGHS_LIBRARY_DEBUG}"
-                INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIR}"
+                INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
                 INTERFACE_LINK_LIBRARIES "${HiGHS_LINK_LIBRARIES}")
     endif ()
 endif ()
@@ -193,6 +199,7 @@ endif ()
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(HiGHS_INCLUDE_DIR
+                 HiGHS_CONFIG_INCLUDE_DIR
                  HiGHS_LIBRARY
                  HiGHS_LIBRARY_DEBUG
                  HiGHS_VERSION)
