@@ -97,7 +97,8 @@ else ()
     # Note that find_path() creates a cache entry
     find_path(HiGHS_CONFIG_INCLUDE_DIR
               NAMES HConfig.h
-              PATHS ${HiGHS_DIR}/build
+              PATHS ${HiGHS_DIR}
+              PATH_SUFFIXES include/highs build
               DOC "HiGHS config include directory.")
 
     if (UNIX)
