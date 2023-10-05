@@ -5,11 +5,8 @@
 #   makefile of cpx_pars / scip_pars / grb_pars / highs_pars                 #
 #                                                                            #
 #                              Antonio Frangioni                             #
-#                          Dipartimento di Informatica                       #
-#                              Universita' di Pisa                           #
-#                                                                            #
 #                              Enrico Calandrini                             #
-#                          Dipartimento di Matematica                        #
+#                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
 #                                                                            #
 ##############################################################################

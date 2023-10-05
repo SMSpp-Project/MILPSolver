@@ -5,9 +5,6 @@
 #   makefile of DynamicLP_test                                		         #
 #                                                                            #
 #                              Antonio Frangioni                             #
-#                          Dipartimento di Informatica                       #
-#                              Universita' di Pisa                           #
-#									   									     #
 #                              Enrico Calandrini                             #
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #

@@ -22,7 +22,7 @@ default: $(HIGHS_PARS)
 # *LIB is the external libraries + -L< libdirs >
 # *INC is the -I< include directories >
 
-# include makefile libCPLEX
+# include makefile libHiGHS
 include $(DIR)/../../extlib/makefile-libHiGHS
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -

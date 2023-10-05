@@ -22,7 +22,7 @@ default: $(SCIP_PARS)
 # *LIB is the external libraries + -L< libdirs >
 # *INC is the -I< include directories >
 
-# include makefile libCPLEX
+# include makefile libSCIP
 include $(DIR)/../../extlib/makefile-libSCIP
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -

@@ -22,7 +22,7 @@ default: $(GRB_PARS)
 # *LIB is the external libraries + -L< libdirs >
 # *INC is the -I< include directories >
 
-# include makefile libCPLEX
+# include makefile libGUROBI
 include $(DIR)/../../extlib/makefile-libGUROBI
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
