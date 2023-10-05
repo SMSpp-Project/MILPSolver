@@ -128,7 +128,7 @@ else ()
             if (NOT ${var})
                 set(${var} NOTFOUND)
             endif ()
-        endmacro()
+        endmacro ()
 
         # Library
         find_win_gurobi_library(GUROBI_LIB "${GUROBI_LIB_PATH_SUFFIXES}")
