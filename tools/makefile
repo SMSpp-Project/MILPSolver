@@ -52,7 +52,8 @@ endif
 SW = -O3 -std=c++17 -DNDEBUG
 
 # compiler
-CC = g++
+#CC = g++
+CC = clang++
 
 # include the makefiles of the individual *_pars- - - - - - - - - - - - - - -
 # if you are not interested in some of them, just comment them away here

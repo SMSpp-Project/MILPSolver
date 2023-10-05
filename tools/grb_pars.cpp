@@ -25,7 +25,7 @@
 
 #include <iostream>
 #include <fstream>
-#include <string>
+#include <cstring>
 #include <map>
 #include <getopt.h>
 // #include <filesystem>
