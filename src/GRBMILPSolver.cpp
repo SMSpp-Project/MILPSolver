@@ -251,7 +251,7 @@ void GRBMILPSolver::load_problem( void )
   while( grb_sense[ j ] != 'R' &&  j < numrows ) {
     ++n_constrs;
     tot_nnz = tot_nnz + n_nz_row[ j ];
-    if( grb_sense[ j + 1 ] != 'R' )
+    if( ( j + 1 < numrows ) && ( grb_sense[ j + 1 ] != 'R' ) )
       ++j;
     else
       break;
