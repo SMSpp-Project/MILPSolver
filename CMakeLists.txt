@@ -91,7 +91,7 @@ endif ()
 
 if (MILPSolver_USE_GUROBI)
     # Needed for GUROBIMILPSolver
-    find_package(GUROBI)
+    find_package(GUROBI 10.0)
     if (NOT GUROBI_FOUND)
         set(MILPSolver_USE_GUROBI OFF)
     endif ()

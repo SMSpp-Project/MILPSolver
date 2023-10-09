@@ -169,9 +169,11 @@ else ()
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
-            GUROBI
-            REQUIRED_VARS GUROBI_LIBRARY GUROBI_LIBRARY_DEBUG GUROBI_INCLUDE_DIR
-            VERSION_VAR GUROBI_VERSION)
+            GUROBI REQUIRED_VARS
+            GUROBI_LIBRARY
+            GUROBI_LIBRARY_DEBUG
+            GUROBI_INCLUDE_DIR
+            GUROBI_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
@@ -186,7 +188,6 @@ if (GUROBI_FOUND)
     endif ()
 
     if (UNIX)
-        # Required under Unix since 12.8
         set(GUROBI_LINK_LIBRARIES ${GUROBI_LINK_LIBRARIES} dl)
     endif ()
 
@@ -196,7 +197,7 @@ if (GUROBI_FOUND)
                 GUROBI::Gurobi PROPERTIES
                 IMPORTED_LOCATION "${GUROBI_LIBRARY}"
                 IMPORTED_LOCATION_DEBUG "${GUROBI_LIBRARY_DEBUG}"
-                INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIR}"
+                INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
                 INTERFACE_LINK_LIBRARIES "${GUROBI_LINK_LIBRARIES}")
     endif ()
 endif ()

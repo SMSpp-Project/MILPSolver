@@ -165,9 +165,12 @@ else ()
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
-            HiGHS
-            REQUIRED_VARS HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG HiGHS_INCLUDE_DIR HiGHS_CONFIG_INCLUDE_DIR
-            VERSION_VAR HiGHS_VERSION)
+            HiGHS REQUIRED_VARS
+            HiGHS_LIBRARY
+            HiGHS_LIBRARY_DEBUG
+            HiGHS_INCLUDE_DIR
+            HiGHS_CONFIG_INCLUDE_DIR
+            HiGHS_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
@@ -182,7 +185,6 @@ if (HiGHS_FOUND)
     endif ()
 
     if (UNIX)
-        # Required under Unix since 12.8
         set(HiGHS_LINK_LIBRARIES ${HiGHS_LINK_LIBRARIES} dl)
     endif ()
 
