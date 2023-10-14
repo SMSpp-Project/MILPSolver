@@ -75,7 +75,7 @@ endif ()
 
 if (MILPSolver_USE_CPLEX)
     # Needed for CPXMILPSolver
-    find_package(CPLEX 12.8)
+    find_package(CPLEX 12.8.0)
     if (NOT CPLEX_FOUND)
         set(MILPSolver_USE_CPLEX OFF)
     endif ()
@@ -91,7 +91,7 @@ endif ()
 
 if (MILPSolver_USE_GUROBI)
     # Needed for GUROBIMILPSolver
-    find_package(GUROBI 10.0)
+    find_package(GUROBI 10.0.0)
     if (NOT GUROBI_FOUND)
         set(MILPSolver_USE_GUROBI OFF)
     endif ()

@@ -137,19 +137,13 @@ else ()
         # Debug library
         find_win_gurobi_library(GUROBI_LIB "${GUROBI_LIB_PATH_SUFFIXES_DEBUG}")
         set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIB})
-
-        # DLL
-        if (GUROBI_LIBRARY MATCHES ".*/(gurobi.*)\\.lib")
-            file(GLOB GUROBI_DLL_ "${GUROBI_DIR}/bin/${CMAKE_MATCH_1}.dll")
-            set(GUROBI_DLL ${GUROBI_DLL_})
-        endif ()
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
     if (GUROBI_INCLUDE_DIR)
         file(STRINGS
-             "${GUROBI_INCLUDE_DIR}/gurobi_c.h"
-             _gurobi_version_lines REGEX "#define GRB_VERSION_(MAJOR|MINOR|TECHNICAL)")
+                "${GUROBI_INCLUDE_DIR}/gurobi_c.h"
+                _gurobi_version_lines REGEX "#define GRB_VERSION_(MAJOR|MINOR|TECHNICAL)")
 
         string(REGEX REPLACE ".*GRB_VERSION_MAJOR *\([0-9]*\).*" "\\1" _gurobi_version_major "${_gurobi_version_lines}")
         string(REGEX REPLACE ".*GRB_VERSION_MINOR *\([0-9]*\).*" "\\1" _gurobi_version_minor "${_gurobi_version_lines}")
@@ -159,7 +153,7 @@ else ()
         unset(_gurobi_version_lines)
         unset(_gurobi_version_major)
         unset(_gurobi_version_minor)
-        unset(_gurobi_version_patch)
+        unset(_gurobi_version_technical)
     endif ()
 
     # ----- Handle the standard arguments ----------------------------------- #
@@ -169,11 +163,9 @@ else ()
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
-            GUROBI REQUIRED_VARS
-            GUROBI_LIBRARY
-            GUROBI_LIBRARY_DEBUG
-            GUROBI_INCLUDE_DIR
-            GUROBI_VERSION)
+            GUROBI
+            REQUIRED_VARS GUROBI_LIBRARY GUROBI_LIBRARY_DEBUG GUROBI_INCLUDE_DIR
+            VERSION_VAR GUROBI_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #

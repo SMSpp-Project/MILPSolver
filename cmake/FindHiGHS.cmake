@@ -114,9 +114,9 @@ else ()
         # ----- Macro: find_win_HiGHS_library ------------------------------- #
         # On Windows the version is appended to the library name which cannot be
         # handled by find_library, so here a macro to search manually.
-        macro(find_win_HiGHS_library var path_suffixes lib_dll)
+        macro(find_win_HiGHS_library var path_suffixes)
             foreach (s ${path_suffixes})
-                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/libhighs*.${lib_dll}")
+                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/libhighs*.dll.a")
                 if (HiGHS_LIBRARY_CANDIDATES)
                     list(GET HiGHS_LIBRARY_CANDIDATES 0 ${var})
                     break()
@@ -128,18 +128,12 @@ else ()
         endmacro ()
 
         # Library
-        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES}" "dll.a")
+        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES}")
         set(HiGHS_LIBRARY ${HiGHS_LIB})
 
         # Debug library
-        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES_DEBUG}" "dll.a")
+        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES_DEBUG}")
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIB})
-
-        # DLL
-        if (HiGHS_LIBRARY MATCHES ".*/(libhighs.*)\\.dll.a")
-            find_win_HiGHS_library(HiGHS_DLL_ "${HiGHS_LIB_PATH_SUFFIXES}" "dll")
-            set(HiGHS_DLL ${HiGHS_DLL_})
-        endif ()
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
@@ -147,6 +141,7 @@ else ()
         file(STRINGS
                 "${HiGHS_CONFIG_INCLUDE_DIR}/HConfig.h"
                 _HiGHS_version_lines REGEX "#define HIGHS_VERSION_(MAJOR|MINOR|PATCH)")
+
         string(REGEX REPLACE ".*HIGHS_VERSION_MAJOR *\([0-9]*\).*" "\\1" _HiGHS_version_major "${_HiGHS_version_lines}")
         string(REGEX REPLACE ".*HIGHS_VERSION_MINOR *\([0-9]*\).*" "\\1" _HiGHS_version_minor "${_HiGHS_version_lines}")
         string(REGEX REPLACE ".*HIGHS_VERSION_PATCH *\([0-9]*\).*" "\\1" _HiGHS_version_patch "${_HiGHS_version_lines}")
@@ -165,12 +160,10 @@ else ()
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
-            HiGHS REQUIRED_VARS
-            HiGHS_LIBRARY
-            HiGHS_LIBRARY_DEBUG
-            HiGHS_INCLUDE_DIR
-            HiGHS_CONFIG_INCLUDE_DIR
-            HiGHS_VERSION)
+            HiGHS
+            REQUIRED_VARS HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG
+                          HiGHS_INCLUDE_DIR HiGHS_CONFIG_INCLUDE_DIR
+            VERSION_VAR HiGHS_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
