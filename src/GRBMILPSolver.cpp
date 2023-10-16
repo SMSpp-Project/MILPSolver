@@ -243,17 +243,16 @@ void GRBMILPSolver::load_problem( void )
   
  // adding constraints (grouping non ranged and singularly ranged)
  int n_ranged_con = 0;
- for( int j = 0 ; j < numrows ; ++j ) {
+ for( int j = 0 ; j < numrows ; ) {
 
   int tmp = j;
   int tot_nnz = 0;
   int n_constrs = 0; // number of non ranged constraints in group
-  while( grb_sense[ j ] != 'R' &&  j < numrows ) {
+  while( grb_sense[ j ] != 'R' ) {
     ++n_constrs;
     tot_nnz = tot_nnz + n_nz_row[ j ];
-    if( ( j + 1 < numrows ) && ( grb_sense[ j + 1 ] != 'R' ) )
-      ++j;
-    else
+    ++j;
+    if( j == numrows )
       break;
   }
 
@@ -302,6 +301,7 @@ void GRBMILPSolver::load_problem( void )
                          & matval_t[ matbeg_t[ j ] ] , grb_rhs[ j ] + rngval[j] , grb_rhs[ j ] ,
                          name );
     ++n_ranged_con;
+    ++j;
   }
  }
 
