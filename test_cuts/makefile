@@ -47,8 +47,8 @@ clean::
 # *INC is the -I< include directories >
 
 # define input macros for SMS++ complete makefile, then include it
-SMS++SDR = ../../SMS++/
-include $(SMS++SDR)lib/makefile-c
+SMS++SDR = ../../SMS++
+include $(SMS++SDR)/lib/makefile-c
 
 # define input macros for MILPSolver makefile (minus SMS++), then include it
 MILPSSDR = ../
