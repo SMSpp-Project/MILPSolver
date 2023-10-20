@@ -58,7 +58,7 @@ include $(MILPSSDR)makefile-s
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
 # object files
-MOBJ = $(SMS++OBJ) $(MILPSOBJ)
+MOBJ =  $(SMS++OBJ) $(MILPSOBJ)
 
 # libraries
 MLIB =  $(SMS++LIB) $(MILPSLIB)
