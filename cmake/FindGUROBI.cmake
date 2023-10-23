@@ -173,6 +173,16 @@ if (GUROBI_FOUND)
     set(GUROBI_INCLUDE_DIRS "${GUROBI_INCLUDE_DIR}")
     set(GUROBI_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
+    # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
+    check_library_exists(m floor "" HAVE_LIBM)
+    if (HAVE_LIBM)
+        set(GUROBI_LINK_LIBRARIES ${GUROBI_LINK_LIBRARIES} m)
+    endif ()
+
+    if (UNIX)
+        set(GUROBI_LINK_LIBRARIES ${GUROBI_LINK_LIBRARIES} dl)
+    endif ()
+
     if (NOT TARGET GUROBI::Gurobi)
         add_library(GUROBI::Gurobi STATIC IMPORTED)
         set_target_properties(

@@ -171,6 +171,16 @@ if (HiGHS_FOUND)
     set(HiGHS_INCLUDE_DIRS "${HiGHS_INCLUDE_DIR}" "${HiGHS_CONFIG_INCLUDE_DIR}")
     set(HiGHS_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
+    # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
+    check_library_exists(m floor "" HAVE_LIBM)
+    if (HAVE_LIBM)
+        set(HiGHS_LINK_LIBRARIES ${HiGHS_LINK_LIBRARIES} m)
+    endif ()
+
+    if (UNIX)
+        set(HiGHS_LINK_LIBRARIES ${HiGHS_LINK_LIBRARIES} dl)
+    endif ()
+
     if (NOT TARGET HiGHS::HiGHS)
         add_library(HiGHS::HiGHS STATIC IMPORTED)
         set_target_properties(
