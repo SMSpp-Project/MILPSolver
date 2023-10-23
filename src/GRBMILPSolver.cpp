@@ -203,7 +203,7 @@ void GRBMILPSolver::load_problem( void )
 
  std::vector< int > n_nz_row( numrows, 0 );
  // retrieving number of nonzeros in each row
- for( int i = 0 ; i < matind.size() ; ++i ) {
+ for( size_t i = 0 ; i < matind.size() ; ++i ) {
   int row = matind[ i ];
   ++n_nz_row[ row ];
  }
@@ -390,8 +390,9 @@ int GRBMILPSolver::compute( bool changedvars )
   DEBUG_LOG( "GUROBI problem type: QCP" << std::endl );
   is_qp = true;
  }
- else
+ else{
   DEBUG_LOG( "GUROBI problem type: MIP or LP" << std::endl );
+ }
 
  // the actual call to GUROBI- - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -634,6 +635,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       break;
       }
      lower_bound += constant_value;
+     break;
 
     case( kOK ):
      int m_status;
@@ -684,6 +686,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
       break;
       }
      upper_bound += constant_value;
+     break;
 
     case( kOK ):
      int m_status;
@@ -1488,7 +1491,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    cidx.resize( nsz );
    nval.resize( nsz );
 
-   for( int i = 0 ; i < cidx.size() ; ++i )
+   for( size_t i = 0 ; i < cidx.size() ; ++i )
     GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx[ i ] , nval[ i ]  );
 
    return;
@@ -1525,7 +1528,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    cidx.resize( nsz );
    nval.resize( nsz );
 
-   for( int i = 0 ; i < cidx.size() ; ++i )
+   for( size_t i = 0 ; i < cidx.size() ; ++i )
     GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx[ i ] , nval[ i ]  );
 
    return;
@@ -2216,7 +2219,7 @@ int GRBMILPSolver::callback( GRBmodel *model,
 
     // if any user cut was generated, add them
     if( ! rmatbeg.empty() ) {
-      for( int c = 0 ; c < rhs.size() ; ++c ) {
+      for( size_t c = 0 ; c < rhs.size() ; ++c ) {
         int nnz; // number of nonzero coefficients in the actual cut
         int idx = rmatbeg[ c ];
         if( c < rhs.size() - 1)
@@ -2274,7 +2277,7 @@ int GRBMILPSolver::callback( GRBmodel *model,
 
    // if any lazy constraint was generated, add them
    if( ! rmatbeg.empty() ) {
-    for( int c = 0 ; c < rhs.size() ; ++c ) {
+    for( size_t c = 0 ; c < rhs.size() ; ++c ) {
       int nnz; // number of nonzero coefficients in the actual lazy constraint
       int idx = rmatbeg[ c ];
       if( c < rhs.size() - 1)
