@@ -103,7 +103,6 @@ else ()
 
     if (UNIX)
         # ----- Find the HiGHS library -------------------------------------- #
-        # Note that find_library() creates a cache entry
         find_library(HiGHS_LIBRARY
                      NAMES highs
                      PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}

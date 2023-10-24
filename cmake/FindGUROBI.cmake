@@ -105,7 +105,6 @@ else ()
 
     if (UNIX)
         # ----- Find the GUROBI library ------------------------------------- #
-        # Note that find_library() creates a cache entry
         find_library(GUROBI_LIBRARY
                      NAMES gurobi gurobi100 gurobi1002
                      PATHS ${GUROBI_DIR}
