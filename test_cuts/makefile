@@ -14,7 +14,7 @@
 NAME = test
 
 # basic directory
-DIR = ./
+DIR = .
 
 # debug switches
 #SW = -g3 -glldb -fno-inline -std=c++17 -ferror-limit=1 -Wno-enum-compare
@@ -35,7 +35,7 @@ default: $(NAME)
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
-	rm -f $(DIR)*.o $(DIR)*~ $(NAME)
+	rm -f $(DIR)/*.o $(DIR)/*~ $(NAME)
 
 # define & include the necessary modules- - - - - - - - - - - - - - - - - - -
 # if a module is not used in the current configuration, just comment out the
@@ -60,10 +60,10 @@ include $(MILPSSDR)makefile-s
 MOBJ =  $(MILPSOBJ) $(SMS++OBJ)
 
 # libraries
-MLIB =  $(MILPSLIB) $(SMS++LIB)
+MLIB =  $(SMS++LIB) $(MILPSLIB)
 
-$(NAME): $(MOBJ) $(DIR)test.o
-	$(CC) -o $(DIR)$(NAME) $^ $(MLIB) $(SW)
+$(NAME): $(MOBJ) $(DIR)/test.o
+	$(CC) -o $(DIR)/$(NAME) $^ $(MLIB) $(SW)
 
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
@@ -75,7 +75,7 @@ MH =    $(SMS++H) $(MILPSH)
 
 # compile command
 
-$(DIR)test.o: $(DIR)test.cpp $(MH)
-	$(CC) -c $(DIR)test.cpp -o $@ $(MINC) $(SW)
+$(DIR)/test.o: $(DIR)/test.cpp $(MH)
+	$(CC) -c $(DIR)/test.cpp -o $@ $(MINC) $(SW)
 
 ############################ End of makefile #################################

@@ -12,7 +12,7 @@
 ##############################################################################
 
 # basic directory
-DIR = ./
+DIR = .
 
 # define the directory of "core" SMS++ as required by the following includes
 SMS++SDR = $(DIR)/../../SMS++
@@ -79,6 +79,6 @@ default: $(NAME)
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
-	rm -f $(DIR)*.o $(DIR)*~ $(NAME)
+	rm -f $(DIR)/*.o $(DIR)/*~ $(NAME)
 
 ############################ End of makefile #################################
