@@ -824,19 +824,20 @@ void GRBMILPSolver::get_var_solution( const std::vector< double > & x )
 /*--------------------------------------------------------------------------*/
 
 bool GRBMILPSolver::has_dual_solution( void )
-{ //TOCHECK
- int has_dual_basis;
- if( GRBgetintattr( model , GRB_INT_ATTR_HASDUALNORM , & has_dual_basis ) )
-  throw( std::runtime_error( "An error occurred in getting GRB_HASDUALNORM" ) );
- 
- switch( has_dual_basis ) {
-  case( 1 ): // has basis, so can be computed
-  case( 2 ): // available
-   return( true );
-  // case( 0 ): no basis
- }
+{
+ int m_status;
+ if( GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status ) )
+  throw( std::runtime_error( "An error occurred in getting GRB_INT_ATTR_STATUS" ) );
 
- return( false );
+ int isMIP;
+ if( GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP ) )
+  throw( std::runtime_error( "An error occurred in getting GRB_INT_ATTR_IS_MIP" ) );
+ 
+ if( ( m_status == GRB_OPTIMAL ) && ( !isMIP ) )
+ // An optimal solution is available and the model is not a MIP
+  return( true );
+ else
+  return( false );
  }
 
 /*--------------------------------------------------------------------------*/
