@@ -51,8 +51,8 @@ SMS++SDR = ../../SMS++
 include $(SMS++SDR)/lib/makefile-c
 
 # define input macros for MILPSolver makefile (minus SMS++), then include it
-MILPSSDR = ../
-include $(MILPSSDR)makefile-s
+MILPSSDR = ..
+include $(MILPSSDR)/makefile-s
 
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
