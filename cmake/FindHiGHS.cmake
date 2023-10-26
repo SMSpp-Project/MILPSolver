@@ -115,7 +115,7 @@ else ()
         # handled by find_library, so here a macro to search manually.
         macro(find_win_HiGHS_library var path_suffixes)
             foreach (s ${path_suffixes})
-                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/libhighs*.dll.a")
+                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/libhighs.dll")
                 if (HiGHS_LIBRARY_CANDIDATES)
                     list(GET HiGHS_LIBRARY_CANDIDATES 0 ${var})
                     break()
