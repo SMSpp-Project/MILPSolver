@@ -370,7 +370,7 @@ int GRBMILPSolver::compute( bool changedvars )
   std::string output_file_lp;
   std::stringstream X(output_file);
   std::getline( X , output_file_lp , '.');
-  output_file_lp = output_file_lp.append(".lp");
+  output_file_lp = output_file_lp.append(".mps");
   GRBwrite( model , output_file_lp.c_str() );
  }
 
@@ -833,11 +833,20 @@ bool GRBMILPSolver::has_dual_solution( void )
  if( GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP ) )
   throw( std::runtime_error( "An error occurred in getting GRB_INT_ATTR_IS_MIP" ) );
  
- if( ( m_status == GRB_OPTIMAL ) && ( !isMIP ) )
- // An optimal solution is available and the model is not a MIP
-  return( true );
- else
+ if( ( !isMIP ) )
+ // The model is not a MIP
+  switch( m_status ){
+    case( GRB_OPTIMAL ):
+    case( GRB_UNBOUNDED ): 
+    // The problem is either solved to optimal or has been proven unbounded. Thus,
+    // we expect to have a dual solution available
+      return( true );
+    default: return( false );
+  }
+  
+  // The model is MIP
   return( false );
+
  }
 
 /*--------------------------------------------------------------------------*/
