@@ -825,29 +825,29 @@ void GRBMILPSolver::get_var_solution( const std::vector< double > & x )
 
 bool GRBMILPSolver::has_dual_solution( void )
 {
- int m_status;
- if( GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status ) )
-  throw( std::runtime_error( "An error occurred in getting GRB_INT_ATTR_STATUS" ) );
-
- int isMIP;
+ int isMIP = 1;
  if( GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP ) )
   throw( std::runtime_error( "An error occurred in getting GRB_INT_ATTR_IS_MIP" ) );
  
- if( ( !isMIP ) )
- // The model is not a MIP
-  switch( m_status ){
-    case( GRB_OPTIMAL ):
-    case( GRB_UNBOUNDED ): 
-    // The problem is either solved to optimal or has been proven unbounded. Thus,
-    // we expect to have a dual solution available
-      return( true );
-    default: return( false );
+ if( ( isMIP ) ){
+ // The model is a MIP
+    std::cout << "Dual solution for MIP model not available" << std::endl;
+    return( false );  
   }
-  
-  // The model is MIP
-  return( false );
 
+ int infunbd_info = 0;
+ if( GRBgetintattr( model , GRB_INT_PAR_INFUNBDINFO , &infunbd_info ) )
+  throw( std::runtime_error( "An error occurred in getting GRB_INT_PAR_INFUNBDINFO" ) );
+
+ if( !infunbd_info ){
+  std::cout << "In order to ask for the dual solution of"
+                      "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
+                      "should be set to 1" << std::endl;
+  return( false );
  }
+
+ return( true );
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -1000,18 +1000,21 @@ bool GRBMILPSolver::has_dual_direction( void )
  switch( model_status ) {
   case( GRB_INFEASIBLE ):
   case( GRB_INF_OR_UNBD ):
-  case( GRB_UNBOUNDED ):  GRBsetintattr( model , GRB_INT_PAR_INFUNBDINFO , 1 ); 
-   break;
-  default: throw( std::runtime_error( "Status of the Gurobi model not infeasible or unbounded" ) );                       
+  case( GRB_UNBOUNDED ):  break;
+  default: std::cout << "Status of the Gurobi model not infeasible or "
+    "unbounded" << std::endl;
+    return( false );                       
  }
 
- int status_p = GRBgetdblattr( model , GRB_DBL_ATTR_FARKASPROOF , & proof );
- int status_y = GRBgetdblattrarray( model , GRB_DBL_ATTR_FARKASDUAL , 0 , numrows , y.data() );
-
- if( status_p == 0 && status_y == 0 )
-  return( true );
- else
+ int infunbd_info;
+ GRBgetintattr( model , GRB_INT_PAR_INFUNBDINFO , & infunbd_info );
+ if( !infunbd_info ){
+  std::cout << "In order to ask for the farkas proof of the model, the "
+    "parameter GRB_INT_PAR_INFUNBDINFO should be set to 1" << std::endl;
   return( false );
+ }
+ 
+ return( true );
 }
 
 /*--------------------------------------------------------------------------*/
