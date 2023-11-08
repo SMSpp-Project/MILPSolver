@@ -829,9 +829,13 @@ bool GRBMILPSolver::has_dual_solution( void )
  if( GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP ) )
   throw( std::runtime_error( "An error occurred in getting GRB_INT_ATTR_IS_MIP" ) );
  
+ int verbosity = 0;
+ GRBgetintattr( model , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
+
  if( ( isMIP ) ){
  // The model is a MIP
-    std::cout << "Dual solution for MIP model not available" << std::endl;
+    if( verbosity )
+      DEBUG_LOG( "Dual solution for MIP model not available" << std::endl);
     return( false );  
   }
 
@@ -840,9 +844,10 @@ bool GRBMILPSolver::has_dual_solution( void )
   throw( std::runtime_error( "An error occurred in getting GRB_INT_PAR_INFUNBDINFO" ) );
 
  if( !infunbd_info ){
-  std::cout << "In order to ask for the dual solution of"
+  if( verbosity )
+    DEBUG_LOG( "In order to ask for the dual solution of"
                       "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
-                      "should be set to 1" << std::endl;
+                      "should be set to 1" << std::endl);
   return( false );
  }
 
@@ -1001,16 +1006,16 @@ bool GRBMILPSolver::has_dual_direction( void )
   case( GRB_INFEASIBLE ):
   case( GRB_INF_OR_UNBD ):
   case( GRB_UNBOUNDED ):  break;
-  default: std::cout << "Status of the Gurobi model not infeasible or "
-    "unbounded" << std::endl;
+  default: DEBUG_LOG( "Status of the Gurobi model not infeasible or "
+      "unbounded" << std::endl );
     return( false );                       
  }
 
  int infunbd_info;
  GRBgetintattr( model , GRB_INT_PAR_INFUNBDINFO , & infunbd_info );
  if( !infunbd_info ){
-  std::cout << "In order to ask for the farkas proof of the model, the "
-    "parameter GRB_INT_PAR_INFUNBDINFO should be set to 1" << std::endl;
+  DEBUG_LOG( "In order to ask for the farkas proof of the model, the "
+    "parameter GRB_INT_PAR_INFUNBDINFO should be set to 1" << std::endl );
   return( false );
  }
  
