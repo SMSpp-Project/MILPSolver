@@ -143,6 +143,8 @@ void GRBMILPSolver::load_problem( void )
  std::vector< double > grb_ub = ub;
  std::vector< double > grb_rhs = rhs;
 
+ //*f_log << "proviamo";
+
  for( int i = 0 ; i < numcols ; ++i ) {
   if( grb_lb[ i ] == -Inf< double >() )
    grb_lb[ i ] = -GRB_INFINITY;
@@ -367,11 +369,7 @@ int GRBMILPSolver::compute( bool changedvars )
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() ) {
-  std::string output_file_lp;
-  std::stringstream X(output_file);
-  std::getline( X , output_file_lp , '.');
-  output_file_lp = output_file_lp.append(".mps");
-  GRBwrite( model , output_file_lp.c_str() );
+  GRBwrite( model , output_file.c_str() );
  }
 
  // figure out which API function is to be called - - - - - - - - - - - - - -
