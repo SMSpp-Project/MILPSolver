@@ -313,7 +313,7 @@ int SCIPMILPSolver::compute( bool changedvars )
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() )
-  SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip , output_file.c_str() , "mps" ,
+  SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip , output_file.c_str() , NULL ,
 					 FALSE ) );
 
  // the actual call to SCIP - - - - - - - - - - - - - - - - - - - - - - - - -

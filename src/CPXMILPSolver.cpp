@@ -245,7 +245,7 @@ int CPXMILPSolver::compute( bool changedvars )
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() )
-  CPXwriteprob( env , lp , output_file.c_str() , "LP" );
+  CPXwriteprob( env , lp , output_file.c_str() , NULL );
 
  // figure out which API function is to be called - - - - - - - - - - - - - -
  bool is_qp = false;
