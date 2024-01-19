@@ -15,10 +15,6 @@ if (TARGET SMS++::MILPSolver)
     target_link_libraries(DynamicLP_test PRIVATE
                             SMS++::MILPSolver)
 
-    set_target_properties(
-            DynamicLP_test PROPERTIES
-            COMPILE_FLAGS "-O3 -std=c++17 -DNDEBUG")
-
     # This version replicates the batch file in CMake.
     # This method was preferred because it allows to keep track
     # of the single tests via the CTest application and also

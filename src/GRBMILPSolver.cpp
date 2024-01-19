@@ -143,8 +143,6 @@ void GRBMILPSolver::load_problem( void )
  std::vector< double > grb_ub = ub;
  std::vector< double > grb_rhs = rhs;
 
- //*f_log << "proviamo";
-
  for( int i = 0 ; i < numcols ; ++i ) {
   if( grb_lb[ i ] == -Inf< double >() )
    grb_lb[ i ] = -GRB_INFINITY;
