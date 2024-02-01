@@ -58,10 +58,17 @@
 
 // if nonzero, we avoid that bounds on variable initialized with rhs (or
 // equally lhs) infinite become ranged (i.e. both rhs and lhs finite).
-// This is beecause some *MILPSolver could have restrictions on the use of 
-// ranged constraints and in this way we make sure that no constraint changes 
-// from non ranged to ranged one.
-#define CONTROL_RANGED 1
+// This is beecause some *MILPSolver (e.g. GRBMILPSolver) could have 
+// restrictions on the use of ranged constraints and in this way we make 
+// sure that no constraint changes from non ranged to ranged one.
+#define CONTROL_RANGED 0
+
+/*--------------------------------------------------------------------------*/
+
+// if nonzero, we are considering only variables with finite bound.
+// This is because some *MILPSolver (e.g. SCIPMILPSolver) could have 
+// some problems with interior point method in the case of unbounded variables.
+#define BOUND_FINITE 1
 
 /*--------------------------------------------------------------------------*/
 
@@ -81,7 +88,7 @@
 // SKIP_BEAT + 1, so that the input parameter still dictates the number of
 // Block solutions
 
-#define SKIP_BEAT 3
+#define SKIP_BEAT 2
 
 /*--------------------------------------------------------------------------*/
 
@@ -385,6 +392,12 @@ static void ChangeLPConstraint( Index i , FRowConstraint & ci , ModParam iAM )
 
 static std::pair< double , double > Generate_lhs_rhs( double const p ) {
   double lhs , rhs;
+  #if BOUNS_FINITE == 1
+    auto p2 = dis( rg );
+    lhs = p2 < 0.5 ? p2 : 0;
+    rhs = p2 < 0.5 ? 1 : p2;
+    return { lhs , rhs };
+  #endif
   if( p < 0.333 ) { // lhs finite, rhs INF
       lhs = dis( rg );
       rhs = INF;
@@ -710,8 +723,9 @@ static bool SolveAll( void )
   #if( LOG_LEVEL >= 1 )
    for( int j = 0 ; j < num_slvr ; ++j ) {
     cout << "Solver" << j <<  " = ";
-    if( hsLP[ j ] )
+    if( hsLP[ j ] ){
      cout << foLP[ j ] << " -- ";
+     }
     else
      if( rtrnLP[ j ] == Solver::kInfeasible )
       cout << " Unfeas(?) -- ";

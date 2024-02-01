@@ -15,6 +15,10 @@
  * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
+ * 
+ * \author Enrico Calandrini \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
  *
  * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
  */
@@ -86,8 +90,11 @@ class SCIPMILPSolver : public MILPSolver
 
  /// Types of integer parameters
  enum int_par_type_SCPS {
+  /// throws exception if there is inconsistency when storing a reduced cost
+  intThrowReducedCostException = intLastAlgParMILP ,
+  intCutSepPar ,  ///< parameter for deciding if/when cut separation is done
   /// First SCIP int/long parameter
-  intFirstSCIPPar = intLastAlgParMILP ,
+  intFirstSCIPPar ,
   /// First allowed new int parameter for derived classes
   intLastAlgParSCPS = intFirstSCIPPar + SCIP_NUM_INT_PARS
   };
@@ -107,6 +114,31 @@ class SCIPMILPSolver : public MILPSolver
   /// First allowed new string parameter for derived classes
   strLastAlgParSCPS = strFirstSCIPPar + SCIP_NUM_STR_PARS
   };
+
+ /// enum for vector-of-int parameters
+ enum vint_par_type_SCPS {
+  /// indices of separation Configurations in the "Configuration DB"
+  vintCutSepCfgInd = vintLastAlgParMILP ,
+  /// first allowed new vector-of-iint parameter for derived classes
+  vintLastAlgParCPXS
+  };
+
+ /// enum for vector-of-string parameters
+ enum cstr_par_type_SCPS {
+ /// filenames to define the "Configuration DB"
+  vstrConfigDBFName = vstrLastAlgParMILP ,
+  /// first allowed new vector-of-string parameter for derived classes
+  vstrLastAlgParCPXS
+  };
+
+/*--------------------------------------------------------------------------*/
+ // "importing" a few types from Block
+
+ using Subset = Block::Subset;
+ 
+ using c_Subset = Block::c_Subset;
+
+ using Range = Block::Range;
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
@@ -148,6 +180,12 @@ class SCIPMILPSolver : public MILPSolver
  /// writes the current solution in the Block
  void get_var_solution( Configuration * solc = nullptr ) override;
 
+ /// writes a given solution vector in the Block
+ /** Implementation of get_var_solution(9 taking the values of the solution
+  * to be written in the Block out of a std::vector< double > at least as
+  * long as there are columns (no checks performed). */
+ void get_var_solution( const std::vector< double > & x );
+
  /// tells whether a dual solution is available
  bool has_dual_solution( void ) override;
 
@@ -175,6 +213,48 @@ class SCIPMILPSolver : public MILPSolver
  /// loads the problem into SCIP
  void load_problem( void ) override;
 
+ // get the right Configuration for ci = 0, 1, 2
+ Configuration * get_cfg( Index ci ) const;
+
+/** @} ---------------------------------------------------------------------*/
+/*----------------------- METHODS FOR CUT SEPARATION -----------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Methods for separating user cuts / lazy constraints
+ *  @{ */
+
+ /** From within the callback, run the cut separation invoking
+  * generate_dynamic_constraints() with the given Configuration and then
+  * examining the list of Modification to see if some dynamic Constraint have
+  * been added; if so they are reported back under the form needed to be
+  * added as user cuts or lazy constraints (which is the same).
+  *
+  * Note that all vectors are supposed to be empty at the beginning of the
+  * call, and they will still be empty if no cuts are found. */
+
+ void perform_separation( Configuration * cfg ,
+			  std::vector< int > & rmatbeg ,
+			  std::vector< int > & rmatind ,
+			  std::vector< double > & rmatval ,
+			  std::vector< double > & rhs , 
+			  std::vector< double > & lhs );
+
+  /* From whitin thw class SCIPMILPSolver_Conhdlr it is not possible to set
+   * some protected field of the class useful to avoid collision between threads 
+   * when performing separation. Thus, the two following public functions allows 
+   * us to obtain this results from external class. */
+  
+  void set_f_cb_mutex( void );
+
+  void unset_f_cb_mutex( void );
+
+  /// get the actual SCIP var used
+  std::vector< SCIP_VAR * > get_SCIP_var( void );
+
+  #ifdef MILPSOLVER_DEBUG
+  /// check the dictionaries for inconsistencies
+   void check_status( void ) override;
+  #endif
+
 /** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
@@ -190,6 +270,73 @@ class SCIPMILPSolver : public MILPSolver
  /// sets a string parameter with the given value
  void set_par( idx_type par , std::string && value ) override;
 
+ /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// sets a vector-of-int parameter with the given value
+ /** Set the vector-of-int parameters specific of SCIPMILPSolver (note that
+  * SCIP itself does not have any):
+  * 
+  * - intThrowReducedCostException [0]: it indicates whether an exception must
+  *                                     be thrown if there is an inconsistency
+  *   when a reduced cost is being stored during a call to get_dual_solution()
+  *   or get_dual_direction(). The reduced cost of a Variable is stored in at
+  *   most one OneVarConstraint on that Variable. It may happen that a
+  *   Variable has no OneVarConstraint, in which case its reduced cost will
+  *   not be stored and will be lost. Usually, the reduced cost of a Variable
+  *   is of interest if the Variable has a finite nonzero lower or upper
+  *   bound. In this case, if a OneVariableConstraint for that Variable is not
+  *   found, an exception is thrown. More specifically, there are two cases in
+  *   which an exception is thrown:
+  *
+  *   1) The Variable is fixed to a finite nonzero value and there is no
+  *      OneVarConstraint on that Variable whose lower and upper bounds are
+  *      both equal to the value of that Variable.
+  *
+  *   2) The Variable is not fixed, it has a finite nonzero lower or upper
+  *      bound and there is no OneVarConstraint on that Variable whose lower
+  *      or upper bound match the bounds of the Variable.
+  *
+  * - vintCutSepCfgInd [empty]: sets the Configuration for the various user
+  *                             cuts / lazy constraints separations (see
+  *   intCutSepPar) in terms of their indices in the "Configuration DataBase"
+  *   (see vstrConfigDBFName). In particular:
+  *
+  *   = the 1st element sets the Configuration to be passed to
+  *     generate_dynamic_constraint() when user cuts are to be separated at
+  *     the root node
+  *
+  *   = the 2nd element sets the Configuration to be passed to
+  *     generate_dynamic_constraint() when user cuts are to be separated at
+  *     any other node except the root
+  *
+  *   = the 3rd element sets the Configuration to be passed to
+  *     generate_dynamic_constraint() when user lazy constraints are to be
+  *     separated for any feasible solution
+  *
+  *   If the passed vector is shorter than 3 elements, any missing ones are
+  *   treated as "pass no Configuration" (nullptr). Similarly, if one entry
+  *   is either negative or >= the size of the "Configuration DataBase", then
+  *   "pass no Configuration" is assumed. */
+
+ void set_par( idx_type par , std::vector< int > && value ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// sets a vector-of-string parameter with the given value
+ /** Set the vector-of-string parameters specific of SCIPMILPSolver (note that
+  * SCIP itself does not have any):
+  *
+  * - vstrConfigDBFName [empty]: provides file names used to construct the
+  *                              "Configuration DataBase" that can be used
+  *   to configure some operations on the underlying Block (e.g., user cuts
+  *   or lazy constraints separation). Each entry in the vector is used as
+  *   a filename out of which load a Configuration object that is then
+  *   stored. This Configuration object is then "named" with the index that
+  *   the filename has in this vector of string, so that it can be used for
+  *   possibly multiple tasks. Note that it is assumed that using the
+  *   Configuration objects does not change them. Note that the file names
+  *   can actually be empty or "wrong", in which case nullptr is used. */
+
+ void set_par( idx_type par , std::vector< std::string > && value ) override;
+
  /// gets the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par( void ) const override;
 
@@ -198,6 +345,14 @@ class SCIPMILPSolver : public MILPSolver
 
  /// gets the number of string parameters
  [[nodiscard]] idx_type get_num_str_par( void ) const override;
+
+ /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the number of vector-of-int parameters
+ [[nodiscard]] idx_type get_num_vint_par( void ) const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the number of vector-of-string parameters
+ [[nodiscard]] idx_type get_num_vstr_par( void ) const override;
 
  /// gets the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
@@ -214,6 +369,16 @@ class SCIPMILPSolver : public MILPSolver
  [[nodiscard]] const std::string & get_dflt_str_par( idx_type par )
   const override;
 
+ /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the default value of the specified vector-of-int parameter
+ [[nodiscard]] const std::vector< int > & get_dflt_vint_par( idx_type par )
+  const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the default value of the specified vector-of-string parameter
+ [[nodiscard]] const std::vector< std::string > & get_dflt_vstr_par(
+					       idx_type par ) const override;
+
  /// gets the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
 
@@ -227,6 +392,16 @@ class SCIPMILPSolver : public MILPSolver
   * par as a SCIP parameter. */
  
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
+
+ /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the value of the specified vector-of-int parameter
+ [[nodiscard]] const std::vector< int > & get_vint_par( idx_type par )
+  const override;
+ 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the value of the specified vector-of-string parameter
+ [[nodiscard]] const std::vector< std::string > & get_vstr_par( idx_type par )
+  const override;
 
  /// returns the index of the int parameter with the specified name
  [[nodiscard]] idx_type int_par_str2idx( const std::string & name )
@@ -252,6 +427,26 @@ class SCIPMILPSolver : public MILPSolver
  [[nodiscard]] const std::string & str_par_idx2str( idx_type idx )
   const override;
 
+ /*--------------------------------------------------------------------------*/
+ /// returns the index of the vector-of-int parameter with the specified name
+ [[nodiscard]] idx_type vint_par_str2idx( const std::string & name )
+  const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the name of the vector-of-int parameter with the specified index
+ [[nodiscard]] const std::string & vint_par_idx2str( idx_type idx )
+  const override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the index of the vector-of-string parameter with the given name
+ [[nodiscard]] idx_type vstr_par_str2idx( const std::string & name )
+  const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the name of the vector-of-string parameter with the given index
+ [[nodiscard]] const std::string & vstr_par_idx2str( idx_type idx )
+  const override;
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -261,6 +456,31 @@ class SCIPMILPSolver : public MILPSolver
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
+
+ bool f_callback_set;  // true if the callback has been set
+
+  /** This variable indicates whether an exception must be thrown if there is
+  * an inconsistency when a reduced cost is being stored during a call to
+  * get_dual_solution() or get_dual_direction(). */
+ bool throw_reduced_cost_exception;
+
+ /** bitwise-encoded parameter for deciding if and when separation of user
+  * cuts and lazy constraints is performed */
+ unsigned char CutSepPar;
+
+ /** vector containing the indices of the Configuration for the various
+  * user cuts / lazy constraints separations in the "Configuration DB" */
+ std::vector< int > CutSepCfgInd;
+
+ /** vector containing the filenames used to load of the Configuration of
+  * the "Configuration DB" */
+ std::vector< std::string > ConfigDBFName;
+
+ /// the "Configuration DB" istself
+ std::vector< Configuration * > v_ConfigDB;
+
+ /// the mutex to ensure that SCIP threads do not overstep in the callback
+ std::mutex f_callback_mutex;
 
  /// SCIP environment
  SCIP * scip{};
@@ -272,6 +492,9 @@ class SCIPMILPSolver : public MILPSolver
  std::vector< SCIP_VAR * > aux_vars;
  /// SCIP auxiliary constraints for QPs
  std::vector< SCIP_CONS * > aux_cons;
+
+ double UpCutOff;  ///< externally set upper cutoff to terminate
+ double LwCutOff;  ///< externally set lower cutoff to terminate
 
 /*--------------------------------------------------------------------------*/
 /*------------------- PROTECTED METHODS OF THE CLASS -----------------------*/
