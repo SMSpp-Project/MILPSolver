@@ -22,7 +22,7 @@
 cmake_minimum_required(VERSION 3.19)
 cmake_policy(VERSION 3.12)
 project(MILPSolver
-        VERSION 0.7.0
+        VERSION 0.7.1
         DESCRIPTION "SMS++ MILPSolver module"
         HOMEPAGE_URL https://gitlab.com/smspp/milpsolver
         LANGUAGES C CXX)
@@ -53,7 +53,7 @@ option(MILPSolver_USE_CPLEX "Whether MILPSolver will use CPLEX or not." ON)
 option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." ON)
 option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
-
+set(MILPSolver_USE_SCIP ON)
 # A lot of debug prints
 #if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 #    add_compile_definitions(MILPSOLVER_DEBUG)
@@ -155,8 +155,8 @@ endif ()
 if (MILPSolver_USE_SCIP)
     message(STATUS "MILPSolver: SCIP found, configuring SCIPMILPSolver")
     target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
-    target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC ${SCIP_LIBRARIES})
+    target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp src/SCIPMILPSolverConhdlr.cpp)
+    target_link_libraries(${modName} PUBLIC SCIP::SCIP)
 endif ()
 
 if (MILPSolver_USE_GUROBI)
@@ -178,7 +178,7 @@ endif ()
 add_library(${modNamespace}::${modName} ALIAS ${modName})
 
 # ----- Subdirectories ------------------------------------------------------ #
-add_subdirectory(tools)
+#add_subdirectory(tools)
 
 if (BUILD_TESTING)
     add_subdirectory(test_dual)

@@ -2970,24 +2970,24 @@ const std::string & GRBMILPSolver::vstr_par_idx2str( idx_type idx ) const
 
 void GRBMILPSolver::check_status( void )
 {
- int * nvars;
- GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , nvars );
- if( numcols != *nvars )
+ int nvars;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , &nvars );
+ if( numcols != nvars )
   DEBUG_LOG( "numcols is " << numcols << " but GRB_INT_ATTR_NUMVARS returns "
-	     << *nvars << std::endl );
+	     << nvars << std::endl );
 
- int * nconstr;
- GRBgetintattr( model , GRB_INT_ATTR_NUMCONSTRS , nconstr );
- if( numrows != *nconstr )
+ int nconstr;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMCONSTRS , &nconstr );
+ if( numrows != nconstr )
   DEBUG_LOG( "numrows is " << numrows << " but GRB_INT_ATTR_NUMCONSTRS returns "
-	     << *nconstr << std::endl );
+	     << nconstr << std::endl );
 
- int * nbin , nint;
- GRBgetintattr( model , GRB_INT_ATTR_NUMINTVARS , nint );
- GRBgetintattr( model , GRB_INT_ATTR_NUMBINVARS , nbin );
- if( int_vars != *nint + *nbin )
+ int nbin , nint;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMINTVARS , &nint );
+ GRBgetintattr( model , GRB_INT_ATTR_NUMBINVARS , &nbin );
+ if( int_vars != nint + nbin )
   DEBUG_LOG( "int_vars is " << int_vars << " but GUROBI has actually "
-	     << *nint + *nbin << " integer variables" << std::endl );
+	     << nint + nbin << " integer variables" << std::endl );
 
  MILPSolver::check_status();
  }
