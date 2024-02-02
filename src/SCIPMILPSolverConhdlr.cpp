@@ -122,7 +122,7 @@ SCIPMILPSolver_Conhdlr::SCIPMILPSolver_Conhdlr( SCIP* scip,
 	std::vector< int >   & rmatind ,
 	std::vector< double > & rmatval ,
 	std::vector< double > & rhs ,
-   std::vector< double > & lhs 
+ std::vector< double > & lhs
    )
  {
  std::vector< SCIP_VAR * > scip_vars;
