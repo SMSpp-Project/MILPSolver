@@ -16,6 +16,7 @@
  *
  * \copyright &copy; by Enrico Calandrini
  * 
+ */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -29,7 +30,6 @@
 
 #include "scip/scip.h"
 #include "objscip/objscip.h"
-
 #include "SCIPMILPSolver.h"
 
 /*--------------------------------------------------------------------------*/
@@ -48,7 +48,7 @@ namespace SMSpp_di_unipi_it
 /// SCIPMILPSolver.
 
 /** The SCIPMILPSolver_Conhdlr class derives from scip::ObjConshdlr and it
-  * creates specific user cut/ or lazy contraint to be added within a 
+  * creates specific user cut/ or lazy constraint to be added within a
   * SMS++ model handled by SCIPMILPSolver.  */
 
 class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
@@ -129,7 +129,7 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 *  LP solution, slack values, or reduced costs are invalid and must not 
 *  be accessed.
 *
-*  NOTE: At the moment in the solving loop of the algortihm SMS++ can't
+*  NOTE: At the moment in the solving loop of the algorithm SMS++ can't
 *  separate pseudo-solution. For this reason this function is not yet
 *  implemented
 *
@@ -202,9 +202,8 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
   * cuts and lazy constraints is performed */
  unsigned char CutSepPar;
 
- SMSpp_di_unipi_it::SCIPMILPSolver* parent_scipmilpsolver; /* parent *milpsolver 
-                                                     * from which the separator
-                                                     * is called */
+ /* parent *milpsolver from which the separator* is called */
+ SMSpp_di_unipi_it::SCIPMILPSolver* parent_scipmilpsolver;
 
 /*--------------------------------------------------------------------------*/
 
@@ -214,32 +213,32 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 /*----------------------- METHODS FOR LAZY CONSTRAINT ----------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for add a new constraint which will eventually be 
- *  enforced or separateed producing new cuts or lazy constraints.
+ *  enforced or separated producing new cuts or lazy constraints.
  *  @{ */
 
 /** creates and captures a constraint used which will be used as a separator */
  SCIP_RETCODE SCIPcreateSCIPMILPSolver_cb(
    SCIP*        scip,               /**< SCIP data structure */
    SCIP_CONS**  cons,               /**< pointer to hold the created 
-                                        constraint */
+                                         constraint */
    const char*  name,               /**< name of constraint */
-   std::vector< SCIP_VAR * > vars,   /**< SCIP vars */
+   std::vector< SCIP_VAR * > vars,  /**< SCIP vars */
    SCIP_Bool    initial,            /**< should the LP relaxation of 
-                                        constraint be in the initial LP? */
+                                         constraint be in the initial LP? */
    SCIP_Bool    separate,           /**< should the constraint be 
-                                        separated during LP processing? */
+                                         separated during LP processing? */
    SCIP_Bool    enforce,            /**< should the constraint be enforced 
-                                        during node processing? */
+                                         during node processing? */
    SCIP_Bool    check,              /**< should the constraint be checked 
-                                        for feasibility? */
+                                         for feasibility? */
    SCIP_Bool    propagate,          /**< should the constraint be propagated 
-                                        during node processing? */
+                                         during node processing? */
    SCIP_Bool    local,              /**< is constraint only valid locally? */
    SCIP_Bool    modifiable,         /**< is constraint modifiable (subject 
-                                        to column generation)? */
+                                         to column generation)? */
    SCIP_Bool    dynamic,            /**< is constraint dynamic? */
    SCIP_Bool    removable           /**< should the constraint be removed 
-                                        from the LP due to aging or cleanup? */
+                                         from the LP due to aging or cleanup? */
    );
 
 /** creates and captures a a constraint which will be used as a separator
@@ -247,7 +246,7 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 SCIP_RETCODE SCIPcreateSCIPMILPSolver_basiccb(
    SCIP*        scip,               /**< SCIP data structure */
    SCIP_CONS**  cons,               /**< pointer to hold the created constraint */
-   const char*  name,              /**< name of constraint */
+   const char*  name,               /**< name of constraint */
    std::vector< SCIP_VAR * > vars   /**< SCIP vars */
    );
 
