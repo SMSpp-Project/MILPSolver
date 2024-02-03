@@ -45,11 +45,14 @@ if (UNIX)
         set(SCIP_DIRS /Library)
     else ()
         # Other Unix-based systems (usually /opt)
-        set(SCIP_DIRS /usr/local/include)
+        set(SCIP_DIRS /opt)
     endif ()
 else ()
-    # Windows (usually C:)
-    set(SCIP_DIRS "C:")
+    # Windows (usually C:/Program Files)
+    set(SCIP_DIRS "C:/Program Files")
+    if (ARCH STREQUAL "x86")
+        set(SCIP_DIRS "C:/Program Files (x86)" ${SCIP_DIRS})
+    endif ()
 endif ()
 set(SCIP_LIB_PATH_SUFFIXES lib)
 
@@ -99,7 +102,6 @@ else ()
               PATHS ${SCIP_DIR}
               PATH_SUFFIXES SCIP
               DOC "SCIP include directory.")
-    set(SCIP_INCLUDE_DIR /usr/local/include)
 
     if (UNIX)
         # ----- Find the SCIP library -------------------------------------- #
