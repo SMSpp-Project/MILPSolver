@@ -58,7 +58,7 @@ set(SCIP_LIB_PATH_SUFFIXES lib)
 
 # ----- Find the path to SCIP ---------------------------------------------- #
 foreach (dir ${SCIP_DIRS})
-    file(GLOB SCIP_DIRS "${dir}")
+    file(GLOB SCIP_DIRS "${dir}/scip*")
     if (NOT SCIP_ROOT IN_LIST SCIP_DIRS)
         message(STATUS "Specified SCIP: ${SCIP_ROOT} not found")
         list(SORT SCIP_DIRS)
@@ -85,22 +85,14 @@ if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_LIBRARY_DEBUG)
     set(SCIP_FOUND TRUE)
 else ()
 
-    if (UNIX)
-        set(SCIP_DIR ${SCIP_ROOT})
-    else () # Windows
-        if (ARCH MATCHES x64)
-            set(SCIP_DIR ${SCIP_ROOT}/win64)
-        elseif (ARCH MATCHES x86)
-            set(SCIP_DIR ${SCIP_ROOT}/win32)
-        endif ()
-    endif ()
+    set(SCIP_DIR ${SCIP_ROOT})
 
     # ----- Find the SCIP include directory -------------------------------- #
     # Note that find_path() creates a cache entry
     find_path(SCIP_INCLUDE_DIR
-              NAMES scip/scip.h
+              NAMES scip.h
               PATHS ${SCIP_DIR}
-              PATH_SUFFIXES SCIP
+              PATH_SUFFIXES scip
               DOC "SCIP include directory.")
 
     if (UNIX)
@@ -118,7 +110,7 @@ else ()
         # handled by find_library, so here a macro to search manually.
         macro(find_win_SCIP_library var path_suffixes)
             foreach (s ${path_suffixes})
-                file(GLOB SCIP_LIBRARY_CANDIDATES "${SCIP_DIR}/${s}/SCIP*.lib")
+                file(GLOB SCIP_LIBRARY_CANDIDATES "${SCIP_DIR}/${s}/libscip*.lib")
                 if (SCIP_LIBRARY_CANDIDATES)
                     list(GET SCIP_LIBRARY_CANDIDATES 0 ${var})
                     break()
@@ -136,12 +128,6 @@ else ()
         # Debug library
         find_win_SCIP_library(SCIP_LIB "${SCIP_LIB_PATH_SUFFIXES_DEBUG}")
         set(SCIP_LIBRARY_DEBUG ${SCIP_LIB})
-
-        # DLL
-        if (SCIP_LIBRARY MATCHES ".*/(SCIP.*)\\.lib")
-            file(GLOB SCIP_DLL_ "${SCIP_DIR}/bin/${CMAKE_MATCH_1}.dll")
-            set(SCIP_DLL ${SCIP_DLL_})
-        endif ()
     endif ()
 
     # ----- Handle the standard arguments ----------------------------------- #
