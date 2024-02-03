@@ -130,6 +130,23 @@ else ()
         set(SCIP_LIBRARY_DEBUG ${SCIP_LIB})
     endif ()
 
+    # ----- Parse the version ----------------------------------------------- #
+    if (SCIP_INCLUDE_DIR)
+        file(STRINGS
+                "${SCIP_INCLUDE_DIR}/config.h"
+                _SCIP_version_lines REGEX "#define SCIP_VERSION_(MAJOR|MINOR|PATCH)")
+
+        string(REGEX REPLACE ".*SCIP_VERSION_MAJOR *\([0-9]*\).*" "\\1" _SCIP_version_major "${_SCIP_version_lines}")
+        string(REGEX REPLACE ".*SCIP_VERSION_MINOR *\([0-9]*\).*" "\\1" _SCIP_version_minor "${_SCIP_version_lines}")
+        string(REGEX REPLACE ".*SCIP_VERSION_PATCH *\([0-9]*\).*" "\\1" _SCIP_version_patch "${_SCIP_version_lines}")
+
+        set(SCIP_VERSION "${_SCIP_version_major}.${_SCIP_version_minor}.${_SCIP_version_patch}")
+        unset(_SCIP_version_lines)
+        unset(_SCIP_version_major)
+        unset(_SCIP_version_minor)
+        unset(_SCIP_version_patch)
+    endif ()
+
     # ----- Handle the standard arguments ----------------------------------- #
     # The following macro manages the QUIET, REQUIRED and version-related
     # options passed to find_package(). It also sets <PackageName>_FOUND if
