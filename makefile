@@ -44,7 +44,6 @@ MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
 	$(MILPSSDR)/obj/CPXMILPSolver.o \
 	$(MILPSSDR)/obj/GRBMILPSolver.o \
 	$(MILPSSDR)/obj/SCIPMILPSolver.o \
-	$(MILPSSDR)/obj/SCIPMILPSolverConhdlr.o \
 	$(MILPSSDR)/obj/HiGHSMILPSolver.o
 
 MILPSINC = -I$(MILPSSDR)/include
@@ -53,7 +52,6 @@ MILPSH = $(MILPSSDR)/include/MILPSolver.h \
 	$(MILPSSDR)/include/CPXMILPSolver.h \
 	$(MILPSSDR)/include/GRBMILPSolver.h \
 	$(MILPSSDR)/include/SCIPMILPSolver.h \
-	$(MILPSSDR)/include/SCIPMILPSolverConhdlr.h \
 	$(MILPSSDR)/include/HiGHSMILPSolver.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -74,15 +72,8 @@ $(MILPSSDR)/obj/CPXMILPSolver.o: $(MILPSSDR)/src/CPXMILPSolver.cpp \
 	$(CC) -c $(MILPSSDR)/src/CPXMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libCPLEXINC) $(SW)
 
-$(MILPSSDR)/obj/SCIPMILPSolverConhdlr.o: $(MILPSSDR)/src/SCIPMILPSolverConhdlr.cpp \
-	$(MILPSSDR)/include/SCIPMILPSolverConhdlr.h \
-	$(MILPSSDR)/include/SCIPMILPSolver.h $(SMS++OBJ)
-	$(CC) -c $(MILPSSDR)/src/SCIPMILPSolverConhdlr.cpp -o $@ \
-	-I$(MILPSSDR)/include $(SMS++INC) $(libSCIPINC) $(SW)
-
 $(MILPSSDR)/obj/SCIPMILPSolver.o: $(MILPSSDR)/src/SCIPMILPSolver.cpp \
 	$(MILPSSDR)/include/SCIPMILPSolver.h \
-	$(MILPSSDR)/include/SCIPMILPSolverConhdlr.h \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/SCIPMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libSCIPINC) $(SW)

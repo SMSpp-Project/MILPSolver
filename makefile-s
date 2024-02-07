@@ -43,10 +43,10 @@ include $(MILPSSDR)/../extlib/makefile-libCPLEX
 include $(MILPSSDR)/../extlib/makefile-libGUROBI
 
 # include makefile for libSCIP
-#include $(MILPSSDR)/../extlib/makefile-libSCIP
+include $(MILPSSDR)/../extlib/makefile-libSCIP
 
 # include makefile for libHiGHS
-#include $(MILPSSDR)/../extlib/makefile-libHiGHS
+include $(MILPSSDR)/../extlib/makefile-libHiGHS
 
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
