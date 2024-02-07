@@ -53,7 +53,7 @@ option(MILPSolver_USE_CPLEX "Whether MILPSolver will use CPLEX or not." ON)
 option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." ON)
 option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
-set(MILPSolver_USE_SCIP ON)
+
 # A lot of debug prints
 #if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 #    add_compile_definitions(MILPSOLVER_DEBUG)
