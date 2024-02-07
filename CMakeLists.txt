@@ -155,7 +155,7 @@ endif ()
 if (MILPSolver_USE_SCIP)
     message(STATUS "MILPSolver: SCIP found, configuring SCIPMILPSolver")
     target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
-    target_sources(${modName} PRIVATE src/SCIPMILPSolverConhdlr.cpp src/SCIPMILPSolver.cpp)
+    target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC SCIP::SCIP)
 endif ()
 
