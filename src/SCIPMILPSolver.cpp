@@ -33,8 +33,6 @@
 
 #include "SCIPMILPSolver.h"
 
-#include "SCIPMILPSolverConhdlr.h"
-
 #include <scip/scipdefplugins.h>
 #include <scip/cons_linear.h>
 
