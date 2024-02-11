@@ -774,10 +774,10 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
  *  @{ */
 
 /** transforms constraint data into data belonging to the transformed problem */
-   virtual SCIP_DECL_CONSTRANS(scip_trans);
+   virtual SCIP_DECL_CONSTRANS(scip_trans) override;
 
 /** frees specific constraint data */
-   virtual SCIP_DECL_CONSDELETE(scip_delete);
+   virtual SCIP_DECL_CONSDELETE(scip_delete) override;
 
  protected:
 
