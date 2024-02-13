@@ -239,7 +239,7 @@ class SCIPMILPSolver : public MILPSolver
 			  std::vector< double > & rhs , 
 			  std::vector< double > & lhs );
 
-  /* From whitin thw class SCIPMILPSolver_Conhdlr it is not possible to set
+  /* From within the class SCIPMILPSolver_Conhdlr it is not possible to set
    * some protected field of the class useful to avoid collision between threads 
    * when performing separation. Thus, the two following public functions allows 
    * us to obtain this results from external class. */

@@ -83,7 +83,7 @@ endif ()
 
 if (MILPSolver_USE_SCIP)
     # Needed for SCIPMILPSolver
-    find_package(SCIP)
+    find_package(SCIP 7.0.0)
     if (NOT SCIP_FOUND)
         set(MILPSolver_USE_SCIP OFF)
     endif ()
@@ -99,7 +99,7 @@ endif ()
 
 if (MILPSolver_USE_HiGHS)
     # Needed for HiGHSMILPSolver
-    find_package(HiGHS)
+    find_package(HiGHS 1.5.3)
     if (NOT HiGHS_FOUND)
         set(MILPSolver_USE_HiGHS OFF)
     endif ()
