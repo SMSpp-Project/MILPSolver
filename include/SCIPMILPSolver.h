@@ -734,7 +734,7 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 * 
 *  Possible return values for *result:
 *  - SCIP_INFEASIBLE : at least one constraint of the handler is infeasible
-*                      (i.e. a new cut can be added) 
+*                      (i.e., a new cut can be added)
 *  - SCIP_FEASIBLE   : all constraints of the handler are feasible
 */
    virtual SCIP_DECL_CONSCHECK(scip_check) override;

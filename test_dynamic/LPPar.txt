@@ -30,7 +30,7 @@ HiGHSMILPSolver      # name of Solver
 2  # number of ComputeConfig in this BlockSolverConfig
 
 # now all the ComputeConfig
-# 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# 1st ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ComputeConfig # exact type of the ComputeConfig object
 
@@ -66,9 +66,9 @@ CPXPARAM_MIP_Tolerances_Integrality	1e-07	# Cplex parameter (uncomment based on 
 # pointer to the "extra" Configuration
 * # [none]
 
-# end of 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - 
+# end of 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# 2nd ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# 2nd ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ComputeConfig # exact type of the ComputeConfig object
 
@@ -104,10 +104,10 @@ dblRelAcc		1e-08
 # pointer to the "extra" Configuration
 * # [none]
 
-# end of 2st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - 
+# end of 2nd ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # end of BlockSolverConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - End LPPar.txt - - - - - - - - - - - - - 
+# - - - - - - - - - - - - - - - End LPPar.txt - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -57,7 +57,7 @@
 /*--------------------------------------------------------------------------*/
 
 // if nonzero, we avoid that bounds on variable initialized with rhs (or
-// equally lhs) infinite become ranged (i.e. both rhs and lhs finite).
+// equally lhs) infinite become ranged (i.e., both rhs and lhs finite).
 // This is beecause some *MILPSolver (e.g. GRBMILPSolver) could have 
 // restrictions on the use of ranged constraints and in this way we make 
 // sure that no constraint changes from non ranged to ranged one.
