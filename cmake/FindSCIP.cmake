@@ -90,7 +90,7 @@ else ()
     # ----- Find the SCIP include directory -------------------------------- #
     # Note that find_path() creates a cache entry
     find_path(SCIP_INCLUDE_DIR
-              NAMES scip.h
+              NAMES scip/scip.h
               PATHS ${SCIP_DIR}
               PATH_SUFFIXES scip
               DOC "SCIP include directory.")
