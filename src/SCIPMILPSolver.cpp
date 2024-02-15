@@ -2851,7 +2851,7 @@ SCIP_RETCODE SMSpp_di_unipi_it::SCIPcreateSCIPMILPSolver_basiccb(
    ){
    
    SCIP_CONSHDLR* conshdlr;
-   SCIP_CONSDATA* consdata;
+   SCIP_CONSDATA* consdata = nullptr;
    int nvars;
 
    /* find the subtour constraint handler */

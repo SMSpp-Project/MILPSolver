@@ -92,7 +92,6 @@ else ()
     find_path(SCIP_INCLUDE_DIR
               NAMES scip/scip.h
               PATHS ${SCIP_DIR}
-              PATH_SUFFIXES scip
               DOC "SCIP include directory.")
 
     if (UNIX)
@@ -133,7 +132,7 @@ else ()
     # ----- Parse the version ----------------------------------------------- #
     if (SCIP_INCLUDE_DIR)
         file(STRINGS
-                "${SCIP_INCLUDE_DIR}/config.h"
+                "${SCIP_INCLUDE_DIR}/scip/config.h"
                 _SCIP_version_lines REGEX "#define SCIP_VERSION_(MAJOR|MINOR|PATCH)")
 
         string(REGEX REPLACE ".*SCIP_VERSION_MAJOR *\([0-9]*\).*" "\\1" _SCIP_version_major "${_SCIP_version_lines}")
