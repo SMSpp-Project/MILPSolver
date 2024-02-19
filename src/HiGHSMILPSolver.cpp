@@ -1662,7 +1662,8 @@ void HiGHSMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // get the bounds
  auto con_lhs = con->get_lhs();
  auto con_rhs = con->get_rhs();
- double rhs , lhs;
+ double lhs = 0;
+ double rhs = 0;
  char sense;
 
  if( con_lhs == con_rhs ) {
