@@ -826,7 +826,7 @@ bool GRBMILPSolver::has_dual_solution( void )
   throw( std::runtime_error( "An error occurred in getting GRB_INT_ATTR_IS_MIP" ) );
  
  int verbosity = 0;
- GRBgetintattr( model , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
+ GRBgetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
 
  if( ( isMIP ) ){
  // The model is a MIP
@@ -836,7 +836,7 @@ bool GRBMILPSolver::has_dual_solution( void )
   }
 
  int infunbd_info = 0;
- if( GRBgetintattr( model , GRB_INT_PAR_INFUNBDINFO , &infunbd_info ) )
+ if( GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info ) )
   throw( std::runtime_error( "An error occurred in getting GRB_INT_PAR_INFUNBDINFO" ) );
 
  if( !infunbd_info ){
@@ -1008,7 +1008,7 @@ bool GRBMILPSolver::has_dual_direction( void )
  }
 
  int infunbd_info;
- GRBgetintattr( model , GRB_INT_PAR_INFUNBDINFO , & infunbd_info );
+ GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , & infunbd_info );
  if( !infunbd_info ){
   DEBUG_LOG( "In order to ask for the farkas proof of the model, the "
     "parameter GRB_INT_PAR_INFUNBDINFO should be set to 1" << std::endl );
