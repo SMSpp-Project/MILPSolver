@@ -1,0 +1,38 @@
+##############################################################################
+############################# makefile_highs #################################
+##############################################################################
+#                                                                            #
+#   makefile of highs_pars                                                   #
+#                                                                            #
+#                              Antonio Frangioni                             #
+#                          Dipartimento di Informatica                       #
+#                              Universita' di Pisa                           #
+#                                                                            #
+##############################################################################
+
+# module name
+HIGHS_PARS = highs_pars
+
+# default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+default: $(HIGHS_PARS)
+
+# define & include the necessary modules- - - - - - - - - - - - - - - - - - -
+# each module outputs some macros to be used here:
+# *LIB is the external libraries + -L< libdirs >
+# *INC is the -I< include directories >
+
+# include makefile libHiGHS
+include $(DIR)/../../extlib/makefile-libHiGHS
+
+# main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(HIGHS_PARS): $(DIR)/$(HIGHS_PARS).o
+	$(CC) -o $(HIGHS_PARS) $(DIR)/$(HIGHS_PARS).o $(libHiGHSLIB) $(SW)
+
+# compile command - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(DIR)/$(HIGHS_PARS).o: $(DIR)/$(HIGHS_PARS).cpp
+	$(CC) -c $*.cpp -o $@ $(libHiGHSINC) $(SW)
+
+######################### End of makefile_highs ##############################

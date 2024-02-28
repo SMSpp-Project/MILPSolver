@@ -1,24 +1,22 @@
-#/usr/bin/env bash
+#!/usr/bin/env bash
 
 iter=3
 
-for size in 10 50
-do
-for (( seed=0 ; seed<20 ; seed++ ))
-do
+for size in 10 50; do
+  for (( seed = 0 ; seed < 20 ; seed++ )); do
 
-if [ -z "$iter" ]; then
-printf "[$seed $size]: "
-else
-printf "[$seed $size $iter]: "
-fi
+    if [ -z "$iter" ]; then
+      printf "[$seed $size]: "
+    else
+      printf "[$seed $size $iter]: "
+    fi
 
-./test $seed $size $iter
+    ./test_cuts $seed $size $iter
 
-retVal=$?
-if [ $retVal -ne 0 ]; then
-    exit 1
-fi
+    retVal=$?
+    if [ $retVal -ne 0 ]; then
+      exit 1
+    fi
 
-done
+  done
 done

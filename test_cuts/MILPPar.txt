@@ -16,25 +16,27 @@ BlockSolverConfig     # exact type of the Configuration object
 
 1  # number of (the names of) Solver in this BlockSolverConfig
 # now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
-CPXMILPSolver # name of 1st Solver
+#CPXMILPSolver # name of 1st Solver
+SCIPMILPSolver # name of 1st Solver
+#GRBMILPSolver # name of 1st Solver
 
 1  # number of ComputeConfig in this BlockSolverConfig
 
 # now all the ComputeConfig
-# 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# 1st ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ComputeConfig  # exact type of the ComputeConfig object
 
 1  # f_diff == 0 ==> all non-provided parameters are set to the default value
    # f_diff == 1 ==> all non-provided parameters are not changed
 
-4 # number of integer parameters
+2 # number of integer parameters
 
 # now all the integer parameters
-intLogVerb     2     # LogVerb, log verbosity of the CPXMILPSolver
-intCutSepPar   7     # separate valid inequalites everywhere + lazy constraints
-CPXPARAM_Threads 16
-CPXPARAM_ScreenOutput 0
+intLogVerb     0     # LogVerb, log verbosity of the CPXMILPSolver
+intCutSepPar   7     # separate valid inequalities everywhere + lazy constraints
+#CPXPARAM_Threads 16
+#CPXPARAM_ScreenOutput 0
 
 # note that we could eof() the file here since the rest is all empty
 

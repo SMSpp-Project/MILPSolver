@@ -1,0 +1,38 @@
+##############################################################################
+############################## makefile_grb ##################################
+##############################################################################
+#                                                                            #
+#   makefile of grb_pars                                                     #
+#                                                                            #
+#                              Antonio Frangioni                             #
+#                          Dipartimento di Informatica                       #
+#                              Universita' di Pisa                           #
+#                                                                            #
+##############################################################################
+
+# module name
+GRB_PARS = grb_pars
+
+# default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+default: $(GRB_PARS)
+
+# define & include the necessary modules- - - - - - - - - - - - - - - - - - -
+# each module outputs some macros to be used here:
+# *LIB is the external libraries + -L< libdirs >
+# *INC is the -I< include directories >
+
+# include makefile libGUROBI
+include $(DIR)/../../extlib/makefile-libGUROBI
+
+# main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(GRB_PARS): $(DIR)/$(GRB_PARS).o
+	$(CC) -o $(GRB_PARS) $(DIR)/$(GRB_PARS).o $(libGUROBILIB) $(SW)
+
+# compile command - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(DIR)/$(GRB_PARS).o: $(DIR)/$(GRB_PARS).cpp
+	$(CC) -c $*.cpp -o $@ $(libGUROBIINC) $(SW)
+
+########################## End of makefile_grb ###############################

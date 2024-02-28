@@ -26,7 +26,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy by Antonio Frangioni
+ * \copyright &copy; by Antonio Frangioni
  */
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- MACROS ----------------------------------*/
@@ -36,6 +36,7 @@
 // 0 = only pass/fail
 // 1 = result of each test
 // 2 = + solver log
+// 3 = + save LP file
 
 #if( LOG_LEVEL >= 1 )
  #define LOG1( x ) cout << x
@@ -86,6 +87,10 @@
 #include "FRowConstraint.h"
 
 #include "FRealObjective.h"
+
+#if( LOG_LEVEL >= 3 )
+ #include "MILPSolver.h"
+#endif
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- USING -----------------------------------*/
@@ -492,9 +497,16 @@ int main( int argc , char **argv )
    else {
     LOGFile.setf( ios::scientific , ios::floatfield );
     LOGFile << setprecision( 10 );
-    NCCB.get_registered_solvers()).front()->set_log( & LOGFile );
+    NCCB.get_registered_solvers().front()->set_log( & LOGFile );
     }
   #endif
+ #endif
+
+ // open log-file - - - - - - - - - - -  - - - - - - - - - - - - - - - - - -
+ //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ #if( LOG_LEVEL >= 3 )
+   NCCB.get_registered_solvers().front()->set_par(
+		                     MILPSolver::strOutputFile , "NCCBlock.lp" );
  #endif
 
  // first solver call - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -513,6 +525,12 @@ int main( int argc , char **argv )
   LOG1( rep << ": ");
 
   NCCB.chg_costs( generate_costs() );
+
+  #if( LOG_LEVEL >= 3 )
+   NCCB.get_registered_solvers().front()->set_par(
+		                     MILPSolver::strOutputFile , "NCCBlock-" +
+                         std::to_string( rep ) + ".lp" );
+  #endif
 
   AllPassed &= SolveBoth();
 

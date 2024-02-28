@@ -15,13 +15,14 @@
 #          keep it in mind when editing it.                                   #
 #                                                                             #
 #                              Niccolo' Iardella                              #
+#                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.19)
 cmake_policy(VERSION 3.12)
 project(MILPSolver
-        VERSION 0.5.2
+        VERSION 0.7.1
         DESCRIPTION "SMS++ MILPSolver module"
         HOMEPAGE_URL https://gitlab.com/smspp/milpsolver
         LANGUAGES C CXX)
@@ -50,11 +51,20 @@ include(BuildType)
 # An option is an ON/OFF user-settable cache variable
 option(MILPSolver_USE_CPLEX "Whether MILPSolver will use CPLEX or not." ON)
 option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." ON)
+option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
+option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 
 # A lot of debug prints
 #if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 #    add_compile_definitions(MILPSOLVER_DEBUG)
 #endif ()
+
+# ----- Policies ----------------------------------------------------------- #
+# Introduced in 3.19 to handle arbitrary characters in test names
+# See: https://cmake.org/cmake/help/latest/policy/CMP0110.html
+if (POLICY CMP0110)
+    cmake_policy(SET CMP0110 NEW)
+endif ()
 
 # ----- Requirements -------------------------------------------------------- #
 # If it's not being called by the umbrella, we need to
@@ -65,7 +75,7 @@ endif ()
 
 if (MILPSolver_USE_CPLEX)
     # Needed for CPXMILPSolver
-    find_package(CPLEX 12.8)
+    find_package(CPLEX 12.8.0)
     if (NOT CPLEX_FOUND)
         set(MILPSolver_USE_CPLEX OFF)
     endif ()
@@ -73,9 +83,25 @@ endif ()
 
 if (MILPSolver_USE_SCIP)
     # Needed for SCIPMILPSolver
-    find_package(SCIP)
+    find_package(SCIP 7.0.0)
     if (NOT SCIP_FOUND)
         set(MILPSolver_USE_SCIP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_GUROBI)
+    # Needed for GUROBIMILPSolver
+    find_package(GUROBI 10.0.0)
+    if (NOT GUROBI_FOUND)
+        set(MILPSolver_USE_GUROBI OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_HiGHS)
+    # Needed for HiGHSMILPSolver
+    find_package(HiGHS 1.5.3)
+    if (NOT HiGHS_FOUND)
+        set(MILPSolver_USE_HiGHS OFF)
     endif ()
 endif ()
 
@@ -122,15 +148,29 @@ target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
 if (MILPSolver_USE_CPLEX)
     message(STATUS "MILPSolver: CPLEX found, configuring CPXMILPSolver")
     target_include_directories(${modName} PUBLIC ${CPLEX_INCLUDE_DIRS}) 
-    target_sources(${modName} PRIVATE  src/CPXMILPSolver.cpp)
+    target_sources(${modName} PRIVATE src/CPXMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC CPLEX::Cplex)
 endif ()
 
 if (MILPSolver_USE_SCIP)
     message(STATUS "MILPSolver: SCIP found, configuring SCIPMILPSolver")
-    target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC ${SCIP_LIBRARIES})
     target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
+    target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC SCIP::SCIP)
+endif ()
+
+if (MILPSolver_USE_GUROBI)
+    message(STATUS "MILPSolver: GUROBI found, configuring GRBMILPSolver")
+    target_include_directories(${modName} PUBLIC ${GUROBI_INCLUDE_DIRS}) 
+    target_sources(${modName} PRIVATE src/GRBMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC GUROBI::Gurobi)
+endif ()
+
+if (MILPSolver_USE_HiGHS)
+    message(STATUS "MILPSolver: HiGHS found, configuring HiGHSMILPSolver")
+    target_include_directories(${modName} PUBLIC ${HiGHS_INCLUDE_DIRS}) 
+    target_sources(${modName} PRIVATE src/HiGHSMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC HiGHS::HiGHS)
 endif ()
 
 # This alias is defined so that executables in this same project can use
@@ -138,10 +178,11 @@ endif ()
 add_library(${modNamespace}::${modName} ALIAS ${modName})
 
 # ----- Subdirectories ------------------------------------------------------ #
-add_subdirectory(tools)
+#add_subdirectory(tools)
 
 if (BUILD_TESTING)
-    add_subdirectory(test)
+    add_subdirectory(test_dual)
+    add_subdirectory(test_dynamic)
 endif ()
 
 # ----- Install instructions ------------------------------------------------ #
@@ -163,15 +204,27 @@ install(FILES
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace})
 
 if (MILPSolver_USE_CPLEX)
-    install(DIRECTORY include/
+    install(DIRECTORY include
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "CPX*")
 endif ()
 
 if (MILPSolver_USE_SCIP)
-    install(DIRECTORY include/
+    install(DIRECTORY include
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "SCIP*")
+endif ()
+
+if (MILPSolver_USE_GUROBI)
+    install(DIRECTORY include
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "GRB*")
+endif ()
+
+if (MILPSolver_USE_HiGHS)
+    install(DIRECTORY include
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "HiGHS*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

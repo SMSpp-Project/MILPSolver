@@ -1,0 +1,38 @@
+##############################################################################
+############################## makefile_scip #################################
+##############################################################################
+#                                                                            #
+#   makefile of scip_pars                                                     #
+#                                                                            #
+#                              Antonio Frangioni                             #
+#                          Dipartimento di Informatica                       #
+#                              Universita' di Pisa                           #
+#                                                                            #
+##############################################################################
+
+# module name
+SCIP_PARS = scip_pars
+
+# default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+default: $(SCIP_PARS)
+
+# define & include the necessary modules- - - - - - - - - - - - - - - - - - -
+# each module outputs some macros to be used here:
+# *LIB is the external libraries + -L< libdirs >
+# *INC is the -I< include directories >
+
+# include makefile libSCIP
+include $(DIR)/../../extlib/makefile-libSCIP
+
+# main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(SCIP_PARS): $(DIR)/$(SCIP_PARS).o
+	$(CC) -o $(SCIP_PARS) $(DIR)/$(SCIP_PARS).o $(libSCIPLIB) $(SW)
+
+# compile command - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(DIR)/$(SCIP_PARS).o: $(DIR)/$(SCIP_PARS).cpp
+	$(CC) -c $*.cpp -o $@ $(libSCIPINC) $(SW)
+
+########################## End of makefile_scip ##############################

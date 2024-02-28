@@ -1,0 +1,26 @@
+#/usr/bin bash
+
+#iter=10
+
+for what in 31 63 127 255; do
+  for size in 3 10 50; do
+    for dens in 3 1.1; do
+      for (( seed = 0 ; seed < 20 ; seed++ )); do
+
+        if [ -z "$iter" ]; then
+          printf "[$seed $what $size $dens]: "
+        else
+          printf "[$seed $what $size $dens $iter]: "
+        fi
+
+        ./DynamicLP_test $seed $what $size $dens $iter
+
+        retVal=$?
+        if [ $retVal -ne 0 ]; then
+          exit 1
+        fi
+
+      done
+    done
+  done
+done

@@ -16,7 +16,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright Copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
@@ -57,13 +57,6 @@ SMSpp_insert_in_factory_cpp_0( CPXMILPSolver );
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- FUNCTIONS ----------------------------------*/
-/*--------------------------------------------------------------------------*/
-
-const ColVariable * ColV( const Variable * v )
-{
- return( static_cast< const ColVariable * >( v ) );
- }
-
 /*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
@@ -252,7 +245,7 @@ int CPXMILPSolver::compute( bool changedvars )
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() )
-  CPXwriteprob( env , lp , output_file.c_str() , "LP" );
+  CPXwriteprob( env , lp , output_file.c_str() , NULL );
 
  // figure out which API function is to be called - - - - - - - - - - - - - -
  bool is_qp = false;
@@ -354,31 +347,31 @@ int CPXMILPSolver::decode_mip_status( int status )
  * conditions posed by CPXMILPSolver. */
 
  switch( status ) {
-  case CPXMIP_ABORT_FEAS:
+  case( CPXMIP_ABORT_FEAS ):
    // Stopped, but an integer solution exists.
-  case CPXMIP_ABORT_INFEAS:
+  case( CPXMIP_ABORT_INFEAS ):
    // Stopped; no integer solution.
-  case CPXMIP_ABORT_RELAXATION_UNBOUNDED:
+  case( CPXMIP_ABORT_RELAXATION_UNBOUNDED ):
    // Could not bound convex relaxation of nonconvex (MI)QP.
    return( kError );
-  case CPXMIP_DETTIME_LIM_FEAS:
+  case( CPXMIP_DETTIME_LIM_FEAS ):
    // Deterministic time limit exceeded, but integer solution exists.
-  case CPXMIP_DETTIME_LIM_INFEAS:
+  case( CPXMIP_DETTIME_LIM_INFEAS ):
    // Deterministic time limit exceeded; no integer solution.
    return( kStopTime );
-  case CPXMIP_FAIL_FEAS:
+  case( CPXMIP_FAIL_FEAS ):
    // Terminated because of an error, but integer solution exists.
-  case CPXMIP_FAIL_FEAS_NO_TREE:
+  case( CPXMIP_FAIL_FEAS_NO_TREE ):
    // Out of memory, no tree available, integer solution exists.
-  case CPXMIP_FAIL_INFEAS:
+  case( CPXMIP_FAIL_INFEAS ):
    // Terminated because of an error; no integer solution.
-  case CPXMIP_FAIL_INFEAS_NO_TREE:
+  case( CPXMIP_FAIL_INFEAS_NO_TREE ):
    // Out of memory, no tree available, no integer solution.
    return( kError );
-  case CPXMIP_INFEASIBLE:
+  case( CPXMIP_INFEASIBLE ):
    // Solution is integer infeasible.
    return( kInfeasible );
-  case CPXMIP_INForUNBD:
+  case( CPXMIP_INForUNBD ):
    // Problem has been proven either infeasible or unbounded.
    //!! note: this is typically given by the preprocessor when it finds an
    //!!       easy dual unfeasible ray: since a dual feasible solution has
@@ -388,45 +381,45 @@ int CPXMILPSolver::decode_mip_status( int status )
    //!!       that the problem is unbounded
    //!!   return( kInfeasible );
    return( kUnbounded );
-  case CPXMIP_MEM_LIM_FEAS:
+  case( CPXMIP_MEM_LIM_FEAS ):
    // Limit on tree memory has been reached, but an integer solution exists.
-  case CPXMIP_MEM_LIM_INFEAS:
+  case( CPXMIP_MEM_LIM_INFEAS ):
    // Limit on tree memory has been reached; no integer solution.
    return( kError );
-  case CPXMIP_NODE_LIM_FEAS:
+  case( CPXMIP_NODE_LIM_FEAS ):
    // Node limit has been exceeded but integer solution exists.
-  case CPXMIP_NODE_LIM_INFEAS:
+  case( CPXMIP_NODE_LIM_INFEAS ):
    // Node limit has been reached; no integer solution.
    return( kStopIter );
-  case CPXMIP_OPTIMAL:
+  case( CPXMIP_OPTIMAL ):
    // An optimal integer solution has been found.
-  case CPXMIP_OPTIMAL_INFEAS:
+  case( CPXMIP_OPTIMAL_INFEAS ):
    // Problem is optimal with unscaled infeasibilities.
-  case CPXMIP_OPTIMAL_TOL:
+  case( CPXMIP_OPTIMAL_TOL ):
    // An optimal solution within the tolerance defined by
    // the relative or absolute MIP gap has been found.
-  case CPXMIP_SOL_LIM:
+  case( CPXMIP_SOL_LIM ):
    // The limit on mixed integer solutions has been reached.
    return( kOK );
-  case CPXMIP_TIME_LIM_FEAS:
+  case( CPXMIP_TIME_LIM_FEAS ):
    // Time limit exceeded, but integer solution exists.
-  case CPXMIP_TIME_LIM_INFEAS:
+  case( CPXMIP_TIME_LIM_INFEAS ):
    // Time limit exceeded; no integer solution.
    return( kStopTime );
-  case CPXMIP_UNBOUNDED:
+  case( CPXMIP_UNBOUNDED ):
    // Problem has an unbounded ray.
    return( kUnbounded );
-   // case CPXMIP_ABORT_RELAXED:
-   // case CPXMIP_FEASIBLE:
-   // case CPXMIP_FEASIBLE_RELAXED_INF:
-   // case CPXMIP_FEASIBLE_RELAXED_QUAD:
-   // case CPXMIP_FEASIBLE_RELAXED_SUM:
-   // case CPXMIP_POPULATESOL_LIM:
-   // case CPXMIP_OPTIMAL_POPULATED:
-   // case CPXMIP_OPTIMAL_POPULATED_TOL:
-   // case CPXMIP_OPTIMAL_RELAXED_INF:
-   // case CPXMIP_OPTIMAL_RELAXED_QUAD:
-   // case CPXMIP_OPTIMAL_RELAXED_SUM:
+   // case( CPXMIP_ABORT_RELAXED ):
+   // case( CPXMIP_FEASIBLE ):
+   // case( CPXMIP_FEASIBLE_RELAXED_INF ):
+   // case( CPXMIP_FEASIBLE_RELAXED_QUAD ):
+   // case( CPXMIP_FEASIBLE_RELAXED_SUM ):
+   // case( CPXMIP_POPULATESOL_LIM ):
+   // case( CPXMIP_OPTIMAL_POPULATED ):
+   // case( CPXMIP_OPTIMAL_POPULATED_TOL ):
+   // case( CPXMIP_OPTIMAL_RELAXED_INF ):
+   // case( CPXMIP_OPTIMAL_RELAXED_QUAD ):
+   // case( CPXMIP_OPTIMAL_RELAXED_SUM ):
   default:;
   }
 
@@ -448,33 +441,33 @@ int CPXMILPSolver::decode_lqp_status( int status )
   * conditions posed by CPXMILPSolver. */
 
  switch( status ) {
-  case CPX_STAT_ABORT_DETTIME_LIM:
+  case( CPX_STAT_ABORT_DETTIME_LIM ):
    // Stopped due to a deterministic time limit.
    return( kStopTime );
-  case CPX_STAT_ABORT_DUAL_OBJ_LIM:
+  case( CPX_STAT_ABORT_DUAL_OBJ_LIM ):
    // Stopped due to a limit on the dual objective.
    return( kError );
-  case CPX_STAT_ABORT_IT_LIM:
+  case( CPX_STAT_ABORT_IT_LIM ):
    // Stopped due to limit on number of iterations.
    return( kStopIter );
-  case CPX_STAT_ABORT_OBJ_LIM:
+  case( CPX_STAT_ABORT_OBJ_LIM ):
    // Stopped due to an objective limit.
-  case CPX_STAT_ABORT_PRIM_OBJ_LIM:
+  case( CPX_STAT_ABORT_PRIM_OBJ_LIM ):
    // Stopped due to a limit on the primal objective.
    return( kError );
-  case CPX_STAT_ABORT_TIME_LIM:
+  case( CPX_STAT_ABORT_TIME_LIM ):
    // Stopped due to a time limit.
    return( kStopTime );
-  case CPX_STAT_ABORT_USER:
+  case( CPX_STAT_ABORT_USER ):
    // Stopped due to a request from the user.
    return( kError );
-  case CPX_STAT_BENDERS_NUM_BEST:
+  case( CPX_STAT_BENDERS_NUM_BEST ):
    // Solution is infeasible, but cannot be cut with
    // a Benders cut due to numerical difficulties.
-  case CPX_STAT_INFEASIBLE:
+  case( CPX_STAT_INFEASIBLE ):
    // Problem has been proven infeasible.
    return( kInfeasible );
-  case CPX_STAT_INForUNBD:
+  case( CPX_STAT_INForUNBD ):
    // Problem has been proven either infeasible or unbounded.
    //!! note: this is typically given by the preprocessor when it finds an
    //!!       easy dual unfeasible ray: since a dual feasible solution has
@@ -484,43 +477,43 @@ int CPXMILPSolver::decode_lqp_status( int status )
    //!!       that the problem is unbounded
    //!! return( kInfeasible );
    return( kUnbounded );
-  case CPX_STAT_NUM_BEST:
+  case( CPX_STAT_NUM_BEST ):
    // Solution is available, but not proved optimal,
    // due to numeric difficulties during optimization.
-  case CPX_STAT_OPTIMAL:
+  case( CPX_STAT_OPTIMAL ):
    // Optimal solution is available.
-  case CPX_STAT_OPTIMAL_FACE_UNBOUNDED:
+  case( CPX_STAT_OPTIMAL_FACE_UNBOUNDED ):
    // Model has an unbounded optimal face.
-  case CPX_STAT_OPTIMAL_INFEAS:
+  case( CPX_STAT_OPTIMAL_INFEAS ):
    // Optimal solution is available, but with infeasibilities after unscaling.
    return( kOK );
-  case CPX_STAT_UNBOUNDED:
+  case( CPX_STAT_UNBOUNDED ):
    // Problem has an unbounded ray.
    return( kUnbounded );
-   // case CPX_STAT_CONFLICT_ABORT_CONTRADICTION:
-   // case CPX_STAT_CONFLICT_ABORT_DETTIME_LIM:
-   // case CPX_STAT_CONFLICT_ABORT_IT_LIM:
-   // case CPX_STAT_CONFLICT_ABORT_MEM_LIM:
-   // case CPX_STAT_CONFLICT_ABORT_NODE_LIM:
-   // case CPX_STAT_CONFLICT_ABORT_OBJ_LIM:
-   // case CPX_STAT_CONFLICT_ABORT_TIME_LIM:
-   // case CPX_STAT_CONFLICT_ABORT_USER:
-   // case CPX_STAT_CONFLICT_FEASIBLE:
-   // case CPX_STAT_CONFLICT_MINIMAL:
-   // case CPX_STAT_FEASIBLE:
-   // case CPX_STAT_FEASIBLE_RELAXED_INF:
-   // case CPX_STAT_FEASIBLE_RELAXED_QUAD:
-   // case CPX_STAT_FEASIBLE_RELAXED_SUM:
-   // case CPX_STAT_FIRSTORDER:
-   // case CPX_STAT_MULTIOBJ_INFEASIBLE:
-   // case CPX_STAT_MULTIOBJ_INForUNBD:
-   // case CPX_STAT_MULTIOBJ_NON_OPTIMAL:
-   // case CPX_STAT_MULTIOBJ_OPTIMAL:
-   // case CPX_STAT_MULTIOBJ_STOPPED:
-   // case CPX_STAT_MULTIOBJ_UNBOUNDED:
-   // case CPX_STAT_OPTIMAL_RELAXED_INF:
-   // case CPX_STAT_OPTIMAL_RELAXED_QUAD:
-   // case CPX_STAT_OPTIMAL_RELAXED_SUM:
+   // case( CPX_STAT_CONFLICT_ABORT_CONTRADICTION ):
+   // case( CPX_STAT_CONFLICT_ABORT_DETTIME_LIM ):
+   // case( CPX_STAT_CONFLICT_ABORT_IT_LIM ):
+   // case( CPX_STAT_CONFLICT_ABORT_MEM_LIM ):
+   // case( CPX_STAT_CONFLICT_ABORT_NODE_LIM ):
+   // case( CPX_STAT_CONFLICT_ABORT_OBJ_LIM ):
+   // case( CPX_STAT_CONFLICT_ABORT_TIME_LIM ):
+   // case( CPX_STAT_CONFLICT_ABORT_USER ):
+   // case( CPX_STAT_CONFLICT_FEASIBLE ):
+   // case( CPX_STAT_CONFLICT_MINIMAL ):
+   // case( CPX_STAT_FEASIBLE ):
+   // case( CPX_STAT_FEASIBLE_RELAXED_INF ):
+   // case( CPX_STAT_FEASIBLE_RELAXED_QUAD ):
+   // case( CPX_STAT_FEASIBLE_RELAXED_SUM ):
+   // case( CPX_STAT_FIRSTORDER ):
+   // case( CPX_STAT_MULTIOBJ_INFEASIBLE ):
+   // case( CPX_STAT_MULTIOBJ_INForUNBD ):
+   // case( CPX_STAT_MULTIOBJ_NON_OPTIMAL ):
+   // case( CPX_STAT_MULTIOBJ_OPTIMAL ):
+   // case( CPX_STAT_MULTIOBJ_STOPPED ):
+   // case( CPX_STAT_MULTIOBJ_UNBOUNDED ):
+   // case( CPX_STAT_OPTIMAL_RELAXED_INF ):
+   // case( CPX_STAT_OPTIMAL_RELAXED_QUAD ):
+   // case( CPX_STAT_OPTIMAL_RELAXED_SUM ):
   default:;
   }
 
@@ -540,261 +533,259 @@ int CPXMILPSolver::decode_cpx_error( int error )
   * without doing extensive tests. So we are implementing just the ones we
   * encounter as we go. */
  switch( error ) {
-  // case CPXERR_ABORT_STRONGBRANCH:
-  // case CPXERR_ADJ_SIGN_QUAD:
-  // case CPXERR_ADJ_SIGNS:
-  // case CPXERR_ADJ_SIGN_SENSE:
-  // case CPXERR_ARC_INDEX_RANGE:
-  // case CPXERR_ARRAY_BAD_SOS_TYPE:
-  // case CPXERR_ARRAY_NOT_ASCENDING:
-  // case CPXERR_ARRAY_TOO_LONG:
-  // case CPXERR_BAD_ARGUMENT:
-  // case CPXERR_BAD_BOUND_SENSE:
-  // case CPXERR_BAD_BOUND_TYPE:
-  // case CPXERR_BAD_CHAR:
-  // case CPXERR_BAD_CTYPE:
-  // case CPXERR_BAD_DECOMPOSITION:
-  // case CPXERR_BAD_DIRECTION:
-  // case CPXERR_BAD_EXPONENT:
-  // case CPXERR_BAD_EXPO_RANGE:
-  // case CPXERR_BAD_FILETYPE:
-  // case CPXERR_BAD_ID:
-  // case CPXERR_BAD_INDCONSTR:
-  // case CPXERR_BAD_INDICATOR:
-  // case CPXERR_BAD_INDTYPE:
-  // case CPXERR_BAD_LAZY_UCUT:
-  // case CPXERR_BAD_LUB:
-  // case CPXERR_BAD_METHOD:
-  // case CPXERR_BAD_MULTIOBJ_ATTR:
-  // case CPXERR_BAD_NUMBER:
-  // case CPXERR_BAD_OBJ_SENSE:
-  // case CPXERR_BAD_PARAM_NAME:
-  // case CPXERR_BAD_PARAM_NUM:
-  // case CPXERR_BAD_PIVOT:
-  // case CPXERR_BAD_PRIORITY:
-  // case CPXERR_BAD_PROB_TYPE:
-  // case CPXERR_BAD_ROW_ID:
-  // case CPXERR_BAD_SECTION_BOUNDS:
-  // case CPXERR_BAD_SECTION_ENDATA:
-  // case CPXERR_BAD_SECTION_QMATRIX:
-  // case CPXERR_BAD_SENSE:
-  // case CPXERR_BAD_SOS_TYPE:
-  // case CPXERR_BAD_STATUS:
-  // case CPXERR_BAS_FILE_SHORT:
-  // case CPXERR_BAS_FILE_SIZE:
-  // case CPXERR_BENDERS_MASTER_SOLVE:
-  // case CPXERR_CALLBACK:
-  // case CPXERR_CALLBACK_INCONSISTENT:
-  // case CPXERR_CAND_NOT_POINT:
-  // case CPXERR_CAND_NOT_RAY:
-  // case CPXERR_CNTRL_IN_NAME:
-  // case CPXERR_COL_INDEX_RANGE:
-  // case CPXERR_COL_REPEAT_PRINT:
-  // case CPXERR_COL_REPEATS:
-  // case CPXERR_COL_ROW_REPEATS:
-  // case CPXERR_COL_UNKNOWN:
-  // case CPXERR_CONFLICT_UNSTABLE:
-  // case CPXERR_COUNT_OVERLAP:
-  // case CPXERR_COUNT_RANGE:
-  // case CPXERR_CPUBINDING_FAILURE:
-  // case CPXERR_DBL_MAX:
-  // case CPXERR_DECOMPRESSION:
-  // case CPXERR_DETTILIM_STRONGBRANCH:
-  // case CPXERR_DUP_ENTRY:
-  // case CPXERR_DYNFUNC:
-  // case CPXERR_DYNLOAD:
-  // case CPXERR_ENCODING_CONVERSION:
-  // case CPXERR_EXTRA_BV_BOUND:
-  // case CPXERR_EXTRA_FR_BOUND:
-  // case CPXERR_EXTRA_FX_BOUND:
-  // case CPXERR_EXTRA_INTEND:
-  // case CPXERR_EXTRA_INTORG:
-  // case CPXERR_EXTRA_SOSEND:
-  // case CPXERR_EXTRA_SOSORG:
-  // case CPXERR_FAIL_OPEN_READ:
-  // case CPXERR_FAIL_OPEN_WRITE:
-  // case CPXERR_FILE_ENTRIES:
-  // case CPXERR_FILE_FORMAT:
-  // case CPXERR_FILE_IO:
-  // case CPXERR_FILTER_VARIABLE_TYPE:
-  // case CPXERR_ILL_DEFINED_PWL:
-  // case CPXERR_INDEX_NOT_BASIC:
-  // case CPXERR_INDEX_RANGE:
-  // case CPXERR_INDEX_RANGE_HIGH:
-  // case CPXERR_INDEX_RANGE_LOW:
-  // case CPXERR_IN_INFOCALLBACK:
-  // case CPXERR_INT_TOO_BIG:
-  // case CPXERR_INT_TOO_BIG_INPUT:
-  // case CPXERR_INVALID_NUMBER:
-  // case CPXERR_LIMITS_TOO_BIG:
-  // case CPXERR_LINE_TOO_LONG:
-  // case CPXERR_LO_BOUND_REPEATS:
-  // case CPXERR_LOCK_CREATE:
-  // case CPXERR_LP_NOT_IN_ENVIRONMENT:
-  // case CPXERR_LP_PARSE:
-  // case CPXERR_MASTER_SOLVE:
-  // case CPXERR_MIPSEARCH_WITH_CALLBACKS:
-  // case CPXERR_MISS_SOS_TYPE:
-  // case CPXERR_MSG_NO_CHANNEL:
-  // case CPXERR_MSG_NO_FILEPTR:
-  // case CPXERR_MSG_NO_FUNCTION:
-  // case CPXERR_MULTIOBJ_SUBPROB_SOLVE:
-  // case CPXERR_MULTIPLE_PROBS_IN_REMOTE_ENVIRONMENT:
-  // case CPXERR_NAME_CREATION:
-  // case CPXERR_NAME_NOT_FOUND:
-  // case CPXERR_NAME_TOO_LONG:
-  // case CPXERR_NAN:
-  // case CPXERR_NEED_OPT_SOLN:
-  // case CPXERR_NEGATIVE_SURPLUS:
-  // case CPXERR_NET_DATA:
-  // case CPXERR_NET_FILE_SHORT:
-  // case CPXERR_NO_BARRIER_SOLN:
-  // case CPXERR_NO_BASIC_SOLN:
-  // case CPXERR_NO_BASIS:
-  // case CPXERR_NO_BOUND_SENSE:
-  // case CPXERR_NO_BOUND_TYPE:
-  // case CPXERR_NO_COLUMNS_SECTION:
-  // case CPXERR_NO_CONFLICT:
-  // case CPXERR_NO_DECOMPOSITION:
-  // case CPXERR_NO_OBJ_NAME:
-  // case CPXERR_NODE_INDEX_RANGE:
-  // case CPXERR_NODE_ON_DISK:
-  // case CPXERR_NO_DUAL_SOLN:
-  // case CPXERR_NO_ENDATA:
-  // case CPXERR_NO_ENVIRONMENT:
-  // case CPXERR_NO_FILENAME:
-  // case CPXERR_NO_ID:
-  // case CPXERR_NO_ID_FIRST:
-  // case CPXERR_NO_INT_X:
-  // case CPXERR_NO_KAPPASTATS:
-  // case CPXERR_NO_LU_FACTOR:
-  // case CPXERR_NO_MEMORY:
-  // case CPXERR_NO_MIPSTART:
-  // case CPXERR_NO_NAMES:
-  // case CPXERR_NO_NAME_SECTION:
-  // case CPXERR_NO_NORMS:
-  // case CPXERR_NO_NUMBER_BOUND:
-  // case CPXERR_NO_NUMBER:
-  // case CPXERR_NO_NUMBER_FIRST:
-  // case CPXERR_NO_OBJECTIVE:
-  // case CPXERR_NO_OBJ_SENSE:
-  // case CPXERR_NO_OPERATOR:
-  // case CPXERR_NO_OP_OR_SENSE:
-  // case CPXERR_NO_ORDER:
-  // case CPXERR_NO_PROBLEM:
-  // case CPXERR_NO_QP_OPERATOR:
-  // case CPXERR_NO_QUAD_EXP:
-  // case CPXERR_NO_RHS_COEFF:
-  // case CPXERR_NO_RHS_IN_OBJ:
-  // case CPXERR_NO_ROW_NAME:
-  // case CPXERR_NO_ROW_SENSE:
-  // case CPXERR_NO_ROWS_SECTION:
-  // case CPXERR_NO_SENSIT:
-  // case CPXERR_NO_SOLN:
-  // case CPXERR_NO_SOLNPOOL:
-  // case CPXERR_NO_SOS:
-  // case CPXERR_NO_TREE:
-  // case CPXERR_NOT_DUAL_UNBOUNDED:
-  // case CPXERR_NOT_FIXED:
-  // case CPXERR_NOT_FOR_BENDERS:
-  // case CPXERR_NOT_FOR_DISTMIP:
-  // case CPXERR_NOT_FOR_MIP:
-  // case CPXERR_NOT_FOR_MULTIOBJ:
-  // case CPXERR_NOT_FOR_QCP:
-  // case CPXERR_NOT_FOR_QP:
-  // case CPXERR_NOT_MILPCLASS:
-  // case CPXERR_NOT_MIN_COST_FLOW:
-  // case CPXERR_NOT_MIP:
-  // case CPXERR_NOT_MIQPCLASS:
-  // case CPXERR_NOT_ONE_PROBLEM:
-  // case CPXERR_NOT_QP:
-  // case CPXERR_NOT_SAV_FILE:
-  // case CPXERR_NOT_UNBOUNDED:
-  // case CPXERR_NO_VECTOR_SOLN:
-  // case CPXERR_NULL_POINTER:
-  // case CPXERR_ORDER_BAD_DIRECTION:
-  // case CPXERR_OVERFLOW:
-  // case CPXERR_PARAM_INCOMPATIBLE:
-  // case CPXERR_PARAM_TOO_BIG:
-  // case CPXERR_PARAM_TOO_SMALL:
-  // case CPXERR_PRESLV_ABORT:
-  // case CPXERR_PRESLV_BAD_PARAM:
-  // case CPXERR_PRESLV_BASIS_MEM:
-  // case CPXERR_PRESLV_COPYORDER:
-  // case CPXERR_PRESLV_COPYSOS:
-  // case CPXERR_PRESLV_CRUSHFORM:
-  // case CPXERR_PRESLV_DETTIME_LIM:
-  // case CPXERR_PRESLV_DUAL:
-  // case CPXERR_PRESLV_FAIL_BASIS:
-  // case CPXERR_PRESLV_INF:
-  // case CPXERR_PRESLV_INForUNBD:
-  // case CPXERR_PRESLV_NO_BASIS:
-  // case CPXERR_PRESLV_NO_PROB:
-  // case CPXERR_PRESLV_SOLN_MIP:
-  // case CPXERR_PRESLV_SOLN_QP:
-  // case CPXERR_PRESLV_START_LP:
-  // case CPXERR_PRESLV_TIME_LIM:
-  // case CPXERR_PRESLV_UNBD:
-  // case CPXERR_PRESLV_UNCRUSHFORM:
-  // case CPXERR_PRIIND:
-  // case CPXERR_PRM_DATA:
-  // case CPXERR_PROTOCOL:
-  // case CPXERR_QCP_SENSE:
-  // case CPXERR_QCP_SENSE_FILE:
-  // case CPXERR_Q_DIVISOR:
-  // case CPXERR_Q_DUP_ENTRY:
-  // case CPXERR_Q_NOT_INDEF:
-  // case CPXERR_Q_NOT_POS_DEF:
-  // case CPXERR_Q_NOT_SYMMETRIC:
-  // case CPXERR_QUAD_EXP_NOT_2:
-  // case CPXERR_QUAD_IN_ROW:
-  // case CPXERR_RANGE_SECTION_ORDER:
-  // case CPXERR_RESTRICTED_VERSION:
-  // case CPXERR_RHS_IN_OBJ:
-  // case CPXERR_RIMNZ_REPEATS:
-  // case CPXERR_RIM_REPEATS:
-  // case CPXERR_RIM_ROW_REPEATS:
-  // case CPXERR_ROW_INDEX_RANGE:
-  // case CPXERR_ROW_REPEAT_PRINT:
-  // case CPXERR_ROW_REPEATS:
-  // case CPXERR_ROW_UNKNOWN:
-  // case CPXERR_SAV_FILE_DATA:
-  // case CPXERR_SAV_FILE_VALUE:
-  // case CPXERR_SAV_FILE_WRITE:
-  // case CPXERR_SBASE_ILLEGAL:
-  // case CPXERR_SBASE_INCOMPAT:
-  // case CPXERR_SINGULAR:
-  // case CPXERR_STR_PARAM_TOO_LONG:
-  case CPXERR_SUBPROB_SOLVE:
+  // case( CPXERR_ABORT_STRONGBRANCH ):
+  // case( CPXERR_ADJ_SIGN_QUAD ):
+  // case( CPXERR_ADJ_SIGNS ):
+  // case( CPXERR_ADJ_SIGN_SENSE ):
+  // case( CPXERR_ARC_INDEX_RANGE ):
+  // case( CPXERR_ARRAY_BAD_SOS_TYPE ):
+  // case( CPXERR_ARRAY_NOT_ASCENDING ):
+  // case( CPXERR_ARRAY_TOO_LONG ):
+  // case( CPXERR_BAD_ARGUMENT ):
+  // case( CPXERR_BAD_BOUND_SENSE ):
+  // case( CPXERR_BAD_BOUND_TYPE ):
+  // case( CPXERR_BAD_CHAR ):
+  // case( CPXERR_BAD_CTYPE ):
+  // case( CPXERR_BAD_DECOMPOSITION ):
+  // case( CPXERR_BAD_DIRECTION ):
+  // case( CPXERR_BAD_EXPONENT ):
+  // case( CPXERR_BAD_EXPO_RANGE ):
+  // case( CPXERR_BAD_FILETYPE ):
+  // case( CPXERR_BAD_ID ):
+  // case( CPXERR_BAD_INDCONSTR ):
+  // case( CPXERR_BAD_INDICATOR ):
+  // case( CPXERR_BAD_INDTYPE ):
+  // case( CPXERR_BAD_LAZY_UCUT ):
+  // case( CPXERR_BAD_LUB ):
+  // case( CPXERR_BAD_METHOD ):
+  // case( CPXERR_BAD_MULTIOBJ_ATTR ):
+  // case( CPXERR_BAD_NUMBER ):
+  // case( CPXERR_BAD_OBJ_SENSE ):
+  // case( CPXERR_BAD_PARAM_NAME ):
+  // case( CPXERR_BAD_PARAM_NUM ):
+  // case( CPXERR_BAD_PIVOT ):
+  // case( CPXERR_BAD_PRIORITY ):
+  // case( CPXERR_BAD_PROB_TYPE ):
+  // case( CPXERR_BAD_ROW_ID ):
+  // case( CPXERR_BAD_SECTION_BOUNDS ):
+  // case( CPXERR_BAD_SECTION_ENDATA ):
+  // case( CPXERR_BAD_SECTION_QMATRIX ):
+  // case( CPXERR_BAD_SENSE ):
+  // case( CPXERR_BAD_SOS_TYPE ):
+  // case( CPXERR_BAD_STATUS ):
+  // case( CPXERR_BAS_FILE_SHORT ):
+  // case( CPXERR_BAS_FILE_SIZE ):
+  // case( CPXERR_BENDERS_MASTER_SOLVE ):
+  // case( CPXERR_CALLBACK ):
+  // case( CPXERR_CALLBACK_INCONSISTENT ):
+  // case( CPXERR_CAND_NOT_POINT ):
+  // case( CPXERR_CAND_NOT_RAY ):
+  // case( CPXERR_CNTRL_IN_NAME ):
+  // case( CPXERR_COL_INDEX_RANGE ):
+  // case( CPXERR_COL_REPEAT_PRINT ):
+  // case( CPXERR_COL_REPEATS ):
+  // case( CPXERR_COL_ROW_REPEATS ):
+  // case( CPXERR_COL_UNKNOWN ):
+  // case( CPXERR_CONFLICT_UNSTABLE ):
+  // case( CPXERR_COUNT_OVERLAP ):
+  // case( CPXERR_COUNT_RANGE ):
+  // case( CPXERR_CPUBINDING_FAILURE ):
+  // case( CPXERR_DBL_MAX ):
+  // case( CPXERR_DECOMPRESSION ):
+  // case( CPXERR_DETTILIM_STRONGBRANCH ):
+  // case( CPXERR_DUP_ENTRY ):
+  // case( CPXERR_DYNFUNC ):
+  // case( CPXERR_DYNLOAD ):
+  // case( CPXERR_ENCODING_CONVERSION ):
+  // case( CPXERR_EXTRA_BV_BOUND ):
+  // case( CPXERR_EXTRA_FR_BOUND ):
+  // case( CPXERR_EXTRA_FX_BOUND ):
+  // case( CPXERR_EXTRA_INTEND ):
+  // case( CPXERR_EXTRA_INTORG ):
+  // case( CPXERR_EXTRA_SOSEND ):
+  // case( CPXERR_EXTRA_SOSORG ):
+  // case( CPXERR_FAIL_OPEN_READ ):
+  // case( CPXERR_FAIL_OPEN_WRITE ):
+  // case( CPXERR_FILE_ENTRIES ):
+  // case( CPXERR_FILE_FORMAT ):
+  // case( CPXERR_FILE_IO ):
+  // case( CPXERR_FILTER_VARIABLE_TYPE ):
+  // case( CPXERR_ILL_DEFINED_PWL ):
+  // case( CPXERR_INDEX_NOT_BASIC ):
+  // case( CPXERR_INDEX_RANGE ):
+  // case( CPXERR_INDEX_RANGE_HIGH ):
+  // case( CPXERR_INDEX_RANGE_LOW ):
+  // case( CPXERR_IN_INFOCALLBACK ):
+  // case( CPXERR_INT_TOO_BIG ):
+  // case( CPXERR_INT_TOO_BIG_INPUT ):
+  // case( CPXERR_INVALID_NUMBER ):
+  // case( CPXERR_LIMITS_TOO_BIG ):
+  // case( CPXERR_LINE_TOO_LONG ):
+  // case( CPXERR_LO_BOUND_REPEATS ):
+  // case( CPXERR_LOCK_CREATE ):
+  // case( CPXERR_LP_NOT_IN_ENVIRONMENT ):
+  // case( CPXERR_LP_PARSE ):
+  // case( CPXERR_MASTER_SOLVE ):
+  // case( CPXERR_MIPSEARCH_WITH_CALLBACKS ):
+  // case( CPXERR_MISS_SOS_TYPE ):
+  // case( CPXERR_MSG_NO_CHANNEL ):
+  // case( CPXERR_MSG_NO_FILEPTR ):
+  // case( CPXERR_MSG_NO_FUNCTION ):
+  // case( CPXERR_MULTIOBJ_SUBPROB_SOLVE ):
+  // case( CPXERR_MULTIPLE_PROBS_IN_REMOTE_ENVIRONMENT ):
+  // case( CPXERR_NAME_CREATION ):
+  // case( CPXERR_NAME_NOT_FOUND ):
+  // case( CPXERR_NAME_TOO_LONG ):
+  // case( CPXERR_NAN ):
+  // case( CPXERR_NEED_OPT_SOLN ):
+  // case( CPXERR_NEGATIVE_SURPLUS ):
+  // case( CPXERR_NET_DATA ):
+  // case( CPXERR_NET_FILE_SHORT ):
+  // case( CPXERR_NO_BARRIER_SOLN ):
+  // case( CPXERR_NO_BASIC_SOLN ):
+  // case( CPXERR_NO_BASIS ):
+  // case( CPXERR_NO_BOUND_SENSE ):
+  // case( CPXERR_NO_BOUND_TYPE ):
+  // case( CPXERR_NO_COLUMNS_SECTION ):
+  // case( CPXERR_NO_CONFLICT ):
+  // case( CPXERR_NO_DECOMPOSITION ):
+  // case( CPXERR_NO_OBJ_NAME ):
+  // case( CPXERR_NODE_INDEX_RANGE ):
+  // case( CPXERR_NODE_ON_DISK ):
+  // case( CPXERR_NO_DUAL_SOLN ):
+  // case( CPXERR_NO_ENDATA ):
+  // case( CPXERR_NO_ENVIRONMENT ):
+  // case( CPXERR_NO_FILENAME ):
+  // case( CPXERR_NO_ID ):
+  // case( CPXERR_NO_ID_FIRST ):
+  // case( CPXERR_NO_INT_X ):
+  // case( CPXERR_NO_KAPPASTATS ):
+  // case( CPXERR_NO_LU_FACTOR ):
+  // case( CPXERR_NO_MEMORY ):
+  // case( CPXERR_NO_MIPSTART ):
+  // case( CPXERR_NO_NAMES ):
+  // case( CPXERR_NO_NAME_SECTION ):
+  // case( CPXERR_NO_NORMS ):
+  // case( CPXERR_NO_NUMBER_BOUND ):
+  // case( CPXERR_NO_NUMBER ):
+  // case( CPXERR_NO_NUMBER_FIRST ):
+  // case( CPXERR_NO_OBJECTIVE ):
+  // case( CPXERR_NO_OBJ_SENSE ):
+  // case( CPXERR_NO_OPERATOR ):
+  // case( CPXERR_NO_OP_OR_SENSE ):
+  // case( CPXERR_NO_ORDER ):
+  // case( CPXERR_NO_PROBLEM ):
+  // case( CPXERR_NO_QP_OPERATOR ):
+  // case( CPXERR_NO_QUAD_EXP ):
+  // case( CPXERR_NO_RHS_COEFF ):
+  // case( CPXERR_NO_RHS_IN_OBJ ):
+  // case( CPXERR_NO_ROW_NAME ):
+  // case( CPXERR_NO_ROW_SENSE ):
+  // case( CPXERR_NO_ROWS_SECTION ):
+  // case( CPXERR_NO_SENSIT ):
+  // case( CPXERR_NO_SOLN ):
+  // case( CPXERR_NO_SOLNPOOL ):
+  // case( CPXERR_NO_SOS ):
+  // case( CPXERR_NO_TREE ):
+  // case( CPXERR_NOT_DUAL_UNBOUNDED ):
+  // case( CPXERR_NOT_FIXED ):
+  // case( CPXERR_NOT_FOR_BENDERS ):
+  // case( CPXERR_NOT_FOR_DISTMIP ):
+  // case( CPXERR_NOT_FOR_MIP ):
+  // case( CPXERR_NOT_FOR_MULTIOBJ ):
+  // case( CPXERR_NOT_FOR_QCP ):
+  // case( CPXERR_NOT_FOR_QP ):
+  // case( CPXERR_NOT_MILPCLASS ):
+  // case( CPXERR_NOT_MIN_COST_FLOW ):
+  // case( CPXERR_NOT_MIP ):
+  // case( CPXERR_NOT_MIQPCLASS ):
+  // case( CPXERR_NOT_ONE_PROBLEM ):
+  // case( CPXERR_NOT_QP ):
+  // case( CPXERR_NOT_SAV_FILE ):
+  // case( CPXERR_NOT_UNBOUNDED ):
+  // case( CPXERR_NO_VECTOR_SOLN ):
+  // case( CPXERR_NULL_POINTER ):
+  // case( CPXERR_ORDER_BAD_DIRECTION ):
+  // case( CPXERR_OVERFLOW ):
+  // case( CPXERR_PARAM_INCOMPATIBLE ):
+  // case( CPXERR_PARAM_TOO_BIG ):
+  // case( CPXERR_PARAM_TOO_SMALL ):
+  // case( CPXERR_PRESLV_ABORT ):
+  // case( CPXERR_PRESLV_BAD_PARAM ):
+  // case( CPXERR_PRESLV_BASIS_MEM ):
+  // case( CPXERR_PRESLV_COPYORDER ):
+  // case( CPXERR_PRESLV_COPYSOS ):
+  // case( CPXERR_PRESLV_CRUSHFORM ):
+  // case( CPXERR_PRESLV_DETTIME_LIM ):
+  // case( CPXERR_PRESLV_DUAL ):
+  // case( CPXERR_PRESLV_FAIL_BASIS ):
+  // case( CPXERR_PRESLV_INF ):
+  // case( CPXERR_PRESLV_INForUNBD ):
+  // case( CPXERR_PRESLV_NO_BASIS ):
+  // case( CPXERR_PRESLV_NO_PROB ):
+  // case( CPXERR_PRESLV_SOLN_MIP ):
+  // case( CPXERR_PRESLV_SOLN_QP ):
+  // case( CPXERR_PRESLV_START_LP ):
+  // case( CPXERR_PRESLV_TIME_LIM ):
+  // case( CPXERR_PRESLV_UNBD ):
+  // case( CPXERR_PRESLV_UNCRUSHFORM ):
+  // case( CPXERR_PRIIND ):
+  // case( CPXERR_PRM_DATA ):
+  // case( CPXERR_PROTOCOL ):
+  // case( CPXERR_QCP_SENSE ):
+  // case( CPXERR_QCP_SENSE_FILE ):
+  // case( CPXERR_Q_DIVISOR ):
+  // case( CPXERR_Q_DUP_ENTRY ):
+  // case( CPXERR_Q_NOT_INDEF ):
+  // case( CPXERR_Q_NOT_POS_DEF ):
+  // case( CPXERR_Q_NOT_SYMMETRIC ):
+  // case( CPXERR_QUAD_EXP_NOT_2 ):
+  // case( CPXERR_QUAD_IN_ROW ):
+  // case( CPXERR_RANGE_SECTION_ORDER ):
+  // case( CPXERR_RESTRICTED_VERSION ):
+  // case( CPXERR_RHS_IN_OBJ ):
+  // case( CPXERR_RIMNZ_REPEATS ):
+  // case( CPXERR_RIM_REPEATS ):
+  // case( CPXERR_RIM_ROW_REPEATS ):
+  // case( CPXERR_ROW_INDEX_RANGE ):
+  // case( CPXERR_ROW_REPEAT_PRINT ):
+  // case( CPXERR_ROW_REPEATS ):
+  // case( CPXERR_ROW_UNKNOWN ):
+  // case( CPXERR_SAV_FILE_DATA ):
+  // case( CPXERR_SAV_FILE_VALUE ):
+  // case( CPXERR_SAV_FILE_WRITE ):
+  // case( CPXERR_SBASE_ILLEGAL ):
+  // case( CPXERR_SBASE_INCOMPAT ):
+  // case( CPXERR_SINGULAR ):
+  // case( CPXERR_STR_PARAM_TOO_LONG ):
+  // case( CPXERR_SUBPROB_SOLVE ):
    // CPXmipopt failed to solve one of the subproblems in the
    // branch-and-cut tree. This failure can be due to a limit
    // (for example, an iteration limit) or due to numeric trouble.
-   return( kError );
-   // case CPXERR_SYNCPRIM_CREATE:
-   // case CPXERR_SYSCALL:
-   // case CPXERR_THREAD_FAILED:
-   // case CPXERR_TILIM_CONDITION_NO:
-   // case CPXERR_TILIM_STRONGBRANCH:
-   // case CPXERR_TOO_MANY_COEFFS:
-   // case CPXERR_TOO_MANY_COLS:
-   // case CPXERR_TOO_MANY_RIMNZ:
-   // case CPXERR_TOO_MANY_RIMS:
-   // case CPXERR_TOO_MANY_ROWS:
-   // case CPXERR_TOO_MANY_THREADS:
-   // case CPXERR_TREE_MEMORY_LIMIT:
-   // case CPXERR_TUNE_MIXED:
-   // case CPXERR_UNIQUE_WEIGHTS:
-   // case CPXERR_UNSUPPORTED_CONSTRAINT_TYPE:
-   // case CPXERR_UNSUPPORTED_OPERATION:
-   // case CPXERR_UP_BOUND_REPEATS:
-   // case CPXERR_WORK_FILE_OPEN:
-   // case CPXERR_WORK_FILE_READ:
-   // case CPXERR_WORK_FILE_WRITE:
-   // case CPXERR_XMLPARSE:
+  // case( CPXERR_SYNCPRIM_CREATE ):
+  // case( CPXERR_SYSCALL ):
+  // case( CPXERR_THREAD_FAILED ):
+  // case( CPXERR_TILIM_CONDITION_NO ):
+  // case( CPXERR_TILIM_STRONGBRANCH ):
+  // case( CPXERR_TOO_MANY_COEFFS ):
+  // case( CPXERR_TOO_MANY_COLS ):
+  // case( CPXERR_TOO_MANY_RIMNZ ):
+  // case( CPXERR_TOO_MANY_RIMS ):
+  // case( CPXERR_TOO_MANY_ROWS ):
+  // case( CPXERR_TOO_MANY_THREADS ):
+  // case( CPXERR_TREE_MEMORY_LIMIT ):
+  // case( CPXERR_TUNE_MIXED ):
+  // case( CPXERR_UNIQUE_WEIGHTS ):
+  // case( CPXERR_UNSUPPORTED_CONSTRAINT_TYPE ):
+  // case( CPXERR_UNSUPPORTED_OPERATION ):
+  // case( CPXERR_UP_BOUND_REPEATS ):
+  // case( CPXERR_WORK_FILE_OPEN ):
+  // case( CPXERR_WORK_FILE_READ ):
+  // case( CPXERR_WORK_FILE_WRITE ):
+  // case( CPXERR_XMLPARSE ):
+  default:
+   return( kError + error );
   }
-
- throw( std::runtime_error( "CPLEX returned unmanaged error " +
-			    std::to_string( error ) ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -805,18 +796,18 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
  int probtype = CPXgetprobtype( env , lp );
 
  switch( CPXgetobjsen( env, lp ) ) {
-  case CPX_MIN:  // Minimization problem- - - - - - - - - - - - - - - - - - -
+  case( CPX_MIN ):  // Minimization problem - - - - - - - - - - - - - - - - - -
    switch( sol_status ) {
-    case kUnbounded:  lower_bound = -Inf< OFValue >(); break;
-    case kInfeasible: lower_bound = Inf< OFValue >();  break;
-    case kOK:
-    case kStopIter:
-    case kStopTime:
+    case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
+    case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
+    case( kOK ):
+    case( kStopIter ):
+    case( kStopTime ):
      switch( probtype ) {
-      case CPXPROB_MILP:
-      case CPXPROB_MIQP:
-      case CPXPROB_FIXEDMILP:
-      case CPXPROB_FIXEDMIQP:
+      case( CPXPROB_MILP ):
+      case( CPXPROB_MIQP ):
+      case( CPXPROB_FIXEDMILP ):
+      case( CPXPROB_FIXEDMIQP ):
        CPXgetbestobjval( env , lp , & lower_bound );
        lower_bound += constant_value;
        break;
@@ -837,22 +828,22 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     }
    break;
 
-  case CPX_MAX:  // Maximization problem- - - - - - - - - - - - - - - - - - -
+  case( CPX_MAX ):  // Maximization problem - - - - - - - - - - - - - - - - - -
    switch( sol_status ) {
-    case kUnbounded:  lower_bound = Inf< OFValue >(); break;
-    case kInfeasible: lower_bound = -Inf< OFValue >(); break;
+    case( kUnbounded ):  lower_bound = Inf< OFValue >(); break;
+    case( kInfeasible ): lower_bound = -Inf< OFValue >(); break;
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
-    case kStopIter:
-    case kStopTime:
+    case( kStopIter ):
+    case( kStopTime ):
      if( ! has_var_solution() ) {
       lower_bound = -Inf< OFValue >();
       break;
       }
      lower_bound += constant_value;
 
-    case kOK:
+    case( kOK ):
      CPXgetobjval( env , lp , & lower_bound );
      lower_bound += constant_value;
      break;
@@ -880,22 +871,22 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
  int probtype = CPXgetprobtype( env , lp );
 
  switch( CPXgetobjsen( env , lp ) ) {
-  case CPX_MIN:  // Minimization problem- - - - - - - - - - - - - - - - - - -
+  case( CPX_MIN ):  // Minimization problem - - - - - - - - - - - - - - - - - -
    switch( sol_status ) {
-    case kUnbounded:  upper_bound = -Inf< OFValue >(); break;
-    case kInfeasible: upper_bound = Inf< OFValue >(); break;
+    case( kUnbounded ):  upper_bound = -Inf< OFValue >(); break;
+    case( kInfeasible ): upper_bound = Inf< OFValue >(); break;
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
-    case kStopIter:
-    case kStopTime:
+    case( kStopIter ):
+    case( kStopTime ):
      if( ! has_var_solution() ) {
       upper_bound = Inf< OFValue >();
       break;
       }
      upper_bound += constant_value;
 
-    case kOK:
+    case( kOK ):
      CPXgetobjval( env , lp , & upper_bound );
      upper_bound += constant_value;
      break;
@@ -910,19 +901,19 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     }
    break;
 
-  case CPX_MAX:  // Maximization problem- - - - - - - - - - - - - - - - - - -
+  case( CPX_MAX ):  // Maximization problem - - - - - - - - - - - - - - - - - -
    switch( sol_status ) {
-    case kUnbounded:  upper_bound = Inf< OFValue >(); break;
-    case kInfeasible: upper_bound = -Inf< OFValue >(); break;
+    case( kUnbounded ):  upper_bound = Inf< OFValue >(); break;
+    case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
 
-    case kOK:
-    case kStopIter:
-    case kStopTime:
+    case( kOK ):
+    case( kStopIter ):
+    case( kStopTime ):
      switch( probtype ) {
-      case CPXPROB_MILP:
-      case CPXPROB_MIQP:
-      case CPXPROB_FIXEDMILP:
-      case CPXPROB_FIXEDMIQP:
+      case( CPXPROB_MILP ):
+      case( CPXPROB_MIQP ):
+      case( CPXPROB_FIXEDMILP ):
+      case( CPXPROB_FIXEDMIQP ):
        CPXgetbestobjval( env , lp , & upper_bound );
        upper_bound += constant_value;
        break;
@@ -958,11 +949,11 @@ bool CPXMILPSolver::has_var_solution( void )
   throw( std::runtime_error( "An error occurred in CPXsolninfo()" ) );
 
  switch( solntype ) {
-  case CPX_BASIC_SOLN:    // The problem has a simplex basis
-  case CPX_NONBASIC_SOLN: // Primal and dual solution but no basis
-  case CPX_PRIMAL_SOLN:   // Primal solution but no dual solution
+  case( CPX_BASIC_SOLN ):    // The problem has a simplex basis
+  case( CPX_NONBASIC_SOLN ): // Primal and dual solution but no basis
+  case( CPX_PRIMAL_SOLN ):   // Primal solution but no dual solution
    return( true );
-   // case CPX_NO_SOLN:   No solution
+   // case( CPX_NO_SOLN ):   No solution
   }
 
  return( false );
@@ -1036,11 +1027,11 @@ bool CPXMILPSolver::has_dual_solution( void )
   throw( std::runtime_error( "An error occurred in CPXsolninfo()" ) );
 
  switch( solntype ) {
-  case CPX_BASIC_SOLN:    // The problem has a simplex basis
-  case CPX_NONBASIC_SOLN: // Primal and dual solution but no basis
+  case( CPX_BASIC_SOLN ):    // The problem has a simplex basis
+  case( CPX_NONBASIC_SOLN ): // Primal and dual solution but no basis
    return( true );
-   // case CPX_PRIMAL_SOLN:   Primal solution but no dual solution
-   // case CPX_NO_SOLN:       No solution
+   // case( CPX_PRIMAL_SOLN ):   Primal solution but no dual solution
+   // case( CPX_NO_SOLN ):       No solution
   }
 
  return( false );
@@ -1334,7 +1325,7 @@ void CPXMILPSolver::var_modification( const VariableMod * mod )
 
  bool is_mip = int_vars > 0;  // is a MIP after the change
 
- auto var = ColV( mod->variable() );
+ auto var = static_cast< const ColVariable * >( mod->variable() );
  auto idx = index_of_variable( var );
  if( idx == Inf< int >() )  // the Variable is not (yet) there (?)
   return;                   // nothing to do
@@ -1362,8 +1353,8 @@ void CPXMILPSolver::var_modification( const VariableMod * mod )
     // the first integer variable is added
     // all ctype values must be [re]added to the problem
     switch( CPXgetprobtype( env, lp ) ) {
-     case CPXPROB_LP : CPXchgprobtype( env , lp , CPXPROB_MILP ); break;
-     case CPXPROB_QP : CPXchgprobtype( env , lp , CPXPROB_MIQP ); break;
+     case( CPXPROB_LP ): CPXchgprobtype( env , lp , CPXPROB_MILP ); break;
+     case( CPXPROB_QP ): CPXchgprobtype( env , lp , CPXPROB_MIQP ); break;
      default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
      }
 
@@ -1376,12 +1367,12 @@ void CPXMILPSolver::var_modification( const VariableMod * mod )
    if( was_mip ) {  // but was so
     // the last integer variable was removed, remove all ctype values
     switch( CPXgetprobtype( env , lp ) ) {
-     case CPXPROB_LP :
-     case CPXPROB_QP :   break;
-     case CPXPROB_MILP :
-     case CPXPROB_FIXEDMILP : CPXchgprobtype( env , lp , CPXPROB_LP ); break;
-     case CPXPROB_MIQP :
-     case CPXPROB_FIXEDMIQP : CPXchgprobtype( env , lp , CPXPROB_QP ); break;
+     case( CPXPROB_LP ):
+     case( CPXPROB_QP ):   break;
+     case( CPXPROB_MILP ):
+     case( CPXPROB_FIXEDMILP ): CPXchgprobtype( env , lp , CPXPROB_LP ); break;
+     case( CPXPROB_MIQP ):
+     case( CPXPROB_FIXEDMIQP ): CPXchgprobtype( env , lp , CPXPROB_QP ); break;
      default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
      }
     // else do nothing, the problem stays continuous; besides this should
@@ -1417,8 +1408,8 @@ void CPXMILPSolver::objective_modification( const ObjectiveMod * mod )
   * To change OF coefficents, a FunctionMod must be used. */
 
  switch( mod->type() ) {
-  case ObjectiveMod::eSetMin: CPXchgobjsen( env , lp , CPX_MIN ); break;
-  case ObjectiveMod::eSetMax: CPXchgobjsen( env , lp , CPX_MAX ); break;
+  case( ObjectiveMod::eSetMin ): CPXchgobjsen( env , lp , CPX_MIN ); break;
+  case( ObjectiveMod::eSetMax ): CPXchgobjsen( env , lp , CPX_MAX ); break;
   default: throw( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
   }
  }
@@ -1447,7 +1438,7 @@ void CPXMILPSolver::const_modification( const ConstraintMod * mod )
  RowConstraint::RHSValue con_rhs = NAN;
 
  switch( mod->type() ) {
-  case ConstraintMod::eRelaxConst:
+  case( ConstraintMod::eRelaxConst ):
    // In order to relax the constraint all we do is transform it
    // into an inequality (<=) with RHS equal to infinity
 
@@ -1457,10 +1448,10 @@ void CPXMILPSolver::const_modification( const ConstraintMod * mod )
    CPXchgrhs( env , lp , 1 , & index , & rhs );
    break;
 
-  case ConstraintMod::eEnforceConst:
-  case RowConstraintMod::eChgLHS:
-  case RowConstraintMod::eChgRHS:
-  case RowConstraintMod::eChgBTS:
+  case( ConstraintMod::eEnforceConst ):
+  case( RowConstraintMod::eChgLHS ):
+  case( RowConstraintMod::eChgRHS ):
+  case( RowConstraintMod::eChgBTS ):
    // In order to enforce a relaxed constraint all we need to do is
    // reverse the process of relaxing it, by changing the sense and
    // the rhs back to the original form of the constraint
@@ -1515,7 +1506,7 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
  static std::array< char , 2 > lu = { 'L' , 'U' };
 
  auto con = static_cast< OneVarConstraint * >( mod->constraint() );
- auto var = ColV( con->get_active_var( 0 ) );
+ auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
  if( ! var )  // this should never happen
   return;     // but in case, there is nothing to do
 
@@ -1535,19 +1526,19 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
 
  switch( mod->type() ) {
 
-  case RowConstraintMod::eChgLHS: {
+  case( RowConstraintMod::eChgLHS ): {
    std::array< double , 1 > bd = { CPXMILPSolver::get_problem_lb( *var ) };
    CPXchgbds( env , lp , 1 , ind.data() , lu.data() , bd.data() );
    break;
    }
 
-  case RowConstraintMod::eChgRHS: {
+  case( RowConstraintMod::eChgRHS ): {
    std::array< double , 1 > bd = { CPXMILPSolver::get_problem_ub( *var ) };
    CPXchgbds( env , lp , 1 , ind.data() , lu.data() + 1 , bd.data() );
    break;
    }
 
-  case RowConstraintMod::eChgBTS: {
+  case( RowConstraintMod::eChgBTS ): {
    auto bd = CPXMILPSolver::get_problem_bounds( *var );
    CPXchgbds( env , lp , 2 , ind.data() , lu.data() , bd.data() );
    break;
@@ -1593,7 +1584,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( auto v :  modl->vars() )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      *(nvit++) = cp[ idx ].second;
-     *(cidxit++) = index_of_variable( ColV( v ) );
+     *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
      }
 
    auto nsz = std::distance( nval.begin() , nvit );
@@ -1626,7 +1617,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( auto v :  modl->vars() )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      *(nvit++) = std::get< 1 >( cp[ idx ] );
-     *(cidxit++) = index_of_variable( ColV( v ) );
+     *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
      }
 
    auto nsz = std::distance( nval.begin() , nvit );
@@ -1688,7 +1679,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   for( auto v : *vars )
    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
     *(nvit++) = std::get< 1 >( cp[ idx ] );
-    auto cidx = index_of_variable( ColV( v ) );
+    auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
     *(cidxit++) = cidx;
     // quadratic coefficients need be changed one at a time
     CPXchgqpcoef( env , lp , cidx , cidx , 2 * std::get< 2 >( cp[ idx ] ) );
@@ -1750,7 +1741,7 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
  for( auto v :  modl->vars() )
   if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
    *(nvit++) = cp[ idx ].second;
-   *(cidxit++) = index_of_variable( ColV( v ) );
+   *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
    }
 
  auto nsz = std::distance( nval.begin() , nvit );
@@ -1806,7 +1797,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // Linear objective function
 
   for( auto v : mod->vars() ) {
-   auto var = ColV( v );
+   auto var = static_cast< const ColVariable * >( v );
    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
     if( mod->added() ) {
@@ -1826,7 +1817,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // Quadratic objective function
 
   for( auto v : mod->vars() ) {
-   auto var = ColV( v );
+   auto var = static_cast< const ColVariable * >( v );
    if( auto ind = index_of_variable( var ) ; ind < Inf< int >() ) {
     indices.push_back( ind );
     double value = 0;
@@ -1904,7 +1895,7 @@ void CPXMILPSolver::constraint_fvars_modification(
 
  // get indices and coefficients
  for( auto v : mod->vars() ) {
-  auto var = ColV( v );
+  auto var = static_cast< const ColVariable * >( v );
   if( auto vidx = index_of_variable( var ) ; vidx < Inf< int >() ) {
    indices.push_back( vidx );
    if( mod->added() ) {
@@ -2036,8 +2027,8 @@ void CPXMILPSolver::add_dynamic_variable( const ColVariable * var )
    // the first integer variable is added
    // all ctype values must be [re]added to the problem
    switch( CPXgetprobtype( env, lp ) ) {
-    case CPXPROB_LP : CPXchgprobtype( env , lp , CPXPROB_MILP ); break;
-    case CPXPROB_QP : CPXchgprobtype( env , lp , CPXPROB_MIQP ); break;
+    case( CPXPROB_LP ): CPXchgprobtype( env , lp , CPXPROB_MILP ); break;
+    case( CPXPROB_QP ): CPXchgprobtype( env , lp , CPXPROB_MIQP ); break;
     default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
     }
 
@@ -2051,12 +2042,12 @@ void CPXMILPSolver::add_dynamic_variable( const ColVariable * var )
   if( was_mip ) {     // but was so
    // the last integer variable was removed, make the problem continuous
    switch( CPXgetprobtype( env , lp ) ) {
-    case CPXPROB_LP :
-    case CPXPROB_QP :   break;  // this should not happe, but ...
-    case CPXPROB_MILP :
-    case CPXPROB_FIXEDMILP : CPXchgprobtype( env , lp , CPXPROB_LP ); break;
-    case CPXPROB_MIQP :
-    case CPXPROB_FIXEDMIQP : CPXchgprobtype( env , lp , CPXPROB_QP ); break;
+    case( CPXPROB_LP ):
+    case( CPXPROB_QP ):   break;  // this should not happe, but ...
+    case( CPXPROB_MILP ):
+    case( CPXPROB_FIXEDMILP ): CPXchgprobtype( env , lp , CPXPROB_LP ); break;
+    case( CPXPROB_MIQP ):
+    case( CPXPROB_FIXEDMIQP ): CPXchgprobtype( env , lp , CPXPROB_QP ); break;
     default: throw( std::runtime_error( "Wrong CPLEX problem type" ) );
     }
    }
@@ -2071,7 +2062,7 @@ void CPXMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::add_dynamic_bound( con );
 
- auto var = ColV( con->get_active_var( 0 ) );
+ auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
  if( ! var )
   throw( std::logic_error( "CPXMILPSolver: added a bound on no Variable" ) );
 
@@ -2125,7 +2116,7 @@ void CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  // note: this only works because remove_dynamic_constraint[s]() do *not*
  //       clear the removed OneVarConstraint, and therefore we can easily
  //       reconstruct which ColVariable it was about
- auto var = ColV( con->get_active_var( 0 ) );
+ auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
  if( ! var )  // this should never happen
   return;     // but in case, there is nothing to do
 
@@ -2133,7 +2124,7 @@ void CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  if( idx == Inf< int >() )  // the ColVariable has been removed
   return;                   // is strange, but there is nothing to do
 
- std::array< int , 2 > indices = { 2 , idx };
+ std::array< int , 2 > indices = { idx , idx };
  static std::array< char , 2 > lu = { 'L' , 'U' };
  auto bd = CPXMILPSolver::get_problem_bounds( *var );
 

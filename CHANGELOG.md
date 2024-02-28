@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2024-02-01
+
+### Added
+
+- Separation of user cuts and lazy constraints is now possible with SCIP
+- Support for modifying a quadratic objective function in SCIP.
+
+## [0.7.0] - 2023-08-01
+
+### Added
+
+- HiGHS interface
+
+## [0.6.0] - 2023-07-03
+
+### Added
+
+- Gurobi interface
+
 ## [0.5.2] - 2023-05-17
 
 ### Added

@@ -13,7 +13,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy; Niccolo' Iardella
+ * \copyright &copy; by Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
@@ -21,9 +21,11 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <cstring>
 #include <map>
 #include <getopt.h>
+// #include <filesystem>
 
 #include <scip/scip.h>
 
@@ -38,7 +40,8 @@ std::string docopt_desc{};    ///< Tool description
 /*--------------------------------------------------------------------------*/
 
 /// Gets the name of the executable from its full path
-std::string get_filename( const std::string & fullpath ) {
+std::string get_filename( const std::string & fullpath )
+{
  std::size_t found = fullpath.find_last_of( "/\\" );
  return( fullpath.substr( found + 1 ) );
 }
@@ -46,7 +49,8 @@ std::string get_filename( const std::string & fullpath ) {
 /*--------------------------------------------------------------------------*/
 
 /// Prints the tool description and usage
-void docopt() {
+void docopt()
+{
  // http://docopt.org
  std::cout << docopt_desc << std::endl;
  std::cout << "Usage:\n"
@@ -61,30 +65,32 @@ void docopt() {
 /*--------------------------------------------------------------------------*/
 
 /// Processes the command line arguments
-void process_args( int argc, char ** argv ) {
+void process_args( int argc , char ** argv )
+{
 
  const char * const short_opts = "vh";
  const option long_opts[] = {
-  { "verbose", no_argument, nullptr, 'v' },
-  { "help",    no_argument, nullptr, 'h' },
-  { nullptr,   no_argument, nullptr, 0 }
+  { "verbose" , no_argument , nullptr , 'v' } ,
+  { "help" ,    no_argument , nullptr , 'h' } ,
+  { nullptr ,   no_argument , nullptr , 0 }
  };
 
  // Options
  while( true ) {
-  const auto opt = getopt_long( argc, argv, short_opts, long_opts, nullptr );
+  const auto opt = getopt_long( argc , argv , short_opts , long_opts ,
+                                nullptr );
 
   if( -1 == opt ) {
    break;
   }
   switch( opt ) {
-   case 'v':
+   case( 'v' ):
     verbose = true;
     break;
-   case 'h':
+   case( 'h' ):
     docopt();
     exit( 0 );
-   case '?':
+   case( '?' ):
    default:
     std::cout << "Try " << exe << "' --help' for more information.\n";
     exit( 1 );
@@ -99,21 +105,24 @@ void process_args( int argc, char ** argv ) {
 
 /*--------------------------------------------------------------------------*/
 
-int main( int argc, char ** argv ) {
+int main( int argc , char ** argv )
+{
 
  // Manage options and help
- path = ".";
+ path = "../include";
  // path = std::filesystem::current_path();
  docopt_desc = "SCIP parameter map generator.\n";
  exe = get_filename( argv[ 0 ] );
- process_args( argc, argv );
+ process_args( argc , argv );
 
  // if (! std::filesystem::exists(path)) {
  //  std::filesystem::create_directory(path);
  // }
- 
- std::string defs_filename = "SCIP" + std::to_string( SCIP_VERSION ) + "_defs.h";
- std::string maps_filename = "SCIP" + std::to_string( SCIP_VERSION ) + "_maps.h";
+
+ std::string defs_filename =
+  "SCIP" + std::to_string( SCIP_VERSION ) + "_defs.h";
+ std::string maps_filename =
+  "SCIP" + std::to_string( SCIP_VERSION ) + "_maps.h";
 
  // auto defs_path = path / defs_filename;
  // auto maps_path = path / maps_filename;
@@ -125,16 +134,15 @@ int main( int argc, char ** argv ) {
  std::ofstream maps_file;
 
  SCIP * scip{};
- const char* name;
+ const char * name;
 
- std::map< int, std::string > int_parameters;
- std::map< int, std::string > dbl_parameters;
- std::map< int, std::string > str_parameters;
+ std::map< int , std::string > int_parameters;
+ std::map< int , std::string > dbl_parameters;
+ std::map< int , std::string > str_parameters;
 
  int int_counter = 0;
  int dbl_counter = 0;
  int str_counter = 0;
- int total = 0;
 
  SCIP_CALL_ABORT( SCIPcreate( &scip ) );
  if( verbose ) {
@@ -144,26 +152,26 @@ int main( int argc, char ** argv ) {
  SCIP_PARAM ** params = SCIPgetParams( scip );
  int nparams = SCIPgetNParams( scip );
 
- for( int i = 0; i < nparams; ++i ) {
+ for( int i = 0 ; i < nparams ; ++i ) {
 
   SCIP_PARAM * param = params[ i ];
   name = SCIPparamGetName( param );
   auto type = SCIPparamGetType( param );
 
   switch( type ) {
-   case SCIP_PARAMTYPE_BOOL:
-   case SCIP_PARAMTYPE_INT:
-   case SCIP_PARAMTYPE_LONGINT:
-    int_parameters.insert( { int_counter++, std::string( name ) } );
+   case( SCIP_PARAMTYPE_BOOL ):
+   case( SCIP_PARAMTYPE_INT ):
+   case( SCIP_PARAMTYPE_LONGINT ):
+    int_parameters.insert( { int_counter++ , std::string( name ) } );
     break;
 
-   case SCIP_PARAMTYPE_REAL:
-    dbl_parameters.insert( { dbl_counter++, std::string( name ) } );
+   case( SCIP_PARAMTYPE_REAL ):
+    dbl_parameters.insert( { dbl_counter++ , std::string( name ) } );
     break;
 
-   case SCIP_PARAMTYPE_CHAR:
-   case SCIP_PARAMTYPE_STRING:
-    str_parameters.insert( { str_counter++, std::string( name ) } );
+   case( SCIP_PARAMTYPE_CHAR ):
+   case( SCIP_PARAMTYPE_STRING ):
+    str_parameters.insert( { str_counter++ , std::string( name ) } );
     break;
 
    default:
@@ -207,7 +215,7 @@ int main( int argc, char ** argv ) {
   << "const std::array< std::string, SCIP_NUM_INT_PARS >"
   << " SCIPMILPSolver::SMSpp_to_SCIP_int_pars{"
   << std::endl;
- for( const auto & i: int_parameters ) {
+ for( const auto & i : int_parameters ) {
   maps_file << " \"" << i.second << "\"," << std::endl;
  }
  maps_file << "};" << std::endl;
@@ -217,7 +225,7 @@ int main( int argc, char ** argv ) {
   << "const std::array< std::string, SCIP_NUM_DBL_PARS >"
   << " SCIPMILPSolver::SMSpp_to_SCIP_dbl_pars{"
   << std::endl;
- for( const auto & i: dbl_parameters ) {
+ for( const auto & i : dbl_parameters ) {
   maps_file << " \"" << i.second << "\"," << std::endl;
  }
  maps_file << "};" << std::endl;
@@ -227,7 +235,7 @@ int main( int argc, char ** argv ) {
   << "const std::array< std::string, SCIP_NUM_STR_PARS >"
   << " SCIPMILPSolver::SMSpp_to_SCIP_str_pars{"
   << std::endl;
- for( const auto & i: str_parameters ) {
+ for( const auto & i : str_parameters ) {
   maps_file << " \"" << i.second << "\"," << std::endl;
  }
  maps_file << "};" << std::endl;
@@ -235,11 +243,13 @@ int main( int argc, char ** argv ) {
 
  // Reverse SCIP_to_SMSpp_***_pars maps
  maps_file
-  << "const std::array< std::pair< std::string, int >, SCIP_NUM_INT_PARS >" << std::endl
+  << "const std::array< std::pair< std::string, int >, SCIP_NUM_INT_PARS >"
+  << std::endl
   << " SCIPMILPSolver::SCIP_to_SMSpp_int_pars{" << std::endl
   << " {" << std::endl;
- for( const auto & i: int_parameters ) {
-  maps_file << "  { \"" << i.second << "\", intFirstSCIPPar + " << i.first << " },"
+ for( const auto & i : int_parameters ) {
+  maps_file << "  { \"" << i.second << "\", intFirstSCIPPar + " << i.first
+            << " },"
             << std::endl;
  }
  maps_file
@@ -248,11 +258,13 @@ int main( int argc, char ** argv ) {
   << std::endl;
 
  maps_file
-  << "const std::array< std::pair< std::string, int >, SCIP_NUM_DBL_PARS >" << std::endl
+  << "const std::array< std::pair< std::string, int >, SCIP_NUM_DBL_PARS >"
+  << std::endl
   << " SCIPMILPSolver::SCIP_to_SMSpp_dbl_pars{" << std::endl
   << " {" << std::endl;
- for( const auto & i: dbl_parameters ) {
-  maps_file << "  { \"" << i.second << "\", dblFirstSCIPPar + " << i.first << " },"
+ for( const auto & i : dbl_parameters ) {
+  maps_file << "  { \"" << i.second << "\", dblFirstSCIPPar + " << i.first
+            << " },"
             << std::endl;
  }
  maps_file
@@ -261,11 +273,13 @@ int main( int argc, char ** argv ) {
   << std::endl;
 
  maps_file
-  << "const std::array< std::pair< std::string, int >, SCIP_NUM_STR_PARS >" << std::endl
+  << "const std::array< std::pair< std::string, int >, SCIP_NUM_STR_PARS >"
+  << std::endl
   << " SCIPMILPSolver::SCIP_to_SMSpp_str_pars{" << std::endl
   << " {" << std::endl;
- for( const auto & i: str_parameters ) {
-  maps_file << "  { \"" << i.second << "\", strFirstSCIPPar + " << i.first << " },"
+ for( const auto & i : str_parameters ) {
+  maps_file << "  { \"" << i.second << "\", strFirstSCIPPar + " << i.first
+            << " },"
             << std::endl;
  }
  maps_file
