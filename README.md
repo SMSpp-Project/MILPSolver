@@ -28,13 +28,16 @@ Currently available derived classes are:
 
 - `CPXMILPSolver`, providing the interface with the commercial
   [IBM ILOG CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio)
+
 - `SCIPMILPSolver`, providing the interface with the open-source
   [SCIP](https://www.scipopt.org) (note that since version 8.0.3 SCIP is
   "truly" FOSS by dint of being distributed under the Apache 2.0 License as
   opposed to the previous academic license preventing roialty-free commercial
   use)
+
 - `GRBMILPSolver`, providing the interface with the commercial
   [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
+
 - `HiGHSMILPSolver`, providing the interface with the open-source
   [HiGHS](https://highs.dev)
 
@@ -45,24 +48,27 @@ These instructions will let you build MILPSolver on your system.
 ### Requirements
 
 - [SMS++ core library](https://gitlab.com/smspp/smspp)
+
 - for `CPXMILPSolver` you will need
   [IBM ILOG CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio)
   (currently supported versions: 12.8, 12.10, 20.10, 22.01)
+
 - for `SCIPMILPSolver` you will need
   [SCIP](https://www.scipopt.org) (currently supported versions: 7.0.0, 7.0.1,
-  7.0.2, 7.0.3, 8.0.0, 8.0.3)
+  7.0.2, 7.0.3, 8.0.0, 8.0.3, , 8.1.0)
+
 - for `GRBMILPSolver` you will need
   [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
   (currently supported versions: 10.0.1, 10.0.2)
+
 - for `HiGHSMILPSolver` you will need
   [HiGHS](https://highs.dev) (currently supported versions: 1.5.3)
 
-All actual *MILPSolver are optional but you will need at least one of them to
+All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
 available as a (sparse) coefficient matrix + accompanying vectors (objective,
 LHS, RHS, LB, UB).
-
 
 ### Build and install with CMake
 
@@ -107,45 +113,69 @@ Launch `ctest` from the build directory to run them.
 To disable them, set the option `BUILD_TESTING` to `OFF`.
 
 
+### Build and install with makefiles
+
+Carefully hand-crafted makefiles have also been developed for those unwilling
+to use CMake. Makefiles build the executable in-source (in the same directory
+tree where the code is) as opposed to out-of-source (in the copy of the
+directory tree constructed in the build/ folder) and therefore it is more
+convenient when having to recompile often, such as when developing/debugging
+a new module, as opposed to the compile-and-forget usage envisioned by CMake.
+
+Each executable using `MILPSolver` and/or one of the derived `:MILPSolver` has
+to include a "main makefile" of the module, which typically is either
+[makefile-c](makefile-c) including all necessary libraries comprised the
+"core SMS++" one, or [makefile-s](makefile-s) including all necessary
+libraries but not the "core SMS++" one (for the common case in which this is
+used together with other modules that already include them). If you want to
+exclude some specific `:MILPSolver` from being compiled you have to go in
+[makefile](makefile), [makefile-c](makefile-c) and [makefile-](makefile-s)
+(depending on which one of the latter two is used) and comment out all the
+lines mentioning it. Don't bother about the `$(*H)`, `$(*INC)` etc. variables
+(assuming you would) since if they are not defined they are empty and
+therefore do no harm. Relevant cases are the testers described below.
+The makefiles in turn recursively include all the required other makefiles,
+hence one should only need to edit the "main makefile" for compilation type
+(C++ compiler and its options) and it all should be good to go. In case some
+of the external libraries are not at their default location, it should only be
+necessary to create the `../extlib/makefile-paths` out of the
+`extlib/makefile-default-paths-*` for your OS `*` and edit the relevant bits
+(commenting out all the rest).
+
+Check the [SMS++ installation wiki](https://gitlab.com/smspp/smspp-project/-/wikis/Customize-the-configuration#location-of-required-libraries)
+for further details.
+
+
 ## Tools
-
-The repository contains some tools that are built with the library.
-
-### Solver
-
-The `milp_solver` tool reads MILP problems from MPS files and solves them.
-Optionally, it writes back the problem in netCDF format.
-
-You can find some example MPS files in the [`test`](test) directory.
-For the block and solver configuration file format,
-see the [SMS++ core library](https://gitlab.com/smspp/smspp).
-
-```sh
-Usage:
-milp_solver [options] <file>
-milp_solver -h | --help
-
-Options:
--B, --blockcfg <file>    Block configuration.
--S, --solvercfg <file>   Solver configuration.
--n, --nc4problem <file>  Write nc4 problem on file.
--v, --verbose            Make the solver verbose.
--h, --help               Print this help.
-```
-
-### Parameter generators
 
 `CPXMILPSolver` , `SCIPMILPSolver` , `GRBMILPSolver` and `HiGHSMILPSolver` 
 support, respectively, CPLEX , SCIP , GUROBI and HiGHS parameter names in 
 the `Configuration` files. To do so, they need header files that depend on 
 the versions of CPLEX , SCIP , GUROBI and HiGHS currently installed on the
 system; such headers can be generated with the `cpx_pars` , `scip_pars` ,
-`grb_pars` and `high_pars` tools.
+`grb_pars` and `high_pars` executables in the [tools](tools) folder.
 
 > **Note:**
 > We provide header files for the versions we already support, so you will
 > need these tools only if you have an unsupported version of either CPLEX ,
 > SCIP , GUROBI or HiGHS.
+
+
+## Testers
+
+The repo includes some testers that may be useful for someone willing to
+write other `:MILPSolver`:
+
+- [test_cuts](test_cuts/README.md) tests dynamic generation of constraints
+
+- [test_dual](test_dual/README.md) tests correct signs of dual variables
+  (never to be given for granted, every LP solver seems to have a different
+  idea about it)
+
+- [test_dynamic](test_dynamic/README.md) compares two `:MILPSolver` for
+  the repeted solution of LPs changing everything that can be changed,
+  useful to test a new `:MILPSolver` against an old an hopefully reliable
+  one
 
 
 ## Getting help
@@ -168,9 +198,9 @@ conduct, and the process for submitting merge requests to us.
   Dipartimento di Informatica  
   Università di Pisa
 
-- **Niccolò Iardella**  
+- **Enrico Calandrini**  
   Dipartimento di Informatica  
-  Università di Pisa
+  Universita' di Pisa
 
 ### Contributors
 
@@ -178,9 +208,9 @@ conduct, and the process for submitting merge requests to us.
   Dipartimento di Informatica  
   Università di Pisa
 
-- **Enrico Calandrini**  
+- **Niccolò Iardella**  
   Dipartimento di Informatica  
-  Universita' di Pisa
+  Università di Pisa
 
 
 ## License
@@ -201,7 +231,8 @@ details about the non-warranty attached to this code are available in the
 license description file.
 
 The authors are not affiliated, associated, authorized, endorsed by, or in
-any way officially connected with IBM, or any of its subsidiaries or its
-affiliates. The names IBM, ILOG and CPLEX as well as related names, marks,
-emblems and images are registered trademarks of their respective owners.
+any way officially connected with IBM or Gurobi, or any of its subsidiaries
+or its affiliates. The names IBM, ILOG, CPLEX and Gurobi as well as related
+names, marks, emblems and images are registered trademarks of their
+respective owners.
 

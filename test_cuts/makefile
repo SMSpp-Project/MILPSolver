@@ -11,7 +11,7 @@
 ##############################################################################
 
 # module name
-NAME = test
+NAME = test_cuts
 
 # basic directory
 DIR = .
@@ -30,7 +30,7 @@ CC = clang++
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-default: $(NAME)
+default: $(DIR)/$(NAME)
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -62,7 +62,7 @@ MOBJ =  $(MILPSOBJ) $(SMS++OBJ)
 # libraries
 MLIB =  $(SMS++LIB) $(MILPSLIB)
 
-$(NAME): $(MOBJ) $(DIR)/test.o
+$(DIR)/$(NAME): $(MOBJ) $(DIR)/test.o
 	$(CC) -o $(DIR)/$(NAME) $^ $(MLIB) $(SW)
 
 # dependencies: every .o from its .C + every recursively included .h- - - - -

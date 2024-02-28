@@ -9,7 +9,7 @@ This executable, given the input parameter n, constructs a "random"
 Linear Program with n `ColVariable`, a "linear objective" 
 (`FRealObjective` with a `LinearFunction` inside) and "linear constraints"
 (`FRowConstraint` with a `LinearFunction` inside) and represent it in an 
-`AbstractBlock` (LPBlock). Moreover, the built ColVariable can have simple
+`AbstractBlock` (LPBlock). Moreover, the built `ColVariable` can have simple
 bound constraints imposed on them, which are implemented as ranged 
 constraints if both rhs and lhs are finite.
 
@@ -59,8 +59,9 @@ core SMS++ library).
   Dipartimento di Informatica  
   Università di Pisa
 
+
 ## License
 
 This code is provided free of charge under the [GNU Lesser General Public
 License version 3.0](https://opensource.org/licenses/lgpl-3.0.html) -
-see the [LICENSE](LICENSE) file for details.
+see the [LICENSE](../LICENSE) file for details.
