@@ -147,7 +147,9 @@ class MILPSolver : public CDASolver
  enum int_par_type_MILP {
   intUseCustomNames = intLastParCDAS , ///< use custom names for rows/columns
   /// Relax [M]ILP by removing integrality constraints for integer variables
-  intRelaxIntVars ,
+  intRelaxIntVars , 
+  intSingleBound , // Force that at maximum one OneVarConstraint can be 
+                   // associated to a single variable
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
@@ -639,6 +641,16 @@ class MILPSolver : public CDASolver
   *    variables and constraints, respectively. The element at idx_to_d*[ i ]
   *    has index ( i + static_*s ), that is, it is the column/row
   *    ( i + static_*s ) of the constraint matrix.
+  * 
+  *  - svar_to_bound : vector of single OneVarConstraint * associated to 
+  *    each static variable. The order of the variables used to sort the 
+  *    array is the one given by Block::get_static_variables.
+  *    NOTE: this is used only if the option intSingleBound is set to 1.
+  *
+  *  - dvar_to_bound : vector of single OneVarConstraint * associated to 
+  *    each dynamic variable. The order of the variables used to sort the 
+  *    array is the one given by Block::get_static_variables.
+  *    NOTE: this is used only if the option intSingleBound is set to 1.
   *
   * Using these vectors of pair we can at any time locate the index of each
   * constraint and variable within the constraint matrix, and viceversa.
@@ -661,6 +673,11 @@ class MILPSolver : public CDASolver
  std::vector< con_int > dcon_to_idx;     ///< from dynamic constraint to index
  std::vector< const FRowConstraint * > idx_to_dcon;
                                          ///< from index to dynamic constraint
+
+ std::vector< const OneVarConstraint * > svar_to_bound; 
+                                         ///< from static variable to bound
+ std::vector< const OneVarConstraint * > dvar_to_bound; 
+                                         /// from dynamic variable to bound
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- FIELDS FOR PROBLEM DESCRIPTION ---------------------*/
@@ -758,6 +775,12 @@ class MILPSolver : public CDASolver
  /// if true, relax [M]ILP by removing integrality constraints
  bool relax_int_vars = false;
 
+ /* if true, no more than one OneVarConstraint can be associated to a
+ *  single variable. 
+ *  Moreover, the vectors svar_to_bound and dvar_to_bound are activated
+ *  to guarantee a direct link between variables and bound. */
+ bool single_bound = false;
+
  /** An array of length at least numcols containing pointers to character
   * strings containing the names of the variables. */
  std::vector< char * > colname;
@@ -813,7 +836,8 @@ class MILPSolver : public CDASolver
  /// gets the active bounds for the specified variable
  // TODO: This should be temporary
  std::vector< OneVarConstraint * > get_active_bounds(
-					     const ColVariable & var ) const;
+					     const ColVariable & var ,
+               bool first_scan = false ) const;
 
 /*--------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */
@@ -976,6 +1000,22 @@ class MILPSolver : public CDASolver
  /// common part of scan_static_constraint() and scan_dynamic_constraint()
 
  void scan_constraint( const FRowConstraint & con , Index & row );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /** Scans a static ColVariable to found the associated bound and fills the 
+  *  dictionaries accordingly
+  *
+  * @param var a reference to a ColVariable */
+
+ void scan_static_variable_bound( const ColVariable & var );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /** Scans a dynamic ColVariable to found the associated bound and fills the 
+  *  dictionaries accordingly
+  *
+  * @param var a reference to a ColVariable */
+
+ void scan_dynamic_variable_bound( const ColVariable & var );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a FRealObjective and fills the vectors of the LP accordingly.

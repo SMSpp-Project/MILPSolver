@@ -904,89 +904,101 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
    un_any_const_dynamic( ci, set_dynamic, un_any_type< FRowConstraint >() );
   }
 
- for( int i = 0 ; i < numcols ; ++i ) {
+ int col = 0;
 
-  auto var = variable_with_index( i );
-  auto active_bounds = get_active_bounds( *var );
+ auto set_bound = [ this , & dj , & col ]( ColVariable & var ) {
+  
+  auto active_bounds = get_active_bounds( var );
 
   // Bounds that will have the dual value set.
   OneVarConstraint * lhs_con = nullptr;
   OneVarConstraint * rhs_con = nullptr;
 
-  auto var_lb = var->get_lb();
-  auto var_ub = var->get_ub();
+  auto var_lb = var.get_lb();
+  auto var_ub = var.get_ub();
 
-  const auto var_is_fixed = var->is_fixed();
+  const auto var_is_fixed = var.is_fixed();
   if( var_is_fixed ) {
-   /* The Variable is fixed. There should be at least one OneVarConstraint
+  /* The Variable is fixed. There should be at least one OneVarConstraint
     * (for this Variable) whose lower and upper bounds are equal to the value
     * of this Variable. If such OneVarConstraint exists, the reduced cost of
     * this Variable will be dual of that OneVarConstraint. If there is no such
     * OneVarConstraint, the reduced cost of this variable will be lost. */
-   var_lb = var->get_value();
-   var_ub = var->get_value();
+    var_lb = var.get_value();
+    var_ub = var.get_value(); //REMOVE
 
-   for( auto b: active_bounds ) {
-    b->set_dual( 0 );
-    if( b->get_lhs() == var_lb && b->get_rhs() == var_lb ) {
-     lhs_con = b;
-     rhs_con = b;
+    for( auto b: active_bounds ) {
+     b->set_dual( 0 );
+     if( b->get_lhs() == var_lb && b->get_rhs() == var_lb ) {
+      lhs_con = b;
+      rhs_con = b;
+      }
      }
-    }
 
-   assert( lhs_con == rhs_con );
-   }
+    assert( lhs_con == rhs_con );
+    }
   else {  // a non-fixed Variable
-   for( auto b: active_bounds ) {
-    b->set_dual( 0 );
+    for( auto b: active_bounds ) {
+     b->set_dual( 0 );
 
-    if( b->get_lhs() >= var_lb ) {
-     var_lb = b->get_lhs();
-     lhs_con = b;
-     }
+     if( b->get_lhs() >= var_lb ) {
+      var_lb = b->get_lhs();
+      lhs_con = b;
+      }
 
-    if( b->get_rhs() <= var_ub ) {
-     var_ub = b->get_rhs();
-     rhs_con = b;
+     if( b->get_rhs() <= var_ub ) {
+      var_ub = b->get_rhs();
+      rhs_con = b;
+      }
      }
     }
-   }
 
-  if( lhs_con && ( dj[ i ] >= 0 ) )
-   lhs_con->set_dual( - dj[ i ] );
+  if( lhs_con && ( dj[ col ] >= 0 ) )
+    lhs_con->set_dual( - dj[ col ] );
   else
-   if( rhs_con && ( dj[ i ] <= 0 ) )
-    rhs_con->set_dual( - dj[ i ] );
-   else
-    if( lhs_con || rhs_con )
-     throw( std::logic_error(
+    if( rhs_con && ( dj[ col ] <= 0 ) )
+     rhs_con->set_dual( - dj[ col ] );
+    else
+     if( lhs_con || rhs_con )
+      throw( std::logic_error(
 	       "GRBMILPSolver::get_dual_solution: invalid dual value." ) );
 
   if( throw_reduced_cost_exception ) {
-   if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
+    if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
     /* The Variable is fixed but it has no associated OneVarConstraint
      * with both bounds equal to the value of the Variable. */
 
-    throw( std::logic_error(
-     "GRBMILPSolver::get_dual_solution: variable with index " +
-     std::to_string( i ) + " is fixed to " +
-     std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
-     "with both bounds equal to the value of this variable." ) );
-    }
-   else
-    if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
+     throw( std::logic_error(
+      "GRBMILPSolver::get_dual_solution: variable with index " +
+      std::to_string( col ) + " is fixed to " +
+      std::to_string( var.get_value() ) + ", but it has no OneVarConstraint" +
+      "with both bounds equal to the value of this variable." ) );
+     }
+    else
+     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
      /* The Variable is not fixed and it has no associated OneVarConstraint.
       * An exception is thrown if it has a finite nonzero bound. */
 
-     if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
-	 ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
-      throw( std::logic_error(
+      if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
+	  ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
+       throw( std::logic_error(
                 "GRBMILPSolver::get_dual_solution: variable with index " +
-		std::to_string( i ) + " has no OneVarConstraint." ) );
-     }
-   }
-  }
+		 std::to_string( col ) + " has no OneVarConstraint." ) );
+      }
+    }
+   // Update variable counter
+   col += 1; 
+  };
+
+ for( auto qb : v_BFS ) {
+  // get all static variables first
+  for( const auto & vi : qb->get_static_variables() )
+   un_any_const_static( vi , set_bound , un_any_type< ColVariable >() );
+  // get all dynamic variables
+  for( const auto & vi : qb->get_dynamic_variables() )
+   un_any_const_dynamic( vi , set_bound , un_any_type< ColVariable >() );
  }  // end( GRBMILPSolver::get_dual_solution )
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -1077,88 +1089,101 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
    un_any_const_dynamic( ci , set_dynamic , un_any_type< FRowConstraint >() );
   }
 
- for( int i = 0 ; i < numcols ; ++i ) {
+ int col = 0;
+ 
+ auto set_bound = [ this , & dj , & col ]( ColVariable & var ) {
+  
+  auto active_bounds = get_active_bounds( var );
+
   // Bounds that will have the dual value set.
   OneVarConstraint * lhs_con = nullptr;
   OneVarConstraint * rhs_con = nullptr;
 
-  auto var = variable_with_index( i );
-  auto active_bounds = get_active_bounds( *var );
+  auto var_lb = var.get_lb();
+  auto var_ub = var.get_ub();
 
-  double var_lb = var->get_lb();
-  double var_ub = var->get_ub();
-
-  const auto var_is_fixed = var->is_fixed();
+  const auto var_is_fixed = var.is_fixed();
   if( var_is_fixed ) {
-   /* The Variable is fixed. There should be at least one OneVarConstraint
+  /* The Variable is fixed. There should be at least one OneVarConstraint
     * (for this Variable) whose lower and upper bounds are equal to the value
-    * of this Variable. If such a OneVarConstraint exists, the reduced cost of
+    * of this Variable. If such OneVarConstraint exists, the reduced cost of
     * this Variable will be dual of that OneVarConstraint. If there is no such
     * OneVarConstraint, the reduced cost of this variable will be lost. */
-   var_lb = var->get_value();
-   var_ub = var->get_value();
+    var_lb = var.get_value();
+    var_ub = var.get_value(); //REMOVE
 
-   for( auto b: active_bounds ) {
-    b->set_dual( 0 );
-    if( ( b->get_lhs() == var_lb ) && ( b->get_rhs() == var_lb ) ) {
-     lhs_con = b;
-     rhs_con = b;
+    for( auto b: active_bounds ) {
+     b->set_dual( 0 );
+     if( b->get_lhs() == var_lb && b->get_rhs() == var_lb ) {
+      lhs_con = b;
+      rhs_con = b;
+      }
+     }
+
+    assert( lhs_con == rhs_con );
+    }
+  else {  // a non-fixed Variable
+    for( auto b: active_bounds ) {
+     b->set_dual( 0 );
+
+     if( b->get_lhs() >= var_lb ) {
+      var_lb = b->get_lhs();
+      lhs_con = b;
+      }
+
+     if( b->get_rhs() <= var_ub ) {
+      var_ub = b->get_rhs();
+      rhs_con = b;
+      }
      }
     }
 
-   assert( lhs_con == rhs_con );
-   }
-  else {  // A non-fixed Variable
-   for( auto b : active_bounds ) {
-    b->set_dual( 0 );
-
-    if( b->get_lhs() >= var_lb ) {
-     var_lb = b->get_lhs();
-     lhs_con = b;
-     }
-
-    if( b->get_rhs() <= var_ub ) {
-     var_ub = b->get_rhs();
-     rhs_con = b;
-     }
-    }
-   }
-
-  if( lhs_con && ( dj[ i ] >= 0 ) )
-   lhs_con->set_dual( - dj[ i ] );
+  if( lhs_con && ( dj[ col ] >= 0 ) )
+    lhs_con->set_dual( - dj[ col ] );
   else
-   if( rhs_con && ( dj[ i ] <= 0 ) )
-    rhs_con->set_dual( - dj[ i ] );
-   else
-    if( lhs_con || rhs_con )
-     throw( std::logic_error(
-	       "GRBMILPSolver::get_dual_direction: invalid dual value" ) );
+    if( rhs_con && ( dj[ col ] <= 0 ) )
+     rhs_con->set_dual( - dj[ col ] );
+    else
+     if( lhs_con || rhs_con )
+      throw( std::logic_error(
+	       "GRBMILPSolver::get_dual_direction: invalid dual value." ) );
 
   if( throw_reduced_cost_exception ) {
-   if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
+    if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
     /* The Variable is fixed but it has no associated OneVarConstraint
      * with both bounds equal to the value of the Variable. */
 
-    throw( std::logic_error(
-     "GRBMILPSolver::get_dual_direction: variable with index " +
-     std::to_string( i ) + " is fixed to " +
-     std::to_string( var->get_value() ) + ", but it has no OneVarConstraint" +
-     "with both bounds equal to the value of this variable." ) );
-    }
-   else
-    if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
+     throw( std::logic_error(
+      "GRBMILPSolver::get_dual_direction: variable with index " +
+      std::to_string( col ) + " is fixed to " +
+      std::to_string( var.get_value() ) + ", but it has no OneVarConstraint" +
+      "with both bounds equal to the value of this variable." ) );
+     }
+    else
+     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
      /* The Variable is not fixed and it has no associated OneVarConstraint.
       * An exception is thrown if it has a finite nonzero bound. */
 
-     if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
-	 ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
-      throw( std::logic_error(
+      if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
+	  ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
+       throw( std::logic_error(
                 "GRBMILPSolver::get_dual_direction: variable with index " +
-		std::to_string( i ) + " has no OneVarConstraint." ) );
-     }
-   }
-  }
+		 std::to_string( col ) + " has no OneVarConstraint." ) );
+      }
+    }
+   // Update variable counter
+   col += 1; 
+  };
+
+ for( auto qb : v_BFS ) {
+  // get all static variables first
+  for( const auto & vi : qb->get_static_variables() )
+   un_any_const_static( vi , set_bound , un_any_type< ColVariable >() );
+  // get all dynamic variables
+  for( const auto & vi : qb->get_dynamic_variables() )
+   un_any_const_dynamic( vi , set_bound , un_any_type< ColVariable >() );
  }  // end( GRBMILPSolver::get_dual_direction )
+}
 
 /*--------------------------------------------------------------------------*/
 
