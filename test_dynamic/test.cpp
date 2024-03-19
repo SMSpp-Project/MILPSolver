@@ -71,6 +71,16 @@
 #define BOUND_FINITE 1
 
 /*--------------------------------------------------------------------------*/
+// if HAVE_CONSTRAINTS == 1, then all bounds contraints are realized using
+// FRowConstraints.
+// if HAVE_CONSTRAINTS == 2, then all bounds contraints are realized using
+// FRowConstraints.
+// NOTE: The option CONTROL_RANGED should be non-zero only when this option is 
+// set to 1.
+
+#define HAVE_CONSTRAINTS 1
+
+/*--------------------------------------------------------------------------*/
 
 // if nonzero, the Solver attached to the LPBlock is detached and re-attached
 // to it at all iterations
@@ -206,7 +216,12 @@ std::vector< ColVariable > * xLP;  // pointer to (static) x LP variables
 
 std::list< ColVariable > * xLPd;  // pointer to (dynamic) x LP variables
 
-std::list< FRowConstraint > * LPbnd;  // FRowConstrait for LPBlock
+#if HAVE_CONSTRAINTS == 1
+  std::list< FRowConstraint > * LPbnd;  // FRowConstrait for LPBlock
+#endif
+#if HAVE_CONSTRAINTS == 2
+  std::list< BoxConstraint > * LPbnd;  // BoxConstrait for LPBlock
+#endif
 
 #if CONTROL_RANGED
   // vector to store information about variable bound: 
@@ -418,13 +433,21 @@ static std::pair< double , double > Generate_lhs_rhs( double const p ) {
 static inline void SetFRow( ColVariable & LPxi )
 {
   LPbnd->resize( LPbnd->size() + 1 );
-  LinearFunction::v_coeff_pair vars_LP( 1 );
-  vars_LP[ 0 ] = std::make_pair( & LPxi , 1 );
-  LPbnd->back().set_function( new LinearFunction( std::move( vars_LP ) ) );
+  #if HAVE_CONSTRAINTS == 1
+    LinearFunction::v_coeff_pair vars_LP( 1 );
+    vars_LP[ 0 ] = std::make_pair( & LPxi , 1 );
+    LPbnd->back().set_function( new LinearFunction( std::move( vars_LP ) ) );
+  #endif
+
+  #if HAVE_CONSTRAINTS == 2
+    LPbnd->back().set_variable( & LPxi );
+  #endif
+
   auto p = dis( rg );
   std::pair< double , double > bounds = Generate_lhs_rhs( p );
   LPbnd->back().set_lhs( bounds.first , eNoMod );
   LPbnd->back().set_rhs( bounds.second , eNoMod );
+
   ++nranged;
   #if CONTROL_RANGED
     if( bounds.first == -INF || bounds.second == INF )
@@ -447,29 +470,56 @@ static void RemoveFRow( AbstractBlock & AB , Range rng )
  #if CONTROL_RANGED
   auto itcontrol = std::next( bound_ranged->begin() , rng.first + nsvar );
  #endif
+
  for( Index i = rng.first ; i < rng.second ; ++i , ++itxd ) {
   if( ! itxd->get_num_active() )
    continue;
   --nranged;
   int numbox = itxd->get_num_active();
   for( int j = 0 ; j < numbox ; ++j ) {
-   std::vector< typename std::list< FRowConstraint >::iterator > rmvd;
-   auto & frow = *(AB.get_dynamic_constraint< FRowConstraint >( "xbnd" ));
-   auto rc = dynamic_cast< FRowConstraint * >( itxd->get_active( 0 ) );
-  if( ! rc ) {
-   cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
-   exit( 1 );
-   }
-   auto to_remove = std::find_if( frow.begin() , frow.end() ,
+   #if HAVE_CONSTRAINTS == 1
+    std::vector< typename std::list< FRowConstraint >::iterator > rmvd;
+    auto & frow = *(AB.get_dynamic_constraint< FRowConstraint >( "xbnd" ));
+    auto rc = dynamic_cast< FRowConstraint * >( itxd->get_active( 0 ) );
+
+    if( ! rc ) {
+      cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
+      exit( 1 );
+     }
+    auto to_remove = std::find_if( frow.begin() , frow.end() ,
 			  [ rc ]( FRowConstraint & x ) {
 			   return( & x == rc );
 			   } );
-   if( to_remove == frow.end() ) {
-    cout << "FRowConstraint not found" << endl;
-    exit( 1 );
+    if( to_remove == frow.end() ) {
+      cout << "FRowConstraint not found" << endl;
+      exit( 1 );
     }
-   rmvd.push_back( to_remove );
-   AB.remove_dynamic_constraints( frow , rmvd ); 
+
+    rmvd.push_back( to_remove );
+    AB.remove_dynamic_constraints( frow , rmvd ); 
+   #endif
+   #if HAVE_CONSTRAINTS == 2
+    std::vector< typename std::list< BoxConstraint >::iterator > rmvd;
+    auto & box = *(AB.get_dynamic_constraint< BoxConstraint >( "xbnd" ));
+    auto rc = dynamic_cast< BoxConstraint * >( itxd->get_active( 0 ) );
+
+    if( ! rc ) {
+      cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
+      exit( 1 );
+     }
+    auto to_remove = std::find_if( box.begin() , box.end() ,
+			  [ rc ]( BoxConstraint & x ) {
+			   return( & x == rc );
+			   } );
+    if( to_remove == box.end() ) {
+      cout << "BoxConstraint not found" << endl;
+      exit( 1 );
+    }
+
+    rmvd.push_back( to_remove );
+    AB.remove_dynamic_constraints( box , rmvd ); 
+   #endif
+
    }
   #if CONTROL_RANGED
     bound_ranged->erase( itcontrol );
@@ -502,23 +552,46 @@ static void RemoveFRow( AbstractBlock & AB , const Subset & sbst )
    continue;
   int numbox = itxd->get_num_active();
   for( int j = 0 ; j < numbox ; ++j ) {
-   std::vector< typename std::list< FRowConstraint >::iterator > rmvd;
-   auto & frow = *(AB.get_dynamic_constraint< FRowConstraint >( "xbnd" ));
-   auto rc = dynamic_cast< FRowConstraint * >( itxd->get_active( 0 ) );
-   if( ! rc ) {
-    cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
-    exit( 1 );
-    }
-   auto to_remove = std::find_if( frow.begin() , frow.end() ,
-			  [ rc ]( FRowConstraint & x ) {
-			   return( & x == rc );
-			   } );
-   if( to_remove == frow.end() ) {
-    cout << "FRowConstraint not found" << endl;
-    exit( 1 );
-    }
-   rmvd.push_back( to_remove );
-   AB.remove_dynamic_constraints( frow , rmvd ); 
+   
+   #if HAVE_CONSTRAINTS == 1
+    std::vector< typename std::list< FRowConstraint >::iterator > rmvd;
+    auto & frow = *(AB.get_dynamic_constraint< FRowConstraint >( "xbnd" ));
+    auto rc = dynamic_cast< FRowConstraint * >( itxd->get_active( 0 ) );
+    if( ! rc ) {
+      cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
+      exit( 1 );
+      }
+    auto to_remove = std::find_if( frow.begin() , frow.end() ,
+          [ rc ]( FRowConstraint & x ) {
+          return( & x == rc );
+          } );
+    if( to_remove == frow.end() ) {
+      cout << "FRowConstraint not found" << endl;
+      exit( 1 );
+      }
+    rmvd.push_back( to_remove );
+    AB.remove_dynamic_constraints( frow , rmvd ); 
+   #endif
+
+   #if HAVE_CONSTRAINTS == 2
+    std::vector< typename std::list< BoxConstraint >::iterator > rmvd;
+    auto & box = *(AB.get_dynamic_constraint< BoxConstraint >( "xbnd" ));
+    auto rc = dynamic_cast< BoxConstraint * >( itxd->get_active( 0 ) );
+    if( ! rc ) {
+      cout << "Unexpected stuff active in to-be-deleted Variable" << endl;
+      exit( 1 );
+      }
+    auto to_remove = std::find_if( box.begin() , box.end() ,
+          [ rc ]( BoxConstraint & x ) {
+          return( & x == rc );
+          } );
+    if( to_remove == box.end() ) {
+      cout << "BoxConstraint not found" << endl;
+      exit( 1 );
+      }
+    rmvd.push_back( to_remove );
+    AB.remove_dynamic_constraints( box , rmvd ); 
+   #endif
    }
   }
  }
@@ -528,9 +601,10 @@ static void RemoveFRow( AbstractBlock & AB , const Subset & sbst )
 static void ChangeFRow( AbstractBlock & AB , const Subset & sbst , 
                 const bool control_rep )
 {
- auto frow = AB.get_dynamic_constraint< FRowConstraint >( "xbnd" );
- Index prev = 0;
- auto frowit = frow->begin();
+ #if HAVE_CONSTRAINTS == 1
+  auto frow = AB.get_dynamic_constraint< FRowConstraint >( "xbnd" );
+  Index prev = 0;
+  auto frowit = frow->begin();
 
  #if CONTROL_RANGED
   auto itcontrol = bound_ranged->begin();
@@ -572,6 +646,22 @@ static void ChangeFRow( AbstractBlock & AB , const Subset & sbst ,
     (*frowit).set_rhs( bounds.second );
   #endif
  }
+ #endif // HAVE_CONSTRAINTS == 1
+
+ #if HAVE_CONSTRAINTS == 2
+  auto box = AB.get_dynamic_constraint< BoxConstraint >( "xbnd" );
+  Index prev = 0;
+  auto boxit = box->begin();
+
+  for( auto ind : sbst ) {
+    boxit = std::next( boxit , ind - prev );
+    prev = ind;
+    auto p = dis( rg );
+    std::pair< double , double > bounds = Generate_lhs_rhs( p );
+    (*boxit).set_lhs( bounds.first );
+    (*boxit).set_rhs( bounds.second );
+  }
+ #endif
 }
 
 /*--------------------------------------------------------------------------*/
@@ -579,44 +669,58 @@ static void ChangeFRow( AbstractBlock & AB , const Subset & sbst ,
 static void ChangeFRow( AbstractBlock & AB , Range rng ,
                   const bool control_rep )
 {
- auto frow = AB.get_dynamic_constraint< FRowConstraint >( "xbnd" );
- auto frowit = std::next( frow->begin() , rng.first );
- #if CONTROL_RANGED
-  auto itcontrol = std::next( bound_ranged->begin() , rng.first );
- #endif
- for( Index i = rng.first ; i < rng.second ; ++i , ++frowit ) {
+ #if HAVE_CONSTRAINTS == 1
+  auto frow = AB.get_dynamic_constraint< FRowConstraint >( "xbnd" );
+  auto frowit = std::next( frow->begin() , rng.first );
   #if CONTROL_RANGED
-    double lhs;
-    double rhs;
-    if( *itcontrol == false ) {
-      // we have to check that the bound doesn't become ranged
-      auto p = dis( rg );
-      lhs = p < 0.5 ? p : -INF;
-      rhs = p < 0.5 ? INF : p;
-      }
-    else{ // any situation could be reproduced
+    auto itcontrol = std::next( bound_ranged->begin() , rng.first );
+  #endif
+  for( Index i = rng.first ; i < rng.second ; ++i , ++frowit ) {
+    #if CONTROL_RANGED
+      double lhs;
+      double rhs;
+      if( *itcontrol == false ) {
+        // we have to check that the bound doesn't become ranged
+        auto p = dis( rg );
+        lhs = p < 0.5 ? p : -INF;
+        rhs = p < 0.5 ? INF : p;
+        }
+      else{ // any situation could be reproduced
+        auto p = dis( rg );
+        std::pair< double , double > bounds = Generate_lhs_rhs( p );
+        lhs = bounds.first;
+        rhs = bounds.second;
+        if( control_rep == true ){
+          if( lhs == -INF )
+          lhs = 0;
+          else if( rhs == INF ){
+          rhs = 1;    
+          }
+        }
+        }
+      (*frowit).set_lhs( lhs );
+      (*frowit).set_rhs( rhs );
+      ++itcontrol;
+    #else
       auto p = dis( rg );
       std::pair< double , double > bounds = Generate_lhs_rhs( p );
-      lhs = bounds.first;
-      rhs = bounds.second;
-      if( control_rep == true ){
-        if( lhs == -INF )
-         lhs = 0;
-        else if( rhs == INF ){
-         rhs = 1;    
-        }
-       }
-      }
-    (*frowit).set_lhs( lhs );
-    (*frowit).set_rhs( rhs );
-    ++itcontrol;
-  #else
-    auto p = dis( rg );
-    std::pair< double , double > bounds = Generate_lhs_rhs( p );
-    (*frowit).set_lhs( bounds.first );
-    (*frowit).set_rhs( bounds.second );
+      (*frowit).set_lhs( bounds.first );
+      (*frowit).set_rhs( bounds.second );
+    #endif
+  }
+  #endif // HAVE_CONSTRAINTS == 1
+
+  #if HAVE_CONSTRAINTS == 2
+   auto box = AB.get_dynamic_constraint< BoxConstraint >( "xbnd" );
+   auto boxit = std::next( box->begin() , rng.first );
+
+   for( Index i = rng.first ; i < rng.second ; ++i , ++boxit ) {
+      auto p = dis( rg );
+      std::pair< double , double > bounds = Generate_lhs_rhs( p );
+      (*boxit).set_lhs( bounds.first );
+      (*boxit).set_rhs( bounds.second );
+   }
   #endif
- }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -885,10 +989,17 @@ int main( int argc , char **argv )
  // define bound constraints- - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- LPbnd = new std::list< FRowConstraint >;
+ #if HAVE_CONSTRAINTS == 1
+  LPbnd = new std::list< FRowConstraint >;
+ #endif
+ #if HAVE_CONSTRAINTS == 2
+  LPbnd = new std::list< BoxConstraint >;
+ #endif
+ 
  #if CONTROL_RANGED
   bound_ranged = new std::vector< bool >;
  #endif
+
  auto & LPx = *(LPBlock->get_static_variable_v< ColVariable >( "x" ));
  for( Index i = 0 ; i < nsvar ; ++i )
   SetFRow( LPx[ i ] );
@@ -1176,14 +1287,27 @@ int main( int argc , char **argv )
    auto LPxd_it = LPxd->begin();
    LPxd_it = std::next( LPxd_it , ndvar );
    
-   LPbnd = new std::list< FRowConstraint >;
+    #if HAVE_CONSTRAINTS == 1
+      LPbnd = new std::list< FRowConstraint >;
+    #endif
+    #if HAVE_CONSTRAINTS == 2
+      LPbnd = new std::list< BoxConstraint >;
+    #endif
 
    for( ; LPxd_it != LPxd->end() ; )
     SetFRow( *(LPxd_it++) );
 
-   if( ! LPbnd->empty() )
-    LPBlock->add_dynamic_constraints(
+   if( ! LPbnd->empty() ){
+    #if HAVE_CONSTRAINTS == 1
+     LPBlock->add_dynamic_constraints(
 	   *(LPBlock->get_dynamic_constraint< FRowConstraint >( "xbnd" )) , *LPbnd );
+    #endif
+    
+    #if HAVE_CONSTRAINTS == 2
+     LPBlock->add_dynamic_constraints(
+	   *(LPBlock->get_dynamic_constraint< BoxConstraint >( "xbnd" )) , *LPbnd );
+    #endif
+    }
 
    // update nvar and ndvar
    nvar += tochange;
