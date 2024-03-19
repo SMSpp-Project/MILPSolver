@@ -39,9 +39,10 @@ ComputeConfig # exact type of the ComputeConfig object
 1  # f_diff == 0 ==> all non-provided parameters are set to the default value
    # f_diff == 1 ==> all non-provided parameters are not changed
 
-2  # number of integer parameters
+3  # number of integer parameters
 # now all the integer parameters
 intLogVerb 0
+intSingleBound 1
 intThrowReducedCostException 1
 #CPXPARAM_Preprocessing_Presolve  0
 #CPXPARAM_Preprocessing_QCPDuals 2 # e.g. CPX_QCPDUALS_FORCE
