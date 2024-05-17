@@ -1106,10 +1106,19 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 
  constant_value += obj->get_constant_term();
 
+ // important note: a ColVariable may appear in multiple FRealObjective, this
+ // meaning that all the corresponding terms will be present in the final
+ // objective summed together (the Objective of a Block is the sum of its own
+ // Objective plus the Objective of all its sub-Block, recursively); this is
+ // why the "+=" below, each time a new linear or quadratic coefficient is
+ // found it has to be *added* to ones already there (initialised to 0, hence
+ // if the ColVariable appears only once this is equivalent to the fact that
+ // the final coefficients are the ones found there)
+
  if( auto * lf = dynamic_cast< const LinearFunction * >(
 						 obj->get_function() ) ) {
   for( auto el : lf->get_v_var() )
-   objective[ index_of_variable( el.first ) ] = el.second;
+   objective[ index_of_variable( el.first ) ] += el.second;
 
   return;
   }
@@ -1118,8 +1127,8 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 						 obj->get_function() ) ) {
   for( auto el : qf->get_v_var() ) {
    auto k = index_of_variable( std::get< 0 >( el ) );
-   objective[ k ] = std::get< 1 >( el );
-   q_objective[ k ] = std::get< 2 >( el );
+   objective[ k ] += std::get< 1 >( el );
+   q_objective[ k ] += std::get< 2 >( el );
    }
 
   return;
@@ -1401,7 +1410,19 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
 
  auto * f = mod->function();
 
+ // important note: a ColVariable may appear in multiple FRealObjective, this
+ // meaning that all the corresponding terms will be present in the final
+ // objective summed together (the Objective of a Block is the sum of its own
+ // Objective plus the Objective of all its sub-Block, recursively); this has
+ // to be properly taken into account
+
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // we exploit the delta() vector of C05FunctionModLin, giving the difference
+ // between the new and the old value of the linear coefficient, to update
+ // the objective[] values without having to recompute them: since they are
+ // (potentially) a sum of terms, recomputing them would require fetching
+ // back all of the terms, while the delta() can just be applied to the sum
+
  if( auto * modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
   if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
