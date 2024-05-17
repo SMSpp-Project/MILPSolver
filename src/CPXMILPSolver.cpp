@@ -841,7 +841,6 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       lower_bound = -Inf< OFValue >();
       break;
       }
-     lower_bound += constant_value;
 
     case( kOK ):
      CPXgetobjval( env , lp , & lower_bound );
@@ -884,7 +883,6 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       upper_bound = Inf< OFValue >();
       break;
       }
-     upper_bound += constant_value;
 
     case( kOK ):
      CPXgetobjval( env , lp , & upper_bound );

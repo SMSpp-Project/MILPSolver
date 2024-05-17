@@ -486,10 +486,10 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
 {
  OFValue lower_bound = 0;
  int sense;
- Highs_getObjectiveSense( highs , & sense );
+ Highs_getObjectiveSense( highs , &sense );
 
  switch( sense ) {
-  case( kHighsObjSenseMinimize ):  // Minimization problem- - - - - - - - - - - - - - - -
+  case( kHighsObjSenseMinimize ):  // Minimization problem - - - - - - - - - -
    switch( sol_status ) {
     case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
@@ -508,11 +508,10 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
      // (the problem may be unbounded and HiGHS has not detected it yet).
      // Therefore, in this case, the lower bound should be -Inf.
      lower_bound = -Inf< OFValue >();
-     break;
     }
    break;
 
-  case( kHighsObjSenseMaximize ):  // Maximization problem- - - - - - - - - - - - - - - -
+  case( kHighsObjSenseMaximize ):  // Maximization problem - - - - - - - - - -
    switch( sol_status ) {
     case( kUnbounded ):  lower_bound = Inf< OFValue >(); break;
     case( kInfeasible ): lower_bound = -Inf< OFValue >(); break;
@@ -525,24 +524,18 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
       lower_bound = - Inf< OFValue >();
       break;
       }
-     lower_bound += constant_value;
 
     case( kOK ):
-
      lower_bound = Highs_getObjectiveValue( highs );
      lower_bound += constant_value;
      break;
 
-    default:
-     // Same as above
+    default:  // Same as above
      lower_bound = -Inf< OFValue >();
-     break;
     }
    break;
 
-  default:
-   throw( std::runtime_error( "Objective type not yet defined" ) );
-   break;
+  default: throw( std::runtime_error( "Objective type not yet defined" ) );
   }
 
  return( lower_bound );
@@ -554,10 +547,10 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
 {
  OFValue upper_bound = 0;
  int sense;
- Highs_getObjectiveSense( highs , & sense );
+ Highs_getObjectiveSense( highs , &sense );
 
  switch( sense ) {
-  case( kHighsObjSenseMinimize ):  // Minimization problem- - - - - - - - - - - - - - - -
+  case( kHighsObjSenseMinimize ):  // Minimization problem - - - - - - - - - -
    switch( sol_status ) {
     case( kUnbounded ):  upper_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): upper_bound = Inf< OFValue >(); break;
@@ -570,10 +563,8 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
       upper_bound = Inf< OFValue >();
       break;
       }
-     upper_bound += constant_value;
 
     case( kOK ):
-
      upper_bound = Highs_getObjectiveValue( highs );
      upper_bound += constant_value;
      break;
@@ -584,11 +575,10 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
      // (the problem may be unbounded and HiGHS has not detected it yet).
      // Therefore, in this case, the upper bound should be +Inf.
      upper_bound = Inf< OFValue >();
-     break;
     }
    break;
 
-  case( kHighsObjSenseMaximize ):  // Maximization problem- - - - - - - - - - - - - - - -
+  case( kHighsObjSenseMaximize ):  // Maximization problem - - - - - - - - - -
    switch( sol_status ) {
     case( kUnbounded ):  upper_bound = Inf< OFValue >(); break;
     case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
@@ -602,16 +592,14 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
      upper_bound += constant_value;
      break;
 
-    default:
-     // Same as above
+    default:  // Same as above
      upper_bound = Inf< OFValue >();
-     break;
     }
    break;
 
-   // Sense not defined
- default: throw( std::runtime_error( "Objective type not yet defined" ) );
- }
+  // Sense not defined
+  default: throw( std::runtime_error( "Objective type not yet defined" ) );
+  }
 
  return( upper_bound );
  }
@@ -621,15 +609,16 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
 bool HiGHSMILPSolver::has_var_solution( void )
 {
  int sol_status , status;
- status = Highs_getIntInfoValue( highs , "primal_solution_status" , & sol_status );
+ status = Highs_getIntInfoValue( highs , "primal_solution_status" ,
+				 &sol_status );
 
  if( status == kHighsStatusError )
   throw( std::runtime_error( 
-  "An error occurred in getting basis_validity with Highs_getIntInfoValue" ) );
+  "An error occurred in getting primal_solution_status with Highs_getIntInfoValue" ) );
 
- if( sol_status == kHighsSolutionStatusFeasible ) // The solution is feasible
+ if( sol_status == kHighsSolutionStatusFeasible )  // the solution is feasible
   return( true );
- else // There is no solution information or the solution is not feasible
+ else  // there is no solution information or the solution is not feasible
   return( false );
  }
 

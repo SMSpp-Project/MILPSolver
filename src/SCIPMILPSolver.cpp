@@ -390,25 +390,24 @@ int SCIPMILPSolver::compute( bool changedvars )
 
 Solver::OFValue SCIPMILPSolver::get_lb( void )
 {
- OFValue lower_bound = 0;
+ OFValue lower_bound = constant_value;
 
  switch( SCIPgetObjsense( scip ) ) {
   case( SCIP_OBJSENSE_MINIMIZE ):
    switch( sol_status ) {
     case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
-    default:          lower_bound = SCIPgetDualbound( scip ) + constant_value;
+    default:             lower_bound += SCIPgetDualbound( scip );
     }
    break;
   case( SCIP_OBJSENSE_MAXIMIZE ):
    switch( sol_status ) {
     case( kUnbounded ):  lower_bound = Inf< OFValue >();  break;
     case( kInfeasible ): lower_bound = -Inf< OFValue >(); break;
-    default:          lower_bound = SCIPgetPrimalbound( scip ) + constant_value;
+    default:             lower_bound += SCIPgetPrimalbound( scip );
     }
    break;
-  default:
-   throw( std::runtime_error( "Objective type not yet defined" ) );
+  default: throw( std::runtime_error( "Objective type not yet defined" ) );
   }
 
  return( lower_bound );
@@ -418,25 +417,26 @@ Solver::OFValue SCIPMILPSolver::get_lb( void )
 
 Solver::OFValue SCIPMILPSolver::get_ub( void )
 {
- OFValue upper_bound = 0;
+ OFValue upper_bound = constant_value;
 
  switch( SCIPgetObjsense( scip ) ) {
   case( SCIP_OBJSENSE_MINIMIZE ):
    switch( sol_status ) {
     case( kUnbounded ):  upper_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): upper_bound = Inf< OFValue >();  break;
-    default:          upper_bound = SCIPgetPrimalbound( scip ) + constant_value;
+    default:             upper_bound += SCIPgetPrimalbound( scip );
     }
    break;
+
   case( SCIP_OBJSENSE_MAXIMIZE ):
    switch( sol_status ) {
     case( kUnbounded ):  upper_bound = Inf< OFValue >();  break;
     case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
-    default:          upper_bound = SCIPgetDualbound( scip ) + constant_value;
+    default:             upper_bound += SCIPgetDualbound( scip );
     }
    break;
-  default:
-   throw( std::runtime_error( "Objective type not yet defined" ) );
+
+  default: throw( std::runtime_error( "Objective type not yet defined" ) );
   }
 
  return( upper_bound );

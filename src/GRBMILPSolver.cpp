@@ -588,6 +588,8 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
  int sense;
  GRBgetintattr( model , GRB_INT_ATTR_MODELSENSE , & sense );
 
+ int m_status;
+
  switch( sense ) {
   case( GRB_MINIMIZE ):  // Minimization problem- - - - - - - - - - - - - - - -
    switch( sol_status ) {
@@ -596,14 +598,14 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
-      int m_status;
-      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
-      // when a gurobi model stop with cutoff status, 
-      // no solution information is available
-      if(m_status == GRB_CUTOFF)
-        throw( std::runtime_error( "No solution information is available whit GRB_CUTOFF status" ) );
+     GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+     // when a gurobi model stop with cutoff status, 
+     // no solution information is available
+     if( m_status == GRB_CUTOFF )
+      throw( std::runtime_error(
+	     "No solution information is available with GRB_CUTOFF status" ) );
 
-      GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , & lower_bound );
+      GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &lower_bound );
       lower_bound += constant_value;
       break;
 
@@ -630,17 +632,15 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       lower_bound = - Inf< OFValue >();
       break;
       }
-     lower_bound += constant_value;
-     break;
 
     case( kOK ):
-     int m_status;
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
-     if(m_status == GRB_CUTOFF)
-       throw( std::runtime_error( "No solution information is available whit GRB_CUTOFF status" ) );
-     GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , & lower_bound );
+     if( m_status == GRB_CUTOFF )
+      throw( std::runtime_error(
+	     "No solution information is available with GRB_CUTOFF status" ) );
+     GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
      lower_bound += constant_value;
      break;
 
@@ -665,7 +665,9 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
 {
  OFValue upper_bound = 0;
  int sense;
- GRBgetintattr( model , GRB_INT_ATTR_MODELSENSE , & sense );
+ GRBgetintattr( model , GRB_INT_ATTR_MODELSENSE , &sense );
+
+ int m_status;
 
  switch( sense ) {
   case( GRB_MINIMIZE ):  // Minimization problem- - - - - - - - - - - - - - - -
@@ -681,17 +683,15 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
       upper_bound = Inf< OFValue >();
       break;
       }
-     upper_bound += constant_value;
-     break;
 
     case( kOK ):
-     int m_status;
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
-     if(m_status == GRB_CUTOFF)
-       throw( std::runtime_error( "No solution information is available whit GRB_CUTOFF status" ) );
-     GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , & upper_bound );
+     if( m_status == GRB_CUTOFF )
+      throw( std::runtime_error(
+	    "No solution information is available with GRB_CUTOFF status" ) );
+     GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &upper_bound );
      upper_bound += constant_value;
      break;
 
@@ -713,13 +713,13 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
-     int m_status;
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
-     if(m_status == GRB_CUTOFF)
-       throw( std::runtime_error( "No solution information is available whit GRB_CUTOFF status" ) );
-     GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , & upper_bound );
+     if( m_status == GRB_CUTOFF )
+      throw( std::runtime_error(
+	     "No solution information is available with GRB_CUTOFF status" ) );
+     GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &upper_bound );
      upper_bound += constant_value;
      break;
 
