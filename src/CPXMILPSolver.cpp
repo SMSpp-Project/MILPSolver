@@ -1589,6 +1589,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    // Linear objective function
 
    Subset idxs;
+   
    if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
     idxs = lf->map_index( modl->vars() , modlr->range() );
    else
@@ -1602,13 +1603,27 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nvit = nval.begin();
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
-   auto & cp = lf->get_v_var();
 
-   for( auto v :  modl->vars() )
+   // we exploit the delta() vector of C05FunctionModLin, giving the difference
+   // between the new and the old value of the linear coefficient, to update
+   // the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     *(nvit++) = cp[ idx ].second;
-     *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
+     int vidx = index_of_variable( var );
+     *(cidxit++) = vidx;
+      
+     // Retrieve old coefficient
+     double oldval;
+     CPXgetobj( env , lp , &oldval , vidx , vidx );
+
+     // Update new coefficient
+     *(nvit++) = oldval + modl->delta()[ i ];
      }
+   }
 
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
@@ -1616,6 +1631,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
+   
    }
 
   if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
