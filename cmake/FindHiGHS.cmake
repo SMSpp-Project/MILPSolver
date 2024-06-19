@@ -48,8 +48,8 @@ if (UNIX)
 else ()
     # Windows (usually C:)
     set(HiGHS_DIRS "C:")
-    set(HiGHS_LIB_PATH_SUFFIXES build/RELEASE/bin)
-    set(HiGHS_LIB_PATH_SUFFIXES_DEBUG build/DEBUG/bin)
+    set(HiGHS_LIB_PATH_SUFFIXES build/RELEASE/bin build/bin/Release)
+    set(HiGHS_LIB_PATH_SUFFIXES_DEBUG build/DEBUG/bin build/bin/Debug)
 endif ()
 
 # ----- Find the path to HiGHS ---------------------------------------------- #
