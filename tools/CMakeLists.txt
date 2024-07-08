@@ -23,8 +23,7 @@ if (MILPSolver_USE_SCIP)
     # ----- SCIP Solver tool ------------------------------------------------ #
     add_executable(scip_pars scip_pars.cpp)
     target_compile_features(scip_pars PRIVATE cxx_std_17)
-    target_link_libraries(scip_pars PUBLIC SMS++::MILPSolver)
-    target_include_directories(scip_pars PRIVATE ${SCIP_INCLUDE_DIRS})
+    target_link_libraries(scip_pars PRIVATE SMS++::MILPSolver)
 
     # ----- Install instructions -------------------------------------------- #
     include(GNUInstallDirs)
