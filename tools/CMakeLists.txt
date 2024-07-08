@@ -56,13 +56,4 @@ if (MILPSolver_USE_HiGHS)
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif ()
 
-# ----- MILP Solver tool ---------------------------------------------------- #
-add_executable(milp_solver solver.cpp)
-target_link_libraries(milp_solver PRIVATE SMS++::MILPSolver)
-
-# ----- Install instructions ------------------------------------------------ #
-include(GNUInstallDirs)
-install(TARGETS milp_solver
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
 # --------------------------------------------------------------------------- #

@@ -178,7 +178,7 @@ endif ()
 add_library(${modNamespace}::${modName} ALIAS ${modName})
 
 # ----- Subdirectories ------------------------------------------------------ #
-#add_subdirectory(tools)
+add_subdirectory(tools)
 
 if (BUILD_TESTING)
     add_subdirectory(test_dual)
