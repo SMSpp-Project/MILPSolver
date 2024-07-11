@@ -11,7 +11,7 @@ if (MILPSolver_USE_CPLEX)
     # ----- CPX Solver tool ------------------------------------------------- #
     add_executable(cpx_pars cpx_pars.cpp)
     target_compile_features(cpx_pars PRIVATE cxx_std_17)
-    target_link_libraries(cpx_pars PRIVATE SMS++::MILPSolver)
+    target_link_libraries(cpx_pars PRIVATE CPLEX::Cplex)
 
     # ----- Install instructions -------------------------------------------- #
     include(GNUInstallDirs)
@@ -23,7 +23,7 @@ if (MILPSolver_USE_SCIP)
     # ----- SCIP Solver tool ------------------------------------------------ #
     add_executable(scip_pars scip_pars.cpp)
     target_compile_features(scip_pars PRIVATE cxx_std_17)
-    target_link_libraries(scip_pars PRIVATE SMS++::MILPSolver)
+    target_link_libraries(scip_pars PRIVATE SCIP::SCIP)
 
     # ----- Install instructions -------------------------------------------- #
     include(GNUInstallDirs)
@@ -35,7 +35,7 @@ if (MILPSolver_USE_GUROBI)
     # ----- GRB Solver tool ------------------------------------------------- #
     add_executable(grb_pars grb_pars.cpp)
     target_compile_features(grb_pars PRIVATE cxx_std_17)
-    target_link_libraries(grb_pars PRIVATE SMS++::MILPSolver)
+    target_link_libraries(grb_pars PRIVATE GUROBI::Gurobi)
 
     # ----- Install instructions -------------------------------------------- #
     include(GNUInstallDirs)
@@ -47,7 +47,7 @@ if (MILPSolver_USE_HiGHS)
     # ----- HIGHS Solver tool ----------------------------------------------- #
     add_executable(highs_pars highs_pars.cpp)
     target_compile_features(highs_pars PRIVATE cxx_std_17)
-    target_link_libraries(highs_pars PRIVATE SMS++::MILPSolver)
+    target_link_libraries(highs_pars PRIVATE HiGHS::HiGHS)
 
     # ----- Install instructions -------------------------------------------- #
     include(GNUInstallDirs)
