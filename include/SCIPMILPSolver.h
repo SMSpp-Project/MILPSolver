@@ -194,6 +194,10 @@ class SCIPMILPSolver : public MILPSolver
  bool is_dual_feasible( void ) override;
 
  /// writes the current dual solution in the Block
+ /* NOTE: SCIP sometimes performs a presolve that does not allow to
+  * retrieve dual information. If this problem is found a
+  * possible solution is to set the parameter presolving/maxrounds
+  * to 0. */
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
  /// tells whether a dual unbounded direction is available
