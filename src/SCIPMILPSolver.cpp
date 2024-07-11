@@ -520,7 +520,15 @@ bool SCIPMILPSolver::has_dual_solution( void )
 {
  SCIP_Bool has_dual_solution;
 
- has_dual_solution = SCIPisDualSolAvailable( scip , FALSE );
+ // Get verbosity of the  Solver
+ int verb;
+ SCIP_CALL_ABORT( SCIPgetIntParam( scip , "display/verblevel" , & verb ) );
+
+ bool print = FALSE;
+ if( verb > 4 )
+  print = TRUE;
+
+ has_dual_solution = SCIPisDualSolAvailable( scip , print );
  
  if( has_dual_solution )
    return( true );
