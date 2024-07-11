@@ -546,7 +546,7 @@ void SCIPMILPSolver::get_dual_solution( Configuration * solc )
   for( int i = 0 ; i < numrows ; ++i )
    SCIP_CALL_ABORT( SCIPgetDualSolVal( scip , cons[ i ] , & pi[ i ] , NULL) );
 
- for( int j = 0 ; j < numrows ; ++j )
+ for( int j = 0 ; j < numcols ; ++j )
   dj[ j ] = SCIPgetVarRedcost( scip , vars[ j ] );
   
  int row = 0;
