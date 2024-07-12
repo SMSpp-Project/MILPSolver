@@ -11,7 +11,7 @@ function(remove_dots VERSION OUTPUT_VAR)
     set(${OUTPUT_VAR} ${_VERSION_NO_DOTS} PARENT_SCOPE)
 endfunction()
 
-set(MILPSOLVER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+set(MILPSolver_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
 # ----- Parameter generators ------------------------------------------------ #
 
@@ -19,8 +19,8 @@ if (MILPSolver_USE_CPLEX)
     # Remove dots from CPLEX version
     remove_dots(${CPLEX_VERSION} CPLEX_VERSION_NO_DOTS)
 
-    set(CPLEX_DEFS_FILE ${MILPSOLVER_INCLUDE_DIR}/CPX${CPLEX_VERSION_NO_DOTS}_defs.h)
-    set(CPLEX_MAPS_FILE ${MILPSOLVER_INCLUDE_DIR}/CPX${CPLEX_VERSION_NO_DOTS}_maps.h)
+    set(CPLEX_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/CPX${CPLEX_VERSION_NO_DOTS}_defs.h)
+    set(CPLEX_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/CPX${CPLEX_VERSION_NO_DOTS}_maps.h)
 
     # Only add custom command if files do not exist
     if (NOT (EXISTS ${CPLEX_DEFS_FILE} AND EXISTS ${CPLEX_MAPS_FILE}))
@@ -54,8 +54,8 @@ if (MILPSolver_USE_SCIP)
     # Remove dots from SCIP version
     remove_dots(${SCIP_VERSION} SCIP_VERSION_NO_DOTS)
 
-    set(SCIP_DEFS_FILE ${MILPSOLVER_INCLUDE_DIR}/SCIP${SCIP_VERSION_NO_DOTS}_defs.h)
-    set(SCIP_MAPS_FILE ${MILPSOLVER_INCLUDE_DIR}/SCIP${SCIP_VERSION_NO_DOTS}_maps.h)
+    set(SCIP_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/SCIP${SCIP_VERSION_NO_DOTS}_defs.h)
+    set(SCIP_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/SCIP${SCIP_VERSION_NO_DOTS}_maps.h)
 
     # Only add custom command if files do not exist
     if (NOT (EXISTS ${SCIP_DEFS_FILE} AND EXISTS ${SCIP_MAPS_FILE}))
@@ -89,8 +89,8 @@ if (MILPSolver_USE_GUROBI)
     # Remove dots from GUROBI version
     remove_dots(${GUROBI_VERSION} GUROBI_VERSION_NO_DOTS)
 
-    set(GUROBI_DEFS_FILE ${MILPSOLVER_INCLUDE_DIR}/GRB${GUROBI_VERSION_NO_DOTS}_defs.h)
-    set(GUROBI_MAPS_FILE ${MILPSOLVER_INCLUDE_DIR}/GRB${GUROBI_VERSION_NO_DOTS}_maps.h)
+    set(GUROBI_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/GRB${GUROBI_VERSION_NO_DOTS}_defs.h)
+    set(GUROBI_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/GRB${GUROBI_VERSION_NO_DOTS}_maps.h)
 
     # Only add custom command if files do not exist
     if (NOT (EXISTS ${GUROBI_DEFS_FILE} AND EXISTS ${GUROBI_MAPS_FILE}))
@@ -124,8 +124,8 @@ if (MILPSolver_USE_HiGHS)
     # Remove dots from HiGHS version
     remove_dots(${HiGHS_VERSION} HiGHS_VERSION_NO_DOTS)
 
-    set(HiGHS_DEFS_FILE ${MILPSOLVER_INCLUDE_DIR}/HiGHS${HiGHS_VERSION_NO_DOTS}_defs.h)
-    set(HiGHS_MAPS_FILE ${MILPSOLVER_INCLUDE_DIR}/HiGHS${HiGHS_VERSION_NO_DOTS}_maps.h)
+    set(HiGHS_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/HiGHS${HiGHS_VERSION_NO_DOTS}_defs.h)
+    set(HiGHS_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/HiGHS${HiGHS_VERSION_NO_DOTS}_maps.h)
 
     # Only add custom command if files do not exist
     if (NOT (EXISTS ${HiGHS_DEFS_FILE} AND EXISTS ${HiGHS_MAPS_FILE}))
