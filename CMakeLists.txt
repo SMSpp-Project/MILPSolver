@@ -117,14 +117,6 @@ configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
 add_library(${modName})
 target_compile_features(${modName} PUBLIC cxx_std_17)
 
-# When linking other targets to the library with target_link_libraries(),
-# PRIVATE means that the libraries will be linked only to this library,
-# PUBLIC means they will be linked also to the targets that depend on this
-# library, INTERFACE means they will be linked only to the targets that depend
-# on this library.
-# NOTE link SMS++ lib before adding *_pars deps since the latter need getopt lib
-target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
-
 # Ensure that the executables from /tools are run before adding the /include
 # directory to generate the necessary *_defs.h and *_maps.h files of the correct
 # solver version installed on the system, if they are not already present
@@ -167,6 +159,13 @@ target_include_directories(
         ${modName} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include/${modNamespace}>)
+
+# When linking other targets to the library with target_link_libraries(),
+# PRIVATE means that the libraries will be linked only to this library,
+# PUBLIC means they will be linked also to the targets that depend on this
+# library, INTERFACE means they will be linked only to the targets that depend
+# on this library.
+target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
 
 if (MILPSolver_USE_CPLEX)
     message(STATUS "MILPSolver: CPLEX found, configuring CPXMILPSolver")
