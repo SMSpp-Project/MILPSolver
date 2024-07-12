@@ -121,19 +121,19 @@ target_compile_features(${modName} PUBLIC cxx_std_17)
 # directory to generate the necessary *_defs.h and *_maps.h files of the correct
 # solver version installed on the system, if they are not already present
 # Add dependencies for tools executables
-if (MILPSolver_USE_CPLEX)
+if (GENERATE_CPLEX_HEADERS)
     add_dependencies(${modName} cpx_pars)
 endif ()
 
-if (MILPSolver_USE_SCIP)
+if (GENERATE_SCIP_HEADERS)
     add_dependencies(${modName} scip_pars)
 endif ()
 
-if (MILPSolver_USE_GUROBI)
+if (GENERATE_GUROBI_HEADERS)
     add_dependencies(${modName} grb_pars)
 endif ()
 
-if (MILPSolver_USE_HiGHS)
+if (GENERATE_HIGHS_HEADERS)
     add_dependencies(${modName} highs_pars)
 endif ()
 
