@@ -105,6 +105,8 @@ if (MILPSolver_USE_HiGHS)
     endif ()
 endif ()
 
+add_subdirectory(tools)
+
 # ----- Configuration header ------------------------------------------------ #
 # This will generate a *Config.h header in the build directory.
 configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
@@ -114,6 +116,26 @@ configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
 # be STATIC or SHARED, so no reason to do it now.
 add_library(${modName})
 target_compile_features(${modName} PUBLIC cxx_std_17)
+
+# Ensure that the executables from /tools are run before adding the /include
+# directory to generate the necessary *_defs.h and *_maps.h files of the correct
+# solver version installed on the system, if they are not already present
+# Add dependencies for tools executables
+if (MILPSolver_USE_CPLEX)
+    add_dependencies(${modName} cpx_pars)
+endif ()
+
+if (MILPSolver_USE_SCIP)
+    add_dependencies(${modName} scip_pars)
+endif ()
+
+if (MILPSolver_USE_GUROBI)
+    add_dependencies(${modName} grb_pars)
+endif ()
+
+if (MILPSolver_USE_HiGHS)
+    add_dependencies(${modName} highs_pars)
+endif ()
 
 # When adding source files with target_sources(), PRIVATE means that the files
 # should only be added to this library, whereas PUBLIC means they should be
@@ -147,7 +169,7 @@ target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
 
 if (MILPSolver_USE_CPLEX)
     message(STATUS "MILPSolver: CPLEX found, configuring CPXMILPSolver")
-    target_include_directories(${modName} PUBLIC ${CPLEX_INCLUDE_DIRS}) 
+    target_include_directories(${modName} PUBLIC ${CPLEX_INCLUDE_DIRS})
     target_sources(${modName} PRIVATE src/CPXMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC CPLEX::Cplex)
 endif ()
@@ -161,14 +183,14 @@ endif ()
 
 if (MILPSolver_USE_GUROBI)
     message(STATUS "MILPSolver: GUROBI found, configuring GRBMILPSolver")
-    target_include_directories(${modName} PUBLIC ${GUROBI_INCLUDE_DIRS}) 
+    target_include_directories(${modName} PUBLIC ${GUROBI_INCLUDE_DIRS})
     target_sources(${modName} PRIVATE src/GRBMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC GUROBI::Gurobi)
 endif ()
 
 if (MILPSolver_USE_HiGHS)
     message(STATUS "MILPSolver: HiGHS found, configuring HiGHSMILPSolver")
-    target_include_directories(${modName} PUBLIC ${HiGHS_INCLUDE_DIRS}) 
+    target_include_directories(${modName} PUBLIC ${HiGHS_INCLUDE_DIRS})
     target_sources(${modName} PRIVATE src/HiGHSMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC HiGHS::HiGHS)
 endif ()
@@ -178,8 +200,6 @@ endif ()
 add_library(${modNamespace}::${modName} ALIAS ${modName})
 
 # ----- Subdirectories ------------------------------------------------------ #
-add_subdirectory(tools)
-
 if (BUILD_TESTING)
     add_subdirectory(test_dual)
     add_subdirectory(test_dynamic)

@@ -13,6 +13,16 @@ if (MILPSolver_USE_CPLEX)
     target_compile_features(cpx_pars PRIVATE cxx_std_17)
     target_link_libraries(cpx_pars PRIVATE CPLEX::Cplex)
 
+    # Custom command to run cpx_pars in the tools directory
+    add_custom_command(
+            TARGET cpx_pars
+            POST_BUILD
+            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/cpx_pars
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Running cpx_pars to generate necessary headers"
+            VERBATIM
+    )
+
     # ----- Install instructions -------------------------------------------- #
     include(GNUInstallDirs)
     install(TARGETS cpx_pars
@@ -24,6 +34,16 @@ if (MILPSolver_USE_SCIP)
     add_executable(scip_pars scip_pars.cpp)
     target_compile_features(scip_pars PRIVATE cxx_std_17)
     target_link_libraries(scip_pars PRIVATE SCIP::SCIP)
+
+    # Custom command to run scip_pars in the tools directory
+    add_custom_command(
+            TARGET scip_pars
+            POST_BUILD
+            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/scip_pars
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Running scip_pars to generate necessary headers"
+            VERBATIM
+    )
 
     # ----- Install instructions -------------------------------------------- #
     include(GNUInstallDirs)
@@ -37,6 +57,16 @@ if (MILPSolver_USE_GUROBI)
     target_compile_features(grb_pars PRIVATE cxx_std_17)
     target_link_libraries(grb_pars PRIVATE GUROBI::Gurobi)
 
+    # Custom command to run grb_pars in the tools directory
+    add_custom_command(
+            TARGET grb_pars
+            POST_BUILD
+            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/grb_pars
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Running grb_pars to generate necessary headers"
+            VERBATIM
+    )
+
     # ----- Install instructions -------------------------------------------- #
     include(GNUInstallDirs)
     install(TARGETS grb_pars
@@ -48,6 +78,16 @@ if (MILPSolver_USE_HiGHS)
     add_executable(highs_pars highs_pars.cpp)
     target_compile_features(highs_pars PRIVATE cxx_std_17)
     target_link_libraries(highs_pars PRIVATE HiGHS::HiGHS)
+
+    # Custom command to run highs_pars in the tools directory
+    add_custom_command(
+            TARGET highs_pars
+            POST_BUILD
+            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/highs_pars
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Running highs_pars to generate necessary headers"
+            VERBATIM
+    )
 
     # ----- Install instructions -------------------------------------------- #
     include(GNUInstallDirs)
