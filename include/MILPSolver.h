@@ -501,7 +501,7 @@ class MILPSolver : public CDASolver
  [[nodiscard]] int get_num_integer_vars( void ) const { return( int_vars ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   /// Check the dictionaries for inconsistencies
   virtual void check_status( void );
  #endif

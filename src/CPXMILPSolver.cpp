@@ -32,7 +32,7 @@
 
 #include "CPXMILPSolver.h"
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
  #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
 #else
  #define DEBUG_LOG( stuff )
@@ -82,7 +82,7 @@ CPXMILPSolver::CPXMILPSolver( void ) :
   throw( std::runtime_error( "CPXopenCPLEX returned with status " +
 			     std::to_string( status ) ) );
  lp = nullptr;
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   CPXsetintparam( env , CPXPARAM_Read_DataCheck , CPX_DATACHECK_WARN );
  #endif
  }
@@ -3012,7 +3012,7 @@ const std::string & CPXMILPSolver::vstr_par_idx2str( idx_type idx ) const
 
 /*--------------------------------------------------------------------------*/
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
 
 void CPXMILPSolver::check_status( void )
 {

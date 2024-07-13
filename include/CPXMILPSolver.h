@@ -214,7 +214,7 @@ class CPXMILPSolver : public MILPSolver {
  /// loads the problem into CPLEX
  void load_problem( void ) override;
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
  #endif

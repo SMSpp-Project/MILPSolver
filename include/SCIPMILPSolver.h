@@ -255,7 +255,7 @@ class SCIPMILPSolver : public MILPSolver
   /// get the actual SCIP var used
   std::vector< SCIP_VAR * > get_SCIP_var( void );
 
-  #ifdef MILPSOLVER_DEBUG
+  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
    void check_status( void ) override;
   #endif

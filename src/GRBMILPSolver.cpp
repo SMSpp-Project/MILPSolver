@@ -28,7 +28,7 @@
 
 #include "GRBMILPSolver.h"
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
  #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
 #else
  #define DEBUG_LOG( stuff )
@@ -2991,7 +2991,7 @@ const std::string & GRBMILPSolver::vstr_par_idx2str( idx_type idx ) const
 
 /*--------------------------------------------------------------------------*/
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
 
 void GRBMILPSolver::check_status( void )
 {

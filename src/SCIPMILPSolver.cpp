@@ -36,7 +36,7 @@
 #include <scip/scipdefplugins.h>
 #include <scip/cons_linear.h>
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
  #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
 #else
  #define DEBUG_LOG( stuff )
@@ -2332,7 +2332,7 @@ const std::string & SCIPMILPSolver::vstr_par_idx2str( idx_type idx ) const
 
 /*--------------------------------------------------------------------------*/
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
 
 bool NotIsNull( SCIP_VAR * v ) { return( ! ( v == NULL) ); }
 

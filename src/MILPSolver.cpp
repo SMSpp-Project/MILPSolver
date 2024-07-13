@@ -21,12 +21,12 @@
 /*--------------------------------------------------------------------------*/
 /*------------------------------- MACROS -----------------------------------*/
 /*--------------------------------------------------------------------------*/
-/* If the macro MILPSOLVER_DEBUG is externally defined, then some costly
+/* If the macro MILPSolver_DEBUG is externally defined, then some costly
  * checks on the data structures of MILPSolver are performed and debug
  * information printed. Also, the method check_status() is defined and
  * used to check the whole set of data structures. */
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
  #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
 #else
  #define DEBUG_LOG( stuff )
@@ -704,7 +704,7 @@ int MILPSolver::index_of_static_variable( const ColVariable * var ) const
  if( svar_to_idx.empty() )
   return( Inf< int >() );
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( svar_to_idx.begin() , svar_to_idx.end() ) );
  #endif
  auto it = upper_bound( svar_to_idx.begin() , svar_to_idx.end(),
@@ -735,7 +735,7 @@ int MILPSolver::index_of_static_variable( const ColVariable * var ) const
 
 int MILPSolver::index_of_dynamic_variable( const ColVariable * var ) const
 {
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( dvar_to_idx.begin() , dvar_to_idx.end() ) );
  #endif
  auto it = lower_bound( dvar_to_idx.begin() , dvar_to_idx.end(),
@@ -765,7 +765,7 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) const
  if( scon_to_idx.empty() )
   return( Inf< int >() );
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( scon_to_idx.begin(), scon_to_idx.end() ) );
  #endif
  auto it = upper_bound( scon_to_idx.begin() , scon_to_idx.end() ,
@@ -796,7 +796,7 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) const
 
 int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * con )
  const {
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( dcon_to_idx.begin() , dcon_to_idx.end() ) );
  #endif
  auto it = lower_bound( dcon_to_idx.begin() , dcon_to_idx.end() ,
@@ -828,7 +828,7 @@ const ColVariable * MILPSolver::static_variable_with_index( int i ) const
  if( idx_to_svar.empty() )
   return( nullptr );
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( idx_to_svar.begin(), idx_to_svar.end() ) );
  #endif
  auto it = upper_bound( idx_to_svar.begin(), idx_to_svar.end(),
@@ -874,7 +874,7 @@ const FRowConstraint * MILPSolver::static_constraint_with_index( int i )
  if( idx_to_scon.empty() )
   return( nullptr );
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( idx_to_scon.begin() , idx_to_scon.end() ) );
  #endif
  auto it = upper_bound( idx_to_scon.begin() , idx_to_scon.end() ,
@@ -1183,7 +1183,7 @@ void MILPSolver::process_modifications( void )
   else                      // no more Modification to process
    break;                   // all done
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   check_status();
  #endif
 
@@ -2232,7 +2232,7 @@ std::string log_vector( const std::vector< char > & v , int limit ) {
 
 /*--------------------------------------------------------------------------*/
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
 
 void MILPSolver::check_status( void )
 {
@@ -2557,7 +2557,7 @@ void MILPSolver::check_status( void )
 
  }
 
-#endif // MILPSOLVER_DEBUG
+#endif // MILPSolver_DEBUG
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- End File MILPSolver.cpp --------------------------*/

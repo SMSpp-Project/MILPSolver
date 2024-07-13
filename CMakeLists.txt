@@ -56,7 +56,7 @@ option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 
 # A lot of debug prints
 #if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-#    add_compile_definitions(MILPSOLVER_DEBUG)
+#    add_compile_definitions(MILPSolver_DEBUG)
 #endif ()
 
 # ----- Policies ----------------------------------------------------------- #
