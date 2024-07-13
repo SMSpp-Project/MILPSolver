@@ -6,9 +6,14 @@
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Function to remove dots from version strings
-function(remove_dots VERSION OUTPUT_VAR)
-    string(REPLACE "." "" _VERSION_NO_DOTS ${VERSION})
-    set(${OUTPUT_VAR} ${_VERSION_NO_DOTS} PARENT_SCOPE)
+function(remove_dots VERSION OUTPUT_VAR REPLACE_WITH_ZERO)
+    if (REPLACE_WITH_ZERO)
+        string(REPLACE "." "0" _VERSION_MODIFIED ${VERSION})
+        set(_VERSION_MODIFIED "${_VERSION_MODIFIED}00")
+    else()
+        string(REPLACE "." "" _VERSION_MODIFIED ${VERSION})
+    endif()
+    set(${OUTPUT_VAR} ${_VERSION_MODIFIED} PARENT_SCOPE)
 endfunction()
 
 set(MILPSolver_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../include)
@@ -17,7 +22,7 @@ set(MILPSolver_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
 if (MILPSolver_USE_CPLEX)
     # Remove dots from CPLEX version
-    remove_dots(${CPLEX_VERSION} CPLEX_VERSION_NO_DOTS)
+    remove_dots(${CPLEX_VERSION} CPLEX_VERSION_NO_DOTS ON)
 
     set(CPLEX_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/CPX${CPLEX_VERSION_NO_DOTS}_defs.h)
     set(CPLEX_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/CPX${CPLEX_VERSION_NO_DOTS}_maps.h)
@@ -59,7 +64,7 @@ endif ()
 
 if (MILPSolver_USE_SCIP)
     # Remove dots from SCIP version
-    remove_dots(${SCIP_VERSION} SCIP_VERSION_NO_DOTS)
+    remove_dots(${SCIP_VERSION} SCIP_VERSION_NO_DOTS OFF)
 
     set(SCIP_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/SCIP${SCIP_VERSION_NO_DOTS}_defs.h)
     set(SCIP_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/SCIP${SCIP_VERSION_NO_DOTS}_maps.h)
@@ -101,7 +106,7 @@ endif ()
 
 if (MILPSolver_USE_GUROBI)
     # Remove dots from GUROBI version
-    remove_dots(${GUROBI_VERSION} GUROBI_VERSION_NO_DOTS)
+    remove_dots(${GUROBI_VERSION} GUROBI_VERSION_NO_DOTS OFF)
 
     set(GUROBI_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/GRB${GUROBI_VERSION_NO_DOTS}_defs.h)
     set(GUROBI_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/GRB${GUROBI_VERSION_NO_DOTS}_maps.h)
@@ -143,7 +148,7 @@ endif ()
 
 if (MILPSolver_USE_HiGHS)
     # Remove dots from HiGHS version
-    remove_dots(${HiGHS_VERSION} HiGHS_VERSION_NO_DOTS)
+    remove_dots(${HiGHS_VERSION} HiGHS_VERSION_NO_DOTS OFF)
 
     set(HiGHS_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/HiGHS${HiGHS_VERSION_NO_DOTS}_defs.h)
     set(HiGHS_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/HiGHS${HiGHS_VERSION_NO_DOTS}_maps.h)
