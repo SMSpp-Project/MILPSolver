@@ -13,7 +13,7 @@ if (TARGET SMS++::MILPSolver)
     add_executable(DynamicLP_test test.cpp)
 
     target_link_libraries(DynamicLP_test PRIVATE
-                            SMS++::MILPSolver)
+                          SMS++::MILPSolver)
 
     # This version replicates the batch file in CMake.
     # This method was preferred because it allows to keep track
