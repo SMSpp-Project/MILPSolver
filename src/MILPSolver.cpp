@@ -2011,14 +2011,7 @@ void MILPSolver::set_par( idx_type par , int value )
  CDASolver::set_par( par, value );
  }
 
-/*----------------------------------------------------------------------------
-
-void MILPSolver::set_par( idx_type par , double value )
-{
- CDASolver::set_par( par, value );
- }
-
-----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 void MILPSolver::set_par( idx_type par , std::string && value )
 {

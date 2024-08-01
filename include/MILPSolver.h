@@ -526,7 +526,7 @@ class MILPSolver : public CDASolver
  /// does nothing as there is nothing to do
  void get_dual_solution( Configuration * solc ) override {}
 
-/** @} --------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for handling parameters
@@ -535,8 +535,14 @@ class MILPSolver : public CDASolver
  /// sets an integer parameter with the given value
  void set_par( idx_type par , int value ) override;
 
- // sets a double parameter with the given value
- // void set_par( idx_type par , double value ) override;
+ /// sets a double parameter with the given value
+ // although it actually does nothing, it has to be there since, due to an
+ // excess of caution, *MILPSolver::set_par( double ) call it, and if it's
+ // not there then set_par( int ) ends up being called with duuble -> int
+ // conversion that can go awry
+ void set_par( idx_type par , double value ) override {
+  CDASolver::set_par( par, value );
+  }
 
  /// sets a string parameter with the given value
  void set_par( idx_type par , std::string && value ) override;
