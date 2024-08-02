@@ -2553,5 +2553,168 @@ void MILPSolver::check_status( void )
 #endif // MILPSolver_DEBUG
 
 /*--------------------------------------------------------------------------*/
+
+void MILPSolver::write_var_solution( const std::vector< double > & x )
+{
+ if( x.empty() )  // actually no solution passed
+  return;         // silently return
+
+ if( x.size() < get_numcols() )
+  throw( std::invalid_argument( "write_var_solution: x too short" ) );
+
+ int col = 0;
+ int dcol = static_vars;
+
+ auto set = [ & x , & col ]( ColVariable & v ) {
+  v.set_value( x[ col++ ] );
+  };
+
+ auto setd = [ & x , & dcol ]( ColVariable & v ) {
+  v.set_value( x[ dcol++ ] );
+  };
+
+ for( auto qb : v_BFS ) {
+  for( const auto & vi : qb->get_static_variables() )
+   un_any_const_static( vi , set , un_any_type< ColVariable >() );
+
+  for( const auto & vi : qb->get_dynamic_variables() )
+   un_any_const_dynamic( vi , setd , un_any_type< ColVariable >() );
+  }
+ }  // end( MILPSolver::write_var_solution )
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
+				      const std::vector< double > & rc )
+{
+ // handle dual variables, if any- - - - - - - - - - - - - - - - - - - - - -
+ if( ! pi.empty() ) {  // there actually is a dual solution
+
+  if( pi.size() < get_numrows() )
+   throw( std::invalid_argument( "write_dual_solution: pi too short" ) );
+
+  int row = 0;
+  int row_dynamic = static_cons;
+
+  auto set = [ & pi , & row ]( FRowConstraint & c ) {
+   c.set_dual( - pi[ row++ ] );
+   };
+
+  auto set_dynamic = [ & pi , & row_dynamic ]( FRowConstraint & c ) {
+   c.set_dual( - pi[ row_dynamic++ ] );
+   };
+
+  for( auto qb : v_BFS ) {
+   for( const auto & ci : qb->get_static_constraints() )
+    un_any_const_static( ci , set , un_any_type< FRowConstraint >() );
+
+   for( const auto & ci : qb->get_dynamic_constraints() )
+    un_any_const_dynamic( ci, set_dynamic, un_any_type< FRowConstraint >() );
+   }
+  }  // end( ! p.empty() )
+
+ // handle reduced costs, if any - - - - - - - - - - - - - - - - - - - - - -
+ if( rc.empty() )  // actually no reduced costs passed
+  return;         // all done
+
+ if( rc.size() < get_numcols() )
+  throw( std::invalid_argument( "write_dual_solution: rc too short" ) );
+
+ int col = 0;
+
+ auto set_bound = [ this , & rc , & col ]( ColVariable & var ) {
+  auto active_bounds = get_active_bounds( var );
+
+  // bounds that will have the dual value set.
+  OneVarConstraint * lhs_con = nullptr;
+  OneVarConstraint * rhs_con = nullptr;
+
+  auto var_lb = var.get_lb();
+  auto var_ub = var.get_ub();
+
+  const auto var_is_fixed = var.is_fixed();
+  if( var_is_fixed ) {
+   /* The Variable is fixed. There should be at least one OneVarConstraint
+    * (for this Variable) whose lower and upper bounds are equal to the value
+    * of this Variable. If such OneVarConstraint exists, the reduced cost of
+    * this Variable will be dual of that OneVarConstraint. If there is no such
+    * OneVarConstraint, the reduced cost of this variable will be lost. */
+   var_lb = var.get_value();
+   var_ub = var.get_value(); //REMOVE
+
+   for( auto b : active_bounds ) {
+    b->set_dual( 0 );
+    if( ( b->get_lhs() == var_lb ) && ( b->get_rhs() == var_lb ) ) {
+     lhs_con = b;
+     rhs_con = b;
+     }
+    }
+
+   assert( lhs_con == rhs_con );
+   }
+  else {  // a non-fixed Variable
+   for( auto b: active_bounds ) {
+    b->set_dual( 0 );
+ 
+    if( b->get_lhs() >= var_lb ) {
+     var_lb = b->get_lhs();
+     lhs_con = b;
+     }
+
+    if( b->get_rhs() <= var_ub ) {
+     var_ub = b->get_rhs();
+     rhs_con = b;
+     }
+    }
+   }
+
+  if( lhs_con && ( rc[ col ] >= 0 ) )
+   lhs_con->set_dual( - rc[ col ] );
+  else
+   if( rhs_con && ( rc[ col ] <= 0 ) )
+    rhs_con->set_dual( - rc[ col ] );
+   else
+    if( lhs_con || rhs_con )
+     throw( std::logic_error(
+	       "MILPSolver::write_dual_solution: invalid dual value" ) );
+
+  /*!! ignore by default by now
+  if( throw_reduced_cost_exception ) {
+    if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
+     // the Variable is fixed but it has no associated OneVarConstraint
+     // with both bounds equal to the value of the Variable
+
+     throw( std::logic_error(
+      "MILPSolver::write_dual_solution: variable with index " +
+      std::to_string( col ) + " is fixed to " +
+      std::to_string( var.get_value() ) + ", but it has no OneVarConstraint" +
+      "with both bounds equal to the value of this variable." ) );
+     }
+    else
+    !!*/
+     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
+      // the Variable is not fixed and it has no associated OneVarConstraint
+      // an exception is thrown if it has a finite nonzero bound
+      if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
+	  ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
+       throw( std::logic_error(
+                "MILPSolver::get_dual_solution: variable with index " +
+		 std::to_string( col ) + " has no OneVarConstraint." ) );
+      }
+
+   col += 1;  // update variable counter
+   };
+
+ for( auto qb : v_BFS ) {
+  // write all static variables first
+  for( const auto & vi : qb->get_static_variables() )
+   un_any_const_static( vi , set_bound , un_any_type< ColVariable >() );
+  // write all dynamic variables
+  for( const auto & vi : qb->get_dynamic_variables() )
+   un_any_const_dynamic( vi , set_bound , un_any_type< ColVariable >() );
+  }
+ }  // end( MILPSolver::write_dual_solution )
+
+/*--------------------------------------------------------------------------*/
 /*----------------------- End File MILPSolver.cpp --------------------------*/
 /*--------------------------------------------------------------------------*/ 

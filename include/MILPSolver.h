@@ -519,12 +519,47 @@ class MILPSolver : public CDASolver
  /// does nothing as there is nothing to do
  int compute( bool changedvars = true ) override;
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*--------------------------------------------------------------------------*/
  /// does nothing as there is nothing to do
  void get_var_solution( Configuration * solc ) override {}
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// takes a get_numcols()-vector of doubles and writes it as var solution
+ /** The get_numcols()-vector \p x is supposed to encode a var solution in the
+  * natural format, i.e., x[ i ] is the value of the ColVariable corresponding
+  * to the i-th column in the coefficient matrix as constructed by
+  * MILPSolver; this method writes it in the Block. It can obviously be used
+  * to implement get_var_solution(). */
+ 
+ void write_var_solution( const std::vector< double > & x );
+
+/*--------------------------------------------------------------------------*/
  /// does nothing as there is nothing to do
  void get_dual_solution( Configuration * solc ) override {}
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// takes two vectors of doubles and writes them as dual solution
+ /** The get_numrows()-vector \p pi and the get_numcols()-vector \p rc are
+  * supposed to encode dual a solution in the natural format, i.e., pi[ j ]
+  * is the value of the dual variable of to the FRowConstraint corresponding
+  * to the j-th row in the coefficient matrix as constructed by
+  * MILPSolver, while rc[ i ] is the value of the reduced cost of the
+  * ColVariable corresponding to the i-th column in the coefficient matrix
+  * as constructed by MILPSolver; this method writes them in the Block if
+  * they are provided, i.e., both pi and rc may be empty(), in which case
+  * they are ignored.
+  *
+  * Note that the reduced cost part is nontrivial, in that there is not
+  * really such a thing as the reduced cost of a ColVariable; this has to
+  * be implemented as the dual variable of a BoxConstraint using that
+  * ColVariable. Currently, the method just looks if there is one, and if
+  * not it ignores the thing; maybe we'll add a general mechanism to throw
+  * exception instead.
+  *
+  * This method can obviously be used to implement get_dual_solution(). */
+ 
+ void write_dual_solution( const std::vector< double > & pi ,
+			   const std::vector< double > & rc );
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
