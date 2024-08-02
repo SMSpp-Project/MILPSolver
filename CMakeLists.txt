@@ -224,25 +224,25 @@ install(FILES
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace})
 
 if (MILPSolver_USE_CPLEX)
-    install(DIRECTORY include
+    install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "CPX*")
 endif ()
 
 if (MILPSolver_USE_SCIP)
-    install(DIRECTORY include
+    install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "SCIP*")
 endif ()
 
 if (MILPSolver_USE_GUROBI)
-    install(DIRECTORY include
+    install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "GRB*")
 endif ()
 
 if (MILPSolver_USE_HiGHS)
-    install(DIRECTORY include
+    install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "HiGHS*")
 endif ()
