@@ -9,6 +9,7 @@
 #    The results are stored in the following variables:                       #
 #                                                                             #
 #        GUROBI_FOUND         - True if headers are found                     #
+#        GUROBI_LICENSE_FOUND - True if gurobi.lic file is found              #
 #        GUROBI_INCLUDE_DIRS  - Include directories                           #
 #        GUROBI_LIBRARIES     - Libraries to be linked                        #
 #        GUROBI_VERSION       - Version number                                #
@@ -98,9 +99,9 @@ else ()
     # ----- Find the GUROBI include directory ------------------------------- #
     # Note that find_path() creates a cache entry
     find_path(GUROBI_INCLUDE_DIR
-              NAMES gurobi_c.h
-              PATHS ${GUROBI_DIR}/include
-              DOC "GUROBI include directory.")
+            NAMES gurobi_c.h
+            PATHS ${GUROBI_DIR}/include
+            DOC "GUROBI include directory.")
 
     # ----- Find the GUROBI library ----------------------------------------- #
     if (UNIX)
@@ -112,9 +113,9 @@ else ()
     if (GUROBI_LIBRARIES)
         list(GET GUROBI_LIBRARIES 0 GUROBI_LIB)
         find_library(GUROBI_LIBRARY
-                     NAMES ${GUROBI_LIB}
-                     PATHS ${GUROBI_DIR}/lib
-                     DOC "GUROBI library.")
+                NAMES ${GUROBI_LIB}
+                PATHS ${GUROBI_DIR}/lib
+                DOC "GUROBI library.")
     else ()
         set(GUROBI_LIBRARY NOTFOUND)
     endif ()
@@ -124,6 +125,33 @@ else ()
 
     # Debug library
     set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY})
+
+    # ----- Find the GUROBI license ----------------------------------------- #
+    set(GUROBI_LICENSE_FOUND FALSE)
+
+    if (UNIX)
+        if (APPLE)
+            set(LICENSE_PATHS ${GUROBI_ROOT} "/Users/$ENV{USER}")
+        else ()
+            set(LICENSE_PATHS ${GUROBI_ROOT} "/home/$ENV{USER}")
+        endif ()
+    elseif (WIN32)
+        set(LICENSE_PATHS ${GUROBI_ROOT} "C:/Users/$ENV{USERNAME}")
+    endif ()
+
+    foreach (path ${LICENSE_PATHS})
+        if (EXISTS "${path}/gurobi.lic")
+            set(GUROBI_LICENSE_FOUND TRUE)
+            message(STATUS "Gurobi license file found at: ${path}/gurobi.lic")
+            break()
+        endif ()
+    endforeach ()
+
+    if (NOT GUROBI_LICENSE_FOUND)
+        message(WARNING "Gurobi license file not found in default locations.\
+                         Cannot access the $GRB_LICENSE_FILE environment variable.\
+                         Move the gurobi.lic file to one of the default paths, i.e.: ${LICENSE_PATHS}")
+    endif ()
 
     # ----- Parse the version ----------------------------------------------- #
     if (GUROBI_INCLUDE_DIR)
@@ -183,8 +211,8 @@ endif ()
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(GUROBI_INCLUDE_DIR
-                 GUROBI_LIBRARY
-                 GUROBI_LIBRARY_DEBUG
-                 GUROBI_VERSION)
+        GUROBI_LIBRARY
+        GUROBI_LIBRARY_DEBUG
+        GUROBI_VERSION)
 
 # --------------------------------------------------------------------------- #
