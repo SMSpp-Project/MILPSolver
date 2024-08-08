@@ -1516,25 +1516,37 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nvit = nval.begin();
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
-   auto & cp = lf->get_v_var();
 
-   for( auto v :  modl->vars() )
+   // we exploit the delta() vector of C05FunctionModLin, giving the difference
+   // between the new and the old value of the linear coefficient, to update
+   // the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     *(nvit++) = cp[ idx ].second;
-     auto vi = grb_index_of_variable( static_cast< const ColVariable * >( v ) );
+     int vidx = grb_index_of_variable( var );
+     *(cidxit++) = vidx;
+      
+     // Retrieve old coefficient
+     double oldval;
+     GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , vidx , &oldval  );
 
-     *(cidxit++) = vi ;
-    }
+     // Update new coefficient
+     *(nvit++) = oldval + modl->delta()[ i ];
+     }
+   }
 
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
    nval.resize( nsz );
 
-   for( size_t i = 0 ; i < cidx.size() ; ++i )
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx[ i ] , nval[ i ]  );
+   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
 
+   GRBupdatemodel( model );
    return;
-   }
+  }
 
   if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
    // quadratic objective function
@@ -1553,23 +1565,31 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nvit = nval.begin();
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
-   auto & cp = qf->get_v_var();
 
-   for( auto v :  modl->vars() )
+   // we exploit the delta() vector of C05FunctionModLin, giving the difference
+   // between the new and the old value of the linear coefficient, to update
+   // the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     *(nvit++) = std::get< 1 >( cp[ idx ] );
-     auto vi = grb_index_of_variable( static_cast< const ColVariable * >( v ) );
+     int vidx = grb_index_of_variable( var );
+     *(cidxit++) = vidx;
+      
+     // Retrieve old coefficient
+     double oldval;
+     GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , vidx , &oldval  );
 
-     *(cidxit++) = vi;
-    }
+     // Update new coefficient
+     *(nvit++) = oldval + modl->delta()[ i ];
+     }
+   }
 
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
-   nval.resize( nsz );
+   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
 
-   for( size_t i = 0 ; i < cidx.size() ; ++i )
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx[ i ] , nval[ i ]  );
-
+   GRBupdatemodel( model );
    return;
    }
 
@@ -1753,11 +1773,17 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+ if( ( ! dynamic_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
 				) );
+ 
+ std::vector< int > indices;
+ indices.reserve( nv );
+ std::vector< double > values;
+ values.reserve( nv );
 
  auto f = mod->function();
  auto nav = f->get_num_active_var();
@@ -1769,74 +1795,108 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
-  // Linear objective function
-
-  for( auto v : mod->vars() ) {
-   auto var = static_cast< const ColVariable * >( v );
-   if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
-    double value = 0;
-    
-    if( mod->added() ) {
-     auto cidx = lf->is_active( var );
-     value = cidx < nav ? lf->get_coefficient( cidx ) : 0;
-     }
-
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , idx , value  );
-    }
-   }
+ if( auto lf = dynamic_cast< const LinearFunction * >( f ) ){
+  // Linear objective function modification
   
-  return;
-  }
+  // we exploit the coeff() vector of LinearFunctionModVarsAddd, giving the sum
+  // between the new and the old value of the linear coefficient, to update
+  // the objective values without having to recompute them: since they are
+  // (potentially) a sum of terms, recomputing them would require fetching
+  // back all of the terms, while the coeff() can just be applied to the sum
+  
+  for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
- if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
-  // Quadratic objective function
+    if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
+      // Retrieve old coefficient
+      double oldval;
+      GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , idx , &oldval  );
+
+      indices.push_back( idx );
+      if( mod->added() ) {
+        auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
+        auto cidx = lf->is_active( var );
+        values.push_back( cidx < nav ? oldval + modl->coeff()[i] : oldval );
+      }
+      else
+        values.push_back( 0 );
+     }
+   }
+
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
+    indices.data() , values.data() );
+
+  GRBupdatemodel( model );
+   return;
+ }
+
+ if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ){
+  // Quadratic objective function modification
+
+  // we exploit the coeff() vector of DQuadFunctionModVarsAddd, giving the sum
+  // between the new and the old value of both the linear and quadratic
+  // coefficient, to update the objective values without having to recompute 
+  // them: since they are (potentially) a sum of terms, recomputing them 
+  // would require fetching back all of the terms, while the coeff() 
+  // can just be applied to the sum
 
   // In Gurobi to change quadratic coefficients we need to retrieve all the old coeff.,
-  // and then add the difference between the new and the old ones. In this case there if we want to delete
-  // a quadratic coefficient, we can just subtract its old value
-
+  // and then add the difference between the new and the old ones. In this case if 
+  // we want to delete a quadratic coefficient, we can just subtract its old value
   int nqz;
   GRBgetintattr( model , GRB_INT_ATTR_NUMQNZS , & nqz );
 
   std::vector< int > oldind_row ( nqz );
   std::vector< int > oldind_col ( nqz );
-  std::vector< double > oldval ( nqz );
+  std::vector< double > diag_qoldval ( nqz );
 
-  int status = GRBgetq( model, & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
+  int status = GRBgetq( model, & nqz , oldind_row.data() , oldind_col.data() , diag_qoldval.data() );
   if( status != 0 )
    throw( std::runtime_error( "Error while querying quadratic coefficients with GRBgetq" ) );
+  
+  for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
-  for( auto v : mod->vars() ) {
-   auto var = static_cast< const ColVariable * >( v );
-   if( auto ind = grb_index_of_variable( var ) ; ind < Inf< int >() ) {
-    double value = 0;
-    double q_value = 0;
+    if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
+      // Retrieve old coefficients
+      double oldval, oldqval;
+      GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , idx , &oldval  );
 
-    if( mod->added() ) {
-     if( auto idx = qf->is_active( var ) ; idx < nav ) {
-       value = qf->get_linear_coefficient( idx );
-       q_value = qf->get_quadratic_coefficient( idx );
-       }
-     }
-    else { // removed variable
-       auto arr_idx_row = std::find(oldind_row.begin(), oldind_row.end(), ind);
-       auto arr_idx_col = std::find(oldind_col.begin(), oldind_col.end(), ind);
+      // Iterator to retrieve the index of variable in hessian matrix: if equal to q_obj_ind.end()
+      // then the variable didn't have a quadratic coefficient already associated,
+      auto it_qobj = std::find( oldind_row.begin() , oldind_row.end() , idx );
+      
+      if ( it_qobj == oldind_row.end() ) // no quadratic coefficient previously associated to var
+        oldqval = 0;
+      else{
+        int pos = it_qobj - oldind_row.begin();
+        oldqval = diag_qoldval[ pos ];
+      } 
 
-       if( *arr_idx_row != *arr_idx_col )
-       throw( std::runtime_error( "Error while modifying quadratic coefficients" ) );
-       
-       q_value = - oldval[ *arr_idx_row ];
+      indices.push_back( idx );
+      double nqval;
+      if( mod->added() ){
+        if( auto cidx = qf->is_active( var ) ; cidx < nav ) {
+          auto modl = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+          values.push_back( oldval + modl->coeff()[i].first );
+          nqval = oldqval + modl->coeff()[i].second;
+        }
+        else{
+          values.push_back( 0 );
+          nqval = - oldqval;
+        }
       }
 
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_OBJ , ind , value );
-    GRBaddqpterms( model, 1 , & ind , & ind , & q_value );
+      GRBaddqpterms( model, 1 , & idx , & idx , & nqval ); 
     }
-   }
+  }
+
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
+    indices.data() , values.data() );
 
   GRBupdatemodel( model );
   return;
-  }
+ }
 
  // This should never happen
  throw( std::invalid_argument( "Unknown type of Objective Function" ) );

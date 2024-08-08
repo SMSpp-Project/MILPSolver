@@ -968,17 +968,28 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
      throw( std::logic_error( "unknown type of C05FunctionModLinRngd" ) );
 
    auto idxit = idxs.begin();
-   auto & cp = lf->get_v_var();
 
-   for( auto v :  modl->vars() )
+   // we exploit the delta() vector of C05FunctionModLin, giving the difference
+   // between the new and the old value of the linear coefficient, to update
+   // the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum.
+   // NOTE: in SCIPMILPSolver, we can use the SCIP function SCIPaddVarObj()
+   // to simply add the delta() coefficient to the previous objective value of
+   // a variable (i.e. no need of retrieveing the old one). 
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     auto nval = cp[ idx ].second;
-     auto vidx = index_of_variable( static_cast< const ColVariable * >( v ) );
-     SCIP_CALL_ABORT( SCIPchgVarObj( scip , vars[ vidx ] , nval ) );
+     int vidx = index_of_variable( var );
+     
+     // Update new coefficient
+     SCIP_CALL_ABORT( SCIPaddVarObj( scip , vars[ vidx ] , modl->delta()[ i ] ) );
      }
-
-   return;
    }
+   return;
+   
+  }
 
   if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
    // quadratic objective function
@@ -993,17 +1004,28 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
      throw( std::logic_error( "unknown type of C05FunctionModLinRngd" ) );
 
    auto idxit = idxs.begin();
-   auto & cp = qf->get_v_var();
+   
+   // we exploit the delta() vector of C05FunctionModLin, giving the difference
+   // between the new and the old value of the linear coefficient, to update
+   // the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum.
+   // NOTE: in SCIPMILPSolver, we can use the SCIP function SCIPaddVarObj()
+   // to simply add the delta() coefficient to the previous objective value of
+   // a variable (i.e. no need of retrieveing the old one). 
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
-   for( auto v :  modl->vars() )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     auto nval = std::get< 1 >( cp[ idx ] );
-     auto vidx = index_of_variable( static_cast< const ColVariable * >( v ) );
-     SCIP_CALL_ABORT( SCIPchgVarObj( scip , vars[ vidx ] , nval ) );
-     }
+     int vidx = index_of_variable( var );
      
-   return;
+     // Update new coefficient
+     SCIP_CALL_ABORT( SCIPaddVarObj( scip , vars[ vidx ] , modl->delta()[ i ] ) );
+     }
    }
+   return;
+   
+  }
 
   // This should never happen
   throw( std::invalid_argument( "Unknown type of Objective Function" ) );
@@ -1216,7 +1238,8 @@ void SCIPMILPSolver::objective_fvars_modification(
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+ if( ( ! dynamic_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
@@ -1235,107 +1258,135 @@ void SCIPMILPSolver::objective_fvars_modification(
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
-  // Linear objective function
+ if( auto lf = dynamic_cast< const LinearFunction * >( f ) ){
+  // Linear objective function modification
+  
+  // we exploit the coeff() vector of LinearFunctionModVarsAddd, giving the sum
+  // between the new and the old value of the linear coefficient, to update
+  // the objective values without having to recompute them: since they are
+  // (potentially) a sum of terms, recomputing them would require fetching
+  // back all of the terms, while the coeff() can just be applied to the sum
+  // NOTE: in SCIPMILPSolver, we can use the SCIP function SCIPaddVarObj()
+  // to simply add the delta() coefficient to the previous objective value of
+  // a variable (i.e. no need of retrieveing the old one). 
+  
+  for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
-  for( auto v : mod->vars() ) {
-   auto var = static_cast< const ColVariable * >( v );
-   if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
-    SCIP_VAR * scip_var = vars[ idx ];
-    if( mod->added() ){
-       auto cidx = lf->is_active( var );
-       SCIP_Real new_coeff = cidx < nav ? 
-                          lf->get_coefficient( cidx ) : 0;
-       SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, new_coeff ) );
-      }
-    else
-       SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
-    }
+    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+
+      SCIP_VAR * scip_var = vars[ idx ];
+      if( mod->added() ) {
+        if( auto cidx = lf->is_active( var ) ; cidx < nav ){
+          auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
+          SCIP_CALL_ABORT( SCIPaddVarObj( scip , scip_var , modl->coeff()[i] ) );
+        }
+       }
+      else
+        SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
+     }
    }
 
   return;
-  }
+ }
 
- if( auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
-  // Quadratic objective function
+ if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ){
+  // Quadratic objective function modification
+
+  // we exploit the coeff() vector of DQuadFunctionModVarsAddd, giving the sum
+  // between the new and the old value of both the linear and quadratic
+  // coefficient, to update the objective values without having to recompute 
+  // them: since they are (potentially) a sum of terms, recomputing them 
+  // would require fetching back all of the terms, while the coeff() 
+  // can just be applied to the sum
   
-  for( auto v : mod->vars() ) {
-   auto var = static_cast< const ColVariable * >( v );
-   if( auto ind = index_of_variable( var ) ; ind < Inf< int >() ) {
-    SCIP_VAR * scip_var = vars[ ind ];
-    SCIP_Real value = 0;
-    SCIP_Real q_value = 0;
+  for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
-    if( mod->added() ){
+    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+      SCIP_VAR * scip_var = vars[ idx ];
+      SCIP_Real add_value = 0;
+      SCIP_Real add_q_value = 0;
 
-      /* We have to add new space in the auxiliary vectors. */
-      SCIP_VAR * scip_aux_var = nullptr;
-      SCIP_CONS * scip_aux_con = nullptr;
-      aux_vars.push_back( scip_aux_var );
-      aux_cons.push_back( scip_aux_con );
-      SCIP_CALL_ABORT( SCIPreleaseVar( scip , & scip_aux_var ) );
-      SCIP_CALL_ABORT( SCIPreleaseCons( scip , & scip_aux_con ) );
+      if( mod->added() ){
+        // Get the actual increase in objective values
+        if( auto cidx = qf->is_active( var ) ; cidx < nav ) {
+          auto modl = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+          add_value = modl->coeff()[i].first;
+          add_q_value = modl->coeff()[i].second;
+        }
 
-      if( auto idx = qf->is_active( var ) ; idx < nav ) {
-       value = qf->get_linear_coefficient( idx );
-       q_value = qf->get_quadratic_coefficient( idx );
-       }
-      
-      // Change linear coeff
-      SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, value ) );
+        // Change linear coeff
+        SCIP_CALL_ABORT( SCIPaddVarObj( scip , scip_var , add_value ) );
 
-      if( q_value != 0 ){
-        /* A new variable has been added. Thus, if q_value is non zero, 
-        *  it is necessary to create a new aux_var and aux_con to handle it. 
-        *  For more information, see SCIPMILPSolver::compute() */
+        SCIP_VAR * scip_aux_var = nullptr;
+        SCIP_CONS * scip_aux_con = nullptr;
 
-        SCIP_Real z_lb = - SCIPinfinity( scip );
-        SCIP_Real z_ub = SCIPinfinity( scip ) ;
+        if( aux_vars.size() - 1 < idx ){
+          /* We are adding a variable that was not appearing before in the objective function.
+          * Thus, we have to add new space in the auxiliary vectors. */
+          aux_vars.push_back( scip_aux_var );
+          aux_cons.push_back( scip_aux_con );
+        }
+        else{
+          /* We are adding a delta to a quadratic coefficient already avalable. Thus, no additional 
+           * auxiliary structures have to be inserted, but the previous ones built have to be modified. */
+          scip_aux_var = aux_vars[ idx ];
+          scip_aux_con = aux_cons[ idx ];
+        }
 
-        SCIP_VARTYPE z_type = SCIP_VARTYPE_CONTINUOUS;
+        if( add_q_value != 0 ){
+          if( scip_aux_var == nullptr ){
+          /* A new quadratic coefficient has been added. Thus, if add_q_value is non zero, 
+          *  it is necessary to create a new aux_var and aux_con to handle it. 
+          *  For more information, see SCIPMILPSolver::compute() */
+          SCIP_Real z_lb = - SCIPinfinity( scip );
+          SCIP_Real z_ub = SCIPinfinity( scip ) ;
 
-        SCIP_VAR * z = nullptr;
-        SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & z , nullptr , 
-                              z_lb  , z_ub ,  q_value , 
-                              z_type ) );
-        SCIP_CALL_ABORT( SCIPaddVar( scip , z ) );
-        aux_vars[ ind ] = z;
-        SCIP_CALL_ABORT( SCIPreleaseVar( scip , & z ) );
+          SCIP_VARTYPE z_type = SCIP_VARTYPE_CONTINUOUS;
 
-        // Add auxiliary constraints z - xˆ2 >= 0
-        SCIP_Real con_lhs = 0;
-        SCIP_Real con_rhs = SCIPinfinity( scip );
-        SCIP_Real lincoef = 1;
-        SCIP_Real quadcoef = -1;
+          SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & scip_aux_var , nullptr , 
+                                z_lb  , z_ub ,  add_q_value , 
+                                z_type ) );
+          SCIP_CALL_ABORT( SCIPaddVar( scip , scip_aux_var ) );
 
-        SCIP_CONS * con = nullptr;
-        SCIP_VAR * linvar = aux_vars[ ind ];
-        const char * name = "aux_con";
+          // Add auxiliary constraints z - xˆ2 >= 0
+          SCIP_Real con_lhs = 0;
+          SCIP_Real con_rhs = SCIPinfinity( scip );
+          SCIP_Real lincoef = 1;
+          SCIP_Real quadcoef = -1;
+          const char * name = "aux_con";
 
-        #if SCIP_VERSION < 800
-          SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip , & con , name ,
-                          1 , & linvar , & lincoef , 1 , & scip_var , & scip_var ,
-              & quadcoef , con_lhs , con_rhs ) );
-        #else
-          SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip , & con ,
-              name , 1 , & linvar , & lincoef , 1 , & scip_var ,
-              & scip_var , & quadcoef , con_lhs , con_rhs ) );
-        #endif
+          #if SCIP_VERSION < 800
+            SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip , & scip_aux_con , name ,
+                            1 , & scip_aux_var , & scip_aux_var , 1 , & scip_var , & scip_var ,
+                & quadcoef , con_lhs , con_rhs ) );
+          #else
+            SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip , & scip_aux_con ,
+                name , 1 , & scip_aux_var , & lincoef , 1 , & scip_var ,
+                & scip_var , & quadcoef , con_lhs , con_rhs ) );
+          #endif
 
-        SCIP_CALL_ABORT( SCIPaddCons( scip , con ) );
-        aux_cons[ ind ] = con;
-        SCIP_CALL_ABORT( SCIPreleaseCons( scip , &con ) );
-       }
-     }
+          SCIP_CALL_ABORT( SCIPaddCons( scip , scip_aux_con ) );
+          SCIP_CALL_ABORT( SCIPreleaseVar( scip , & scip_aux_var ) );
+          SCIP_CALL_ABORT( SCIPreleaseCons( scip , &scip_aux_con ) );
+          }
+        else{
+          /* There is already a quadratic coefficient for the selected scip_var. In this case, we just have 
+           * to modify the linear coefficient associated to the auxiliary variable. */
+          SCIP_CALL_ABORT( SCIPaddVarObj( scip , scip_aux_var , add_q_value ) );
+        }
+      }
+    }
     else{
       SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
 
       /* We have to remove the aux var and the aux_con associated
       *  to scip_var */
-      SCIP_VAR * scip_aux_var = aux_vars[ ind ];
-      aux_vars[ ind ] = nullptr;
-      SCIP_CONS * scip_aux_con = aux_cons[ ind ]; 
-      aux_cons[ ind ] = nullptr;
+      SCIP_VAR * scip_aux_var = aux_vars[ idx ];
+      aux_vars.erase( aux_vars.begin() + idx );
+      SCIP_CONS * scip_aux_con = aux_cons[ idx ]; 
+      aux_cons.erase( aux_cons.begin() + idx );
       SCIP_Bool deleted = 0;
 
       // Remove aux constraint

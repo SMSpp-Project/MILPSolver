@@ -21,6 +21,25 @@
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
 /*--------------------------------------------------------------------------*/
+/*------------------------------- MACROS -----------------------------------*/
+/*--------------------------------------------------------------------------*/
+/* If the macro CPXMILPSOLVER_CHECK is given a nonzero value (either by it
+ * being externally defined or by changing the definition below), then
+ * CPXcheckcopylp() is invoked on the data structure prior to passing the
+ * problem to Cplex. Note, however, that
+ *
+ *  THIS REQUIRES check.c FROM THE CPLEX DISTRIBUTION, USUALLY TO BE FOUND
+ *  SOMEWHERE LIKE <cplex root>/cplex/examples/src/c, TO BE SOMEWHERE THAT
+ *  CAN BE FOUND BY AN #include DIRECTIVE IN THIS FILE, WHICH IS USUALLY NOT
+ *
+ * The simple solution is just to temporarily copy check.c from (wherever
+ * it is) to MILPSolver/include. */
+
+#ifndef CPXMILPSOLVER_CHECK
+ #define CPXMILPSOLVER_CHECK 0
+#endif
+
+/*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -32,7 +51,11 @@
 
 #include "CPXMILPSolver.h"
 
-#ifdef MILPSolver_DEBUG
+#if CPXMILPSOLVER_CHECK
+ #include "check.c"
+#endif
+
+#ifdef MILPSOLVER_DEBUG
  #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
 #else
  #define DEBUG_LOG( stuff )
@@ -156,6 +179,17 @@ void CPXMILPSolver::load_problem( void )
     cpx_rhs[ i ] = CPX_INFBOUND;
   }
 
+
+ #if CPXMILPSOLVER_CHECK
+  status = CPXcheckcopylp( env , lp , numcols , numrows , objsense ,
+			   objective.data() , cpx_rhs.data() , sense.data() ,
+			   matbeg.data() , matcnt.data() , matind.data() ,
+			   matval.data() , cpx_lb.data() , cpx_ub.data() ,
+			   rngval.data() );
+  if( ! status )
+   std::cerr << "CPXcheckcopylp() returned nonzero status" << std::endl;
+ #endif
+ 
  if( use_custom_names )
   CPXcopylpwnames( env , lp , numcols , numrows , objsense ,
                    objective.data(), cpx_rhs.data() , sense.data() ,
@@ -1651,17 +1685,27 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nvit = nval.begin();
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
-   auto & cp = qf->get_v_var();
 
-   for( auto v :  modl->vars() )
+   // we exploit the delta() vector of C05FunctionModLin, giving the difference
+   // between the new and the old value of the linear coefficient, to update
+   // the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     *(nvit++) = std::get< 1 >( cp[ idx ] );
-     *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
-     }
+     int vidx = index_of_variable( var );
+     *(cidxit++) = vidx;
+      
+     // Retrieve old coefficient
+     double oldval;
+     CPXgetobj( env , lp , &oldval , vidx , vidx );
 
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
-   nval.resize( nsz );
+     // Update new coefficient
+     *(nvit++) = oldval + modl->delta()[ i ];
+     }
+   }
 
    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
@@ -1812,7 +1856,8 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+ if( ( ! dynamic_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
@@ -1832,53 +1877,82 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
-  // Linear objective function
+ if( auto lf = dynamic_cast< const LinearFunction * >( f ) ){
+  // Linear objective function modification
+  
+  // we exploit the coeff() vector of LinearFunctionModVarsAddd, giving the sum
+  // between the new and the old value of the linear coefficient, to update
+  // the objective values without having to recompute them: since they are
+  // (potentially) a sum of terms, recomputing them would require fetching
+  // back all of the terms, while the coeff() can just be applied to the sum
+  
+  for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
-  for( auto v : mod->vars() ) {
-   auto var = static_cast< const ColVariable * >( v );
-   if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
-    indices.push_back( idx );
-    if( mod->added() ) {
-     auto cidx = lf->is_active( var );
-     values.push_back( cidx < nav ? lf->get_coefficient( cidx ) : 0 );
+    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+      // Retrieve old coefficient
+      double oldval;
+      CPXgetobj( env , lp , &oldval , idx , idx );
+
+      indices.push_back( idx );
+      if( mod->added() ) {
+        auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
+        auto cidx = lf->is_active( var );
+        values.push_back( cidx < nav ? oldval + modl->coeff()[i] : oldval );
+      }
+      else
+        values.push_back( 0 );
      }
-    else
-     values.push_back( 0 );
-    }
    }
 
   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
   return;
-  }
+ }
+  
+ if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ){
+  // Quadratic objective function modification
 
- if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
-  // Quadratic objective function
+  // we exploit the coeff() vector of DQuadFunctionModVarsAddd, giving the sum
+  // between the new and the old value of both the linear and quadratic
+  // coefficient, to update the objective values without having to recompute 
+  // them: since they are (potentially) a sum of terms, recomputing them 
+  // would require fetching back all of the terms, while the coeff() 
+  // can just be applied to the sum
+  
+  for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
-  for( auto v : mod->vars() ) {
-   auto var = static_cast< const ColVariable * >( v );
-   if( auto ind = index_of_variable( var ) ; ind < Inf< int >() ) {
-    indices.push_back( ind );
-    double value = 0;
-    double q_value = 0;
+    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+      // Retrieve old coefficients
+      double oldval;
+      double oldqval;
+      CPXgetobj( env , lp , &oldval , idx , idx );
+      CPXgetqpcoef( env , lp , idx , idx , &oldqval );
 
-    if( mod->added() )
-     if( auto idx = qf->is_active( var ) ; idx < nav ) {
-       value = qf->get_linear_coefficient( idx );
-       q_value = qf->get_quadratic_coefficient( idx );
-       }
+      indices.push_back( idx );
+      double nqval;
+      if( mod->added() ){
+        if( auto cidx = qf->is_active( var ) ; cidx < nav ) {
+          auto modl = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+          values.push_back( oldval + modl->coeff()[i].first );
+          nqval = oldqval + 2 * modl->coeff()[i].second;
+        }
+        else{
+          values.push_back( 0 );
+          nqval = 0;
+        }
+      }
 
-    values.push_back( value );
-    CPXchgqpcoef( env , lp , ind , ind , 2 * q_value );
+    CPXchgqpcoef( env , lp , idx , idx , nqval ); 
     }
-   }
+  }
 
   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
   return;
-  }
+ }
 
  // This should never happen
- throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+ throw( std::invalid_argument( "Unknown type of Objective Function Modification" ) );
 
  }  // end( CPXMILPSolver::objective_fvars_modification )
 
