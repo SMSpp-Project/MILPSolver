@@ -1241,13 +1241,29 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nvit = nval.begin();
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
-   auto & cp = lf->get_v_var();
 
-   for( auto v :  modl->vars() )
+   // we exploit the delta() vector of C05FunctionModLin, giving the difference
+   // between the new and the old value of the linear coefficient, to update
+   // the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     *(nvit++) = cp[ idx ].second;
-     *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
-    }
+     int vidx = index_of_variable( var );
+     *(cidxit++) = vidx;
+      
+     // Retrieve old coefficient
+     double oldval;
+     int num_col, num_nz;
+     Highs_getColsByRange( highs , vidx , vidx , &num_col, &oldval, NULL, NULL,
+      &num_nz , NULL , NULL , NULL );
+
+     // Update new coefficient
+     *(nvit++) = oldval + modl->delta()[ i ];
+     }
+   }
 
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
@@ -1255,7 +1271,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    Highs_changeColsCostBySet( highs , cidx.size() , cidx.data() , nval.data() );
    return;
-   }
+  }
 
   if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
    // quadratic objective function
@@ -1274,17 +1290,29 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nvit = nval.begin();
    auto idxit = idxs.begin();
    auto cidxit = cidx.begin();
-   auto & cp = qf->get_v_var();
 
-   for( auto v :  modl->vars() )
+   // we exploit the delta() vector of C05FunctionModLin, giving the difference
+   // between the new and the old value of the linear coefficient, to update
+   // the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     *(nvit++) = std::get< 1 >( cp[ idx ] );
-     *(cidxit++) = index_of_variable( static_cast< const ColVariable * >( v ) );
-    }
+     int vidx = index_of_variable( var );
+     *(cidxit++) = vidx;
+      
+     // Retrieve old coefficient
+     double oldval;
+     int num_col, num_nz;
+     Highs_getColsByRange( highs , vidx , vidx , &num_col, &oldval, NULL, NULL,
+      &num_nz , NULL , NULL , NULL );
 
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
-   nval.resize( nsz );
+     // Update new coefficient
+     *(nvit++) = oldval + modl->delta()[ i ];
+     }
+   }
 
    Highs_changeColsCostBySet( highs , cidx.size() , cidx.data() , nval.data() );
    return;
@@ -1480,11 +1508,17 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+ if( ( ! dynamic_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
 				) );
+
+ std::vector< int > indices;
+ indices.reserve( nv );
+ std::vector< double > values;
+ values.reserve( nv );
 
  auto f = mod->function();
  auto nav = f->get_num_active_var();
@@ -1496,24 +1530,41 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
-  // Linear objective function
+  if( auto lf = dynamic_cast< const LinearFunction * >( f ) ){
+  // Linear objective function modification
+  
+  // we exploit the coeff() vector of LinearFunctionModVarsAddd, giving the sum
+  // between the new and the old value of the linear coefficient, to update
+  // the objective values without having to recompute them: since they are
+  // (potentially) a sum of terms, recomputing them would require fetching
+  // back all of the terms, while the coeff() can just be applied to the sum
+  
+  for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
-  for( auto v : mod->vars() ) {
-   auto var = static_cast< const ColVariable * >( v );
-   if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
-    double value = 0;
+    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+      indices.push_back( idx );
 
-    if( mod->added() ) {
-     auto cidx = lf->is_active( var );
-     value = cidx < nav ? lf->get_coefficient( cidx ) : 0;
+      if( mod->added() ) {
+        auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
+
+        // Retrieve old coefficient
+        double oldval;
+        int num_col, num_nz;
+        Highs_getColsByRange( highs , idx , idx , &num_col, &oldval, NULL, NULL,
+          &num_nz , NULL , NULL , NULL );
+        
+        auto cidx = lf->is_active( var );
+        values.push_back( cidx < nav ? oldval + modl->coeff()[i] : oldval );
+      }
+      else
+        values.push_back( 0 );
      }
-     Highs_changeColCost( highs , idx , value );
-    }
    }
 
+  Highs_changeColsCostBySet( highs , indices.size() , indices.data() , values.data() );
   return;
-  }
+ }
 
  if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
   // Quadratic objective function
@@ -1524,36 +1575,71 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   int nnz_old_hessian = Highs_getHessianNumNz( highs );
   int nnz_new_hessian = nnz_old_hessian;
 
-  for( auto v : mod->vars() ) {
-   auto var = static_cast< const ColVariable * >( v );
-   if( auto ind = index_of_variable( var ) ; ind < Inf< int >() ) {
+  // we exploit the coeff() vector of DQuadFunctionModVarsAddd, giving the sum
+  // between the new and the old value of both the linear and quadratic
+  // coefficient, to update the objective values without having to recompute 
+  // them: since they are (potentially) a sum of terms, recomputing them 
+  // would require fetching back all of the terms, while the coeff() 
+  // can just be applied to the sum
+  
+  for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
+    
+    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+     indices.push_back( idx );
 
-    auto q_obj_ind_idx = std::find( q_obj_ind.begin() , q_obj_ind.end(), ind );
-    double value = 0;
-    double q_value = 0;
+     // Iterator to retrieve the index of variable in hessian matrix: if equal to q_obj_ind.end()
+     // then the variable didn't have a quadratic coefficient already associated,
+     auto it_qobj = std::find( q_obj_ind.begin() , q_obj_ind.end() , idx );
+     double oldqval;
+     double nqval;
 
-    if( mod->added() ) {
-     if( auto idx = qf->is_active( var ) ; idx < nav ) {
-       value = qf->get_linear_coefficient( idx );
-       q_value = (qf->get_quadratic_coefficient( idx ))*2;
-       if( q_value != 0 ) { // we have actually to add an entry in the Hessian matrix
+     if( mod->added() ) {
+      if( auto cidx = qf->is_active( var ) ; cidx < nav ) {
+       auto modl = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+
+       // Retrieve old linear coefficient
+       double lin_oldval;
+       int num_col, num_nz;
+       Highs_getColsByRange( highs , idx , idx , &num_col, &lin_oldval, NULL, NULL,
+          &num_nz , NULL , NULL , NULL );
+       
+       // add new linear coefficient to final vector
+       values.push_back( lin_oldval + modl->coeff()[i].first );
+       
+       if( modl->coeff()[i].second != 0 && it_qobj == q_obj_ind.end() ){
+        // we have actually to add an entry in the Hessian matrix
+        nqval = 2 * modl->coeff()[i].second;
+
         ++nnz_new_hessian;
-        auto it_q_begin = std::next( q_obj_begin.begin() , ind + 1 );
+        auto it_q_begin = std::next( q_obj_begin.begin() , idx );
         // Update q_obj_begin
         while( it_q_begin != q_obj_begin.end() ) {
           ++( *it_q_begin );
           ++it_q_begin;
           }
-        int pos_var = q_obj_begin[ ind ];
-        q_obj_val.insert( std::next( q_obj_val.begin() , pos_var ) , q_value );
-        q_obj_ind.insert( std::next( q_obj_ind.begin() , pos_var ) , ind );
+        int pos_var = q_obj_begin[ idx ];
+        q_obj_val.insert( std::next( q_obj_val.begin() , pos_var ) , nqval );
+        q_obj_ind.insert( std::next( q_obj_ind.begin() , pos_var ) , idx );
         }
-       }
+       else if( modl->coeff()[i].second != 0 ){
+        // the variable was already in the hessian matrix (this can be caused by suproblems
+        // adding new information)
+        int pos_var = q_obj_begin[ idx ];
+        oldqval = q_obj_val[ pos_var ];
+        nqval = oldqval + 2 * modl->coeff()[i].second;
+
+        // Update new coefficient
+        q_obj_val[ pos_var ] = nqval;
+       } 
       }
+     }
      else { // we are removing the variable entry from the hessian matrix
+       values.push_back( 0 );
+       
        --nnz_new_hessian;
-       int pos_var = q_obj_begin[ ind ];
-       auto it_q_begin = std::next( q_obj_begin.begin() , ind );
+       int pos_var = q_obj_begin[ idx ];
+       auto it_q_begin = std::next( q_obj_begin.begin() , idx );
        // Update q_obj_begin
        while( it_q_begin != q_obj_begin.end() ) {
         --( *it_q_begin );
@@ -1562,11 +1648,13 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
         q_obj_val.erase( std::next( q_obj_val.begin() , pos_var ) );
         q_obj_ind.erase( std::next( q_obj_ind.begin() , pos_var ) );
       }
-     // change coefficient in the linear function
-     Highs_changeColCost( highs , ind , value );
      }
     }
 
+    // Update all linear coefficient at ones
+    Highs_changeColsCostBySet( highs , indices.size() , indices.data() , values.data() );
+
+    // Update all quadratic coefficient at ones
     int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
                         kHighsHessianFormatTriangular , q_obj_begin.data() ,
                         q_obj_ind.data() , q_obj_val.data()
@@ -1834,8 +1922,8 @@ std::string HiGHSMILPSolver::highs_dbl_par_map( idx_type par ) const
   case( dblMaxTime ): return( "time_limit" );
   case( dblRelAcc ):  return( "mip_rel_gap" );
   case( dblAbsAcc ):  return( "mip_abs_gap" );
-  case( dblRAccSol ): return("" );
-  case( dblAAccSol ): return( "" );
+  case( dblRAccSol ): return( "NoPar" );
+  case( dblAAccSol ): return( "NoPar" );
   case( dblFAccSol ): return( "primal_feasibility_tolerance" );
   }
 
@@ -1901,7 +1989,9 @@ void HiGHSMILPSolver::set_par( idx_type par , double value )
  std::string highs_opt = highs_dbl_par_map( par );
 
  if( highs_opt.size() > 0 ) {
-  Highs_setDoubleOptionValue( highs , highs_opt.data() , value );
+  if( highs_opt != "NoPar" )
+    Highs_setDoubleOptionValue( highs , highs_opt.data() , value );
+  
   return;
   }
 
@@ -2049,11 +2139,15 @@ double HiGHSMILPSolver::get_dflt_dbl_par( idx_type par ) const
 
  std::string highs_opt = highs_dbl_par_map( par );
  if( highs_opt.size() > 0 ) {
-  double value, default_value;
-  Highs_getDoubleOptionValues( highs , highs_opt.data() , & value, NULL ,
+  if( highs_opt == "NoPar" )
+    return 0;
+  else{
+    double value, default_value;
+    Highs_getDoubleOptionValues( highs , highs_opt.data() , & value, NULL ,
                               NULL , & default_value);
-  return( default_value );
-  }
+    return( default_value );
+   }
+ }
 
  return( MILPSolver::get_dflt_dbl_par( par ) );
  }
@@ -2066,21 +2160,37 @@ const std::string & HiGHSMILPSolver::get_dflt_str_par( idx_type par ) const
  //       of value[] to be allocated more than once with some memory being
  //       lost, but the chances are too slim and the potential drawback too
  //       limited to warrant even a humble std::atomic_flag
- static std::vector< std::string > value( strLastAlgParHiGHS -
-					  strFirstHiGHSPar );
+ std::string value;
  static std::vector< std::string > default_value( strLastAlgParHiGHS -
 					  strFirstHiGHSPar );
 
  if( ( par >= strFirstHiGHSPar ) && ( par < strLastAlgParHiGHS ) ) {
   auto i = par - strFirstHiGHSPar;
-  if( value[ i ].empty() ) {
-   value[ i ].reserve( 512 );
-   default_value[ i ].reserve( 512 );
-   Highs_getStringOptionValues( highs ,  SMSpp_to_HiGHS_str_pars[ i ].data() ,
-                                     value[ i ].data() , default_value[ i ].data() );
+  
+  if( default_value[ i ].empty() ) {
+    std::string str_option = SMSpp_to_HiGHS_str_pars[ i ];
+
+    default_value[i].reserve( 512 );
+
+    // List some of the default value for HiGHS options. 
+    // NOTE: this should not be necessary, but currently Highs_getStringOptionValues
+    // is not properly working.
+    if( str_option == "presolve" )
+      default_value[i] = "choose";
+    else if( str_option == "solver" )
+      default_value[i] = "choose";
+    else if( str_option == "parallel" )
+      default_value[i] = "choose";
+    else if( str_option == "run_crossover" )
+      default_value[i] = "on";
+    else if( str_option == "ranging" )
+      default_value[i] = "off";
+    else
+      Highs_getStringOptionValues( highs ,  SMSpp_to_HiGHS_str_pars[ i ].data() ,
+                                      value.data() , default_value[i].data() );
    }
 
-  return( default_value[ i ] );
+  return( default_value[i] );
   }
 
  return( MILPSolver::get_dflt_str_par( par ) );
