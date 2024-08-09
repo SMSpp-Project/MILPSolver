@@ -605,7 +605,11 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       throw( std::runtime_error(
 	     "No solution information is available with GRB_CUTOFF status" ) );
 
-      GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &lower_bound );
+      if( int_vars == 0 || relax_int_vars )
+        GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
+      else
+        GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &lower_bound );
+      
       lower_bound += constant_value;
       break;
 
@@ -719,7 +723,11 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
      if( m_status == GRB_CUTOFF )
       throw( std::runtime_error(
 	     "No solution information is available with GRB_CUTOFF status" ) );
-     GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &upper_bound );
+     
+     if( int_vars == 0 || relax_int_vars )
+        GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &upper_bound );
+      else
+        GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &upper_bound );
      upper_bound += constant_value;
      break;
 
