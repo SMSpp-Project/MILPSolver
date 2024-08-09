@@ -93,9 +93,8 @@ class GRBMILPSolver : public MILPSolver {
 
  /// enum for integer parameters
  enum int_par_type_GRBS {
-  /// throws exception if there is inconsistency when storing a reduced cost
-  intThrowReducedCostException = intLastAlgParMILP ,
-  intCutSepPar ,  ///< parameter for deciding if/when cut separation is done
+  ///< parameter for deciding if/when cut separation is done
+  intCutSepPar = intLastAlgParMILP ,
   intFirstGUROBIPar ,  ///< first Gurobi int/long parameter
   /// first allowed new int parameter for derived classes
   intLastAlgParGRBS = intFirstGUROBIPar + GRB_NUM_INT_PARS
@@ -610,11 +609,6 @@ class GRBMILPSolver : public MILPSolver {
  GRBmodel * model;   ///< Gurobi LP problem
 
  bool f_callback_set;  // true if the callback has been set
-
- /** This variable indicates whether an exception must be thrown if there is
-  * an inconsistency when a reduced cost is being stored during a call to
-  * get_dual_solution() or get_dual_direction(). */
- bool throw_reduced_cost_exception;
 
  /** bitwise-encoded parameter for deciding if and when separation of user
   * cuts and lazy constraints is performed */

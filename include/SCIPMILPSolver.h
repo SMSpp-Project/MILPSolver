@@ -91,9 +91,8 @@ class SCIPMILPSolver : public MILPSolver
 
  /// Types of integer parameters
  enum int_par_type_SCPS {
-  /// throws exception if there is inconsistency when storing a reduced cost
-  intThrowReducedCostException = intLastAlgParMILP ,
-  intCutSepPar ,  ///< parameter for deciding if/when cut separation is done
+  ///< parameter for deciding if/when cut separation is done
+  intCutSepPar = intLastAlgParMILP ,
   /// First SCIP int/long parameter
   intFirstSCIPPar ,
   /// First allowed new int parameter for derived classes
@@ -280,26 +279,6 @@ class SCIPMILPSolver : public MILPSolver
  /** Set the vector-of-int parameters specific of SCIPMILPSolver (note that
   * SCIP itself does not have any):
   * 
-  * - intThrowReducedCostException [0]: it indicates whether an exception must
-  *                                     be thrown if there is an inconsistency
-  *   when a reduced cost is being stored during a call to get_dual_solution()
-  *   or get_dual_direction(). The reduced cost of a Variable is stored in at
-  *   most one OneVarConstraint on that Variable. It may happen that a
-  *   Variable has no OneVarConstraint, in which case its reduced cost will
-  *   not be stored and will be lost. Usually, the reduced cost of a Variable
-  *   is of interest if the Variable has a finite nonzero lower or upper
-  *   bound. In this case, if a OneVariableConstraint for that Variable is not
-  *   found, an exception is thrown. More specifically, there are two cases in
-  *   which an exception is thrown:
-  *
-  *   1) The Variable is fixed to a finite nonzero value and there is no
-  *      OneVarConstraint on that Variable whose lower and upper bounds are
-  *      both equal to the value of that Variable.
-  *
-  *   2) The Variable is not fixed, it has a finite nonzero lower or upper
-  *      bound and there is no OneVarConstraint on that Variable whose lower
-  *      or upper bound match the bounds of the Variable.
-  *
   * - vintCutSepCfgInd [empty]: sets the Configuration for the various user
   *                             cuts / lazy constraints separations (see
   *   intCutSepPar) in terms of their indices in the "Configuration DataBase"
@@ -463,11 +442,6 @@ class SCIPMILPSolver : public MILPSolver
 /*--------------------------------------------------------------------------*/
 
  bool f_callback_set;  // true if the callback has been set
-
-  /** This variable indicates whether an exception must be thrown if there is
-  * an inconsistency when a reduced cost is being stored during a call to
-  * get_dual_solution() or get_dual_direction(). */
- bool throw_reduced_cost_exception;
 
  /** bitwise-encoded parameter for deciding if and when separation of user
   * cuts and lazy constraints is performed */

@@ -92,9 +92,8 @@ class CPXMILPSolver : public MILPSolver {
 
  /// enum for integer parameters
  enum int_par_type_CPXS {
-  /// throws exception if there is inconsistency when storing a reduced cost
-  intThrowReducedCostException = intLastAlgParMILP ,
-  intCutSepPar ,  ///< parameter for deciding if/when cut separation is done
+  ///< parameter for deciding if/when cut separation is done
+  intCutSepPar = intLastAlgParMILP ,
   intFirstCPLEXPar ,  ///< first CPLEX int/long parameter
   /// first allowed new int parameter for derived classes
   intLastAlgParCPXS = intFirstCPLEXPar + CPX_NUM_INT_PARS
@@ -229,26 +228,6 @@ class CPXMILPSolver : public MILPSolver {
  /** Set the "int" parameters specific of CPXMILPSolver, together with the
   * parameters of MILPSolver that CPXMILPSolver actually "listens to" and all
   * parameters supported by Cplex:
-  *
-  * - intThrowReducedCostException [0]: it indicates whether an exception must
-  *                                     be thrown if there is an inconsistency
-  *   when a reduced cost is being stored during a call to get_dual_solution()
-  *   or get_dual_direction(). The reduced cost of a Variable is stored in at
-  *   most one OneVarConstraint on that Variable. It may happen that a
-  *   Variable has no OneVarConstraint, in which case its reduced cost will
-  *   not be stored and will be lost. Usually, the reduced cost of a Variable
-  *   is of interest if the Variable has a finite nonzero lower or upper
-  *   bound. In this case, if a OneVariableConstraint for that Variable is not
-  *   found, an exception is thrown. More specifically, there are two cases in
-  *   which an exception is thrown:
-  *
-  *   1) The Variable is fixed to a finite nonzero value and there is no
-  *      OneVarConstraint on that Variable whose lower and upper bounds are
-  *      both equal to the value of that Variable.
-  *
-  *   2) The Variable is not fixed, it has a finite nonzero lower or upper
-  *      bound and there is no OneVarConstraint on that Variable whose lower
-  *      or upper bound match the bounds of the Variable.
   *
   * - intCutSepPar [0]: coded bit-wise, indicate if and when separation of
   *                     either user cuts or lazy constraints is performed:
@@ -622,11 +601,6 @@ class CPXMILPSolver : public MILPSolver {
  CPXLPptr lp;   ///< CPLEX LP problem
 
  bool f_callback_set;  // true if the callback has been set
-
- /** This variable indicates whether an exception must be thrown if there is
-  * an inconsistency when a reduced cost is being stored during a call to
-  * get_dual_solution() or get_dual_direction(). */
- bool throw_reduced_cost_exception;
 
  /** bitwise-encoded parameter for deciding if and when separation of user
   * cuts and lazy constraints is performed */
