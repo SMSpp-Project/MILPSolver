@@ -96,8 +96,7 @@ int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
 
 CPXMILPSolver::CPXMILPSolver( void ) :
  MILPSolver() , env( nullptr ) , lp( nullptr ) , f_callback_set( false ) ,
- throw_reduced_cost_exception( 0 ) , CutSepPar( 0 ) ,
- UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
+ CutSepPar( 0 ) , UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
 {
  int status = 0;
  env = CPXopenCPLEX( & status );
@@ -1022,31 +1021,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
  if( CPXgetx( env , lp , x.data() , 0 , numcols - 1 ) )
   throw( std::runtime_error( "Unable to get the solution with CPXgetx()" ) );
 
- get_var_solution( x );
- }
-
-/*--------------------------------------------------------------------------*/
-
-void CPXMILPSolver::get_var_solution( const std::vector< double > & x )
-{
- int col = 0;
- int dcol = static_vars;
-
- auto set = [ & x , & col ]( ColVariable & v ) {
-  v.set_value( x[ col++ ] );
-  };
-
- auto setd = [ & x , & dcol ]( ColVariable & v ) {
-  v.set_value( x[ dcol++ ] );
-  };
-
- for( auto qb : v_BFS ) {
-  for( const auto & vi : qb->get_static_variables() )
-   un_any_const_static( vi , set , un_any_type< ColVariable >() );
-
-  for( const auto & vi : qb->get_dynamic_variables() )
-   un_any_const_dynamic( vi , setd , un_any_type< ColVariable >() );
-  }
+ MILPSolver::write_var_solution( x );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1095,119 +1070,9 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
  if( CPXgetdj( env , lp , dj.data() , 0 , numcols - 1 ) )
   throw( std::runtime_error( "Unable to get reduced costs with CPXgetdj()"
 			     ) );
- int row = 0;
- int row_dynamic = static_cons;
 
- auto set = [ & pi , & row ]( FRowConstraint & c ) {
-  c.set_dual( - pi[ row++ ] );
-  };
-
- auto set_dynamic = [ & pi , & row_dynamic ]( FRowConstraint & c ) {
-  c.set_dual( - pi[ row_dynamic++ ] );
-  };
-
- for( auto qb : v_BFS ) {
-  for( const auto & ci : qb->get_static_constraints() )
-   un_any_const_static( ci , set , un_any_type< FRowConstraint >() );
-
-  for( const auto & ci : qb->get_dynamic_constraints() )
-   un_any_const_dynamic( ci, set_dynamic, un_any_type< FRowConstraint >() );
-  }
-
- int col = 0;
-
- auto set_bound = [ this , & dj , & col ]( ColVariable & var ) {
-  
-  auto active_bounds = get_active_bounds( var );
-
-  // Bounds that will have the dual value set.
-  OneVarConstraint * lhs_con = nullptr;
-  OneVarConstraint * rhs_con = nullptr;
-
-  auto var_lb = var.get_lb();
-  auto var_ub = var.get_ub();
-
-  const auto var_is_fixed = var.is_fixed();
-  if( var_is_fixed ) {
-  /* The Variable is fixed. There should be at least one OneVarConstraint
-    * (for this Variable) whose lower and upper bounds are equal to the value
-    * of this Variable. If such OneVarConstraint exists, the reduced cost of
-    * this Variable will be dual of that OneVarConstraint. If there is no such
-    * OneVarConstraint, the reduced cost of this variable will be lost. */
-    var_lb = var.get_value();
-    var_ub = var.get_value(); //REMOVE
-
-    for( auto b: active_bounds ) {
-     b->set_dual( 0 );
-     if( b->get_lhs() == var_lb && b->get_rhs() == var_lb ) {
-      lhs_con = b;
-      rhs_con = b;
-      }
-     }
-
-    assert( lhs_con == rhs_con );
-    }
-  else {  // a non-fixed Variable
-    for( auto b: active_bounds ) {
-     b->set_dual( 0 );
-
-     if( b->get_lhs() >= var_lb ) {
-      var_lb = b->get_lhs();
-      lhs_con = b;
-      }
-
-     if( b->get_rhs() <= var_ub ) {
-      var_ub = b->get_rhs();
-      rhs_con = b;
-      }
-     }
-    }
-
-  if( lhs_con && ( dj[ col ] >= 0 ) )
-    lhs_con->set_dual( - dj[ col ] );
-  else
-    if( rhs_con && ( dj[ col ] <= 0 ) )
-     rhs_con->set_dual( - dj[ col ] );
-    else
-     if( lhs_con || rhs_con )
-      throw( std::logic_error(
-	       "CPXMILPSolver::get_dual_solution: invalid dual value." ) );
-
-  if( throw_reduced_cost_exception ) {
-    if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
-    /* The Variable is fixed but it has no associated OneVarConstraint
-     * with both bounds equal to the value of the Variable. */
-
-     throw( std::logic_error(
-      "CPXMILPSolver::get_dual_solution: variable with index " +
-      std::to_string( col ) + " is fixed to " +
-      std::to_string( var.get_value() ) + ", but it has no OneVarConstraint" +
-      "with both bounds equal to the value of this variable." ) );
-     }
-    else
-     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
-     /* The Variable is not fixed and it has no associated OneVarConstraint.
-      * An exception is thrown if it has a finite nonzero bound. */
-
-      if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
-	  ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
-       throw( std::logic_error(
-                "CPXMILPSolver::get_dual_solution: variable with index " +
-		 std::to_string( col ) + " has no OneVarConstraint." ) );
-      }
-    }
-   // Update variable counter
-   col += 1; 
-  };
-
- for( auto qb : v_BFS ) {
-  // get all static variables first
-  for( const auto & vi : qb->get_static_variables() )
-   un_any_const_static( vi , set_bound , un_any_type< ColVariable >() );
-  // get all dynamic variables
-  for( const auto & vi : qb->get_dynamic_variables() )
-   un_any_const_dynamic( vi , set_bound , un_any_type< ColVariable >() );
- }  // end( CPXMILPSolver::get_dual_solution )
+ // Call the method of the base class
+ MILPSolver::write_dual_solution( pi , dj );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1241,118 +1106,8 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
  if( CPXdjfrompi( env , lp , y.data() , dj.data() ) )
   throw( std::runtime_error( "an error occurred in CPXdjfrompi()" ) );
 
- int row = 0;
- int row_dynamic = static_cons;
- auto set = [ & y , & row ]( FRowConstraint & c ) {
-  c.set_dual( - y[ row++ ] );
-  };
-
- auto set_dynamic = [ & y , & row_dynamic ]( FRowConstraint & c ) {
-  c.set_dual( - y[ row_dynamic++ ] );
-  };
-
- for( auto qb : v_BFS ) {
-  for( const auto & ci : qb->get_static_constraints() )
-   un_any_const_static( ci , set , un_any_type< FRowConstraint >() );
-
-  for( const auto & ci : qb->get_dynamic_constraints() )
-   un_any_const_dynamic( ci , set_dynamic , un_any_type< FRowConstraint >() );
-  }
-
- int col = 0;
- 
- auto set_bound = [ this , & dj , & col ]( ColVariable & var ) {
-  
-  auto active_bounds = get_active_bounds( var );
-
-  // Bounds that will have the dual value set.
-  OneVarConstraint * lhs_con = nullptr;
-  OneVarConstraint * rhs_con = nullptr;
-
-  auto var_lb = var.get_lb();
-  auto var_ub = var.get_ub();
-
-  const auto var_is_fixed = var.is_fixed();
-  if( var_is_fixed ) {
-  /* The Variable is fixed. There should be at least one OneVarConstraint
-    * (for this Variable) whose lower and upper bounds are equal to the value
-    * of this Variable. If such OneVarConstraint exists, the reduced cost of
-    * this Variable will be dual of that OneVarConstraint. If there is no such
-    * OneVarConstraint, the reduced cost of this variable will be lost. */
-    var_lb = var.get_value();
-    var_ub = var.get_value(); //REMOVE
-
-    for( auto b: active_bounds ) {
-     b->set_dual( 0 );
-     if( b->get_lhs() == var_lb && b->get_rhs() == var_lb ) {
-      lhs_con = b;
-      rhs_con = b;
-      }
-     }
-
-    assert( lhs_con == rhs_con );
-    }
-  else {  // a non-fixed Variable
-    for( auto b: active_bounds ) {
-     b->set_dual( 0 );
-
-     if( b->get_lhs() >= var_lb ) {
-      var_lb = b->get_lhs();
-      lhs_con = b;
-      }
-
-     if( b->get_rhs() <= var_ub ) {
-      var_ub = b->get_rhs();
-      rhs_con = b;
-      }
-     }
-    }
-
-  if( lhs_con && ( dj[ col ] >= 0 ) )
-    lhs_con->set_dual( - dj[ col ] );
-  else
-    if( rhs_con && ( dj[ col ] <= 0 ) )
-     rhs_con->set_dual( - dj[ col ] );
-    else
-     if( lhs_con || rhs_con )
-      throw( std::logic_error(
-	       "CPXMILPSolver::get_dual_direction: invalid dual value." ) );
-
-  if( throw_reduced_cost_exception ) {
-    if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
-    /* The Variable is fixed but it has no associated OneVarConstraint
-     * with both bounds equal to the value of the Variable. */
-
-     throw( std::logic_error(
-      "CPXMILPSolver::get_dual_direction: variable with index " +
-      std::to_string( col ) + " is fixed to " +
-      std::to_string( var.get_value() ) + ", but it has no OneVarConstraint" +
-      "with both bounds equal to the value of this variable." ) );
-     }
-    else
-     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
-     /* The Variable is not fixed and it has no associated OneVarConstraint.
-      * An exception is thrown if it has a finite nonzero bound. */
-
-      if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
-	  ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
-       throw( std::logic_error(
-                "CPXMILPSolver::get_dual_direction: variable with index " +
-		 std::to_string( col ) + " has no OneVarConstraint." ) );
-      }
-    }
-   // Update variable counter
-   col += 1; 
-  };
-
- for( auto qb : v_BFS ) {
-  // get all static variables first
-  for( const auto & vi : qb->get_static_variables() )
-   un_any_const_static( vi , set_bound , un_any_type< ColVariable >() );
-  // get all dynamic variables
-  for( const auto & vi : qb->get_dynamic_variables() )
-   un_any_const_dynamic( vi , set_bound , un_any_type< ColVariable >() );
- }  // end( CPXMILPSolver::get_dual_direction )
+ // Call the method of the base class
+ MILPSolver::write_dual_solution( y , dj );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2326,7 +2081,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
        "Unable to get the solution with CPXcallbackgetrelaxationpoint()" ) );
 
    // write it in the Variable of the Block
-   get_var_solution( x );
+   MILPSolver::write_var_solution( x );
 
    // now perform the user cut separation with the right Configuration
    std::vector< int > rmatbeg;
@@ -2384,7 +2139,7 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
        "Unable to get the solution with CPXcallbackgetcandidatepoint()" ) );
 
    // write it in the Variable of the Block
-   get_var_solution( x );
+   MILPSolver::write_var_solution( x );
 
    // now perform the lazy constraint separation with the right Configuration
    std::vector< int > rmatbeg;
@@ -2574,11 +2329,6 @@ int CPXMILPSolver::cpx_dbl_par_map( idx_type par ) const
 
 void CPXMILPSolver::set_par( idx_type par , int value )
 {
- if( par == intThrowReducedCostException ) {
-  throw_reduced_cost_exception = bool( value );
-  return;
-  }
-
  if( par == intCutSepPar ) {
   CutSepPar = value;
   return;
@@ -2716,7 +2466,7 @@ Solver::idx_type CPXMILPSolver::get_num_vstr_par( void ) const {
 
 int CPXMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( ( par == intThrowReducedCostException ) || ( par == intCutSepPar ) )
+ if( par == intCutSepPar )
   return( 0 );
 
  if( int cp = cpx_int_par_map( par ) ) {
@@ -2805,9 +2555,6 @@ const std::vector< std::string > & CPXMILPSolver::get_dflt_vstr_par(
 
 int CPXMILPSolver::get_int_par( idx_type par ) const
 {
- if( par == intThrowReducedCostException )
-  return( throw_reduced_cost_exception );
-
  if( par == intCutSepPar )
   return( CutSepPar );
 
@@ -2887,9 +2634,6 @@ const std::vector< std::string > & CPXMILPSolver::get_vstr_par( idx_type par )
 Solver::idx_type CPXMILPSolver::int_par_str2idx(
 					     const std::string & name ) const
 {
- if( name == "intThrowReducedCostException" )
-  return( intThrowReducedCostException );
-
  if( name == "intCutSepPar" )
   return( intCutSepPar );
 
@@ -2917,13 +2661,10 @@ Solver::idx_type CPXMILPSolver::int_par_str2idx(
 
 const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::array< std::string , 2 > _pars =
-                     { "intThrowReducedCostException" , "intCutSepPar" };
- if( idx == intThrowReducedCostException )
-  return( _pars[ 0 ] );
-
+ static const std::array< std::string , 1 > _pars =
+                     { "intCutSepPar" };
  if( idx == intCutSepPar )
-  return( _pars[ 1 ] );
+  return( _pars[ 0 ] );
 
  // note: this implementation is not thread safe and it requires that the
  //       result is used immediately after the call (prior to any other call

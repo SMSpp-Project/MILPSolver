@@ -1995,6 +1995,10 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 
 void MILPSolver::set_par( idx_type par , int value )
 {
+ if( par == intThrowReducedCostException ) {
+  throw_reduced_cost_exception = bool( value );
+  return;
+  }
  if( par == intUseCustomNames ) {
   use_custom_names = bool( value );
   return;
@@ -2045,6 +2049,9 @@ ThinComputeInterface::idx_type MILPSolver::get_num_str_par( void ) const {
 
 int MILPSolver::get_dflt_int_par( idx_type par ) const
 {
+ if( par == intThrowReducedCostException )
+  return( 1 );
+
  if( par == intUseCustomNames )
   return( 1 );
 
@@ -2082,6 +2089,9 @@ const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const
 
 int MILPSolver::get_int_par( idx_type par ) const
 {
+ if( par == intThrowReducedCostException )
+  return( throw_reduced_cost_exception );
+
  if( par == intUseCustomNames )
   return( use_custom_names );
 
@@ -2118,6 +2128,9 @@ const std::string & MILPSolver::get_str_par( idx_type par ) const
 
 Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
 {
+ if( name == "intThrowReducedCostException" )
+  return( intThrowReducedCostException );
+
  if( name == "intUseCustomNames" )
   return( intUseCustomNames );
 
@@ -2134,17 +2147,21 @@ Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
 
 const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::vector< std::string > pars = { "intUseCustomNames",
+ static const std::vector< std::string > pars = { "intThrowReducedCostException",
+                                                  "intUseCustomNames",
                                                   "intRelaxIntVars" ,
                                                   "intSingleBound" };
- if( idx == intUseCustomNames )
+ if( idx == intThrowReducedCostException )
   return( pars[ 0 ] );
 
- if( idx == intRelaxIntVars )
+ if( idx == intUseCustomNames )
   return( pars[ 1 ] );
 
- if( idx == intSingleBound )
+ if( idx == intRelaxIntVars )
   return( pars[ 2 ] );
+
+ if( idx == intSingleBound )
+  return( pars[ 3 ] );
 
  return( CDASolver::int_par_idx2str( idx ) );
  }
@@ -2678,7 +2695,6 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
      throw( std::logic_error(
 	       "MILPSolver::write_dual_solution: invalid dual value" ) );
 
-  /*!! ignore by default by now
   if( throw_reduced_cost_exception ) {
     if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
      // the Variable is fixed but it has no associated OneVarConstraint
@@ -2691,7 +2707,6 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
       "with both bounds equal to the value of this variable." ) );
      }
     else
-    !!*/
      if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
       // the Variable is not fixed and it has no associated OneVarConstraint
       // an exception is thrown if it has a finite nonzero bound
@@ -2701,6 +2716,7 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
                 "MILPSolver::get_dual_solution: variable with index " +
 		 std::to_string( col ) + " has no OneVarConstraint." ) );
       }
+    }
 
    col += 1;  // update variable counter
    };
