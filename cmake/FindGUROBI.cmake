@@ -149,8 +149,10 @@ else ()
 
     if (NOT GUROBI_LICENSE_FOUND)
         message(WARNING "Gurobi license file not found in default locations.\
-                         Cannot access the $GRB_LICENSE_FILE environment variable.\
-                         Move the gurobi.lic file to one of the default paths, i.e.: ${LICENSE_PATHS}")
+                         Unfortunately, CMake cannot access the $GRB_LICENSE_FILE environment variable.\
+                         If you have already defined it, please ignore this warning, otherwise\
+                         define it specifying your custom location of the `gurobi.lic` file, or move it\
+                         to one of the default locations to definitively suppress this warning, i.e.: ${LICENSE_PATHS}")
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
