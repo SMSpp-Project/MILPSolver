@@ -2,10 +2,9 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of dual_test 		                                     		 #
+#   makefile of test_dual (for MILPSolver)                                   #
 #                                                                            #
 #                              Antonio Frangioni                             #
-#                              Enrico Calandrini                             #
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
 #                                                                            #

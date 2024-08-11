@@ -2,10 +2,9 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of DynamicLP_test                                		         #
+#   makefile of test_dynamic (for MILPSolver)                                #
 #                                                                            #
 #                              Antonio Frangioni                             #
-#                              Enrico Calandrini                             #
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
 #                                                                            #
