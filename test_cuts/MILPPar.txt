@@ -2,7 +2,7 @@
 # - - - - - - - - - - - - - - - MILPPar.txt - - - - - - - - - - - - - - - - -
 #
 # A txt description of a BlockSolverConfig for a Block solved by
-# CPXMILPSolver with active lazy cut generation
+# :MILPSolver with active lazy cut generation
 #
 #   Antonio Frangioni
 #
@@ -16,9 +16,10 @@ BlockSolverConfig     # exact type of the Configuration object
 
 1  # number of (the names of) Solver in this BlockSolverConfig
 # now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
-#CPXMILPSolver # name of 1st Solver
-SCIPMILPSolver # name of 1st Solver
-#GRBMILPSolver # name of 1st Solver
+CPXMILPSolver    # name of Solver
+#GRBMILPSolver   # name of Solver
+#SCIPMILPSolver  # name of Solver
+#HiGHSMILPSolver # name of Solver
 
 1  # number of ComputeConfig in this BlockSolverConfig
 
@@ -30,15 +31,18 @@ ComputeConfig  # exact type of the ComputeConfig object
 1  # f_diff == 0 ==> all non-provided parameters are set to the default value
    # f_diff == 1 ==> all non-provided parameters are not changed
 
-2 # number of integer parameters
+2  # number of integer parameters
 
 # now all the integer parameters
 intLogVerb     0     # LogVerb, log verbosity of the CPXMILPSolver
 intCutSepPar   7     # separate valid inequalities everywhere + lazy constraints
-#CPXPARAM_Threads 16
+
+## All specific CPLEX parameter (uncomment based on Solver)
+#CPXPARAM_Threads      1 # avoid parallel
 #CPXPARAM_ScreenOutput 0
 
-# note that we could eof() the file here since the rest is all empty
+## All specific GUROBI parameter (uncomment based on Solver)
+#Threads 1   # avoid parallel
 
 0 # number of double parameters
 

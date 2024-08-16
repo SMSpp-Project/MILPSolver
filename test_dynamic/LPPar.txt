@@ -2,13 +2,9 @@
 # - - - - - - - - - - - - - LPPar.txt - - - - - - - - - - - - - - - - - - - -
 #
 # A txt description of a BlockSolverConfig for a LPBlock having
-# two attached *MILPSolvers, choosen from:  
-# 
-#  - CPXMILPSolver
+# two attached :MILPSolver
 #
-#  - GRBMILPSolver
-#
-#  - SCIPMILPSolver
+#   Antonio Frangioni
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -19,13 +15,11 @@ BlockSolverConfig     # exact type of the Configuration object
 1  # the BlockSolverConfig is a "differential" one: values are being set
 
 2  # number of (the names of) Solver in this BlockSolverConfig
-
 # now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
-
-CPXMILPSolver 			# name of Solver
-#SCIPMILPSolver 		# name of Solver
-#GRBMILPSolver 		# name of Solver
-HiGHSMILPSolver      # name of Solver
+CPXMILPSolver    # name of Solver
+#GRBMILPSolver   # name of Solver
+#SCIPMILPSolver  # name of Solver
+#HiGHSMILPSolver # name of Solver
 
 2  # number of ComputeConfig in this BlockSolverConfig
 
@@ -38,18 +32,21 @@ ComputeConfig # exact type of the ComputeConfig object
    # f_diff == 1 ==> all non-provided parameters are not changed
 
 1  # number of integer parameters
+
 # now all the integer parameters
 intLogVerb 0
 
 2  # number of double parameters
+
 # now all the double parameters
 dblRelAcc		1e-08
-CPXPARAM_MIP_Tolerances_Integrality	1e-07	# Cplex parameter (uncomment based on solver)
+
+## All specific CPLEX parameter (uncomment based on Solver)
+CPXPARAM_MIP_Tolerances_Integrality	1e-07
 
 0  # number of string parameters
 # now all the double parameters
 #strOutputFile	bk.lp
-# [none]
 
 0  # number of vector-of-int parameters
 # now all the vector-of-int parameters
@@ -76,28 +73,35 @@ ComputeConfig # exact type of the ComputeConfig object
    # f_diff == 1 ==> all non-provided parameters are not changed
 
 1  # number of integer parameters
+
 # now all the integer parameters
 intLogVerb 0
 
 1  # number of double parameters
+
 # now all the double parameters
 dblRelAcc		1e-08
-#IntFeasTol  1e-07	# Gurobi parameter (uncomment based on 2nd solver)
+
+## All specific GUROBI parameter (uncomment based on Solver)
+#IntFeasTol  1e-07
 
 0  # number of string parameters
-# now all the double parameters
+
+# now all the string parameters
 #strOutputFile	bk.lp
-# [none]
 
 0  # number of vector-of-int parameters
+
 # now all the vector-of-int parameters
 # [none]
 
 0  # number of vector-of-double parameters
+
 # now all the vector-of-double parameters
 # [none]
 
 0  # number of vector-of-string parameters
+
 # now all the vector-of-string parameters
 # [none]
 
