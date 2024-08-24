@@ -59,13 +59,6 @@ option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 #    add_compile_definitions(MILPSolver_DEBUG)
 #endif ()
 
-# ----- Policies ----------------------------------------------------------- #
-# Introduced in 3.19 to handle arbitrary characters in test names
-# See: https://cmake.org/cmake/help/latest/policy/CMP0110.html
-if (POLICY CMP0110)
-    cmake_policy(SET CMP0110 NEW)
-endif ()
-
 # ----- Requirements -------------------------------------------------------- #
 # If it's not being called by the umbrella, we need to
 # look for the system-installed libraries.
