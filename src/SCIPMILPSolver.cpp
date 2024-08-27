@@ -29,7 +29,7 @@
 #include <cmath>
 
 #include <LinearFunction.h>
-#include <DQuadFunction.h>
+#include <QuadFunction.h>
 
 #include "SCIPMILPSolver.h"
 
@@ -160,6 +160,19 @@ void SCIPMILPSolver::load_problem( void )
   SCIP_CALL_ABORT( SCIPreleaseVar( scip , & var ) );
   }
 
+ // Separable quadratic problem
+ bool is_sqp = std::any_of( q_objective.begin() ,
+                           q_objective.end() ,
+                           []( double d ) { return( d != 0 ); } );
+
+ // General quadratic problem
+ bool is_qp = std::any_of( ndq_objective.begin() ,
+                           ndq_objective.end() ,
+                           []( double d ) { return( d != 0 ); } );
+
+ // Quadratic constrained problem
+ bool is_qcp = ( numquadrows > 0 );
+
  // add constraints
  cons.resize( numrows );
  for( int i = 0 ; i < numrows ; ++i ) {
@@ -185,90 +198,122 @@ void SCIPMILPSolver::load_problem( void )
 
   SCIP_CONS * con = nullptr;
   char * name = use_custom_names ? rowname[ i ] : nullptr;
-  SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip , & con , name , 0 ,
-                                              nullptr , nullptr ,
-                                              con_lhs , con_rhs ) );
+  if( !is_qcp ){
+    // We are adding a linear constraint
+    // NOTE: in this first scan we simply add an empty constraint.
+    SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip , & con , name , 0 ,
+                                                nullptr , nullptr ,
+                                                con_lhs , con_rhs ) );
+  }
+  else if( q_part[ i ].nonZeros() == 0 ){
+    // We are adding a linear constraint of a QCP model. The matrix coefficient is 
+    // grouped in MILPSolver by rows.
+    std::vector< SCIP_VAR * > lidx;
+    std::vector< double > lcoeff;
+
+    generate_qcon_lincoeff( lidx , lcoeff , i ); // linear structures
+
+    SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip , & con , name , lidx.size() ,
+                                                lidx.data() , lcoeff.data() ,
+                                                con_lhs , con_rhs ) );
+  }
+  else{
+    // Quadratic constraint
+    // Firstly, we have to retrieve SCIP variable index from the variable pointer.
+    // NOTE: SCIP only accepts non-zero coefficients
+    std::vector< SCIP_VAR * > lidx;
+    std::vector< SCIP_VAR * > qidx1;
+    std::vector< SCIP_VAR * > qidx2;
+
+    std::vector< double > lcoeff;
+    std::vector< double > qcoeff;
+
+    // Call specific function to generate the structures required
+    generate_qcon_lincoeff( lidx , lcoeff , i ); // linear structures
+    generate_qcon_matrix( qidx1 , qidx2 , qcoeff , i ); // quadratic structures
+
+    #if SCIP_VERSION < 800
+      SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip , & con , name ,
+                      lidx.size() , lidx.data() , lcoeff.data() ,
+                      qidx1.size() , qidx1.data() , qidx2.data() ,
+                      qcoeff.data() , con_lhs , con_rhs ) );
+   #else
+      SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip , & con , name ,
+                      lidx.size() , lidx.data() , lcoeff.data() ,
+                      qidx1.size() , qidx1.data() , qidx2.data() ,
+                      qcoeff.data() , con_lhs , con_rhs ) );
+   #endif
+  }
+  // Add constraint to SCIP
   SCIP_CALL_ABORT( SCIPaddCons( scip , con ) );
   cons[ i ] = con;
   SCIP_CALL_ABORT( SCIPreleaseCons( scip , & con ) );
   }
 
- // add constraint coefficients
- for( int c = 0 ; c < numcols ; ++c )
-  for( int i = matbeg[ c ] ; i < matbeg[ c + 1 ] ; ++i )
-   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , cons[ matind[ i ] ] ,
+ // add linear constraint coefficients
+ if( !is_qcp ){
+  for( int c = 0 ; c < numcols ; ++c )
+   for( int i = matbeg[ c ] ; i < matbeg[ c + 1 ] ; ++i )
+    SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , cons[ matind[ i ] ] ,
                                        vars[ c ] , matval[ i ] ) );
+ }
 
- bool is_qp = std::any_of( q_objective.begin() , q_objective.end() ,
-                           []( double d ) { return( d != 0 ); } );
- if( is_qp ) {
+ // Add quadratic objective terms (if any)
+ if( is_sqp || is_qp ) {
   /* Nonlinear objective functions are not supported by SCIP and must be 
-  *  modeled as constraint function. Thus, for each variable v with nonzero
-  *  quadratic coefficient we create a new aux_var z. In the objective z 
-  *  goes with the q_objective value of v and a new quadratic
-  *  aux_constraint is created such as: z - xˆ2 >= 0 */
+  *  modeled as constraint function. Thus, a problem like min xQx is reformulated
+  *  into min z  s.t. z >= xQx. */
+  std::vector< SCIP_VAR * > qidx1;
+  std::vector< SCIP_VAR * > qidx2;
+  std::vector< double > qcoeff;
 
-  aux_vars.resize( numcols );
-  aux_cons.resize( numcols );
+  // Call specific function to generate the structures required
+  generate_qobj_matrix( qidx1 , qidx2 , qcoeff ); // quadratic structures
 
-  for( int i = 0 ; i < numcols ; ++i ) {
-   if( q_objective[ i ] == 0 ) {
-    aux_vars[ i ] = nullptr;
-    aux_cons[ i ] = nullptr;
-    continue;
-    }
+  // Add auxiliary variable
+  SCIP_Real z_lb = - SCIPinfinity( scip );
+  SCIP_Real z_ub = SCIPinfinity( scip ) ;
 
-   // Add auxiliary variables
-   SCIP_Real z_lb = - SCIPinfinity( scip );
-   SCIP_Real z_ub = SCIPinfinity( scip ) ;
+  SCIP_VARTYPE z_type = SCIP_VARTYPE_CONTINUOUS;
 
-   SCIP_VARTYPE z_type = SCIP_VARTYPE_CONTINUOUS;
+  SCIP_VAR * z = nullptr;
+  SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & z , nullptr , 
+                                z_lb  , z_ub , 1 , z_type ) );
+  SCIP_CALL_ABORT( SCIPaddVar( scip , z ) );
+  obj_aux_var = z;
+  SCIP_CALL_ABORT( SCIPreleaseVar( scip , & z ) );
 
-   SCIP_VAR * z = nullptr;
-   SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & z , nullptr , 
-                              z_lb  , z_ub ,  q_objective[ i ] , 
-                              z_type ) );
-   SCIP_CALL_ABORT( SCIPaddVar( scip , z ) );
-   aux_vars[ i ] = z;
-   SCIP_CALL_ABORT( SCIPreleaseVar( scip , & z ) );
-
-   // Add auxiliary constraints z - xˆ2 >= 0
-   SCIP_Real con_lhs = 0;
-   SCIP_Real con_rhs = SCIPinfinity( scip );
-   SCIP_Real lincoef = 1;
-   SCIP_Real quadcoef = -1;
-
-   SCIP_CONS * con = nullptr;
-   SCIP_VAR * linvar = aux_vars[ i ];
-   SCIP_VAR * quadvar = vars[ i ];
-   const char * name = "aux_con";
-
-   #if SCIP_VERSION < 800
-    SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip , & con , name ,
-                     1 , & linvar , & lincoef , 1 , & quadvar , & quadvar ,
-		     & quadcoef , con_lhs , con_rhs ) );
-   #else
-    SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip , & con ,
-		     name , 1 , & linvar , & lincoef , 1 , & quadvar ,
-		     & quadvar , & quadcoef , con_lhs , con_rhs ) );
-   #endif
-
-   SCIP_CALL_ABORT( SCIPaddCons( scip , con ) );
-   aux_cons[ i ] = con;
-   SCIP_CALL_ABORT( SCIPreleaseCons( scip , &con ) );
-
-   // Add constraint coefficients
-   // SCIP_CALL_ABORT( SCIPaddCoefLinear( scip,
-   //                                     aux_cons[ i ],
-   //                                     aux_vars[ i ],
-   //                                     1 ) );
-   // SCIP_CALL_ABORT( SCIPaddQuadVarQuadratic( scip,
-   //                                           aux_cons[ i ],
-   //                                           aux_vars[ i ],
-   //                                           0,
-   //                                           -1 ) );
-   }
+  // Add auxiliary constraints z >= xQx
+  SCIP_Real con_lhs;
+  SCIP_Real con_rhs;
+  if( objsense == 1 ){
+    con_lhs = 0;
+    con_rhs = SCIPinfinity( scip );
   }
+  else{
+    con_rhs = 0;
+    con_lhs = -SCIPinfinity( scip );
+  }
+  SCIP_Real lincoef = 1;
+
+  SCIP_CONS * con = nullptr;
+  SCIP_VAR * linvar = obj_aux_var;
+  std::string name = "aux_qobj_con";
+
+  #if SCIP_VERSION < 800
+    SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip , & con , name.c_str() ,
+        1 , & linvar , & lincoef , qidx1.size() , qidx1.data() , qidx2.data() ,
+        qcoeff.data() , con_lhs , con_rhs ) );
+  #else
+    SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip , & con ,
+        name.c_str() , 1 , & linvar , & lincoef , qidx1.size() , qidx1.data() ,
+        qidx2.data() , qcoeff.data() , con_lhs , con_rhs ) );
+  #endif
+
+  SCIP_CALL_ABORT( SCIPaddCons( scip , con ) );
+  obj_aux_con = con;
+  SCIP_CALL_ABORT( SCIPreleaseCons( scip , &con ) );
+ }
 
  // the base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
@@ -325,9 +370,20 @@ int SCIPMILPSolver::compute( bool changedvars )
   throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
- if( ! output_file.empty() )
-  SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip , output_file.c_str() , NULL ,
+ if( ! output_file.empty() ){
+  if( obj_aux_con != nullptr || numquadrows > 0 ){
+    // Print model in quadratic problems with SCIP could generate error unless
+    // CIP extension is used
+    auto pos = output_file.find( "." );
+    std::string new_output_file = output_file.substr( 0 , pos + 1 );
+    new_output_file.append( "cip" );
+    SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip , new_output_file.c_str() , NULL ,
 					 FALSE ) );
+  }
+  else
+    SCIP_CALL_ABORT( SCIPwriteOrigProblem( scip , output_file.c_str() , NULL ,
+					 FALSE ) );
+ }
 
  // the actual call to SCIP - - - - - - - - - - - - - - - - - - - - - - - - -
  
@@ -913,113 +969,245 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
 
-  auto qf = dynamic_cast< const DQuadFunction * >( f );
-  if( ! qf )
-   throw( std::logic_error(
+  auto qf = dynamic_cast< const QuadFunction * >( f );
+  auto dqf = dynamic_cast< const DQuadFunction * >( f );
+  if( ( !qf ) && ( !dqf ) )
+    throw( std::logic_error(
 		       "unexpected *C05FunctionMod* from Linear Objective" ) );
 
-  Subset idxs;
-  c_Vec_p_Var * milpvars;
-  if( auto modlr = dynamic_cast< const C05FunctionModRngd * >( modl ) ) {
-   idxs = qf->map_index( modlr->vars() , modlr->range() );
-   milpvars = & modlr->vars();
-   }
-  else
-   if( auto modls = dynamic_cast< const C05FunctionModSbst * >( modl ) ) {
-    idxs = qf->map_index( modls->vars() , modls->subset() );
-    milpvars = & modls->vars();
-    }
-   else
-    throw( std::logic_error( "unknown type of C05FunctionModLinRngd" ) );
+  // Select correct quadratic function
+  auto fqf = ( qf ) ? qf : dqf;
+
+  if( auto modlr = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ) {
+   // we exploit the delta() vector of DQuadFunctionModRngd, giving the difference
+   // between the new and the old value of both linear and quadratic coefficient,
+   // to update the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum
+   Subset idxs = fqf->map_index( modlr->vars() , modlr->range() );
+   c_Vec_p_Var * mod_vars = & modlr->vars();
+   c_v_coeff_pair * delta_coeff = & modlr->delta();
 
    auto idxit = idxs.begin();
-   auto & cp = qf->get_v_var();
+   auto dcoeffit = delta_coeff->begin();
 
-   for( auto v : *milpvars )
+   for( auto v : *mod_vars )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-      auto nlinval = std::get< 1 >( cp[ idx ] );
-      auto nquadval = std::get< 2 >( cp[ idx ] );
-      auto vidx = index_of_variable( static_cast< const ColVariable * >( v ) );
-      // change linear coefficient 
-      SCIP_CALL_ABORT( SCIPchgVarObj( scip , vars[ vidx ] , nlinval ) );
+     // Update linear coefficient
+     auto vidx = index_of_variable( static_cast< const ColVariable * >( v ) );
+     SCIP_CALL_ABORT( SCIPaddVarObj( scip , vars[ vidx ] , std::get< 0 >( *dcoeffit ) ) );
 
-      // Check if v already had a quad coeff associated
-      if( aux_vars[ vidx ] != NULL ){
-        
-        if( nquadval != 0 )
-          /* Variable v already had a quadratic coefficient and the new one is 
-          *  nonzero. Thus, it is sufficient to change his linear coeff and the
-          *  quad ones associated with aux var */
+     /* In SCIP to modify a coefficient contained in a quadratic constraint, 
+      * you need to retrieve the expression of the quadratic constraint, 
+      * find the right position of the term you want to modify ( pos + 1 ) 
+      * and substitute the new coefficient in the vector. 
+      * NOTE: the linear coefficient related to the auxiliary variable
+      * is stored in last place of expression. */
+     auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
 
-          // change quadratic coefficient by changing the lin coeff of aux var
-          SCIP_CALL_ABORT( SCIPchgVarObj( scip , aux_vars[ vidx ] , nquadval ) );
-        else{
-          /* Variable v already had a quadratic coefficient and the new one is 
-          *  zero. Thus, we have to remove the aux var and the aux_con created */
-          SCIP_VAR * scip_aux_var = aux_vars[ vidx ];
-          aux_vars[ vidx ] = nullptr;
-          SCIP_CONS * scip_aux_con = aux_cons[ vidx ]; 
-          aux_cons[ vidx ] = nullptr;
-          SCIP_Bool deleted = 0;
+     // Check if v already had a quad coeff associated
+     bool found_qterm = false;
+     auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , vidx );
+     while( qidx1_it != qobj_idx1.end() ){
+      auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+      if( qobj_idx2[ pos ] == vidx ){
+       // We actually found the coefficient associated to v*v
+       auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+       
+       // Now we have to be careful wheater the coefficient is being set to 0.
+       // This is because SCIP does not allow to set a coefficient in objective
+       // to 0.
+       if( exprcoeffs[ pos ] == std::get< 1 >( *dcoeffit ) )
+        // Remove the term from the quadratic function (at the moment not 
+        // supported by SCIP ).
+        throw( std::logic_error(
+		      "SCIP does not currently support the removal of quadratic terms "
+          "from the objective function." ) );
+       else
+        exprcoeffs[ pos ] = exprcoeffs[ pos ] - std::get< 1 >( *dcoeffit );
 
-          // Remove aux constraint
-          SCIP_CALL_ABORT( SCIPdelCons (	scip, scip_aux_con ) );	
+       found_qterm = true;
+       qidx1_it = qobj_idx1.end();
+       }
+      else
+       find( qidx1_it + 1 , qobj_idx1.end() , vidx );
+     }
 
-          // Remove aux variable
-          SCIP_CALL_ABORT( SCIPdelVar( scip , scip_aux_var , & deleted ) );
-          assert( deleted );
-        }
-      }
-      else{
-        /* Variable v didn't have a quadratic coefficient associated. Thus, it is 
-        *  necessary to create a new aux_var and aux_con to handle it. 
-        *  For more information, see SCIPMILPSolver::compute() */
+     if( !found_qterm && std::get< 1 >( *dcoeffit ) != 0 ){
+      // v didn't have previously a quadratic coefficient associated
+      SCIP_EXPR * new_term;
+      std::vector< SCIP_VAR * > var_expr = { vars[ vidx ] };
+      std::vector< double > qcoeff_expr = { 1 };
+      SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
+        1 , var_expr.data() , var_expr.data() , qcoeff_expr.data() ,
+        nullptr , nullptr );
+      SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -std::get< 1 >( *dcoeffit ) );
+      SCIPreleaseExpr( scip , &new_term );
 
-        if( nquadval == 0 )
-          continue; // Nothing to do
+      // Add it in the vectors of indices
+      qobj_idx1.push_back( vidx );
+      qobj_idx2.push_back( vidx );
+     }
+     SCIPfreeExprQuadratic( scip , qexpr );
 
-        SCIP_Real z_lb = - SCIPinfinity( scip );
-        SCIP_Real z_ub = SCIPinfinity( scip ) ;
-
-        SCIP_VARTYPE z_type = SCIP_VARTYPE_CONTINUOUS;
-
-        SCIP_VAR * z = nullptr;
-        SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & z , nullptr , 
-                              z_lb  , z_ub ,  nquadval , 
-                              z_type ) );
-        SCIP_CALL_ABORT( SCIPaddVar( scip , z ) );
-        aux_vars[ vidx ] = z;
-        SCIP_CALL_ABORT( SCIPreleaseVar( scip , & z ) );
-
-        // Add auxiliary constraints z - xˆ2 >= 0
-        SCIP_Real con_lhs = 0;
-        SCIP_Real con_rhs = SCIPinfinity( scip );
-        SCIP_Real lincoef = 1;
-        SCIP_Real quadcoef = -1;
-
-        SCIP_CONS * con = nullptr;
-        SCIP_VAR * linvar = aux_vars[ vidx ];
-        SCIP_VAR * quadvar = vars[ vidx ];
-        const char * name = "aux_con";
-
-        #if SCIP_VERSION < 800
-          SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip , & con , name ,
-                          1 , & linvar , & lincoef , 1 , & quadvar , & quadvar ,
-              & quadcoef , con_lhs , con_rhs ) );
-        #else
-          SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip , & con ,
-              name , 1 , & linvar , & lincoef , 1 , & quadvar ,
-              & quadvar , & quadcoef , con_lhs , con_rhs ) );
-        #endif
-
-        SCIP_CALL_ABORT( SCIPaddCons( scip , con ) );
-        aux_cons[ vidx ] = con;
-        SCIP_CALL_ABORT( SCIPreleaseCons( scip , &con ) );
-      }
+     dcoeffit++;
     }
-      
-  return;
+   return;
+   }
+  else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ){
+   // we exploit the delta() vector of DQuadFunctionModSbst, giving the difference
+   // between the new and the old value of both linear and quadratic coefficient,
+   // to update the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum
+   Subset idxs = fqf->map_index( modls->vars() , modls->subset() );
+   c_Vec_p_Var * mod_vars = & modls->vars();
+   c_v_coeff_pair * delta_coeff = & modls->delta();
+
+   auto idxit = idxs.begin();
+   auto dcoeffit = delta_coeff->begin();
+
+   for( auto v : *mod_vars )
+    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+     // Update linear coefficient
+     auto vidx = index_of_variable( static_cast< const ColVariable * >( v ) );
+     SCIP_CALL_ABORT( SCIPaddVarObj( scip , vars[ vidx ] , std::get< 0 >( *dcoeffit ) ) );
+
+     /* In SCIP to modify a coefficient contained in a quadratic constraint, 
+      * you need to retrieve the expression of the quadratic constraint, 
+      * find the right position of the term you want to modify ( pos + 1 ) 
+      * and substitute the new coefficient in the vector. 
+      * NOTE: the linear coefficient related to the auxiliary variable
+      * is stored in last place of expression. */
+     auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+
+     // Check if v already had a quad coeff associated
+     bool found_qterm = false;
+     auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , vidx );
+     while( qidx1_it != qobj_idx1.end() ){
+      auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+      if( qobj_idx2[ pos ] == vidx ){
+       // We actually found the coefficient associated to v*v
+       auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+       
+       // Now we have to be careful wheater the coefficient is being set to 0.
+       // This is because SCIP does not allow to set a coefficient in objective
+       // to 0.
+       if( exprcoeffs[ pos ] == std::get< 1 >( *dcoeffit ) )
+        // Remove the term from the quadratic function (at the moment not 
+        // supported by SCIP ).
+        throw( std::logic_error(
+		      "SCIP does not currently support the removal of quadratic terms "
+          "from the objective function." ) );
+       else
+        exprcoeffs[ pos ] = exprcoeffs[ pos ] - std::get< 1 >( *dcoeffit );
+
+       found_qterm = true;
+       qidx1_it = qobj_idx1.end();
+       }
+      else
+       find( qidx1_it + 1 , qobj_idx1.end() , vidx );
+     }
+
+     if( !found_qterm && std::get< 1 >( *dcoeffit ) != 0 ){
+      // v didn't have previously a quadratic coefficient associated
+      SCIP_EXPR * new_term;
+      std::vector< SCIP_VAR * > var_expr = { vars[ vidx ] };
+      std::vector< double > qcoeff_expr = { 1 };
+      SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
+        1 , var_expr.data() , var_expr.data() , qcoeff_expr.data() ,
+        nullptr , nullptr );
+      SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -std::get< 1 >( *dcoeffit ) );
+      SCIPreleaseExpr( scip , &new_term );
+
+      // Add it in the vectors of indices
+      qobj_idx1.push_back( vidx );
+      qobj_idx2.push_back( vidx );
+     }
+     SCIPfreeExprQuadratic( scip , qexpr );
+
+     dcoeffit++;
+    }
+   return;
+   }
+  else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ){
+   // we exploit the delta() vector of QuadFunctionModSbst, giving the difference
+   // between the new and the old value of both linear and quadratic coefficient,
+   // to update the objective values without having to recompute them: since they are
+   // (potentially) a sum of terms, recomputing them would require fetching
+   // back all of the terms, while the delta() can just be applied to the sum.
+   // NOTE: in the actual version of QuadFunction, we expect to recieve one 
+   // coefficient at time for each Modification.
+   Subset idxs = fqf->map_index( modlq->vars() , modlq->subset() );
+   c_Vec_p_Var mod_vars = modlq->vars();
+   Coefficient delta_coeff = modlq->delta();
+
+   if( idxs.size() != 2 )
+    throw( std::logic_error(
+		       "Expected single coefficient Modification in QuadFunctionModSbst" ) );
+
+   int idx1 = index_of_variable( dynamic_cast< ColVariable * >( mod_vars[ 0 ] ) );
+   int idx2 = index_of_variable( dynamic_cast< ColVariable * >( mod_vars[ 1 ] ) );
+
+   /* In SCIP to modify a coefficient contained in a quadratic constraint, 
+    * you need to retrieve the expression of the quadratic constraint, 
+    * find the right position of the term you want to modify ( pos + 1 ) 
+    * and substitute the new coefficient in the vector. 
+    * NOTE: the +1 is needed to avoid the single linear coefficient 
+    * corresponding to the auxiliary variable created. */
+   auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+
+   // Check if vars[ 0 ] * vars[ 1 ] already had a quad coeff associated
+   bool found_qterm = false;
+   auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , idx1 );
+   while( qidx1_it != qobj_idx1.end() ){
+    auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+    if( qobj_idx2[ pos ] == idx2 ){
+     // We actually found the coefficient associated to vars[ 0 ] * vars[ 1 ]
+     auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+     // Now we have to be careful wheater the coefficient is being set to 0.
+     // This is because SCIP does not allow to set a coefficient in objective
+     // to 0.
+     if( exprcoeffs[ pos ] == delta_coeff )
+      // Remove the term from the quadratic function (at the moment not 
+      // supported by SCIP ).
+      throw( std::logic_error(
+		    "SCIP does not currently support the removal of quadratic terms "
+        "from the objective function." ) );
+     else
+      exprcoeffs[ pos ] = exprcoeffs[ pos ] - delta_coeff;
+
+     found_qterm = true;
+     qidx1_it = qobj_idx1.end();
+     }
+    else
+     find( qidx1_it + 1 , qobj_idx1.end() , idx1 );
+   }
+
+   if( !found_qterm ){
+    // v didn't have previously a quadratic coefficient associated
+    SCIP_EXPR * new_term;
+    std::vector< SCIP_VAR * > var_expr1 = { vars[ idx1 ] };
+    std::vector< SCIP_VAR * > var_expr2 = { vars[ idx2 ] };
+    std::vector< double > qcoeff_expr = { 1 };
+    SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
+        1 , var_expr1.data() , var_expr2.data() , qcoeff_expr.data() ,
+        nullptr , nullptr );
+
+    SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -delta_coeff );
+    SCIPreleaseExpr( scip , &new_term );
+
+    // Add it in the vectors of indices
+    qobj_idx1.push_back( idx1 );
+    qobj_idx2.push_back( idx2 );
+   }
+   SCIPfreeExprQuadratic( scip , qexpr );
+  
+   return;
   }
+  else
+    throw( std::logic_error( "unknown type of *QuadFunctionMod*" ) );
+ }
 
  // Fallback method - Update all costs
  // --------------------------------------------------------------------------
@@ -1104,6 +1292,7 @@ void SCIPMILPSolver::objective_fvars_modification(
  // check the modification type
  if( ( ! dynamic_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument( "This type of FunctionModVars is not handled"
@@ -1154,8 +1343,174 @@ void SCIPMILPSolver::objective_fvars_modification(
   return;
  }
 
- if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ){
+ if( auto qf = static_cast< const QuadFunction * >( f ) ){
   // Quadratic objective function modification
+
+  // Firstly check if we are simply removing variables
+  if( !mod->added() ){
+    for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+      auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
+
+      if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+        SCIP_VAR * scip_var = vars[ idx ];
+
+        SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
+        /* In SCIP to modify a coefficient contained in a quadratic constraint, 
+        * you need to retrieve the expression of the quadratic constraint, 
+        * find the right position of the term you want to modify ( pos + 1 ) 
+        * and substitute the new coefficient in the vector. 
+        * NOTE: the +1 is needed to avoid the single linear coefficient 
+        * corresponding to the auxiliary variable created. */
+        auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+
+        // Check if v already had a quad coeff associated
+        bool found_qterm = false;
+        auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , idx );
+        while( qidx1_it != qobj_idx1.end() ){
+          auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+          if( qobj_idx2[ pos ] == idx ){
+            // We actually found the coefficient associated to v*v
+            // Remove the term from the quadratic function (at the moment not 
+            // supported by SCIP ).
+            throw( std::logic_error(
+		          "SCIP does not currently support the removal of quadratic terms "
+              "from the objective function." ) );
+
+            /*auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+            found_qterm = true;
+            qidx1_it = qobj_idx1.end();*/
+          }
+          else
+            find( qidx1_it + 1 , qobj_idx1.end() , idx );
+        }
+      }
+    // TODO: BUilt a specific Modification to include non diagonal terms
+    // to be set to 0.
+    }
+  return;
+  }
+
+  auto modq = static_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+  if( !modq )
+    // This should never happen
+    throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
+
+  // we exploit the od_terms() vector of QuadFunctionModVarsAddd, giving the sum
+  // between the new and the old value of the quadratic coefficient, to update 
+  // the objective values without having to recompute them: since they are 
+  // (potentially) a sum of terms, recomputing them would require fetching back 
+  // all of the terms, while the coeff() can just be applied to the sum.
+
+  /* In SCIP to modify a coefficient contained in a quadratic constraint, 
+   * you need to retrieve the expression of the quadratic constraint, 
+   * find the right position of the term you want to modify ( pos + 1 ) 
+   * and substitute the new coefficient in the vector. 
+   * NOTE: the +1 is needed to avoid the single linear coefficient 
+   * corresponding to the auxiliary variable created. */
+  auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+  
+  for( auto t : modq->od_terms() ) {
+    int loc_idx1 = std::get<0>( t );
+    int loc_idx2 = std::get<1>( t );
+
+    auto var1 = qf->get_active_var( loc_idx1 );
+    auto var2 = qf->get_active_var( loc_idx2 );
+
+    int glob_idx1 = index_of_variable( dynamic_cast< ColVariable * >( var1 ) );
+    int glob_idx2 = index_of_variable( dynamic_cast< ColVariable * >( var2 ) );
+
+    SCIP_VAR * scip_var1 = vars[ glob_idx1 ];
+    SCIP_VAR * scip_var2 = vars[ glob_idx2 ];
+
+    // Check if v already had a quad coeff associated
+    bool found_qterm = false;
+    auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , glob_idx1 );
+    while( qidx1_it != qobj_idx1.end() ){
+      auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+      if( qobj_idx2[ pos ] == glob_idx2 ){
+        // We actually found the coefficient associated to idx1*idx2
+        auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+        // Update coefficient
+        exprcoeffs[ pos + 1 ] = exprcoeffs[ pos + 1 ] + std::get<2>( t );
+
+        found_qterm = true;
+        qidx1_it = qobj_idx1.end();
+      }
+      else
+        find( qidx1_it + 1 , qobj_idx1.end() , glob_idx1 );
+    }
+
+    if( !found_qterm ){
+      // v didn't have previously a quadratic coefficient associated
+      SCIP_EXPR * new_term;
+      std::vector< SCIP_VAR * > var_expr1 = { scip_var1 };
+      std::vector< SCIP_VAR * > var_expr2 = { scip_var2 };
+      std::vector< double > qcoeff_expr = { 1 };
+      SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
+        1 , var_expr1.data() , var_expr2.data() , qcoeff_expr.data() ,
+        nullptr , nullptr );
+      SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -std::get<2>( t ) );
+      SCIPreleaseExpr( scip , &new_term );
+
+      // Add it in the vectors of indices
+      qobj_idx1.push_back( glob_idx1 );
+      qobj_idx2.push_back( glob_idx2 );
+    }
+  }
+  SCIPfreeExprQuadratic( scip , qexpr );
+  // Here we don't need any return, as we know that any QuadFunction
+  // derives from a DQuadFunction
+ }
+
+ if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ){
+  // Separable quadratic objective function modification
+
+  // Firstly check if we are simply removing variables
+  if( !mod->added() ){
+    for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
+      auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
+
+      if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+        SCIP_VAR * scip_var = vars[ idx ];
+
+        SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
+        /* In SCIP to modify a coefficient contained in a quadratic constraint, 
+        * you need to retrieve the expression of the quadratic constraint, 
+        * find the right position of the term you want to modify ( pos + 1 ) 
+        * and substitute the new coefficient in the vector. 
+        * NOTE: the +1 is needed to avoid the single linear coefficient 
+        * corresponding to the auxiliary variable created. */
+        auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+
+        // Check if v already had a quad coeff associated
+        bool found_qterm = false;
+        auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , idx );
+        while( qidx1_it != qobj_idx1.end() ){
+          auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+          if( qobj_idx2[ pos ] == idx ){
+            // We actually found the coefficient associated to v*v
+            // Remove the term from the quadratic function (at the moment not 
+            // supported by SCIP ).
+            throw( std::logic_error(
+		          "SCIP does not currently support the removal of quadratic terms "
+              "from the objective function." ) );
+
+            /*auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+            found_qterm = true;
+            qidx1_it = qobj_idx1.end();*/
+          }
+          else
+            find( qidx1_it + 1 , qobj_idx1.end() , idx );
+        }
+      }
+    }
+  return;
+  }
+
+  auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+  if( !modq )
+    // This should never happen
+    throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
   // we exploit the coeff() vector of DQuadFunctionModVarsAddd, giving the sum
   // between the new and the old value of both the linear and quadratic
@@ -1163,105 +1518,62 @@ void SCIPMILPSolver::objective_fvars_modification(
   // them: since they are (potentially) a sum of terms, recomputing them 
   // would require fetching back all of the terms, while the coeff() 
   // can just be applied to the sum
+
+  /* In SCIP to modify a coefficient contained in a quadratic constraint, 
+   * you need to retrieve the expression of the quadratic constraint, 
+   * find the right position of the term you want to modify ( pos + 1 ) 
+   * and substitute the new coefficient in the vector. 
+   * NOTE: the +1 is needed to avoid the single linear coefficient 
+   * corresponding to the auxiliary variable created. */
+  auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
   
   for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
     if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
       SCIP_VAR * scip_var = vars[ idx ];
-      SCIP_Real add_value = 0;
-      SCIP_Real add_q_value = 0;
 
-      if( mod->added() ){
-        // Get the actual increase in objective values
-        if( auto cidx = qf->is_active( var ) ; cidx < nav ) {
-          auto modl = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
-          add_value = modl->coeff()[i].first;
-          add_q_value = modl->coeff()[i].second;
+      SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, modq->coeff()[i].first ) );
+
+      // Check if v already had a quad coeff associated
+      bool found_qterm = false;
+      auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , idx );
+      while( qidx1_it != qobj_idx1.end() ){
+        auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+        if( qobj_idx2[ pos ] == idx ){
+          // We actually found the coefficient associated to idx1*idx2
+          auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+          // Update coefficient
+          exprcoeffs[ pos + 1 ] = exprcoeffs[ pos + 1 ] + modq->coeff()[i].second;
+
+          found_qterm = true;
+          qidx1_it = qobj_idx1.end();
         }
-
-        // Change linear coeff
-        SCIP_CALL_ABORT( SCIPaddVarObj( scip , scip_var , add_value ) );
-
-        SCIP_VAR * scip_aux_var = nullptr;
-        SCIP_CONS * scip_aux_con = nullptr;
-
-        if( aux_vars.size() - 1 < idx ){
-          /* We are adding a variable that was not appearing before in the objective function.
-          * Thus, we have to add new space in the auxiliary vectors. */
-          aux_vars.push_back( scip_aux_var );
-          aux_cons.push_back( scip_aux_con );
-        }
-        else{
-          /* We are adding a delta to a quadratic coefficient already avalable. Thus, no additional 
-           * auxiliary structures have to be inserted, but the previous ones built have to be modified. */
-          scip_aux_var = aux_vars[ idx ];
-          scip_aux_con = aux_cons[ idx ];
-        }
-
-        if( add_q_value != 0 ){
-          if( scip_aux_var == nullptr ){
-          /* A new quadratic coefficient has been added. Thus, if add_q_value is non zero, 
-          *  it is necessary to create a new aux_var and aux_con to handle it. 
-          *  For more information, see SCIPMILPSolver::compute() */
-          SCIP_Real z_lb = - SCIPinfinity( scip );
-          SCIP_Real z_ub = SCIPinfinity( scip ) ;
-
-          SCIP_VARTYPE z_type = SCIP_VARTYPE_CONTINUOUS;
-
-          SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & scip_aux_var , nullptr , 
-                                z_lb  , z_ub ,  add_q_value , 
-                                z_type ) );
-          SCIP_CALL_ABORT( SCIPaddVar( scip , scip_aux_var ) );
-
-          // Add auxiliary constraints z - xˆ2 >= 0
-          SCIP_Real con_lhs = 0;
-          SCIP_Real con_rhs = SCIPinfinity( scip );
-          SCIP_Real lincoef = 1;
-          SCIP_Real quadcoef = -1;
-          const char * name = "aux_con";
-
-          #if SCIP_VERSION < 800
-            SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip , & scip_aux_con , name ,
-                            1 , & scip_aux_var , & scip_aux_var , 1 , & scip_var , & scip_var ,
-                & quadcoef , con_lhs , con_rhs ) );
-          #else
-            SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip , & scip_aux_con ,
-                name , 1 , & scip_aux_var , & lincoef , 1 , & scip_var ,
-                & scip_var , & quadcoef , con_lhs , con_rhs ) );
-          #endif
-
-          SCIP_CALL_ABORT( SCIPaddCons( scip , scip_aux_con ) );
-          SCIP_CALL_ABORT( SCIPreleaseVar( scip , & scip_aux_var ) );
-          SCIP_CALL_ABORT( SCIPreleaseCons( scip , &scip_aux_con ) );
-          }
-        else{
-          /* There is already a quadratic coefficient for the selected scip_var. In this case, we just have 
-           * to modify the linear coefficient associated to the auxiliary variable. */
-          SCIP_CALL_ABORT( SCIPaddVarObj( scip , scip_aux_var , add_q_value ) );
-        }
+        else
+          find( qidx1_it + 1 , qobj_idx1.end() , idx );
       }
-    }
-    else{
-      SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
 
-      /* We have to remove the aux var and the aux_con associated
-      *  to scip_var */
-      SCIP_VAR * scip_aux_var = aux_vars[ idx ];
-      aux_vars.erase( aux_vars.begin() + idx );
-      SCIP_CONS * scip_aux_con = aux_cons[ idx ]; 
-      aux_cons.erase( aux_cons.begin() + idx );
-      SCIP_Bool deleted = 0;
+      if( !found_qterm ){
+        // v didn't have previously a quadratic coefficient associated
+        SCIP_EXPR * new_term;
+        std::vector< SCIP_VAR * > var_expr = { scip_var };
+        std::vector< double > qcoeff_expr = { 1 };
+        SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
+          1 , var_expr.data() , var_expr.data() , qcoeff_expr.data() ,
+          nullptr , nullptr );
 
-      // Remove aux constraint
-      SCIP_CALL_ABORT( SCIPdelCons ( scip, scip_aux_con ) );	
+        SCIPaddExprNonlinear( scip , obj_aux_con , new_term , 
+                                -modq->coeff()[i].second );
+        SCIPreleaseExpr( scip , &new_term );
 
-      // Remove aux variable
-      SCIP_CALL_ABORT( SCIPdelVar( scip , scip_aux_var , & deleted ) );
-      assert( deleted );
+        // Add it in the vectors of indices
+        qobj_idx1.push_back( idx );
+        qobj_idx2.push_back( idx );
       }
     }
   }
+  SCIPfreeExprQuadratic( scip , qexpr );
+  return;
  }
  
  // This should never happen
@@ -2276,6 +2588,96 @@ Configuration * SCIPMILPSolver::get_cfg( Index ci ) const
   return( nullptr );
  return( v_ConfigDB[ dbi ] );
  }
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::generate_qcon_matrix( std::vector< SCIP_VAR * > & qidx1 ,
+			  std::vector< SCIP_VAR * > & qidx2 ,
+			  std::vector< double > & qcoeff ,
+        Index row )
+{
+  auto qmat = q_part[ row ];
+
+  qidx1.resize( qmat.nonZeros() );
+  qidx2.resize( qmat.nonZeros() );
+  qcoeff.resize( qmat.nonZeros() );
+  int k_term = 0;
+  for (int k=0; k < qmat.outerSize(); ++k){
+    for (Qmat::InnerIterator it(qmat,k); it; ++it){
+      int idx1 = it.row();
+      int idx2 = it.col();
+      qidx1[ k_term ] = vars[ idx1 ];
+      qidx2[ k_term ] = vars[ idx2 ];
+      qcoeff[ k_term ] = it.value();
+      ++k_term;
+    } 
+  }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
+			  std::vector< double > & lcoeff ,
+        Index row )
+{
+  int nzcnt = matcnt[ row ];
+  int start = matbeg[ row ];
+
+  lidx.reserve( nzcnt );
+  lcoeff.reserve( nzcnt );
+
+  // get the coefficients to fill the matrix
+  for( int j = 0 ; j < nzcnt ; j++ ){
+    int idx = matind[ start + j ];
+    lidx.push_back( vars[ idx ] );
+    lcoeff.push_back( matval[ start + j ] );
+  }
+}
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::generate_qobj_matrix( std::vector< SCIP_VAR * > & qidx1 ,
+			  std::vector< SCIP_VAR * > & qidx2 ,
+			  std::vector< double > & qcoeff )
+{
+  // Add diagonal terms
+  int n_diag_nnz = 0;
+  for( int i = 0 ; i < numcols ; i++ ){
+    if( q_objective[ i ] != 0 ){
+      ++n_diag_nnz;
+      qidx1.push_back( vars[ i ] );
+      qidx2.push_back( vars[ i ] );
+      qcoeff.push_back( - q_objective[ i ] );
+
+      // Fill also auxiliary vectors to perform future changes (only with indices)
+      qobj_idx1.push_back( i );
+      qobj_idx2.push_back( i );
+    }
+  }
+
+  // Now copy all the off-diagonal terms
+  if( ndq_objective.size() > 0 ){
+    qobj_idx1.resize( n_diag_nnz + ndq_objective.size() );
+    qobj_idx2.resize( n_diag_nnz + ndq_objective.size() );
+
+    std::copy( ndq_rowind.begin() , ndq_rowind.end() , qobj_idx1.begin() + n_diag_nnz );
+    std::copy( ndq_colind.begin() , ndq_colind.end() , qobj_idx2.begin() + n_diag_nnz );
+
+    for( int j = 0 ; j < ndq_objective.size() ; j++ ){
+      auto idx1 = ndq_rowind[ j ];
+      auto idx2 = ndq_colind[ j ];
+      qidx1.push_back( vars[ idx1 ] );
+      qidx2.push_back( vars[ idx2 ] );
+      qcoeff.push_back( - ndq_objective[ j ] );
+    }
+  }
+
+  // SCIP add the linear coefficient at the end, thus we add a -1 in the 
+  // indices vector to avoid it.
+  qobj_idx1.push_back( -1 );
+  qobj_idx2.push_back( -1 );
+  qcoeff.push_back( 0 );
+}
 
 /*--------------------------------------------------------------------------*/
 /*--------- End Methods related to Class SCIPMILPSolver.cpp ----------------*/

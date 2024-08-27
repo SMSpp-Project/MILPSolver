@@ -657,6 +657,20 @@ class GRBMILPSolver : public MILPSolver {
  // the vector of pair ( ranged constraint - axiliary variable )
  std::vector<std::pair < int , int >> map_rng_con_aux_var;
 
+ /* In GRBMILPSolver we handle quadratic constraints like 
+  * q x + x^T Q x <= q_0 by constructing two separate constraint: 
+  * q x + v <= q_0 and v >= x^T Q x, with v being an auxiliary variable. 
+  * This is because Gurobi does not allow to directly modify quadratic 
+  * constraints. Thus, we will need to store for each quadratic constraint the 
+  * Gurobi index of relative auxiliary variable and constraint beeing built. 
+  * To achieve this goal we will use two auxiliary vectors grb_quad_var_aux
+  * and grb_quad_con_aux, with length equal to the number of rows and value
+  * -1 for linear constraint.
+  *
+  * NOTE: The set of indices of quadratic and linear rows are disjoint. */
+  std::vector< int > grb_quad_var_aux;
+  std::vector< int > grb_quad_con_aux;
+
  // last static ranged constraint added
  int last_static_rng_con;
 
@@ -722,6 +736,13 @@ class GRBMILPSolver : public MILPSolver {
 
  // get the right Configuration for ci = 0, 1, 2
  Configuration * get_cfg( Index ci ) const;
+
+ /** Create the structures used to provide the quadratic matrix for the
+ * constraint of index row to Gurobi. */
+ void generate_qcon_matrix( std::vector< int > & qidx1 ,
+			  std::vector< int > & qidx2 ,
+			  std::vector< double > & qcoeff ,
+        Index row );
 
 /*--------------------------------------------------------------------------*/
 

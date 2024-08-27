@@ -683,6 +683,10 @@ class HiGHSMILPSolver : public MILPSolver {
  // get the right Configuration for ci = 0, 1, 2
  Configuration * get_cfg( Index ci ) const;
 
+ /** Create the structures used to provide the quadratic objective matrix 
+  * to HiGHS with the function Highs_passHessian(). */
+ void generate_qobj_hessian( void );
+
 /*--------------------------------------------------------------------------*/
 
  SMSpp_insert_in_factory_h;
