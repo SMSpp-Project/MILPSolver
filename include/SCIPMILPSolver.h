@@ -467,10 +467,24 @@ class SCIPMILPSolver : public MILPSolver
  std::vector< SCIP_VAR * > vars;   ///< SCIP variables
  std::vector< SCIP_CONS * > cons;  ///< SCIP constraints
 
+ /* Nonlinear objective functions are not supported by SCIP and must be 
+  * modeled as constraint function. Thus, a problem like min xQx is reformulated
+  * into min z  s.t. z >= xQx.
+  * To map these new structures with the original model, we keep track 
+  * of the generated auxiliary constraint and variable. 
+  *
+  * NOTE: to modify a quadratic coefficient, in SCIP it is sufficient to 
+  * access the vector of coefficients returned by SCIPgetCoefsExprSum() 
+  * and change the element in the right position. Thus, we also keep track
+  * of the order in which the coefficients have been inserted using 
+  * vectors obj_idx1 and obj_idx2. */
+
  /// SCIP auxiliary variables for QPs
- std::vector< SCIP_VAR * > aux_vars;
+ SCIP_VAR * obj_aux_var;
  /// SCIP auxiliary constraints for QPs
- std::vector< SCIP_CONS * > aux_cons;
+ SCIP_CONS * obj_aux_con;
+ std::vector< int > qobj_idx1;
+ std::vector< int > qobj_idx2;
 
  double UpCutOff;  ///< externally set upper cutoff to terminate
  double LwCutOff;  ///< externally set lower cutoff to terminate
@@ -586,6 +600,25 @@ class SCIPMILPSolver : public MILPSolver
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+/** Create the structures used to provide the quadratic matrix for the
+ * constraint of index row to SCIP. */
+ void generate_qcon_matrix( std::vector< SCIP_VAR * > & qidx1 ,
+			  std::vector< SCIP_VAR * > & qidx2 ,
+			  std::vector< double > & qcoeff ,
+           Index row );
+
+/** Create the structures used to provide the linear part of a quadratic 
+ * constraint of index row to SCIP. */
+void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
+			  std::vector< double > & lcoeff ,
+           Index row );
+
+/** Create the structures used to provide the quadratic objective matrix
+ *  to SCIP. */
+ void generate_qobj_matrix( std::vector< SCIP_VAR * > & qidx1 ,
+			  std::vector< SCIP_VAR * > & qidx2 ,
+			  std::vector< double > & qcoeff );
 
  SMSpp_insert_in_factory_h;
 

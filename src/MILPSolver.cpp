@@ -40,8 +40,6 @@
 
 #include <LinearFunction.h>
 
-#include <DQuadFunction.h>
-
 #include "MILPSolver.h"
 
 /*--------------------------------------------------------------------------*/
@@ -141,6 +139,10 @@ void MILPSolver::load_problem( void )
  static_vars = 0;
  static_cons = 0;
  Index nzelements = 0;
+ Index nst_linrow = 0;
+ Index nst_quadrow = 0;
+ Index ndy_linrow = 0;
+ Index ndy_quadrow = 0;
 
  // locking the Block
  bool owned = f_Block->is_owned_by( f_id );
@@ -170,7 +172,7 @@ void MILPSolver::load_problem( void )
  // exception if any Variable, be it static or dynamic, is not a ColVariable
 
  Index num_block = 0;        // counter for the blocks
- Index row = 0;              // counter for the rows
+ Index row = 0;          // counter for the rows
  Index col = 0;              // counter for the columns
  Index static_con_grps = 0;  // counter for static constraint groups
  Index static_var_grps = 0;  // counter for static variable groups
@@ -237,6 +239,33 @@ void MILPSolver::load_problem( void )
 		       ) )
     continue;
    }
+
+  auto counter_static_lin_quad_row = [ this , & nst_linrow, & nst_quadrow ]
+                              ( FRowConstraint & cons ) {
+  if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+    ++nst_linrow;
+  else if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+    ++nst_quadrow;
+  };
+
+  auto counter_dynamic_lin_quad_row = [ this , & ndy_linrow, & ndy_quadrow ]
+                              ( FRowConstraint & cons ) {
+  if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+    ++ndy_linrow;
+  else if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+    ++ndy_quadrow;
+  };
+
+  for( const auto & i : qb->get_static_constraints() )
+   un_any_const_static( i , counter_static_lin_quad_row ,
+                          un_any_type< FRowConstraint >() );
+
+  for( const auto & i : qb->get_dynamic_constraints() )
+   un_any_const_dynamic( i , counter_dynamic_lin_quad_row , 
+                          un_any_type< FRowConstraint >() );
+
+  // Fill number of quadratic rows
+  numquadrows = nst_quadrow + ndy_quadrow;
 
   for( const auto & i : qb->get_static_variables() ) {
    // Singles
@@ -305,8 +334,8 @@ void MILPSolver::load_problem( void )
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
    for( auto * i : var.active_stuff() )
     if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
-     if( is_mine( row->get_Block() ) )
-      ++nzelements;
+      if( is_mine( row->get_Block() ) )
+       ++nzelements;
    };
 
   for( const auto & i : qb->get_static_variables() )
@@ -329,10 +358,21 @@ void MILPSolver::load_problem( void )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  // The +1 is needed by generic interface
- matbeg.resize( numcols + 1, 0 );
- matbeg[ numcols ] = nzelements;
 
- matcnt.resize( numcols, 0 );
+ // If no quadratic constraints are in the model, then the coefficient matrix
+ // is grouped by columns. Otherwise, it is grouped by rows.
+ if( numquadrows == 0 ){
+  matbeg.resize( numcols + 1, 0 );
+  matbeg[ numcols ] = nzelements;
+  matcnt.resize( numcols, 0 );
+ }
+ else{
+  matbeg.resize( numrows + 1, 0 );
+  matbeg[ numrows ] = nzelements;
+  matcnt.resize( numrows , 0 );
+  q_part.resize( numrows );
+ }
+
  matind.resize( nzelements, 0 );
  matval.resize( nzelements, 0 );
  rhs.resize( numrows, 0 );
@@ -372,10 +412,19 @@ void MILPSolver::load_problem( void )
   dvar_to_bound.reserve( numcols - static_vars );
  }
 
+ /* Now we have to check wheter there are any quadratic constraints. 
+  * If this is the case, then matbeg, matcnt, ... will represent the 
+  * coefficient matrix by rows. Thus, we will firstly scan the variables
+  * and after the constraints. Otherwise, if no quadratic costraints 
+  * are in the model, the coefficient matrix will be grouped by column,
+  * and so we will firstly scan the constraint and after the variables. */
+
+ if( numquadrows == 0 ){
  // scan the static constraints - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  num_block = 0;
+ //quad_row = nst_linrow + ndy_linrow; // quadratic rows starts after linear ones
  for( auto qb : v_BFS ) {
   Index set = 0;  // counter for the constraint groups
 
@@ -383,8 +432,9 @@ void MILPSolver::load_problem( void )
    Index elements = 0;  // counter for group elements
    Index start = row;
 
-   auto scan = [ this , & elements , & row ]( const FRowConstraint & c ) {
-    scan_static_constraint( c , elements , row );
+   auto scan = [ this , & elements , & row ]
+          ( const FRowConstraint & c ) {
+            scan_static_constraint( c , elements , row );
     };
    un_any_const_static( i , scan , un_any_type< FRowConstraint >() );
 
@@ -400,8 +450,7 @@ void MILPSolver::load_problem( void )
      name = base + "_" + std::to_string( num_block )
           + "_" + std::to_string( n );
 
-    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] ,
-				   name.c_str() );
+    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
     }
    set++;
    if( elements )
@@ -421,25 +470,26 @@ void MILPSolver::load_problem( void )
 
   for( const auto & i : qb->get_dynamic_constraints() ) {
    Index start = row;
-   auto scan = [ this , & row ]( const FRowConstraint & c ) {
-    scan_dynamic_constraint( c , row );
+
+   auto scan = [ this , & row ]
+      ( const FRowConstraint & c ) {
+        scan_dynamic_constraint( c , row );
     };
    un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
 
-   // write names
+   //  write names
    auto base = qb->get_d_const_name()[ set ];
    Index end = row - start;
    for( Index n = 0 ; n < end ; ++n ) {
     std::string name;
     if( base.empty() )
-     name = "cd_" + std::to_string( num_block )
+     name = "cs_" + std::to_string( num_block )
           + "_" + std::to_string( set ) + "_" + std::to_string( n );
     else
      name = base + "_" + std::to_string( num_block )
           + "_" + std::to_string( n );
 
-    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] ,
-				   name.c_str() );
+    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
     }
    set++;
    }
@@ -447,6 +497,8 @@ void MILPSolver::load_problem( void )
   }
 
  std::sort( dcon_to_idx.begin() , dcon_to_idx.end() );
+
+ } // end if( numquadrows == 0 )
 
  // scan the static variables - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -547,6 +599,86 @@ void MILPSolver::load_problem( void )
 
  std::sort( dvar_to_idx.begin() , dvar_to_idx.end() );
 
+ if( numquadrows != 0 ){
+  // scan the static constraints - - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ num_block = 0;
+ //quad_row = nst_linrow + ndy_linrow; // quadratic rows starts after linear ones
+ for( auto qb : v_BFS ) {
+  Index set = 0;  // counter for the constraint groups
+
+  for( const auto & i : qb->get_static_constraints() ) {
+   Index elements = 0;  // counter for group elements
+   Index start = row;
+
+   auto scan = [ this , & elements , & row ]
+          ( const FRowConstraint & c ) {
+            scan_static_constraint( c , elements , row );
+    };
+   un_any_const_static( i , scan , un_any_type< FRowConstraint >() );
+
+   //  write names
+   auto base = qb->get_s_const_name()[ set ];
+   Index end = row - start;
+   for( Index n = 0 ; n < end ; ++n ) {
+    std::string name;
+    if( base.empty() )
+     name = "cs_" + std::to_string( num_block )
+          + "_" + std::to_string( set ) + "_" + std::to_string( n );
+    else
+     name = base + "_" + std::to_string( num_block )
+          + "_" + std::to_string( n );
+
+    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+    }
+   set++;
+   if( elements )
+    std::get< 2 >( scon_to_idx.back() ) = elements;
+   }
+  num_block++;
+  }
+
+ std::sort( scon_to_idx.begin() , scon_to_idx.end() );
+
+ // scan the dynamic constraints- - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ num_block = 0;
+ for( auto qb : v_BFS ) {
+  int set = 0; // Counter for the constraint groups
+
+  for( const auto & i : qb->get_dynamic_constraints() ) {
+   Index start = row;
+
+   auto scan = [ this , & row ]
+      ( const FRowConstraint & c ) {
+        scan_dynamic_constraint( c , row );
+    };
+   un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
+
+   //  write names
+   auto base = qb->get_d_const_name()[ set ];
+   Index end = row - start;
+   for( Index n = 0 ; n < end ; ++n ) {
+    std::string name;
+    if( base.empty() )
+     name = "cs_" + std::to_string( num_block )
+          + "_" + std::to_string( set ) + "_" + std::to_string( n );
+    else
+     name = base + "_" + std::to_string( num_block )
+          + "_" + std::to_string( n );
+
+    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+    }
+   set++;
+   }
+  num_block++;
+  }
+
+ std::sort( dcon_to_idx.begin() , dcon_to_idx.end() );
+ } // end if( numquadrows != 0)
+
  // scan the objective- - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -644,8 +776,8 @@ std::vector< FRowConstraint * > MILPSolver::get_active_constraints(
  std::vector< FRowConstraint * > active_constraints;
  for( auto * i : var.active_stuff() )
   if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
-   if( is_mine( row->get_Block() ) )
-    active_constraints.push_back( row );
+    if( is_mine( row->get_Block() ) )
+     active_constraints.push_back( row );
  
  return( active_constraints );
  }
@@ -759,6 +891,7 @@ int MILPSolver::index_of_constraint( const FRowConstraint * con ) const
  }
 
 /*--------------------------------------------------------------------------*/
+
 
 int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) const
 {
@@ -952,9 +1085,15 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
  else
   xctype[ col ] = 'C';  // Continuous
 
+ // Get linear active constraints
  auto active_constraints = get_active_constraints( var );
  int nz_elements = active_constraints.size();
- matcnt[ col ] = nz_elements;
+
+ /* We have to check wheter we have quadratic constraints in the model or not.
+  * If the model is LP, then matbeg, matcnt, ... store the matrix coefficients
+  * grouped by column. */
+ if( numquadrows == 0 ){
+  matcnt[ col ] = nz_elements;
 
  if( col == 0 )
   matbeg[ col ] = 0;
@@ -978,6 +1117,7 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
    throw( std::invalid_argument(
 	"This ColVariable is not active in the examined FRowConstraint" ) );
   }
+ }
  ++col;
  }
 
@@ -1001,16 +1141,101 @@ void MILPSolver::scan_dynamic_constraint( const FRowConstraint & con ,
 {
  dcon_to_idx.emplace_back( & con , row );
  idx_to_dcon.emplace_back( & con );
+
  scan_constraint( con , row );
  }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row )
+void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 {
- if( auto f = con.get_function() )
-  if( ! dynamic_cast< const LinearFunction * >( f ) )
-   throw( std::invalid_argument( "The Constraint is not linear" ) );
+ /* We have to check wheter we have quadratic constraints in the model or not.
+  * If the model is QP, then matbeg, matcnt, ... store the matrix coefficients
+  * grouped by rows. */
+ if( numquadrows != 0 ){
+  if( auto f = con.get_function() ){
+    
+    if( row == 0 )
+      matbeg[ row ] = 0;
+    else
+      matbeg[ row ] = matbeg[ row - 1 ] + matcnt[ row - 1 ];
+
+    if( auto lf = dynamic_cast< const LinearFunction * >( f ) ){
+      matcnt[ row ] = lf->get_v_var().size();
+      int j = 0;
+
+      for( auto el : lf->get_v_var() ) {
+        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto idx_v = index_of_variable( v ); 
+
+        matval[ matbeg[ row ] + j ] = std::get< 1 >( el );;
+        matind[ matbeg[ row ] + j ] = idx_v;
+
+        j++;
+      }
+    }
+    else if( auto qf = dynamic_cast< const QuadFunction * >( f ) ){
+      int nnz = 0;
+
+      /* The quadratic part of the constraint will be represented as a 
+       * Eigen::SparseMatrix, as already done in QuadFunction. However, we
+       * need to translate the local indices stored in a specific QuadFunction
+       * into the global one of the model. */
+      
+      // Retrieve sparse quadratic matrix
+      auto local_qmatrix = qf->get_matrix();
+      Qmat global_qmatrix( numcols , numcols );
+      std::vector<Eigen::Triplet<Coefficient>> vv_nd( local_qmatrix.nonZeros() );
+
+      // Create map from local indices to global ones
+      std::vector< int > map_local_to_global( qf->get_num_active_var() );
+      int num_var = 0;
+
+      for( auto el : qf->get_v_var() ) {
+        // Fill linear part of the constraint
+        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto idx_v = index_of_variable( v );
+        map_local_to_global[ num_var ] = idx_v;
+
+        // If the linear coefficient is nonzero
+        if( std::get< 1 >( el ) != 0 ){
+          matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
+          matind[ matbeg[ row ] + nnz ] = idx_v;
+
+          nnz++;
+        }
+
+        // Note: the quadratic matrix does not contain the diagonal elements.
+        // Thus, if there are nonzeros, we have to insert them.
+        double q_coeff = std::get< 2 >( el );
+        if( q_coeff != 0 ){
+          Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
+          vv_nd.push_back( term ); 
+        }
+        ++num_var;
+      }
+      matcnt[ row ] = nnz;
+
+      // Now update local quadratic matrix into global one
+      int k_term = 0;
+      for (int k=0; k < local_qmatrix.outerSize(); ++k){
+        for (Qmat::InnerIterator it(local_qmatrix,k); it; ++it){
+          int glob_idx1 = map_local_to_global[ it.row() ];
+          int glob_idx2 = map_local_to_global[ it.col() ];
+          Eigen::Triplet< Coefficient > term( glob_idx1 , glob_idx2 , it.value() );
+          vv_nd[ k_term ] = term;
+          ++k_term;
+        }
+      }
+
+      global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
+
+      q_part[ row ] = global_qmatrix;
+    }
+    else
+      throw( std::invalid_argument( "Unexpected constraint type" ) );
+   }
+  }
 
  /* We need to define the sense of the constraint.
   * In SMS++ FRowConstraints are defined as:
@@ -1048,8 +1273,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row )
     rhs[ row ] = con_lhs;
     rngval[ row ] = con_rhs - con_lhs;
     }
-
- ++row;
+  ++row;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1117,14 +1341,57 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 
  if( auto * lf = dynamic_cast< const LinearFunction * >(
 						 obj->get_function() ) ) {
+  /* Linear objective function */
   for( auto el : lf->get_v_var() )
    objective[ index_of_variable( el.first ) ] += el.second;
 
   return;
   }
 
+ if( auto * qf = dynamic_cast< const QuadFunction * >(
+						 obj->get_function() ) ) {
+  /* Non separable Quadratic objective function */
+
+  // Firstly, fill the linear and diagonal part of the 
+  // quadratic function.
+  for( auto el : qf->get_v_var() ) {
+   auto k = index_of_variable( std::get< 0 >( el ) );
+   objective[ k ] += std::get< 1 >( el );
+   q_objective[ k ] += std::get< 2 >( el );
+   }
+
+  // Now get sparse matrix related to the off diagonal terms 
+  v_off_diag_term nd_terms; // vector of tuples in the form (Idx,Idx,value)
+  qf->get_v_nd_var( nd_terms );
+  numnnzq = nd_terms.size();
+
+  // Quadratic vectors allocation - - - - - - - - - -- - - - - - - - - - - -
+  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ndq_objective.resize( numnnzq, 0 );
+  ndq_rowind.resize( numnnzq, 0 );
+  ndq_colind.resize( numnnzq, 0 );
+
+  for( int i = 0 ; i < numnnzq ; ++i  ) {
+   auto el_nd = nd_terms[i];
+
+   // Start from local idx and retrieve global index
+   auto * v1 = qf->get_active_var( std::get< 0 >( el_nd ) );
+   auto * v2 = qf->get_active_var( std::get< 1 >( el_nd ) );
+
+   int global_idx1 = index_of_variable( dynamic_cast< ColVariable * >( v1 ) );
+   int global_idx2 = index_of_variable( dynamic_cast< ColVariable * >( v2 ) );
+
+   ndq_rowind[ i ] = global_idx1;
+   ndq_colind[ i ] = global_idx2;
+   ndq_objective[ i ] = std::get< 2 >( el_nd );
+   }
+
+  return;
+  }
+
  if( auto * qf = dynamic_cast< const DQuadFunction * >(
 						 obj->get_function() ) ) {
+  /* Separable Quadratic objective function */
   for( auto el : qf->get_v_var() ) {
    auto k = index_of_variable( std::get< 0 >( el ) );
    objective[ k ] += std::get< 1 >( el );
