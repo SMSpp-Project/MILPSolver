@@ -23,10 +23,10 @@ DIR = .
 # production switches with address sanitizer
 #SW = -O3 -std=c++17 -DNDEBUG -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined -Wno-enum-compare
 # production switches
-SW = -O0 -ggdb -std=c++17 -DNDEBUG -DCLANG_1200_0_32_27_PATCH -Wno-enum-compare
+SW = -O3 -ggdb -std=c++17 -DNDEBUG -ferror-limit=1 -DCLANG_1200_0_32_27_PATCH -Wno-enum-compare
 
 # compiler
-CC = g++
+CC = clang++
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -47,7 +47,7 @@ clean::
 # *INC is the -I< include directories >
 
 # define input macros for SMS++ complete makefile, then include it
-SMS++SDR = ../../smspp
+SMS++SDR = ../../SMS++
 include $(SMS++SDR)/lib/makefile-c
 
 # MILPSolver
