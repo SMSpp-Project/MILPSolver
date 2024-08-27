@@ -50,6 +50,8 @@
 
 #include <OneVarConstraint.h>
 
+#include <QuadFunction.h>
+
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -188,6 +190,11 @@ class MILPSolver : public CDASolver
 
  using Index = Block::Index;  // "import" Index from Block
 
+ using v_off_diag_term = QuadFunction::v_off_diag_term; 
+                              // "import" v_off_diag_term from QuadFunction
+ using Qmat = QuadFunction::Qmat; // "import" Qmat from QuadFunction
+ using Coefficient = QuadFunction::Coefficient;
+
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -278,6 +285,9 @@ class MILPSolver : public CDASolver
 
  /// returns the number of constraints/rows
  [[nodiscard]] int get_numrows( void ) const { return( numrows ); }
+
+  /// returns the number of quadratic constraints/rows
+ [[nodiscard]] int get_numquadrows( void ) const { return( numquadrows ); }
 
  /// returns the number of non-zero elements
  [[nodiscard]] int get_nzelements( void ) const { return( matval.size() ); }
@@ -680,16 +690,18 @@ class MILPSolver : public CDASolver
  using int_con = std::pair< int , const FRowConstraint * >;
  using var_int_int = std::tuple< const ColVariable * , int , int >;
  using con_int_int = std::tuple< const FRowConstraint * , int , int >;
+ using c_v_coeff_pair = DQuadFunction::c_v_coeff_pair;
 
  /** @name Variable and Constraint dictionaries
   *
   * The following vectors are used in order to keep track between the
   * Variables and Constraints of the Block and the constraint matrix.
   *
-  *  - svar_to_idx, scon_to_idx : vectors of tuples that store 1) the
-  *    address of the first element of each group of static variables and
-  *    constraints, respectively, 2) the corresponding index in constraint
-  *    matrix (column or row), and 3) the number of elements in the group.
+  *  - svar_to_idx, scon_to_idx, scon_to_idx : vectors of tuples 
+  *    that store 1) the address of the first element of each group of static 
+  *    variables and constraints, respectively, 2) the 
+  *    corresponding index in constraint matrix (column or row), and 3) 
+  *    the number of elements in the group.
   *    The vectors are kept sorted in ascending order by address.
   *
   *  - dvar_to_idx, dcon_to_idx : vectors of pairs that store the addresses
@@ -729,15 +741,15 @@ class MILPSolver : public CDASolver
  std::vector< int_var > idx_to_svar;     ///< from index to static variable
 
  std::vector< con_int_int > scon_to_idx; ///< from static constraint to index
- std::vector< int_con> idx_to_scon;      ///< from index to static constraint
+ std::vector< int_con> idx_to_scon;      ///< from index to linear static constraint
 
  std::vector< var_int > dvar_to_idx;     ///< from dynamic variable to index
  std::vector< const ColVariable * > idx_to_dvar;
                                          ///< from index to dynamic variable
 
  std::vector< con_int > dcon_to_idx;     ///< from dynamic constraint to index
- std::vector< const FRowConstraint * > idx_to_dcon;
-                                         ///< from index to dynamic constraint
+ std::vector< const FRowConstraint * > idx_to_dcon;     
+                                        ///< from index to dynamic constraint
 
  std::vector< const OneVarConstraint * > svar_to_bound; 
                                          ///< from static variable to bound
@@ -754,13 +766,28 @@ class MILPSolver : public CDASolver
   * plus vectors for costs, bounds and lhs/rhs of constraints" format.
   *
   * #matbeg, #matcnt, #matind and #matval define the (sparse) constraint
-  * matrix by its nonzero coefficients. These are grouped by column in the
-  * array matval. The nonzero elements of every column must be stored in
-  * sequential locations in this array with matbeg[ j ] containing the index
-  * of the beginning of column j and matcnt[ j ] containing the number of
-  * entries in column j. The components of matbeg must be in ascending
-  * order. For each k, matind[ k ] specifies the row number of the
-  * corresponding coefficient, matval[ k ].
+  * matrix associated to linear constraints by its nonzero coefficients. 
+  * These are grouped by column in the array matval. The nonzero elements 
+  * of every column must be stored in sequential locations in this array 
+  * with matbeg[ j ] containing the index of the beginning of column j 
+  * and matcnt[ j ] containing the number of entries in column j. 
+  * The components of matbeg must be in ascending order. For each k, 
+  * matind[ k ] specifies the row number of the corresponding coefficient, 
+  * matval[ k ].
+  *
+  * NOTE: the above mentioned structures are grouped by column when no 
+  * quadratic constraint is in the initial load of the model. Otherwise, 
+  * the representation is switched to the rows.
+  *
+  * For a quadratic constraint i, we separtely store all the nonzeros linear
+  * terms in the above mentioned matbeg, matcnt, ... structures (grouped by
+  * rows). The quadratic part of the constraint is instead represented with a
+  * Eigen::SparseMatrix stored in the i-th position of the vector q_part.
+  * 
+  * The same procedure is applied for the objective function, with the linear
+  * coefficients stored in objective, the diagonal coefficients of the quadratic
+  * matrix stored in q_objective and the off-diagonal ones stored using three 
+  * vectors ndq_rowind, ndq_colind, ndq_objective.
   * @{  */
 
  /** Pointers to the currently registered Block and all its descendants
@@ -778,6 +805,15 @@ class MILPSolver : public CDASolver
   * not including the objective function or bounds on the variables. */
  int numrows{};
 
+ /** An integer that specifies the number of quadratic rows in the set of
+  * constraints, not including the objective function or bounds on the 
+  * variables. */
+ int numquadrows{};
+
+ /** An integer that specifies the number of nonzero coefficients outside
+  * the diagonal of the quadratic objective matrix. */
+ int numnnzq{};
+
  /** An integer that specifies whether the problem is a minimization or
   * maximization problem. */
  int objsense{};
@@ -785,13 +821,20 @@ class MILPSolver : public CDASolver
  /// A double that specify the summation of the constant terms of all blocks.
  OFValue constant_value{};
 
- /** An array of length at least numcols containing the objective function
+ /** An array of length at least numcols containing the linear objective function
   * coefficients. */
  std::vector< double > objective;
 
- /** An array of length numcols containing the quadratic coefficients of
-  * the separable quadratic objective. */
+ /** An array of length numcols containing the quadratic coefficients along
+  * the diagonal of the quadratic objective matrix. */
  std::vector< double > q_objective;
+
+ /** An array of length numnnzq containing the quadratic coefficients outside
+  * the diagonal of the quadratic objective matrix. */
+ std::vector< double > ndq_objective;
+
+ std::vector< int > ndq_rowind; ///< Indices of rows for each quadratic coefficient
+ std::vector< int > ndq_colind; ///< Indices of columns for each quadratic coefficient
 
  /** An array of length at least numrows containing the righthand side value
   * for each constraint in the constraint matrix. */
@@ -809,10 +852,18 @@ class MILPSolver : public CDASolver
   * in the constraint matrix. */
  std::vector< char > sense;
 
+ // Linear constraints container
  std::vector< int > matbeg;     ///< Beginnings of constraint matrix columns
  std::vector< int > matcnt;     ///< Sizes of constraint matrix columns
  std::vector< int > matind;     ///< Indices of rows for each coefficient
  std::vector< double > matval;  ///< All nonzero coefficients
+
+ /* Quadratic constraints container */ 
+
+ // Linear coefficients (already stored in matbeg,...)
+
+ // Quadratic coefficients
+ std::vector< Qmat > q_part;
 
  /** An array of length at least numcols containing the lower bound on each
   * of the variables. */
@@ -1045,12 +1096,14 @@ class MILPSolver : public CDASolver
   * constraint is linear since the identical function zero is.
   *
   * @param con a reference to a FRowConstraint
-  * @param n   an counter that should be 0 when lconst is the first
-  *            element of a vector of static FRowConstraints
-  * @param row a counter for constraints/rows */
+  * @param n a counter that should be 0 when row is the first
+  *            element of a vector of linear static FRowConstraints
+  * @param row a counter for constraints/rows
+  * @param is_q_row a bool vector stating for each row of the group if it is
+                    quadratic */
 
- void scan_static_constraint( const FRowConstraint & con , Index & n ,
-			      Index & col );
+ void scan_static_constraint( const FRowConstraint & con , Index & n,
+			      Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a dynamic FRowConstraint and fills the dictionaries accordingly.
@@ -1062,7 +1115,9 @@ class MILPSolver : public CDASolver
   * constraint is linear since the identical function zero is.
   *
   * @param con a reference to a FRowConstraint
-  * @param row a counter for constraints/rows */
+  * @param row a counter for constraints/rows
+  * @param is_q_row a bool vector stating if each row of the group is
+                    quadratic */
 
  void scan_dynamic_constraint( const FRowConstraint & con , Index & row );
 

@@ -627,6 +627,26 @@ class CPXMILPSolver : public MILPSolver {
   * Block. Thus, CPXMILPSolver will use this mutex to ensure mutual exclusion
   * of the CPLEX threads for the critical sections of the callback(). */
  std::mutex f_callback_mutex;
+
+ /* In CPXMILPSolver we handle quadratic constraints like 
+  * q x + x^T Q x <= q_0 by constructing two separate constraint: 
+  * q x + v <= q_0 and v >= x^T Q x, with v being an auxiliary variable. 
+  * This is because CPLEX does not allow to directly modify quadratic 
+  * constraints. Thus, we will need to store for each quadratic constraint the 
+  * CPLEX index of relative auxiliary variable and constraint beeing built. 
+  * To achieve this goal we will use two auxiliary vectors cpx_quad_var_aux
+  * and cpx_quad_con_aux, with length equal to the number of rows and value
+  * -1 for linear constraint.
+  *
+  * NOTE: The set of indices of quadratic and linear rows are disjoint. */
+  std::vector< int > cpx_quad_var_aux;
+  std::vector< int > cpx_quad_con_aux;
+
+ // function to retrieve actual idx of variable considering auxiliary ones
+ int cpx_index_of_variable( const ColVariable * var ) const;
+
+ // function to retrieve actual idx of dynamic variable considering auxiliary ones
+ int cpx_index_of_dynamic_variable( const ColVariable * var ) const; 
  
  /** @name Handling of CPLEX parameters
   *
@@ -688,6 +708,20 @@ class CPXMILPSolver : public MILPSolver {
 
  // get the right Configuration for ci = 0, 1, 2
  Configuration * get_cfg( Index ci ) const;
+
+ /** Create the structures used to provide the quadratic objective matrix 
+  * to CPLEX with the function CPXcopyquad(). */
+ void generate_qobj_matrix( std::vector< int > & qmatbeg ,
+			  std::vector< int > & qmatcnt ,
+			  std::vector< int > & qmatind ,
+			  std::vector< double > & qmatval );
+
+ /** Create the structures used to provide the quadratic matrix for the
+ * constraint of index row to CPLEX. */
+ void generate_qcon_matrix( std::vector< int > & qidx1 ,
+			  std::vector< int > & qidx2 ,
+			  std::vector< double > & qcoeff ,
+        Index row );
 
 /*--------------------------------------------------------------------------*/
 
