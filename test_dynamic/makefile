@@ -23,7 +23,7 @@ DIR = .
 # production switches with address sanitizer
 #SW = -O3 -std=c++17 -DNDEBUG -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined -Wno-enum-compare
 # production switches
-SW = -O3 -ggdb -std=c++17 -DNDEBUG -ferror-limit=1 -DCLANG_1200_0_32_27_PATCH -Wno-enum-compare
+SW = -O3 -std=c++17 -DNDEBUG -ferror-limit=1 -DCLANG_1200_0_32_27_PATCH -Wno-enum-compare
 
 # compiler
 CC = clang++
