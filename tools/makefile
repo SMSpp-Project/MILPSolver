@@ -45,10 +45,13 @@ endif
 # non-standard locations.
 -include $(SMS++SDR)/../extlib/makefile-paths
 
+# common flags
+COMMON_SW = -std=c++17
+
 # debug switches
-#SW = -g -glldb -fno-inline -std=c++17 -ferror-limit=1
+SW_DEBUG = -g -glldb -fno-inline $(COMMON_SW)
 # production switches
-SW = -O3 -std=c++17 -DNDEBUG
+SW_RELEASE = -O3 $(COMMON_SW) -DNDEBUG
 
 # compiler
 CC = clang++
@@ -73,11 +76,29 @@ NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS)
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-default: $(NAME)
+default: release
 
-# clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# debug target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+debug: SW = $(SW_DEBUG)
+debug: $(NAME)
+
+# release target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+release: SW = $(SW_RELEASE)
+release: $(NAME)
+
+# clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
 	rm -f $(DIR)/*.o $(DIR)/*~ $(NAME)
+
+# distclean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+distclean: clean
+
+# phony targets - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+.PHONY: debug release clean distclean
 
 ############################ End of makefile #################################
