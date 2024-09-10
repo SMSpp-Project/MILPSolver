@@ -1,0 +1,53 @@
+default:
+  image: registry.gitlab.com/smspp/smspp-project
+
+stages:
+  - build
+  - test
+  - deploy
+
+build:
+  stage: build
+  script:
+    - cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+    - cmake --build build
+  artifacts:
+    paths:
+      - build
+  only:
+    refs:
+      - develop
+      - tags
+    changes:
+      - cmake/*
+      - include/*
+      - src/*
+      - test/*
+      - CMakeLists.txt
+
+test:
+  stage: test
+  script:
+    - ctest -V -C Release --test-dir build
+  only:
+    refs:
+      - develop
+      - tags
+    changes:
+      - cmake/*
+      - include/*
+      - src/*
+      - test/*
+      - CMakeLists.txt
+
+deploy:
+  stage: deploy
+  script:
+    - cd build && cpack -G "TGZ;ZIP;TBZ2"
+  artifacts:
+    paths:
+      - build/*.tar.gz
+      - build/*.tar.bz2
+      - build/*.zip
+  only:
+    - tags
