@@ -2136,7 +2136,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  if( ( it1 != dcon_to_idx.end() ) && ( it1->first == con ) ) {
   index = it1->second;
   dcon_to_idx.erase( it1 );
-  idx_to_dcon.erase( idx_to_dcon.begin() + index - static_cons );
+  idx_to_dcon.erase( idx_to_dcon.begin() + ( index - static_cons ) );
   }
  else
   throw( std::runtime_error( "Dynamic constraint not found" ) );
@@ -2181,9 +2181,9 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
  if( ( it1 != dvar_to_idx.end() ) && ( it1->first == var ) ) {
   index = it1->second;
   dvar_to_idx.erase( it1 );
-  idx_to_dvar.erase( idx_to_dvar.begin() + index - static_vars );
+  idx_to_dvar.erase( idx_to_dvar.begin() + ( index - static_vars ) );
   if( single_bound == true )
-    dvar_to_bound.erase( dvar_to_bound.begin() + index - static_vars );
+    dvar_to_bound.erase( dvar_to_bound.begin() + ( index - static_vars ) );
   }
  else
   throw( std::runtime_error( "Dynamic variable not found" ) );
