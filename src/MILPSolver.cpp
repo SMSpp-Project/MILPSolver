@@ -244,6 +244,8 @@ void MILPSolver::load_problem( void )
                               ( FRowConstraint & cons ) {
   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
     ++nst_linrow;
+  else if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+    ++nst_quadrow;
   else if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
     ++nst_quadrow;
   };
@@ -252,6 +254,8 @@ void MILPSolver::load_problem( void )
                               ( FRowConstraint & cons ) {
   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
     ++ndy_linrow;
+  else if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+    ++ndy_quadrow;
   else if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
     ++ndy_quadrow;
   };
@@ -1095,27 +1099,27 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
  if( numquadrows == 0 ){
   matcnt[ col ] = nz_elements;
 
- if( col == 0 )
-  matbeg[ col ] = 0;
- else
-  matbeg[ col ] = matbeg[ col - 1 ] + matcnt[ col - 1 ];
+  if( col == 0 )
+   matbeg[ col ] = 0;
+  else
+   matbeg[ col ] = matbeg[ col - 1 ] + matcnt[ col - 1 ];
 
- for( int j = 0 ; j < nz_elements ; ++j ) {
-  auto * con = active_constraints[ j ];
-  auto * f = static_cast< const LinearFunction * >( con->get_function() );
-  auto it = std::find_if( f->get_v_var().begin() , f->get_v_var().end() ,
+  for( int j = 0 ; j < nz_elements ; ++j ) {
+   auto * con = active_constraints[ j ];
+   auto * f = static_cast< const LinearFunction * >( con->get_function() );
+   auto it = std::find_if( f->get_v_var().begin() , f->get_v_var().end() ,
                           [ & ]( LinearFunction::coeff_pair pair ) {
                            return( pair.first == &var );
                            } );
 
-  if( it != f->get_v_var().end() ) {
-   matval[ matbeg[ col ] + j ] = it->second;
-   matind[ matbeg[ col ] + j ] = index_of_constraint( con );
-   }
-  else
-   // This should never happen since we are looping on the active contraints
-   throw( std::invalid_argument(
-	"This ColVariable is not active in the examined FRowConstraint" ) );
+   if( it != f->get_v_var().end() ) {
+    matval[ matbeg[ col ] + j ] = it->second;
+    matind[ matbeg[ col ] + j ] = index_of_constraint( con );
+    }
+   else
+    // This should never happen since we are looping on the active contraints
+    throw( std::invalid_argument(
+	   "This ColVariable is not active in the examined FRowConstraint" ) );
   }
  }
  ++col;
@@ -1173,6 +1177,44 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
         j++;
       }
+    }
+    else if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ){
+      int nnz = 0;
+
+      /* The quadratic part of the constraint will be represented as a 
+       * Eigen::SparseMatrix, as already done in QuadFunction. However, we
+       * need to translate the local indices stored in a specific DQuadFunction
+       * into the global one of the model. */
+
+      // In this case we can simply insert the non zero diagonal element
+      Qmat global_qmatrix( numcols , numcols );
+      std::vector<Eigen::Triplet<Coefficient>> vv_nd;
+
+      for( auto el : dqf->get_v_var() ) {
+        // Fill linear part of the constraint
+        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto idx_v = index_of_variable( v );
+
+        // If the linear coefficient is nonzero
+        if( std::get< 1 >( el ) != 0 ){
+          matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
+          matind[ matbeg[ row ] + nnz ] = idx_v;
+
+          nnz++;
+        }
+
+        // Check if the diagonal quadratic coefficient is nonzero
+        double q_coeff = std::get< 2 >( el );
+        if( q_coeff != 0 ){
+          Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
+          vv_nd.push_back( term ); 
+        }
+      }
+      matcnt[ row ] = nnz;
+
+      global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
+
+      q_part[ row ] = global_qmatrix;
     }
     else if( auto qf = dynamic_cast< const QuadFunction * >( f ) ){
       int nnz = 0;
