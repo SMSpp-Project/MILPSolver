@@ -745,7 +745,10 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       throw( std::runtime_error(
 	     "No solution information is available with GRB_CUTOFF status" ) );
 
-      if( int_vars == 0 || relax_int_vars )
+      int convexity;
+      GRBgetintparam( env , GRB_INT_PAR_NONCONVEX , &convexity );
+
+      if( ( int_vars == 0 || relax_int_vars ) && convexity == 0 )
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
       else
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &lower_bound );
@@ -864,7 +867,10 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
       throw( std::runtime_error(
 	     "No solution information is available with GRB_CUTOFF status" ) );
      
-     if( int_vars == 0 || relax_int_vars )
+     int convexity;
+     GRBgetintparam( env , GRB_INT_PAR_NONCONVEX , &convexity );
+
+     if( ( int_vars == 0 || relax_int_vars ) && convexity == 0 )
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &upper_bound );
       else
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &upper_bound );
@@ -1595,23 +1601,11 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
   // Select correct quadratic function
   auto fqf = ( qf ) ? qf : dqf;
 
-  // In Gurobi to change quadratic coefficients we need to retrieve all the old coeff.,
-  // and then add the differences between the new and the old ones. 
-  // NOTE: Due to the fact that in SMS++ we handle modifications by providing directly 
-  // the delta coefficient, we should not need to retrieve old coefficients with Gurobi.
-  /*int nqz;
-  GRBgetintattr( model , GRB_INT_ATTR_NUMQNZS  , & nqz );
-
-  std::vector< int > oldind_row ( nqz );
-  std::vector< int > oldind_col ( nqz );
-  std::vector< double > oldval ( nqz );
-
-  int status = GRBgetq( model, & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
-  if( status != 0 )
-   throw( std::runtime_error( "Error while querying quadratic coefficients with GRBgetq" ) );*/
+  // In Gurobi we can directly pass the delta_coeff() value of the Modification
+  // to the function GRBaddqpterms() to update the quadratic coefficient.
 
   if( auto modlr = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ) {
-   // we exploit the delta() vector of DQuadFunctionModRngd, giving the difference
+   // we exploit the delta_coeff() vector of DQuadFunctionModRngd, giving the difference
    // between the new and the old value of both linear and quadratic coefficient,
    // to update the objective values without having to recompute them: since they are
    // (potentially) a sum of terms, recomputing them would require fetching
@@ -1631,22 +1625,6 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      auto cidx = grb_index_of_variable( static_cast< const ColVariable * >( v ) );
      *(cidxit++) = cidx ;
-     
-     // Find old quadratic coefficient
-     /*double old_var_q_coeff = 0;
-     auto idxit_row = std::find( oldind_row.begin() , oldind_row.end() , cidx);
-     while( idxit_row != oldind_row.end() ){
-      // Evaluate if we actually found the coefficient of (cidx,cidx) term
-      int pos = std::distance( oldind_row.begin() , idxit_row );
-      int idxcol = oldind_col[ pos ];
-      if( idxcol == cidx ){
-        // Found it
-        old_var_q_coeff = oldval[ pos ];
-        idxit_row = oldind_row.end();
-      }
-      else
-       idxit_row = std::find( idxit_row + 1 , oldind_row.end() , cidx );
-     }*/
       
      // Retrieve old linear coefficient
      double oldlinval;
@@ -1690,22 +1668,6 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      int cidx = grb_index_of_variable( dynamic_cast< ColVariable * >( v ) );
      *(cidxit++) = cidx;
-
-     // Find old quadratic coefficient
-     /*double old_var_q_coeff = 0;
-     auto idxit_row = std::find( oldind_row.begin() , oldind_row.end() , cidx);
-     while( idxit_row != oldind_row.end() ){
-      // Evaluate if we actually found the coefficient of (cidx,cidx) term
-      int pos = std::distance( oldind_row.begin() , idxit_row );
-      int idxcol = oldind_col[ pos ];
-      if( idxcol == cidx ){
-        // Found it
-        old_var_q_coeff = oldval[ pos ];
-        idxit_row = oldind_row.end();
-      }
-      else
-       idxit_row = std::find( idxit_row + 1 , oldind_row.end() , cidx );
-     }*/
       
      // Retrieve old linear coefficient
      double oldlinval;
@@ -1747,22 +1709,6 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    int idx1 = grb_index_of_variable( dynamic_cast< ColVariable * >( vars[ 0 ] ) );
    int idx2 = grb_index_of_variable( dynamic_cast< ColVariable * >( vars[ 1 ] ) );
-
-   // Find old quadratic coefficient
-   /*double old_var_q_coeff = 0;
-   auto idxit_row = std::find( oldind_row.begin() , oldind_row.end() , cidx);
-   while( idxit_row != oldind_row.end() ){
-    // Evaluate if we actually found the coefficient of (cidx,cidx) term
-    int pos = std::distance( oldind_row.begin() , idxit_row );
-    int idxcol = oldind_col[ pos ];
-    if( idxcol == cidx ){
-      // Found it
-      old_var_q_coeff = oldval[ pos ];
-      idxit_row = oldind_row.end();
-     }
-    else
-      idxit_row = std::find( idxit_row + 1 , oldind_row.end() , cidx );
-     }*/
 
    // Update quadratic coefficient
    GRBaddqpterms( model, 1 , & idx1 , & idx2 , & delta_coeff );

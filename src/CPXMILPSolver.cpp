@@ -1205,9 +1205,27 @@ Solver::OFValue CPXMILPSolver::get_var_value( void )
 
 void CPXMILPSolver::get_var_solution( Configuration * solc )
 {
- std::vector< double > x( numcols , 0 );
- if( CPXgetx( env , lp , x.data() , 0 , numcols - 1 ) )
-  throw( std::runtime_error( "Unable to get the solution with CPXgetx()" ) );
+ std::vector< double > x( numcols, 0 );
+ if( numquadrows > 0 ){
+  // if we have a QCP model, we need also to retrieve the objective values of
+  // auxiliary variables
+  std::vector< double > x_q( numcols + numquadrows, 0 );
+  if( CPXgetx( env , lp , x_q.data() , 0 , numcols - 1 ) )
+    throw( std::runtime_error( "Unable to get the solution with CPXgetx() in QCP" ) );
+
+  int aux_counter = 0;
+  for( int j = 0 ; j < numcols + numquadrows ; ++j ) {
+    if( j != cpx_quad_var_aux[ aux_counter ] ) 
+      // column j is not an auxiliary variable
+      x[ j - aux_counter ] = x_q[ j ];
+    else
+      ++aux_counter;
+  }
+ }
+ else{
+  if( CPXgetx( env , lp , x.data() , 0 , numcols - 1 ) )
+    throw( std::runtime_error( "Unable to get the solution with CPXgetx()" ) );
+ }
 
  MILPSolver::write_var_solution( x );
  }
@@ -1762,8 +1780,17 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      CPXgetqpcoef( env , lp , cidx , cidx , &oldqval ); 
 
      // quadratic coefficients need be changed one at a time
-     CPXchgqpcoef( env , lp , cidx , cidx , 
-      ( oldqval + 2 * std::get< 1 >( *dcoeffit ) ) );
+     // NOTE: We need to check if the coefficient is close to machine 
+     // precision, and if it is, set it to 0. This is because in quadratic 
+     // functions, the sign of the coefficient is critical to determining 
+     // convexity. If the sign is ambiguous due to its small value, we 
+     // should assign it a value of 0.
+     double eps = 1e-12;
+     double newval = oldqval + 2 * std::get< 1 >( *dcoeffit );
+     if( abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
+      CPXchgqpcoef( env , lp , cidx , cidx , 0 );
+     else
+      CPXchgqpcoef( env , lp , cidx , cidx , newval );
 
      dcoeffit++;
     }
@@ -1808,8 +1835,17 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      CPXgetqpcoef( env , lp , cidx , cidx , &oldqval ); 
 
      // quadratic coefficients need be changed one at a time
-     CPXchgqpcoef( env , lp , cidx , cidx , 
-      ( oldqval + 2 * std::get< 1 >( *dcoeffit ) ) );
+     // NOTE: We need to check if the coefficient is close to machine 
+     // precision, and if it is, set it to 0. This is because in quadratic 
+     // functions, the sign of the coefficient is critical to determining 
+     // convexity. If the sign is ambiguous due to its small value, we 
+     // should assign it a value of 0.
+     double eps = 1e-12;
+     double newval = oldqval + 2 * std::get< 1 >( *dcoeffit );
+     if( abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
+      CPXchgqpcoef( env , lp , cidx , cidx , 0 );
+     else
+      CPXchgqpcoef( env , lp , cidx , cidx , newval );
 
      dcoeffit++;
     }
@@ -1845,8 +1881,18 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    CPXgetqpcoef( env , lp , idx1 , idx2 , &oldqval );
 
    // Update quadratic coefficient
-   CPXchgqpcoef( env , lp , idx1 , idx2 , 
-    ( oldqval + 2 * delta_coeff ) );
+   // NOTE: We need to check if the coefficient is close to machine 
+   // precision, and if it is, set it to 0. This is because in quadratic 
+   // functions, the sign of the coefficient is critical to determining 
+   // convexity. If the sign is ambiguous due to its small value, we 
+   // should assign it a value of 0.
+   double eps = 1e-12;
+   double newval = oldqval + 2 * delta_coeff;
+   if( abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
+    CPXchgqpcoef( env , lp , idx1 , idx2 , 0 );
+   else
+    CPXchgqpcoef( env , lp , idx1 , idx2 , newval );
+   
    return;
    }
   else
