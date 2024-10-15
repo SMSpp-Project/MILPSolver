@@ -1178,44 +1178,6 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         j++;
       }
     }
-    else if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ){
-      int nnz = 0;
-
-      /* The quadratic part of the constraint will be represented as a 
-       * Eigen::SparseMatrix, as already done in QuadFunction. However, we
-       * need to translate the local indices stored in a specific DQuadFunction
-       * into the global one of the model. */
-
-      // In this case we can simply insert the non zero diagonal element
-      Qmat global_qmatrix( numcols , numcols );
-      std::vector<Eigen::Triplet<Coefficient>> vv_nd;
-
-      for( auto el : dqf->get_v_var() ) {
-        // Fill linear part of the constraint
-        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
-        auto idx_v = index_of_variable( v );
-
-        // If the linear coefficient is nonzero
-        if( std::get< 1 >( el ) != 0 ){
-          matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
-          matind[ matbeg[ row ] + nnz ] = idx_v;
-
-          nnz++;
-        }
-
-        // Check if the diagonal quadratic coefficient is nonzero
-        double q_coeff = std::get< 2 >( el );
-        if( q_coeff != 0 ){
-          Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
-          vv_nd.push_back( term ); 
-        }
-      }
-      matcnt[ row ] = nnz;
-
-      global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
-
-      q_part[ row ] = global_qmatrix;
-    }
     else if( auto qf = dynamic_cast< const QuadFunction * >( f ) ){
       int nnz = 0;
 
@@ -1269,6 +1231,44 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
           ++k_term;
         }
       }
+
+      global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
+
+      q_part[ row ] = global_qmatrix;
+    }
+    else if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ){
+      int nnz = 0;
+
+      /* The quadratic part of the constraint will be represented as a 
+       * Eigen::SparseMatrix, as already done in QuadFunction. However, we
+       * need to translate the local indices stored in a specific DQuadFunction
+       * into the global one of the model. */
+
+      // In this case we can simply insert the non zero diagonal element
+      Qmat global_qmatrix( numcols , numcols );
+      std::vector<Eigen::Triplet<Coefficient>> vv_nd;
+
+      for( auto el : dqf->get_v_var() ) {
+        // Fill linear part of the constraint
+        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto idx_v = index_of_variable( v );
+
+        // If the linear coefficient is nonzero
+        if( std::get< 1 >( el ) != 0 ){
+          matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
+          matind[ matbeg[ row ] + nnz ] = idx_v;
+
+          nnz++;
+        }
+
+        // Check if the diagonal quadratic coefficient is nonzero
+        double q_coeff = std::get< 2 >( el );
+        if( q_coeff != 0 ){
+          Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
+          vv_nd.push_back( term ); 
+        }
+      }
+      matcnt[ row ] = nnz;
 
       global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
 
