@@ -2320,6 +2320,10 @@ void MILPSolver::set_par( idx_type par , int value )
   single_bound = bool( value );
   return;
  }
+ if( par == intConsModification ){
+  cons_modification = bool( value );
+  return;
+ }
 
  CDASolver::set_par( par, value );
  }
@@ -2370,6 +2374,9 @@ int MILPSolver::get_dflt_int_par( idx_type par ) const
  if( par == intSingleBound )
   return( 0 );
 
+ if( par == intConsModification )
+  return( 1 );
+
  return( CDASolver::get_dflt_int_par( par ) );
  }
 
@@ -2410,6 +2417,9 @@ int MILPSolver::get_int_par( idx_type par ) const
  if( par == intSingleBound )
   return( single_bound );
 
+ if( par == intConsModification )
+  return( cons_modification );
+
  return( CDASolver::get_int_par( par ) );
  }
 
@@ -2449,6 +2459,9 @@ Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
  if( name == "intSingleBound" )
   return( intSingleBound );
 
+ if( name == "intConsModification" )
+  return( intConsModification );
+
  return( CDASolver::int_par_str2idx( name ) );
  }
 
@@ -2459,7 +2472,8 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
  static const std::vector< std::string > pars = { "intThrowReducedCostException",
                                                   "intUseCustomNames",
                                                   "intRelaxIntVars" ,
-                                                  "intSingleBound" };
+                                                  "intSingleBound" ,
+                                                  "intConsModification" };
  if( idx == intThrowReducedCostException )
   return( pars[ 0 ] );
 
@@ -2471,6 +2485,9 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
 
  if( idx == intSingleBound )
   return( pars[ 3 ] );
+
+ if( idx == intConsModification )
+  return( pars[ 4 ] );
 
  return( CDASolver::int_par_idx2str( idx ) );
  }

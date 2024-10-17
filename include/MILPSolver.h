@@ -154,6 +154,7 @@ class MILPSolver : public CDASolver
   intRelaxIntVars , 
   intSingleBound , // Force that at maximum one OneVarConstraint can be 
                    // associated to a single variable
+  intConsModification , // Enable/Disable constraint modifications
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
@@ -896,6 +897,11 @@ class MILPSolver : public CDASolver
  *  Moreover, the vectors svar_to_bound and dvar_to_bound are activated
  *  to guarantee a direct link between variables and bound. */
  bool single_bound = false;
+
+  /* if true, modification on constraints are enabled. This parameter can
+  *  be useful when dealing with quadratic constraint, where Modification 
+  * from some Solver (e.g. CPLEX) are not allowed. */
+ bool cons_modification = true;
 
  /** This variable indicates whether an exception must be thrown if there is
  * an inconsistency when a reduced cost is being stored during a call to

@@ -286,7 +286,10 @@ void CPXMILPSolver::load_problem( void )
        * q x + x^T Q x <= q_0 by constructing two separate constraint: 
        * q x + v <= q_0 and v >= x^T Q x, with v being an auxiliary variable. 
        * This is because CPLEX does not allow to directly modify quadratic 
-       * constraints. */
+       * constraints. 
+       *
+       * NOTE: if the user knows that no Modifications are required, we 
+       * simply add the constraint q x + x^T Q x <= q_0. */
       
       // Retrieve linear part of the constraint
       int nzcnt = matcnt[ i ];
@@ -304,27 +307,7 @@ void CPXMILPSolver::load_problem( void )
         rmatval.push_back( matval[ start + j ] );
       }
 
-      // Add new auxiliary variable with coeficient 1 in the row
-      std::vector< double > v_lb = { -CPX_INFBOUND };
-      std::vector< double > v_ub = { CPX_INFBOUND };
-      std::string tmp = "quad_aux_var_" + std::to_string( count_quad );
-      std::vector< char * > v_name( 1 );
-      v_name[ 0 ] = strcpy( new char[ tmp.length() + 1 ] , tmp.c_str() );
-
-      CPXnewcols( env , lp , 1 , 0 , v_lb.data() , 
-             v_ub.data() , nullptr , v_name.data() );
-
-      rmatind.push_back( numcols + count_quad );
-      rmatval.push_back( 1 );
-
-      // update the CPLEX problem with q x + v <= q_0
-      CPXaddrows( env , lp , 0 , 1 , rmatind.size() , & cpx_rhs[ i ] , 
-                  & sense[ i ] , rmatbeg.data() , rmatind.data() , 
-                  rmatval.data() , nullptr , &name );
-
-      // Now we have to create the auxiliary quadratic constraint
-      std::vector< int > lidx = { numcols + count_quad };
-      std::vector< double > lcoeff = { 1 };
+      // Prepare coefficients for quadratic part
       std::vector< int > qidx1;
       std::vector< int > qidx2;
       std::vector< double > qcoeff;
@@ -340,15 +323,47 @@ void CPXMILPSolver::load_problem( void )
       // Call specific function to generate the structures required
       generate_qcon_matrix( qidx1 , qidx2 , qcoeff , i );
 
-      std::string tmp_con = "quad_aux_con_" + std::to_string( count_quad );
+      if( !cons_modification ){
+        // No future modification in constraints will be issued: 
+        // we can directly add the quadratic constraint
+        CPXaddqconstr( env , lp , rmatind.size() , qidx1.size() , 
+          cpx_rhs[ i ] , sense_q , rmatind.data() ,
+          rmatval.data() , qidx1.data() , qidx2.data() , 
+          qcoeff.data() , name );
+      }
+      else{
+        // Add new auxiliary variable with coeficient 1 in the row
+        std::vector< double > v_lb = { -CPX_INFBOUND };
+        std::vector< double > v_ub = { CPX_INFBOUND };
+        std::string tmp = "quad_aux_var_" + std::to_string( count_quad );
+        std::vector< char * > v_name( 1 );
+        v_name[ 0 ] = strcpy( new char[ tmp.length() + 1 ] , tmp.c_str() );
 
-      CPXaddqconstr( env , lp , 1 , qidx1.size() , 0 ,
-        sense_q , lidx.data() , lcoeff.data() , qidx1.data() ,
-        qidx2.data() , qcoeff.data() , tmp_con.c_str() );
+        CPXnewcols( env , lp , 1 , 0 , v_lb.data() , 
+               v_ub.data() , nullptr , v_name.data() );
 
-      cpx_quad_var_aux[ i ] = numcols + count_quad; // Index of aux var
-      cpx_quad_con_aux[ i ] = count_quad; // Index of aux con
-      ++count_quad;
+        rmatind.push_back( numcols + count_quad );
+        rmatval.push_back( 1 );
+
+        // update the CPLEX problem with q x + v <= q_0
+        CPXaddrows( env , lp , 0 , 1 , rmatind.size() , & cpx_rhs[ i ] , 
+                  & sense[ i ] , rmatbeg.data() , rmatind.data() , 
+                  rmatval.data() , nullptr , &name );
+
+        // Now we have to create the auxiliary quadratic constraint
+        std::vector< int > lidx = { numcols + count_quad };
+        std::vector< double > lcoeff = { 1 };
+
+        std::string tmp_con = "quad_aux_con_" + std::to_string( count_quad );
+
+        CPXaddqconstr( env , lp , 1 , qidx1.size() , 0 ,
+          sense_q , lidx.data() , lcoeff.data() , qidx1.data() ,
+          qidx2.data() , qcoeff.data() , tmp_con.c_str() );
+
+        cpx_quad_var_aux[ i ] = numcols + count_quad; // Index of aux var
+        cpx_quad_con_aux[ i ] = count_quad; // Index of aux con
+        ++count_quad;
+      }
     }
   }
  }
