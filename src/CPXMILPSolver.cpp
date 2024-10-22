@@ -327,7 +327,7 @@ void CPXMILPSolver::load_problem( void )
         // No future modification in constraints will be issued: 
         // we can directly add the quadratic constraint
         CPXaddqconstr( env , lp , rmatind.size() , qidx1.size() , 
-          cpx_rhs[ i ] , sense_q , rmatind.data() ,
+          cpx_rhs[ i ] , sense[ i ] , rmatind.data() ,
           rmatval.data() , qidx1.data() , qidx2.data() , 
           qcoeff.data() , name );
       }
@@ -3561,7 +3561,10 @@ void CPXMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
     for (Qmat::InnerIterator it(qmat,k); it; ++it){
       qidx1[ k_term ] = it.row();
       qidx2[ k_term ] = it.col();
-      qcoeff[ k_term ] = - it.value();
+      if( !cons_modification )
+        qcoeff[ k_term ] = it.value();
+      else
+        qcoeff[ k_term ] = - it.value();
       ++k_term;
     } 
   }
