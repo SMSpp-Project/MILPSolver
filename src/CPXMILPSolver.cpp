@@ -1221,7 +1221,7 @@ Solver::OFValue CPXMILPSolver::get_var_value( void )
 void CPXMILPSolver::get_var_solution( Configuration * solc )
 {
  std::vector< double > x( numcols, 0 );
- if( numquadrows > 0 ){
+ if( numquadrows > 0 && cons_modification ){
   // if we have a QCP model, we need also to retrieve the objective values of
   // auxiliary variables
   std::vector< double > x_q( numcols + numquadrows, 0 );
