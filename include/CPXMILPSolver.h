@@ -642,6 +642,13 @@ class CPXMILPSolver : public MILPSolver {
   std::vector< int > cpx_quad_var_aux;
   std::vector< int > cpx_quad_con_aux;
 
+ /* If no modification are required by the user (i.e. cons_modification is
+  * false), then we can simply add the initial form of the quadratic constraint.
+  * In this case can be useful to keep a vector of the indices of the quadratic 
+  * constraint (that will never change!) in order to perform additional
+  * operations (i.e. evaluation of slack values). */
+ std::vector< int > cpx_quad_con_idx; 
+
  // function to retrieve actual idx of variable considering auxiliary ones
  int cpx_index_of_variable( const ColVariable * var ) const;
 

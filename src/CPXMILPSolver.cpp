@@ -224,9 +224,14 @@ void CPXMILPSolver::load_problem( void )
   // In QCP models we add one constraint at time.
 
   // Initialize vector mapping quadratic rows into auxiliary variables and constraints 
-  // with length equal to the number of rows.
+  // with length equal to the number of rows (used when cons_modification = true).
   cpx_quad_var_aux.resize( numrows , -1 );
   cpx_quad_con_aux.resize( numrows , -1 );
+
+  cpx_quad_con_idx.resize( numquadrows );
+
+  // Initialize vector containing all the indices of quadratic constraints.
+  // (used when cons_modification = false).
 
   // Firstly add variables with objective coefficients
   if( use_custom_names ){
@@ -289,7 +294,8 @@ void CPXMILPSolver::load_problem( void )
        * constraints. 
        *
        * NOTE: if the user knows that no Modifications are required, we 
-       * simply add the constraint q x + x^T Q x <= q_0. */
+       * simply add the constraint q x + x^T Q x <= q_0 and update the 
+       * auxiliary vector of indices. */
       
       // Retrieve linear part of the constraint
       int nzcnt = matcnt[ i ];
@@ -330,6 +336,8 @@ void CPXMILPSolver::load_problem( void )
           cpx_rhs[ i ] , sense[ i ] , rmatind.data() ,
           rmatval.data() , qidx1.data() , qidx2.data() , 
           qcoeff.data() , name );
+
+        cpx_quad_con_idx[ count_quad ] = i;
       }
       else{
         // Add new auxiliary variable with coeficient 1 in the row
@@ -362,8 +370,8 @@ void CPXMILPSolver::load_problem( void )
 
         cpx_quad_var_aux[ i ] = numcols + count_quad; // Index of aux var
         cpx_quad_con_aux[ i ] = count_quad; // Index of aux con
-        ++count_quad;
       }
+      ++count_quad;
     }
   }
  }
@@ -1281,11 +1289,11 @@ bool CPXMILPSolver::is_dual_feasible( void )
 
 void CPXMILPSolver::get_dual_solution( Configuration * solc )
 {
- std::vector< double > pi( numrows , 0 );
+ std::vector< double > pi( numrows - numquadrows , 0 );
  std::vector< double > dj( numcols , 0 );
 
  if( numrows > 0 )
-  if( CPXgetpi( env , lp , pi.data() , 0 , numrows - 1 ) )
+  if( CPXgetpi( env , lp , pi.data() , 0 , numrows - numquadrows - 1 ) )
    throw( std::runtime_error( "Unable to get dual values with CPXgetpi()" ) );
 
  if( CPXgetdj( env , lp , dj.data() , 0 , numcols - 1 ) )

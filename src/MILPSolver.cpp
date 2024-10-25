@@ -2933,18 +2933,20 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
  // handle dual variables, if any- - - - - - - - - - - - - - - - - - - - - -
  if( ! pi.empty() ) {  // there actually is a dual solution
 
-  if( pi.size() < get_numrows() )
+  if( pi.size() < get_numrows() - numquadrows )
    throw( std::invalid_argument( "write_dual_solution: pi too short" ) );
 
   int row = 0;
   int row_dynamic = static_cons;
 
   auto set = [ & pi , & row ]( FRowConstraint & c ) {
-   c.set_dual( - pi[ row++ ] );
+    if( dynamic_cast< LinearFunction * >( c.get_function() ) )
+      c.set_dual( - pi[ row++ ] );
    };
 
   auto set_dynamic = [ & pi , & row_dynamic ]( FRowConstraint & c ) {
-   c.set_dual( - pi[ row_dynamic++ ] );
+    if( dynamic_cast< LinearFunction * >( c.get_function() ) )
+      c.set_dual( - pi[ row_dynamic++ ] );
    };
 
   for( auto qb : v_BFS ) {
