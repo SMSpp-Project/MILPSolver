@@ -1188,8 +1188,10 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
       
       // Retrieve sparse quadratic matrix
       auto local_qmatrix = qf->get_matrix();
-      Qmat global_qmatrix( numcols , numcols );
-      std::vector<Eigen::Triplet<Coefficient>> vv_nd( local_qmatrix.nonZeros() );
+      std::map< mat_indices , float > global_qmatrix;
+      //Qmat global_qmatrix;
+      //global_qmatrix.reserve(5);
+      //std::vector<Eigen::Triplet<Coefficient>> vv_nd( local_qmatrix.nonZeros() );
 
       // Create map from local indices to global ones
       std::vector< int > map_local_to_global( qf->get_num_active_var() );
@@ -1213,8 +1215,9 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         // Thus, if there are nonzeros, we have to insert them.
         double q_coeff = std::get< 2 >( el );
         if( q_coeff != 0 ){
-          Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
-          vv_nd.push_back( term ); 
+          global_qmatrix[{idx_v, idx_v}] = q_coeff;
+          //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
+          //vv_nd.push_back( term ); 
         }
         ++num_var;
       }
@@ -1226,13 +1229,15 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         for (Qmat::InnerIterator it(local_qmatrix,k); it; ++it){
           int glob_idx1 = map_local_to_global[ it.row() ];
           int glob_idx2 = map_local_to_global[ it.col() ];
-          Eigen::Triplet< Coefficient > term( glob_idx1 , glob_idx2 , it.value() );
-          vv_nd[ k_term ] = term;
+          global_qmatrix[{glob_idx1, glob_idx2}] = it.value();
+          //Eigen::Triplet< Coefficient > term( glob_idx1 , glob_idx2 , it.value() );
+          //vv_nd[ k_term ] = term;
           ++k_term;
         }
       }
 
-      global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
+      //global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
+      //global_qmatrix.makeCompressed();
 
       q_part[ row ] = global_qmatrix;
     }
@@ -1245,8 +1250,9 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
        * into the global one of the model. */
 
       // In this case we can simply insert the non zero diagonal element
-      Qmat global_qmatrix( numcols , numcols );
-      std::vector<Eigen::Triplet<Coefficient>> vv_nd;
+      std::map< mat_indices , float > global_qmatrix;
+      //Qmat global_qmatrix;
+      //std::vector<Eigen::Triplet<Coefficient>> vv_nd;
 
       for( auto el : dqf->get_v_var() ) {
         // Fill linear part of the constraint
@@ -1264,13 +1270,15 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         // Check if the diagonal quadratic coefficient is nonzero
         double q_coeff = std::get< 2 >( el );
         if( q_coeff != 0 ){
-          Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
-          vv_nd.push_back( term ); 
+          global_qmatrix[{idx_v, idx_v}] = q_coeff;
+          //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
+          //vv_nd.push_back( term ); 
         }
       }
       matcnt[ row ] = nnz;
 
-      global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
+      //global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
+      //global_qmatrix.makeCompressed();
 
       q_part[ row ] = global_qmatrix;
     }

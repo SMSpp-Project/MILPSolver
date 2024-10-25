@@ -205,7 +205,8 @@ void SCIPMILPSolver::load_problem( void )
                                                 nullptr , nullptr ,
                                                 con_lhs , con_rhs ) );
   }
-  else if( q_part[ i ].nonZeros() == 0 ){
+  //else if( q_part[ i ].nonZeros() == 0 ){
+  else if( q_part[ i ].empty() ){
     // We are adding a linear constraint of a QCP model. The matrix coefficient is 
     // grouped in MILPSolver by rows.
     std::vector< SCIP_VAR * > lidx;
@@ -2598,11 +2599,14 @@ void SCIPMILPSolver::generate_qcon_matrix( std::vector< SCIP_VAR * > & qidx1 ,
 {
   auto qmat = q_part[ row ];
 
-  qidx1.resize( qmat.nonZeros() );
+  /*qidx1.resize( qmat.nonZeros() );
   qidx2.resize( qmat.nonZeros() );
-  qcoeff.resize( qmat.nonZeros() );
+  qcoeff.resize( qmat.nonZeros() );*/
+  qidx1.resize( qmat.size() );
+  qidx2.resize( qmat.size() );
+  qcoeff.resize( qmat.size() );
   int k_term = 0;
-  for (int k=0; k < qmat.outerSize(); ++k){
+  /*for (int k=0; k < qmat.outerSize(); ++k){
     for (Qmat::InnerIterator it(qmat,k); it; ++it){
       int idx1 = it.row();
       int idx2 = it.col();
@@ -2611,6 +2615,15 @@ void SCIPMILPSolver::generate_qcon_matrix( std::vector< SCIP_VAR * > & qidx1 ,
       qcoeff[ k_term ] = it.value();
       ++k_term;
     } 
+  }*/
+  for ( auto entry : qmat ){
+    auto idx = entry.first; // couple of indices
+    int idx1 = idx.first;
+    int idx2 = idx.second;
+    qidx1[ k_term ] = vars[ idx1 ];
+    qidx2[ k_term ] = vars[ idx2 ];
+    qcoeff[ k_term ] = - entry.second;
+    ++k_term;
   }
 }
 

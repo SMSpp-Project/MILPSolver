@@ -692,6 +692,7 @@ class MILPSolver : public CDASolver
  using var_int_int = std::tuple< const ColVariable * , int , int >;
  using con_int_int = std::tuple< const FRowConstraint * , int , int >;
  using c_v_coeff_pair = DQuadFunction::c_v_coeff_pair;
+ using mat_indices = std::pair< int , int >;
 
  /** @name Variable and Constraint dictionaries
   *
@@ -783,7 +784,7 @@ class MILPSolver : public CDASolver
   * For a quadratic constraint i, we separtely store all the nonzeros linear
   * terms in the above mentioned matbeg, matcnt, ... structures (grouped by
   * rows). The quadratic part of the constraint is instead represented with a
-  * Eigen::SparseMatrix stored in the i-th position of the vector q_part.
+  * map< mat_indices,float > stored in the i-th position of the vector q_part.
   * 
   * The same procedure is applied for the objective function, with the linear
   * coefficients stored in objective, the diagonal coefficients of the quadratic
@@ -864,7 +865,7 @@ class MILPSolver : public CDASolver
  // Linear coefficients (already stored in matbeg,...)
 
  // Quadratic coefficients
- std::vector< Qmat > q_part;
+ std::vector< std::map< mat_indices , float > > q_part;
 
  /** An array of length at least numcols containing the lower bound on each
   * of the variables. */

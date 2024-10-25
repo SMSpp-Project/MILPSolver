@@ -337,7 +337,8 @@ void GRBMILPSolver::load_problem( void )
 
     char * name = use_custom_names ? rowname[ i ] : NULL; // retrieve constraint name
     
-    if( q_part[ i ].nonZeros() == 0 ){
+    //if( q_part[ i ].nonZeros() == 0 ){
+    if( q_part[ i ].empty() ){
       // Simple Linear Constraint
       int nzcnt = matcnt[ i ];
       int start = matbeg[ i ];
@@ -3374,17 +3375,27 @@ void GRBMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
 {
   auto qmat = q_part[ row ];
 
-  qidx1.resize( qmat.nonZeros() );
+  /*qidx1.resize( qmat.nonZeros() );
   qidx2.resize( qmat.nonZeros() );
-  qcoeff.resize( qmat.nonZeros() );
+  qcoeff.resize( qmat.nonZeros() );*/
+  qidx1.resize( qmat.size() );
+  qidx2.resize( qmat.size() );
+  qcoeff.resize( qmat.size() );
   int k_term = 0;
-  for (int k=0; k < qmat.outerSize(); ++k){
+  /*for (int k=0; k < qmat.outerSize(); ++k){
     for (Qmat::InnerIterator it(qmat,k); it; ++it){
       qidx1[ k_term ] = it.row();
       qidx2[ k_term ] = it.col();
       qcoeff[ k_term ] = - it.value();
       ++k_term;
     } 
+  }*/
+  for ( auto entry : qmat ){
+    auto idx = entry.first; // couple of indices
+    qidx1[ k_term ] = idx.first;
+    qidx2[ k_term ] = idx.second;
+    qcoeff[ k_term ] = - entry.second;
+    ++k_term;
   }
 }
 
