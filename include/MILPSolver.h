@@ -921,6 +921,7 @@ class MILPSolver : public CDASolver
  int int_vars{};           ///< Number of integer variables
  int static_vars{};        ///< Number of static variables
  int static_cons{};        ///< Number of static constraints
+ int static_quadcons{};    ///< Number of static quadratic constraints
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------- PROTECTED METHODS ----------------------------*/

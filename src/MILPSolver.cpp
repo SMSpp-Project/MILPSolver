@@ -138,6 +138,7 @@ void MILPSolver::load_problem( void )
  numcols = 0;
  static_vars = 0;
  static_cons = 0;
+ static_quadcons = 0;
  Index nzelements = 0;
  Index nst_linrow = 0;
  Index nst_quadrow = 0;
@@ -270,6 +271,7 @@ void MILPSolver::load_problem( void )
 
   // Fill number of quadratic rows
   numquadrows = nst_quadrow + ndy_quadrow;
+  static_quadcons = nst_quadrow;
 
   for( const auto & i : qb->get_static_variables() ) {
    // Singles
@@ -2944,8 +2946,10 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
   if( pi.size() < get_numrows() - numquadrows )
    throw( std::invalid_argument( "write_dual_solution: pi too short" ) );
 
+  // NOTE: this only supports pi written for linear constraints!
+  // TODO: extend pi to quadratic constraints
   int row = 0;
-  int row_dynamic = static_cons;
+  int row_dynamic = static_cons - static_quadcons;
 
   auto set = [ & pi , & row ]( FRowConstraint & c ) {
     if( dynamic_cast< LinearFunction * >( c.get_function() ) )
