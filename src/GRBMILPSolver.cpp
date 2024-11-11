@@ -2717,10 +2717,7 @@ void GRBMILPSolver::set_par( idx_type par , double value )
   }
 
  std::string gp;
- if( par == intMaxIter ) // intMaxIter is an int parameter in sms++ but a double in Gurobi
-  gp = grb_int_par_map( par );
- else
-  gp = grb_dbl_par_map( par );
+ gp = grb_dbl_par_map( par );
 
  if( gp.size() > 0 ) {
   GRBsetdblparam( env , gp.data() , value );
