@@ -382,11 +382,11 @@ void CPXMILPSolver::load_problem( void )
           qidx2.data() , qcoeff.data() , tmp_con.c_str() );
 
         cpx_quad_var_aux[ i ] = numcols + num_qauxvar; // Index of aux var
-        cpx_quad_con_aux[ i ] = count_quad; // Index of aux con
 
         cpx_idx_aux_qvar.push_back( numcols + num_qauxvar ); 
         num_qauxvar++; // Update counter of auxiliary variables
        }
+      cpx_quad_con_aux[ i ] = count_quad; // Index of quad con
       ++count_quad;
       }
     }
@@ -1464,6 +1464,42 @@ int CPXMILPSolver::cpx_index_of_dynamic_variable( const ColVariable * var ) cons
  }
 
 /*--------------------------------------------------------------------------*/
+
+int cpx_index_of_linear_constraint( const FRowConstraint * con )
+{
+ auto idx = index_of_constraint( con );
+ if( idx == Inf< int >() )
+  return( idx );
+
+ bool is_qcp = ( numquadrows > 0 );
+
+ if( !is_qcp ){
+  // Simple Linear Problem
+  return( idx );
+ }
+ else{
+  // Check if we are actually asking the index of a linear constraint
+  if( !q_part[ idx].empty() )
+    throw( std::runtime_error( "Tried to retrieve index of quadratic constraint "
+      "with cpx_index_of_linear_constraint() method." ) );
+
+  // Simply "jump" quadratic constraints 
+  // NOTE: if the quadratic constraint has a linear part (see CPXMILPSolver.h:631)
+  // we are building also linear constraint. Thus, we will need to "jump"
+  // only quadratic constraint without a linear part, i.e. for which an 
+  // auxiliary variable has not been built.
+  auto new_idx = idx;
+  for( int j = 0 ; j < idx ; j++ ){
+    if( !q_part[ j].empty() && cpx_quad_var_aux[i] == -1 ){
+      // Quadratic constraint without linear part
+      new_idx--;
+    }
+   }
+  return new_idx;
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -1566,6 +1602,7 @@ void CPXMILPSolver::objective_modification( const ObjectiveMod * mod )
  }
 
 /*--------------------------------------------------------------------------*/
+AGGIUSTA GRADIENT EVALUATION
 
 void CPXMILPSolver::const_modification( const ConstraintMod * mod )
 {
@@ -1574,11 +1611,15 @@ void CPXMILPSolver::const_modification( const ConstraintMod * mod )
 
  /* To change the coefficents, a FunctionMod must be used. */
 
+ auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ if( ! lf )
+  return;
+
  auto * con = dynamic_cast< FRowConstraint * >( mod->constraint() );
  if( ! con )  // this should not happen
   return;     // but in case, nothing to do
 
- int index = index_of_constraint( con );
+ int index = cpx_index_of_linear_constraint( con );
  if( index == Inf< int >() )  // the FRowConstraint is not (yet?) there
   return;                     // nothing to do
  char sense;
@@ -2009,7 +2050,7 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
  if( ! con )
   return;
 
- auto row = index_of_constraint( con );
+ auto row = cpx_index_of_linear_constraint( con );
  if( row == Inf< int >() )  // the constraint is not (yet?) there
   return;
 
@@ -2270,7 +2311,7 @@ void CPXMILPSolver::constraint_fvars_modification(
  if( ! con )  // TODO: Throw exception?
   return;
 
- auto cidx = index_of_constraint( con );
+ auto cidx = cpx_index_of_linear_constraint( con );
  if( cidx == Inf< int >() )
   return;
 
@@ -3644,6 +3685,12 @@ void CPXMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
     ++k_term;
   }
 }
+
+/*--------------------------------------------------------------------------*/
+
+ void evaluate_qgradient( Index row ){
+  // Retrieve dual slack values for specifc quadratic constraint.
+ }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- End File CPXMILPSolver.cpp -------------------------*/

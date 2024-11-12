@@ -637,14 +637,17 @@ class CPXMILPSolver : public MILPSolver {
   *    and v >= x^T Q x, with v being an auxiliary variable. This is 
   *    because CPLEX does not allow to directly modify quadratic 
   *    constraints. Thus, we will need to store for each quadratic constraint 
-  *    the CPLEX index of relative auxiliary variable and constraint beeing 
+  *    the CPLEX index of relative auxiliary variable and constraint being 
   *    built. To achieve this goal we will use two auxiliary vectors 
   *    cpx_quad_var_aux and cpx_quad_con_aux, with length equal to the 
   *    number of rows and value -1 for linear constraint. In the vector
   *    num_qauxvar we will simply keep track of the indices of auxiliary
   *    variables built for this reason.
   *
-  * NOTE: The set of indices of quadratic and linear rows are disjoint. */
+  * NOTE: The set of indices of quadratic and linear rows are disjoint. 
+  * For this reason, if the n-th constraint is quadratic, we will store 
+  * in cpx_quad_con_aux[n] the index of the quadratic constraint in the
+  * relative set. */
   std::vector< int > cpx_quad_var_aux;
   std::vector< int > cpx_quad_con_aux;
   std::vector< int > cpx_idx_aux_qvar;
@@ -654,6 +657,11 @@ class CPXMILPSolver : public MILPSolver {
 
  // function to retrieve actual idx of dynamic variable considering auxiliary ones
  int cpx_index_of_dynamic_variable( const ColVariable * var ) const; 
+
+  // function to retrieve actual idx of constraint. In CPLEX indices of linear and
+  // quadratic constraint are disjoint, so we need to retrieve the actual index 
+  // based on the type of constraint.
+ int cpx_index_of_linear_constraint( const FRowConstraint * con ) const;
  
  /** @name Handling of CPLEX parameters
   *
@@ -730,6 +738,10 @@ class CPXMILPSolver : public MILPSolver {
 			  std::vector< double > & qcoeff ,
         Index row ,
         bool lin_null );
+
+ /** Evaluate the gradient of a specific quadratic constraint 
+  * in the optimum find by CPLEX. */
+ void evaluate_qgradient( Index row );
 
 /*--------------------------------------------------------------------------*/
 
