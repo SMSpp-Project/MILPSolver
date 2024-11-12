@@ -629,25 +629,25 @@ class CPXMILPSolver : public MILPSolver {
  std::mutex f_callback_mutex;
 
  /* In CPXMILPSolver we handle quadratic constraints like 
-  * q x + x^T Q x <= q_0 by constructing two separate constraint: 
-  * q x + v <= q_0 and v >= x^T Q x, with v being an auxiliary variable. 
-  * This is because CPLEX does not allow to directly modify quadratic 
-  * constraints. Thus, we will need to store for each quadratic constraint the 
-  * CPLEX index of relative auxiliary variable and constraint beeing built. 
-  * To achieve this goal we will use two auxiliary vectors cpx_quad_var_aux
-  * and cpx_quad_con_aux, with length equal to the number of rows and value
-  * -1 for linear constraint.
+  * q x + x^T Q x <= q_0 by considering different scenarios:
+  *
+  *  - if q is null, then we simply add the constraint x^T Q x <= q_0
+  *
+  *  - otherwise, we build two separate constraint: q x + v <= q_0 
+  *    and v >= x^T Q x, with v being an auxiliary variable. This is 
+  *    because CPLEX does not allow to directly modify quadratic 
+  *    constraints. Thus, we will need to store for each quadratic constraint 
+  *    the CPLEX index of relative auxiliary variable and constraint beeing 
+  *    built. To achieve this goal we will use two auxiliary vectors 
+  *    cpx_quad_var_aux and cpx_quad_con_aux, with length equal to the 
+  *    number of rows and value -1 for linear constraint. In the vector
+  *    num_qauxvar we will simply keep track of the indices of auxiliary
+  *    variables built for this reason.
   *
   * NOTE: The set of indices of quadratic and linear rows are disjoint. */
   std::vector< int > cpx_quad_var_aux;
   std::vector< int > cpx_quad_con_aux;
-
- /* If no modification are required by the user (i.e. cons_modification is
-  * false), then we can simply add the initial form of the quadratic constraint.
-  * In this case can be useful to keep a vector of the indices of the quadratic 
-  * constraint (that will never change!) in order to perform additional
-  * operations (i.e. evaluation of slack values). */
- std::vector< int > cpx_quad_con_idx; 
+  std::vector< int > cpx_idx_aux_qvar;
 
  // function to retrieve actual idx of variable considering auxiliary ones
  int cpx_index_of_variable( const ColVariable * var ) const;
@@ -728,7 +728,8 @@ class CPXMILPSolver : public MILPSolver {
  void generate_qcon_matrix( std::vector< int > & qidx1 ,
 			  std::vector< int > & qidx2 ,
 			  std::vector< double > & qcoeff ,
-        Index row );
+        Index row ,
+        bool lin_null );
 
 /*--------------------------------------------------------------------------*/
 
