@@ -658,18 +658,28 @@ class GRBMILPSolver : public MILPSolver {
  std::vector<std::pair < int , int >> map_rng_con_aux_var;
 
  /* In GRBMILPSolver we handle quadratic constraints like 
-  * q x + x^T Q x <= q_0 by constructing two separate constraint: 
-  * q x + v <= q_0 and v >= x^T Q x, with v being an auxiliary variable. 
-  * This is because Gurobi does not allow to directly modify quadratic 
-  * constraints. Thus, we will need to store for each quadratic constraint the 
-  * Gurobi index of relative auxiliary variable and constraint beeing built. 
-  * To achieve this goal we will use two auxiliary vectors grb_quad_var_aux
-  * and grb_quad_con_aux, with length equal to the number of rows and value
-  * -1 for linear constraint.
+  * q x + x^T Q x <= q_0 by considering different scenarios:
   *
-  * NOTE: The set of indices of quadratic and linear rows are disjoint. */
+  *  - if q is null, then we simply add the constraint x^T Q x <= q_0
+  *
+  *  - otherwise, we build two separate constraint: q x + v <= q_0 
+  *    and v >= x^T Q x, with v being an auxiliary variable. This is 
+  *    because GUROBI does not allow to directly modify quadratic 
+  *    constraints. Thus, we will need to store for each quadratic constraint 
+  *    the GUROBI index of relative auxiliary variable and constraint being 
+  *    built. To achieve this goal we will use two auxiliary vectors 
+  *    grb_quad_var_aux and grb_quad_con_aux, with length equal to the 
+  *    number of rows and value -1 for linear constraint. In the vector
+  *    grb_idx_aux_qvar we will simply keep track of the indices of 
+  *    auxiliary variables built for this pourpose.
+  *
+  * NOTE: The set of indices of quadratic and linear rows are disjoint. 
+  * For this reason, if the n-th constraint is quadratic, we will store 
+  * in grb_quad_con_aux[n] the index of the quadratic constraint in the
+  * relative set. */
   std::vector< int > grb_quad_var_aux;
   std::vector< int > grb_quad_con_aux;
+  std::vector< int > grb_idx_aux_qvar; // Need to be sorted
 
  // last static ranged constraint added
  int last_static_rng_con;
@@ -742,7 +752,8 @@ class GRBMILPSolver : public MILPSolver {
  void generate_qcon_matrix( std::vector< int > & qidx1 ,
 			  std::vector< int > & qidx2 ,
 			  std::vector< double > & qcoeff ,
-        Index row );
+        Index row ,
+        bool lin_null );
 
 /*--------------------------------------------------------------------------*/
 

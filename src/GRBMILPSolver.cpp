@@ -332,6 +332,7 @@ void GRBMILPSolver::load_problem( void )
 
   int count_quad = 0; // Counter of already inserted quadratic constraint
   int n_ranged_con = 0; // Counter of already inserted ranged constraint
+  int num_qauxvar = 0; // Counter of already inserted auxiliary variables
 
   for( int i = 0 ; i < numrows ; i++ ){
 
@@ -381,70 +382,98 @@ void GRBMILPSolver::load_problem( void )
     else{
       // Quadratic Constraint
       /* In GRBMILPSolver we handle quadratic constraints like 
-       * q x + x^T Q x <= q_0 by constructing two separate constraint: 
-       * q x + v <= q_0 and v >= x^T Q x, with v being an auxiliary variable. 
-       * This is because Gurobi does not allow to directly modify quadratic 
-       * constraints. */
+       * q x + x^T Q x <= q_0 by considering different scenarios:
+       *  - if q is null, then we simply add the constraint x^T Q x <= q_0
+       *
+       *  - otherwise, we build two separate constraint: q x + v <= q_0 
+       *    and v >= x^T Q x, with v being an auxiliary variable. This is 
+       *    because GUROBI does not allow to directly modify quadratic 
+       *    constraints. */
+      
+      // Retrieve number of nonzeros in the linear part of the constraint
       
       // Retrieve linear part of the constraint
       int nzcnt = matcnt[ i ];
-      int start = matbeg[ i ];
 
-      std::vector< int > rmatind;
-      rmatind.reserve( nzcnt );
-      std::vector< double > rmatval;
-      rmatval.reserve( nzcnt );
+      if( nzcnt == 0 ){
+        // Case where q is null
+        
+        // Prepare coefficients for quadratic part
+        std::vector< int > qidx1;
+        std::vector< int > qidx2;
+        std::vector< double > qcoeff;
 
-      // get the coefficients to fill the matrix
-      for( int j = 0 ; j < nzcnt ; j++ ){
-        rmatind.push_back( matind[ start + j ] );
-        rmatval.push_back( matval[ start + j ] );
+        // Call specific function to generate the structures required
+        generate_qcon_matrix( qidx1 , qidx2 , qcoeff , i , true);
+
+        GRBaddqconstr( model , 0 , NULL , NULL , 
+          qidx1.size() , qidx1.data() , qidx2.data() , qcoeff.data() , 
+          sense[ i ] , grb_rhs[ i ] , name );
       }
+      else{
+        // Case where q is not null
 
-      // Add new auxiliary variable with coeficient 1 in the row
-      std::string tmp = "quad_aux_var_" + std::to_string( count_quad );
+        // Retrieve q
+        int start = matbeg[ i ];
+        std::vector< int > rmatind;
+        rmatind.reserve( nzcnt );
+        std::vector< double > rmatval;
+        rmatval.reserve( nzcnt );
 
-      GRBaddvar( model , 0 , nullptr , nullptr , 0 , -GRB_INFINITY , 
-             GRB_INFINITY , 'C' , tmp.c_str() );
+        // get the coefficients to fill the matrix
+        for( int j = 0 ; j < nzcnt ; j++ ){
+          rmatind.push_back( matind[ start + j ] );
+          rmatval.push_back( matval[ start + j ] );
+        }
 
-      rmatind.push_back( numcols + count_quad + n_ranged_con );
-      rmatval.push_back( 1 );
+        // Add new auxiliary variable with coeficient 1 in the row
+        std::string tmp = "quad_aux_var_" + std::to_string( count_quad ); 
 
-      // update the CPLEX problem with q x + v <= q_0
-      GRBaddconstr( model , rmatind.size() , rmatind.data() , 
-                      rmatval.data() , sense[ i ] , grb_rhs[ i ] , 
-                      name );
+        GRBaddvar( model , 0 , nullptr , nullptr , 0 , -GRB_INFINITY , 
+              GRB_INFINITY , 'C' , tmp.c_str() );
 
-      // Now we have to create the auxiliary quadratic constraint
-      std::vector< int > lidx = { numcols + count_quad + n_ranged_con };
-      std::vector< double > lcoeff = { 1 };
-      std::vector< int > qidx1;
-      std::vector< int > qidx2;
-      std::vector< double > qcoeff;
-      char sense_q;
-      
-      if( sense[ i ] == 'L' )
-        sense_q = 'G';
-      else if( sense[ i ] == 'G' )
-        sense_q = 'L';
-      else
-        sense_q = 'E';
+        rmatind.push_back( numcols + count_quad + n_ranged_con );
+        rmatval.push_back( 1 );
 
-      // Call specific function to generate the structures required
-      generate_qcon_matrix( qidx1 , qidx2 , qcoeff , i );
+        // update the CPLEX problem with q x + v <= q_0
+        GRBaddconstr( model , rmatind.size() , rmatind.data() , 
+                        rmatval.data() , sense[ i ] , grb_rhs[ i ] , 
+                        name );
 
-      std::string tmp_con = "quad_aux_con_" + std::to_string( count_quad );
+        // Now we have to create the auxiliary quadratic constraint
+        std::vector< int > lidx = { numcols + count_quad + n_ranged_con };
+        std::vector< double > lcoeff = { 1 };
+        std::vector< int > qidx1;
+        std::vector< int > qidx2;
+        std::vector< double > qcoeff;
+        char sense_q;
+        
+        if( sense[ i ] == 'L' )
+          sense_q = 'G';
+        else if( sense[ i ] == 'G' )
+          sense_q = 'L';
+        else
+          sense_q = 'E';
 
-      GRBaddqconstr( model , lidx.size() , lidx.data() , lcoeff.data() , 
-        qidx1.size() , qidx1.data() , qidx2.data() , qcoeff.data() , 
-        sense_q , 0 , tmp_con.c_str() );
+        // Call specific function to generate the structures required
+        generate_qcon_matrix( qidx1 , qidx2 , qcoeff , i , false );
 
-      grb_quad_var_aux[ i ] = numcols + count_quad + n_ranged_con; // Index of aux var
-      grb_quad_con_aux[ i ] = count_quad; // Index of aux con
+        std::string tmp_con = "quad_aux_con_" + std::to_string( count_quad );
+
+        GRBaddqconstr( model , lidx.size() , lidx.data() , lcoeff.data() , 
+          qidx1.size() , qidx1.data() , qidx2.data() , qcoeff.data() , 
+          sense_q , 0 , tmp_con.c_str() );
+
+        grb_quad_var_aux[ i ] = numcols + num_qauxvar + n_ranged_con; // Index of aux var
+
+        grb_idx_aux_qvar.push_back( numcols + num_qauxvar + n_ranged_con ); 
+        num_qauxvar++; // Update counter of auxiliary variables
+       }
+      grb_quad_con_aux[ i ] = count_quad; // Index of quad con
       ++count_quad;
+      }
     }
   }
- }
 
  status = GRBupdatemodel( model );
  if( status != 0 )
@@ -978,6 +1007,30 @@ bool GRBMILPSolver::has_dual_solution( void )
   return( false );
  }
 
+ if( numquadrows > 0 ){
+  int qcp_dual;
+  GRBgetintparam( env , GRB_INT_PAR_QCPDUAL , & qcp_dual );
+  if( !qcp_dual )
+    if( verbosity )
+      DEBUG_LOG( "In order to retrieve dual values for QCP models  "
+            "the attribute QCPDUAL must be set to 1" << std::endl);
+
+  return( false );
+ }
+
+ // We have also to take into account the possibility that sometimes due to
+ // numerical issue the Pi and Rc attributes are not available even when 
+ // properly setting all the parameters.
+ std::vector< double > small_pi( 1 , 0 );
+ if( int status = GRBgetdblattrarray( model , GRB_DBL_ATTR_PI , 0 , 
+                    1 , small_pi.data() ) ){
+  if( verbosity )
+      DEBUG_LOG( "Query of dual values with attributes GRB_PI " 
+        "returned status " + std::to_string( status ) << std::endl);
+
+  return( false );
+  }
+
  return( true );
 }
 
@@ -992,27 +1045,96 @@ bool GRBMILPSolver::is_dual_feasible( void )
 
 void GRBMILPSolver::get_dual_solution( Configuration * solc )
 {
+ // Number of quadratic constraints with linear part null.
+ // They have been simply added like x^T Q x <= q_0 and so 
+ // there is no dual value available with GRB_DBL_ATTR_PI 
+ // (only for linear constraints).
+ int nq_linnull = numquadrows - grb_idx_aux_qvar.size();
+
  int n_ranged_con = map_rng_con_aux_var.size();
  std::vector< double > pi( numrows , 0 );
+ std::vector< double > pi_grb( numrows - nq_linnull , 0 );
  std::vector< double > dj( numcols , 0 );
- std::vector< double > dj_grb( numcols + n_ranged_con , 0 );
+ std::vector< double > dj_grb( numcols + n_ranged_con + grb_idx_aux_qvar.size(), 0 );
 
  if( numrows > 0 )
-  if( GRBgetdblattrarray( model , GRB_DBL_ATTR_PI , 0 , numrows , pi.data() ) )
+  if( int status = GRBgetdblattrarray( model , GRB_DBL_ATTR_PI , 0 , 
+                      numrows - nq_linnull , pi_grb.data() ) )
    throw( std::runtime_error( "Unable to get dual values querying the attribute GRB_PI" ) );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , numcols + n_ranged_con , dj_grb.data() ) )
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , 
+          numcols + n_ranged_con + grb_idx_aux_qvar.size() , dj_grb.data() ) )
   throw( std::runtime_error( "Unable to get reduced costs querying the attribute GRB_RC") );
 
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
+
+ /* Retrieve dual value for initial variables (avoid auxiliary) */
+ if( n_ranged_con == 0 && grb_idx_aux_qvar.size() == 0 ) 
+  // there are neither ranged constraint or auxiliary variables for quadratic constraint
   dj = dj_grb;
- else{
-  int aux_counter = 0;
+ else if( grb_idx_aux_qvar.size() == 0 ){
+  // there are no auxiliary variables for quadratic constraint (jump only ranged one)
+  int rng_counter = 0;
   for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
-      dj[ j - aux_counter ] = dj_grb[ j ];
+    if( j != map_rng_con_aux_var[ rng_counter ].second ) // column j is not an auxiliary variable
+      dj[ j - rng_counter ] = dj_grb[ j ];
     else
-      ++aux_counter;
+      ++rng_counter;
+   }
+  }
+ else if( n_ranged_con == 0 ){
+  // there are no ranged constraint (jump auxiliary variables for quadratic constraint)
+  int q_counter = 0;
+  for( int j = 0 ; j < numcols + grb_idx_aux_qvar.size() ; ++j ) {
+    if( j != grb_idx_aux_qvar[ q_counter ] ) // column j is not an auxiliary variable
+      dj[ j - q_counter ] = dj_grb[ j ];
+    else
+      ++q_counter;
+   }
+  }
+ else{
+  // there are both ranged constraint and auxiliary variables for quadratic constraint
+  int rng_counter = 0;
+  int q_counter = 0;
+  for( int j = 0 ; j < numcols + + n_ranged_con + grb_idx_aux_qvar.size() ; ++j ) {
+    if( j == grb_idx_aux_qvar[ q_counter ] )
+      ++q_counter;
+    else if(  j == map_rng_con_aux_var[ rng_counter ].second )
+      ++rng_counter;
+    else
+      dj[ j - q_counter - rng_counter ] = dj_grb[ j ];
+   }
+ }
+
+ /* Retrieve dual values for initial constraints (also quadratic) */
+ int count_pi = 0;
+ if( numquadrows == 0 ){
+  // Simple linear model
+  pi = pi_grb;
+ }
+ else{
+  std::vector< double > pi_quad( numquadrows , 0 );
+  if( GRBgetdblattrarray( model , GRB_DBL_ATTR_QCPI , 0 , numquadrows , pi_quad.data() ) )
+    throw( std::runtime_error( "Unable to get quadratic dual values querying "
+            " the attribute GRB_QCPI" ) );
+  
+  for( int i = 0 ; i < numrows ; ++i ){
+    if( q_part[ i ].empty() ){
+      // Simple Linear Constraint
+      pi[ i ] = pi_grb[count_pi];
+      count_pi++;
+    }
+    else{
+      // Quadratic Constraint
+
+      // Evaluate dual for quadratic constraint
+      int idx_q_con  = grb_quad_con_aux[i];
+      pi[ i ] = pi_quad[ idx_q_con ];
+
+      if( grb_quad_con_aux[i] != -1 ){
+        // Linear part available, simply skip the retrieved dual value
+        count_pi++;
+      }
+    }   
   }
  }
 
@@ -1137,10 +1259,12 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
   }
  else if( is_qcp && n_ranged_con == 0 ){
   // Simply "jump" quadratic constraints auxiliary variables
-  auto it = lower_bound( grb_quad_var_aux.begin() , grb_quad_var_aux.end() , idx + 1 );
-  while( it != grb_quad_var_aux.end() ){
+  // We can use the cpx_idx_aux_qvar vector, containing all the indices
+  // of auxiliary variables already sorted.
+  int count = 0;
+  while( grb_idx_aux_qvar[ count ] < idx && count < grb_idx_aux_qvar.size() ){
     ++idx;
-    it = lower_bound( it + 1 , grb_quad_var_aux.end() , idx + 1 );
+    ++count;
   }
  }
  else{
@@ -1191,10 +1315,12 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
   }
  else if( is_qcp && n_ranged_con == 0 ){
   // Simply "jump" quadratic constraints auxiliary variables
-  auto it = lower_bound( grb_quad_var_aux.begin() , grb_quad_var_aux.end() , idx + 1 );
-  while( it != grb_quad_var_aux.end() ){
+  // We can use the cpx_idx_aux_qvar vector, containing all the indices
+  // of auxiliary variables already sorted.
+  int count = 0;
+  while( grb_idx_aux_qvar[ count ] < idx && count < grb_idx_aux_qvar.size() ){
     ++idx;
-    it = lower_bound( it + 1 , grb_quad_var_aux.end() , idx + 1 );
+    ++count;
   }
  }
  else{
@@ -3368,30 +3494,23 @@ Configuration * GRBMILPSolver::get_cfg( Index ci ) const
 void GRBMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
 			  std::vector< int > & qidx2 ,
 			  std::vector< double > & qcoeff ,
-        Index row )
+        Index row ,
+        bool lin_null )
 {
   auto qmat = q_part[ row ];
 
-  /*qidx1.resize( qmat.nonZeros() );
-  qidx2.resize( qmat.nonZeros() );
-  qcoeff.resize( qmat.nonZeros() );*/
   qidx1.resize( qmat.size() );
   qidx2.resize( qmat.size() );
   qcoeff.resize( qmat.size() );
   int k_term = 0;
-  /*for (int k=0; k < qmat.outerSize(); ++k){
-    for (Qmat::InnerIterator it(qmat,k); it; ++it){
-      qidx1[ k_term ] = it.row();
-      qidx2[ k_term ] = it.col();
-      qcoeff[ k_term ] = - it.value();
-      ++k_term;
-    } 
-  }*/
   for ( auto entry : qmat ){
     auto idx = entry.first; // couple of indices
     qidx1[ k_term ] = idx.first;
     qidx2[ k_term ] = idx.second;
-    qcoeff[ k_term ] = - entry.second;
+    if( lin_null )
+      qcoeff[ k_term ] = entry.second;
+    else
+      qcoeff[ k_term ] = - entry.second;
     ++k_term;
   }
 }
