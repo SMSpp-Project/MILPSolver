@@ -1295,7 +1295,7 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
   return( idx );
  }
 
- /*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) const
 {
@@ -1349,6 +1349,42 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
  }
 
   return( idx );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+ int GRBMILPSolver::grb_index_of_linear_constraint( const FRowConstraint * con ) const
+{
+ auto idx = index_of_constraint( con );
+ if( idx == Inf< int >() )
+  return( idx );
+
+ bool is_qcp = ( numquadrows > 0 );
+
+ if( !is_qcp ){
+  // Simple Linear Problem
+  return( idx );
+ }
+ else{
+  // Check if we are actually asking the index of a linear constraint
+  if( !q_part[ idx].empty() )
+    throw( std::runtime_error( "Tried to retrieve index of quadratic constraint "
+      "with grb_index_of_linear_constraint() method." ) );
+
+  // Simply "jump" quadratic constraints 
+  // NOTE: if the quadratic constraint has a linear part (see GRBMILPSolver.h:660)
+  // we are building also linear constraint. Thus, we will need to "jump"
+  // only quadratic constraint without a linear part, i.e. for which an 
+  // auxiliary variable has not been built.
+  auto new_idx = idx;
+  for( int j = 0 ; j < idx ; j++ ){
+    if( !q_part[ j ].empty() && grb_quad_var_aux[ j ] == -1 ){
+      // Quadratic constraint without linear part
+      new_idx--;
+    }
+   }
+  return new_idx;
+  }
  }
 
  /*--------------------------------------------------------------------------*/
@@ -1438,7 +1474,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
  if( ! con )  // this should not happen
   return;     // but in case, nothing to do
 
- int index = index_of_constraint( con );
+ int index = grb_index_of_linear_constraint( con );
  if( index == Inf< int >() )  // the FRowConstraint is not (yet?) there
   return;                     // nothing to do
  char sense;
@@ -1865,7 +1901,7 @@ void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
  if( ! con )
   return;
 
- auto row = index_of_constraint( con );
+ auto row = grb_index_of_linear_constraint( con );
  if( row == Inf< int >() )  // the constraint is not (yet?) there
   return;
 
@@ -2195,7 +2231,7 @@ void GRBMILPSolver::constraint_fvars_modification(
  if( ! con )  // TODO: Throw exception?
   return;
 
- auto cidx = index_of_constraint( con );
+ auto cidx = grb_index_of_linear_constraint( con );
  if( cidx == Inf< int >() )
   return;
 
@@ -3358,7 +3394,7 @@ void CPXMILPSolver::reload_constraint( const LinearFunction * lf )
  vals.reserve( nv );
  std::vector< int > cols;
  cols.reserve( nv );
- auto row = index_of_constraint( static_cast< const FRowConstraint * >(
+ auto row = grb_index_of_linear_constraint( static_cast< const FRowConstraint * >(
 						      lf->get_Observer() ) );
  if( row == Inf< int >() )  // the constraint is not (yet?) there
   return;
