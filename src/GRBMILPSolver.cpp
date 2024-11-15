@@ -327,8 +327,8 @@ void GRBMILPSolver::load_problem( void )
 
   // Initialize vector mapping quadratic rows into auxiliary variables and constraints 
   // with length equal to the number of rows.
-  grb_quad_var_aux.resize( numrows , Inf< int >());
-  grb_quad_con_aux.resize( numrows , Inf< int >() );
+  grb_quad_var_aux.resize( numrows , -1 );
+  grb_quad_con_aux.resize( numrows , -1 );
 
   int count_quad = 0; // Counter of already inserted quadratic constraint
   int n_ranged_con = 0; // Counter of already inserted ranged constraint
@@ -1010,12 +1010,13 @@ bool GRBMILPSolver::has_dual_solution( void )
  if( numquadrows > 0 ){
   int qcp_dual;
   GRBgetintparam( env , GRB_INT_PAR_QCPDUAL , & qcp_dual );
-  if( !qcp_dual )
+  if( !qcp_dual ){
     if( verbosity )
       DEBUG_LOG( "In order to retrieve dual values for QCP models  "
             "the attribute QCPDUAL must be set to 1" << std::endl);
 
-  return( false );
+    return( false );
+  }
  }
 
  // We have also to take into account the possibility that sometimes due to
@@ -1130,7 +1131,7 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
       int idx_q_con  = grb_quad_con_aux[i];
       pi[ i ] = pi_quad[ idx_q_con ];
 
-      if( grb_quad_con_aux[i] != -1 ){
+      if( grb_quad_var_aux[i] != -1 ){
         // Linear part available, simply skip the retrieved dual value
         count_pi++;
       }
