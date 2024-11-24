@@ -2599,30 +2599,17 @@ void SCIPMILPSolver::generate_qcon_matrix( std::vector< SCIP_VAR * > & qidx1 ,
 {
   auto qmat = q_part[ row ];
 
-  /*qidx1.resize( qmat.nonZeros() );
-  qidx2.resize( qmat.nonZeros() );
-  qcoeff.resize( qmat.nonZeros() );*/
   qidx1.resize( qmat.size() );
   qidx2.resize( qmat.size() );
   qcoeff.resize( qmat.size() );
   int k_term = 0;
-  /*for (int k=0; k < qmat.outerSize(); ++k){
-    for (Qmat::InnerIterator it(qmat,k); it; ++it){
-      int idx1 = it.row();
-      int idx2 = it.col();
-      qidx1[ k_term ] = vars[ idx1 ];
-      qidx2[ k_term ] = vars[ idx2 ];
-      qcoeff[ k_term ] = it.value();
-      ++k_term;
-    } 
-  }*/
   for ( auto entry : qmat ){
     auto idx = entry.first; // couple of indices
     int idx1 = idx.first;
     int idx2 = idx.second;
     qidx1[ k_term ] = vars[ idx1 ];
     qidx2[ k_term ] = vars[ idx2 ];
-    qcoeff[ k_term ] = - entry.second;
+    qcoeff[ k_term ] = entry.second;
     ++k_term;
   }
 }
