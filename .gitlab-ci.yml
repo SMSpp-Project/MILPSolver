@@ -31,7 +31,9 @@ build:
       - cmake/*
       - include/*
       - src/*
-      - test/*
+      - test_cuts/*
+      - test_dual/*
+      - test_dynamic/*
       - tools/*
       - CMakeLists.txt
 
