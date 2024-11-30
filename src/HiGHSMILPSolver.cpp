@@ -139,7 +139,7 @@ void HiGHSMILPSolver::load_problem( void )
   }
 
  /** An array of length at least numrows containing the lefthand side value
-  * for each constraint in the constraint matrix.*/
+  * for each constraint in the constraint matrix. */
  std::vector< double > highs_lhs( numrows );
 
  /** Due to HiGHS method (it doesn't use rowsense but always set lhs and rhs),
@@ -386,7 +386,7 @@ int HiGHSMILPSolver::decode_model_status( int status )
 
  /* The following are the symbols that may represent the status of
  * a HiGHS solution as returned by Highs_getModelStatus
- * as listed in the Enum section on HiGHS Documentation.*/
+ * as listed in the Enum section on HiGHS Documentation. */
 
  switch(status) {
   case( kHighsModelStatusNotset ):

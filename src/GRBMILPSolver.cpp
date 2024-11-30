@@ -598,7 +598,7 @@ int GRBMILPSolver::decode_model_status( int status )
 
  /* The following are the symbols that may represent the status of
  * a GUROBI solution as returned by GRBgetintattr( model , GRB_INT_ATTR_STATUS , model_status ),
- * as listed in GUROBI Callable Library API manual.*/
+ * as listed in GUROBI Callable Library API manual. */
  switch(status) {
   //case( GRB_LOADED )
   case( GRB_OPTIMAL ):
