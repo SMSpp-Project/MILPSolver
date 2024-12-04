@@ -739,6 +739,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
@@ -776,6 +777,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     // feasible solution has been generated
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
      if( ! has_var_solution() ) {
       lower_bound = - Inf< OFValue >();
       break;
@@ -827,6 +829,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     // feasible solution has been generated
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
      if( ! has_var_solution() ) {
       upper_bound = Inf< OFValue >();
       break;
@@ -861,6 +864,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available

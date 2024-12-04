@@ -488,6 +488,7 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
 
       // TODO: Here we should retrieve the bound
       lower_bound = Highs_getObjectiveValue( highs );
@@ -512,6 +513,7 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
     // feasible solution has been generated
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
      if( ! has_var_solution() ) {
       lower_bound = - Inf< OFValue >();
       break;
@@ -551,6 +553,7 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
     // feasible solution has been generated
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
      if( ! has_var_solution() ) {
       upper_bound = Inf< OFValue >();
       break;
@@ -578,6 +581,7 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
 
      // TODO: Here we should retrieve the bound
      upper_bound = Highs_getObjectiveValue( highs );

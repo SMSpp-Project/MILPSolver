@@ -1046,6 +1046,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
      switch( probtype ) {
       case( CPXPROB_MILP ):
       case( CPXPROB_MIQP ):
@@ -1079,6 +1080,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
+    case( kUnEval ): // Sometimes it could be asked also during the computation
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -1121,6 +1123,7 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
+    case( kUnEval ): // Sometimes it could be asked also during the computation
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -1151,6 +1154,7 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
+    case( kUnEval ): // Sometimes it could be asked also during the computation
      switch( probtype ) {
       case( CPXPROB_MILP ):
       case( CPXPROB_MIQP ):
