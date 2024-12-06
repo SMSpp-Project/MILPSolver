@@ -99,13 +99,17 @@ else ()
     # ----- Find the GUROBI include directory ------------------------------- #
     # Note that find_path() creates a cache entry
     find_path(GUROBI_INCLUDE_DIR
-            NAMES gurobi_c.h
-            PATHS ${GUROBI_DIR}/include
-            DOC "GUROBI include directory.")
+              NAMES gurobi_c.h
+              PATHS ${GUROBI_DIR}/include
+              DOC "GUROBI include directory.")
 
     # ----- Find the GUROBI library ----------------------------------------- #
     if (UNIX)
-        file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/libgurobi*.so")
+        if (APPLE)
+            file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/libgurobi*.dylib")
+        else ()
+            file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/libgurobi*.so")
+        endif ()
     elseif (WIN32)
         file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/gurobi*.lib")
     endif ()
@@ -113,9 +117,9 @@ else ()
     if (GUROBI_LIBRARIES)
         list(GET GUROBI_LIBRARIES 0 GUROBI_LIB)
         find_library(GUROBI_LIBRARY
-                NAMES ${GUROBI_LIB}
-                PATHS ${GUROBI_DIR}/lib
-                DOC "GUROBI library.")
+                     NAMES ${GUROBI_LIB}
+                     PATHS ${GUROBI_DIR}/lib
+                     DOC "GUROBI library.")
     else ()
         set(GUROBI_LIBRARY NOTFOUND)
     endif ()
