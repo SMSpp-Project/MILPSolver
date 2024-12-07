@@ -538,6 +538,7 @@ int CPXMILPSolver::compute( bool changedvars )
    if( f_callback_set ) {    // the callback was set
     CPXcallbacksetfunc( env , lp , 0 , nullptr , nullptr );  // un-set it
     f_callback_set = false;
+    current_Cntx = nullptr;
     }
 
   if( int status = CPXmipopt( env , lp ) ) {  // error
@@ -1046,7 +1047,6 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
-    case( kUnEval ): // Sometimes it could be asked also during the computation
      switch( probtype ) {
       case( CPXPROB_MILP ):
       case( CPXPROB_MIQP ):
@@ -1062,6 +1062,21 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
        lower_bound += constant_value;
       }
      break;
+    
+    case( kUnEval ): 
+    /* It is possible that during the execution of a callback we would like
+     * to retrieve the bounds of the solution. */
+     if( f_callback_set ){
+      // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & lower_bound );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+     }
+     else
+      throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
 
     default:
      // If Cplex does not state that an optimal solution has been found
@@ -1080,7 +1095,6 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
-    case( kUnEval ): // Sometimes it could be asked also during the computation
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -1092,6 +1106,21 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
      CPXgetobjval( env , lp , & lower_bound );
      lower_bound += constant_value;
      break;
+
+    case( kUnEval ): 
+    /* It is possible that during the execution of a callback we would like
+     * to retrieve the bounds of the solution. */
+     if( f_callback_set ){
+      // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & lower_bound );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+     }
+     else
+      throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
 
     default:
      // Same as above
@@ -1123,7 +1152,6 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
-    case( kUnEval ): // Sometimes it could be asked also during the computation
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -1135,6 +1163,21 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
      CPXgetobjval( env , lp , & upper_bound );
      upper_bound += constant_value;
      break;
+
+    case( kUnEval ):
+    /* It is possible that during the execution of a callback we would like
+     * to retrieve the bounds of the solution. */
+     if( f_callback_set ){
+      // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & upper_bound );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+     }
+     else
+      throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
 
     default:
      // If Cplex does not state that an optimal solution has been found
@@ -1154,7 +1197,6 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
-    case( kUnEval ): // Sometimes it could be asked also during the computation
      switch( probtype ) {
       case( CPXPROB_MILP ):
       case( CPXPROB_MIQP ):
@@ -1170,6 +1212,21 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
        upper_bound += constant_value;
       }
      break;
+
+    case( kUnEval ):
+    /* It is possible that during the execution of a callback we would like
+     * to retrieve the bounds of the solution. */
+     if( f_callback_set ){
+      // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & upper_bound );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+     }
+     else
+      throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
 
     default:
      // Same as above
@@ -2473,7 +2530,8 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 {
  // main switch: depending on contextid - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+ current_Cntx = context; // save current context in CPXMILPSolver
+ 
  switch( contextid ) {
   case( CPX_CALLBACKCONTEXT_LOCAL_PROGRESS ):
   case( CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ): {

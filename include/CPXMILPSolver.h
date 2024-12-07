@@ -617,6 +617,9 @@ class CPXMILPSolver : public MILPSolver {
  /// the "Configuration DB" istself
  std::vector< Configuration * > v_ConfigDB;
 
+ /** pointer used to keep track of the current context of the callback */
+ CPXCALLBACKCONTEXTptr current_Cntx;
+
  /// the mutex to ensure that CPLEX threads do not overstep in the callback
  /** Since CPLEX is multi-threaded, lock()-ing the Block with the f_id of
   * CPXMILPSolver is not enough to prevent concurrent access to it. This is
