@@ -1070,6 +1070,8 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       // The callback is set
       if( current_Cntx != nullptr ){
         CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & lower_bound );
+
+        lower_bound += constant_value;
         break;
       }
       else
@@ -1114,6 +1116,8 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       // The callback is set
       if( current_Cntx != nullptr ){
         CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & lower_bound );
+
+        lower_bound += constant_value;
         break;
       }
       else
@@ -1171,6 +1175,8 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       // The callback is set
       if( current_Cntx != nullptr ){
         CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & upper_bound );
+
+        upper_bound += constant_value;
         break;
       }
       else
@@ -1220,6 +1226,8 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       // The callback is set
       if( current_Cntx != nullptr ){
         CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & upper_bound );
+
+        upper_bound += constant_value;
         break;
       }
       else
