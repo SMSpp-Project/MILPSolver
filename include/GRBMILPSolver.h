@@ -211,6 +211,9 @@ class GRBMILPSolver : public MILPSolver {
  /// loads the problem into Gurobi
  void load_problem( void ) override;
 
+ /// returns the number of nodes used to solve a MIP
+ [[nodiscard]] int get_explored_nodes( void ) const override;
+
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;

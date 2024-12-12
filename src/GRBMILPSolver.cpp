@@ -1146,6 +1146,60 @@ int GRBMILPSolver::get_nodes( void ) const
 
 /*--------------------------------------------------------------------------*/
 
+int GRBMILPSolver::get_explored_nodes( void ) const
+{
+ int n_nodes = 0;
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kInfeasible ):
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+    n_nodes = get_nodes();
+    break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_cbdata != nullptr ){
+        switch( current_cbwhere ){
+          // Call the right function based on the current status of callback
+          case( GRB_CB_MIP ): 
+            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIP_NODCNT , & n_nodes );
+            break;
+          case( GRB_CB_MIPSOL ):
+            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIPSOL_NODCNT , & n_nodes );
+            break;
+          case( GRB_CB_MIPNODE ):
+            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIPNODE_NODCNT , & n_nodes );
+            break;
+
+          default:
+            throw( std::runtime_error( "Could not access current best objective "
+            "from callback status " + std::to_string(current_cbwhere) ) );
+        }
+    }
+    else
+      throw( std::runtime_error( "Could not determine current callback data in "
+        "GRBMILPSolver::get_explored_nodes()" ) );
+    }
+  else
+    throw( std::runtime_error( "The callback must be set in order to retrieve "
+      "number of explored nodes during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve information of the problem" ) );
+  }
+ 
+ return( n_nodes );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
 {
  auto idx = index_of_variable( var );

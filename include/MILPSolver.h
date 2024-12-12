@@ -368,6 +368,25 @@ class MILPSolver : public CDASolver
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+ /** @name Informative methods about different aspect of the problem
+ *
+ * The following methods are used to provide useful information about the
+ * internal status of the problem (e.g. number of nodes explored ).
+ * These methods are not properly implemented in the base class MILPSolver
+ * as they should be overwritten in derived classes.
+ * @{ */
+
+ /// Returns the number of nodes explored so far.
+ [[nodiscard]] virtual int get_explored_nodes( void ) const {
+  return( 0 );
+  }
+  
+
+/** @} ---------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+/** @} ---------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
  /** @name Methods that use the dictionaries
   *
   * The following methods use the dictionaries to get the indices of the

@@ -1078,7 +1078,8 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
         throw( std::runtime_error( "Could not determine current context of callback function" ) );
      }
      else
-      throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "bounds of the problem during the optimization." ) );
 
     default:
      // If Cplex does not state that an optimal solution has been found
@@ -1124,7 +1125,8 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
         throw( std::runtime_error( "Could not determine current context of callback function" ) );
      }
      else
-      throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "bounds of the problem during the optimization." ) );
 
     default:
      // Same as above
@@ -1183,7 +1185,8 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
         throw( std::runtime_error( "Could not determine current context of callback function" ) );
      }
      else
-      throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "bounds of the problem during the optimization." ) );
 
     default:
      // If Cplex does not state that an optimal solution has been found
@@ -1234,7 +1237,8 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
         throw( std::runtime_error( "Could not determine current context of callback function" ) );
      }
      else
-      throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "bounds of the problem during the optimization." ) );
 
     default:
      // Same as above
@@ -1421,6 +1425,45 @@ void CPXMILPSolver::write_lp( const std::string & filename )
 int CPXMILPSolver::get_nodes( void ) const
 {
  return( CPXgetnodecnt( env , lp ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::get_explored_nodes( void ) const
+{
+ int n_nodes = 0;
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kInfeasible ):
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+    n_nodes = get_nodes();
+    break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_NODECOUNT , & n_nodes );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+    }
+    else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "bounds of the problem during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
+  }
+ 
+ return( n_nodes );
  }
 
 /*--------------------------------------------------------------------------*/
