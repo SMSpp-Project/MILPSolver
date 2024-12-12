@@ -1031,7 +1031,7 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
        qidx1_it = qobj_idx1.end();
        }
       else
-       find( qidx1_it + 1 , qobj_idx1.end() , vidx );
+       qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , vidx );
      }
 
      if( !found_qterm && std::get< 1 >( *dcoeffit ) != 0 ) {
@@ -1107,7 +1107,7 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
        qidx1_it = qobj_idx1.end();
        }
       else
-       find( qidx1_it + 1 , qobj_idx1.end() , vidx );
+       qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , vidx );
      }
 
      if( !found_qterm && std::get< 1 >( *dcoeffit ) != 0 ) {
@@ -1182,7 +1182,7 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
      qidx1_it = qobj_idx1.end();
      }
     else
-     find( qidx1_it + 1 , qobj_idx1.end() , idx1 );
+     qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , idx1 );
    }
 
    if( !found_qterm ) {
@@ -1382,7 +1382,7 @@ void SCIPMILPSolver::objective_fvars_modification(
             qidx1_it = qobj_idx1.end();*/
           }
           else
-            find( qidx1_it + 1 , qobj_idx1.end() , idx );
+            qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , idx );
         }
       }
     // TODO: BUilt a specific Modification to include non diagonal terms
@@ -1438,7 +1438,7 @@ void SCIPMILPSolver::objective_fvars_modification(
         qidx1_it = qobj_idx1.end();
       }
       else
-        find( qidx1_it + 1 , qobj_idx1.end() , glob_idx1 );
+        qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , glob_idx1 );
     }
 
     if( !found_qterm ) {
@@ -1501,7 +1501,7 @@ void SCIPMILPSolver::objective_fvars_modification(
             qidx1_it = qobj_idx1.end();*/
           }
           else
-            find( qidx1_it + 1 , qobj_idx1.end() , idx );
+            qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , idx );
         }
       }
     }
@@ -1551,7 +1551,7 @@ void SCIPMILPSolver::objective_fvars_modification(
           qidx1_it = qobj_idx1.end();
         }
         else
-          find( qidx1_it + 1 , qobj_idx1.end() , idx );
+          qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , idx );
       }
 
       if( !found_qterm ) {
