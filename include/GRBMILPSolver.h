@@ -486,6 +486,12 @@ class GRBMILPSolver : public MILPSolver {
   * model that the Solver is solving. */
 
  int callback( GRBmodel *model , void *cbdata , int where );
+
+ /// returns the current best solution for the problem when the callback is set.
+ OFValue get_bestsol_callback( void );
+
+ /// returns the current best bound for the problem when the callback is set
+ OFValue get_bestbound_callback( void );
  
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
@@ -624,6 +630,10 @@ class GRBMILPSolver : public MILPSolver {
 
  /// the "Configuration DB" istself
  std::vector< Configuration * > v_ConfigDB;
+
+  /** pointer used to keep track of the current data and status of the callback */
+ void * current_cbdata;
+ int current_cbwhere;
 
  /// the mutex to ensure that Gurobi threads do not overstep in the callback
  /** Since Gurobi is multi-threaded, lock()-ing the Block with the f_id of
