@@ -13,10 +13,6 @@
 # module name
 CPX_PARS = cpx_pars
 
-# default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-#default:: $(CPX_PARS)
-
 # define & include the necessary modules- - - - - - - - - - - - - - - - - - -
 # each module outputs some macros to be used here:
 # *LIB is the external libraries + -L< libdirs >

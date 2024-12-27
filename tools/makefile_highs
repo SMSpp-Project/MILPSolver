@@ -13,10 +13,6 @@
 # module name
 HIGHS_PARS = highs_pars
 
-# default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-#default:: $(HIGHS_PARS)
-
 # define & include the necessary modules- - - - - - - - - - - - - - - - - - -
 # each module outputs some macros to be used here:
 # *LIB is the external libraries + -L< libdirs >
