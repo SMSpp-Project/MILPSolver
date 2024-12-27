@@ -15,7 +15,7 @@ SCIP_PARS = scip_pars
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-default: $(SCIP_PARS)
+#default:: $(SCIP_PARS)
 
 # define & include the necessary modules- - - - - - - - - - - - - - - - - - -
 # each module outputs some macros to be used here:

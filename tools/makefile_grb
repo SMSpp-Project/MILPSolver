@@ -15,7 +15,7 @@ GRB_PARS = grb_pars
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-default: $(GRB_PARS)
+#default:: $(GRB_PARS)
 
 # define & include the necessary modules- - - - - - - - - - - - - - - - - - -
 # each module outputs some macros to be used here:

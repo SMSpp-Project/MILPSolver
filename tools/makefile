@@ -32,7 +32,11 @@ ifeq ($(UNAME_S),Linux)
     include $(SMS++SDR)/../extlib/makefile-default-paths-linux
 endif
 ifeq ($(UNAME_S),Darwin)
-    include $(SMS++SDR)/../extlib/makefile-default-paths-macos
+    ifeq ($(UNAME_P),x86_64)
+        include $(SMS++SDR)/../extlib/makefile-default-paths-macos-x86_64
+    else
+        include $(SMS++SDR)/../extlib/makefile-default-paths-macos-arm64
+    endif
 endif
 ifeq ($(UNAME_S),Windows)
     include $(SMS++SDR)/../extlib/makefile-default-paths-win
@@ -49,12 +53,24 @@ endif
 COMMON_SW = -std=c++17
 
 # debug switches
-SW_DEBUG = -g -glldb -fno-inline $(COMMON_SW)
+SW_DEBUG = -g -glldb -fno-inline
 # production switches
-SW_RELEASE = -O3 $(COMMON_SW) -DNDEBUG
+SW_RELEASE = -O3 -DNDEBUG
 
 # compiler
 CC = clang++
+
+# default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+default: release
+
+# debug target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+debug: SW = $(COMMON_SW) $(SW_DEBUG)
+
+# release target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+release: SW = $(COMMON_SW) $(SW_RELEASE)
 
 # include the makefiles of the individual *_pars- - - - - - - - - - - - - - -
 # if you are not interested in some of them, just comment them away here
@@ -76,16 +92,16 @@ NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS)
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-default: release
+#default: release
 
 # debug target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-debug: SW = $(SW_DEBUG)
+#debug: SW = $(SW_DEBUG)
 debug: $(NAME)
 
 # release target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-release: SW = $(SW_RELEASE)
+#release: SW = $(SW_RELEASE)
 release: $(NAME)
 
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
