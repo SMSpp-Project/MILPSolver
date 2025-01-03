@@ -13,10 +13,6 @@
 # module name
 CPX_PARS = cpx_pars
 
-# default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-default: $(CPX_PARS)
-
 # define & include the necessary modules- - - - - - - - - - - - - - - - - - -
 # each module outputs some macros to be used here:
 # *LIB is the external libraries + -L< libdirs >
@@ -28,7 +24,7 @@ include $(DIR)/../../extlib/makefile-libCPLEX
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
 $(CPX_PARS): $(DIR)/$(CPX_PARS).o
-	$(CC) -o $(CPX_PARS) $(DIR)/$(CPX_PARS).o $(libCPLEXLIB) $(SW)
+	$(CC) -o $(DIR)/$(CPX_PARS) $(DIR)/$(CPX_PARS).o $(libCPLEXLIB) $(SW)
 
 # compile command - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
