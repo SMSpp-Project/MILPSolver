@@ -367,7 +367,7 @@ void MILPSolver::load_problem( void )
 
  // If no quadratic constraints are in the model, then the coefficient matrix
  // is grouped by columns. Otherwise, it is grouped by rows.
- if( numquadrows == 0 ){
+ if( numquadrows == 0 ) {
   matbeg.resize( numcols + 1, 0 );
   matbeg[ numcols ] = nzelements;
   matcnt.resize( numcols, 0 );
@@ -411,7 +411,7 @@ void MILPSolver::load_problem( void )
  idx_to_dcon.reserve( numrows - static_cons );
 
  // Acccount also for link between variables and bound
- if( single_bound == true ){
+ if( single_bound == true ) {
   svar_to_bound.clear();
   dvar_to_bound.clear();
   svar_to_bound.reserve( static_vars );
@@ -425,7 +425,7 @@ void MILPSolver::load_problem( void )
   * are in the model, the coefficient matrix will be grouped by column,
   * and so we will firstly scan the constraint and after the variables. */
 
- if( numquadrows == 0 ){
+ if( numquadrows == 0 ) {
  // scan the static constraints - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -544,7 +544,7 @@ void MILPSolver::load_problem( void )
    // OneVarConstraint is associated with a single variable.
    // Morevorer, the vector linking the variable with the associated bound, 
    // needs to be filled.
-   if( single_bound == true ){
+   if( single_bound == true ) {
     auto scan_bound = [ this ]( const ColVariable & v ) {
       scan_static_variable_bound( v );
     };
@@ -592,7 +592,7 @@ void MILPSolver::load_problem( void )
    // OneVarConstraint is associated with a single variable.
    // Morevorer, the vector linking the variable with the associated bound, 
    // needs to be filled.
-   if( single_bound == true ){
+   if( single_bound == true ) {
     auto scan_bound = [ this ]( const ColVariable & v ) {
       scan_dynamic_variable_bound( v );
     };
@@ -605,7 +605,7 @@ void MILPSolver::load_problem( void )
 
  std::sort( dvar_to_idx.begin() , dvar_to_idx.end() );
 
- if( numquadrows != 0 ){
+ if( numquadrows != 0 ) {
   // scan the static constraints - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -802,10 +802,10 @@ std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
  *  We also check if we are calling this function from the load_problem: in
  *  this case (i.e. first_scan = true) we still have to fill the dictionaries.
  */
- if( single_bound == true && first_scan == false ){
+ if( single_bound == true && first_scan == false ) {
   int idx = index_of_variable( &var ); // get variable index
 
-  if( idx < static_vars ){ // the variable is static
+  if( idx < static_vars ) { // the variable is static
    if( svar_to_bound[ idx ] != nullptr )
     active_bounds.push_back( 
       const_cast< OneVarConstraint *>( svar_to_bound[ idx ] ) );
@@ -1098,7 +1098,7 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
  /* We have to check wheter we have quadratic constraints in the model or not.
   * If the model is LP, then matbeg, matcnt, ... store the matrix coefficients
   * grouped by column. */
- if( numquadrows == 0 ){
+ if( numquadrows == 0 ) {
   matcnt[ col ] = nz_elements;
 
   if( col == 0 )
@@ -1158,15 +1158,15 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
  /* We have to check wheter we have quadratic constraints in the model or not.
   * If the model is QP, then matbeg, matcnt, ... store the matrix coefficients
   * grouped by rows. */
- if( numquadrows != 0 ){
-  if( auto f = con.get_function() ){
+ if( numquadrows != 0 ) {
+  if( auto f = con.get_function() ) {
     
     if( row == 0 )
       matbeg[ row ] = 0;
     else
       matbeg[ row ] = matbeg[ row - 1 ] + matcnt[ row - 1 ];
 
-    if( auto lf = dynamic_cast< const LinearFunction * >( f ) ){
+    if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
       matcnt[ row ] = lf->get_v_var().size();
       int j = 0;
 
@@ -1180,10 +1180,10 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         j++;
       }
     }
-    else if( auto qf = dynamic_cast< const QuadFunction * >( f ) ){
+    else if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
       int nnz = 0;
 
-      /* The quadratic part of the constraint will be represented as a 
+      /* The quadratic part of the constraint will be represented as an
        * Eigen::SparseMatrix, as already done in QuadFunction. However, we
        * need to translate the local indices stored in a specific QuadFunction
        * into the global one of the model. */
@@ -1206,7 +1206,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         map_local_to_global[ num_var ] = idx_v;
 
         // If the linear coefficient is nonzero
-        if( std::get< 1 >( el ) != 0 ){
+        if( std::get< 1 >( el ) != 0 ) {
           matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
           matind[ matbeg[ row ] + nnz ] = idx_v;
 
@@ -1216,7 +1216,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         // Note: the quadratic matrix does not contain the diagonal elements.
         // Thus, if there are nonzeros, we have to insert them.
         double q_coeff = std::get< 2 >( el );
-        if( q_coeff != 0 ){
+        if( q_coeff != 0 ) {
           global_qmatrix[{idx_v, idx_v}] = q_coeff;
           //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
           //vv_nd.push_back( term ); 
@@ -1227,8 +1227,8 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
       // Now update local quadratic matrix into global one
       int k_term = 0;
-      for (int k=0; k < local_qmatrix.outerSize(); ++k){
-        for (Qmat::InnerIterator it(local_qmatrix,k); it; ++it){
+      for (int k=0; k < local_qmatrix.outerSize(); ++k) {
+        for (Qmat::InnerIterator it(local_qmatrix,k); it; ++it) {
           int glob_idx1 = map_local_to_global[ it.row() ];
           int glob_idx2 = map_local_to_global[ it.col() ];
           global_qmatrix[{glob_idx1, glob_idx2}] = it.value();
@@ -1243,15 +1243,15 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
       q_part[ row ] = global_qmatrix;
     }
-    else if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ){
+    else if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ) {
       int nnz = 0;
 
-      /* The quadratic part of the constraint will be represented as a 
+      /* The quadratic part of the constraint will be represented as an
        * Eigen::SparseMatrix, as already done in QuadFunction. However, we
        * need to translate the local indices stored in a specific DQuadFunction
        * into the global one of the model. */
 
-      // In this case we can simply insert the non zero diagonal element
+      // In this case we can simply insert the non-zero diagonal element
       std::map< mat_indices , float > global_qmatrix;
       //Qmat global_qmatrix;
       //std::vector<Eigen::Triplet<Coefficient>> vv_nd;
@@ -1262,7 +1262,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         auto idx_v = index_of_variable( v );
 
         // If the linear coefficient is nonzero
-        if( std::get< 1 >( el ) != 0 ){
+        if( std::get< 1 >( el ) != 0 ) {
           matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
           matind[ matbeg[ row ] + nnz ] = idx_v;
 
@@ -1271,7 +1271,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
         // Check if the diagonal quadratic coefficient is nonzero
         double q_coeff = std::get< 2 >( el );
-        if( q_coeff != 0 ){
+        if( q_coeff != 0 ) {
           global_qmatrix[{idx_v, idx_v}] = q_coeff;
           //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
           //vv_nd.push_back( term ); 
@@ -1424,7 +1424,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
   ndq_colind.resize( numnnzq, 0 );
 
   for( int i = 0 ; i < numnnzq ; ++i  ) {
-   auto el_nd = nd_terms[i];
+   auto el_nd = nd_terms[ i ];
 
    // Start from local idx and retrieve global index
    auto * v1 = qf->get_active_var( std::get< 0 >( el_nd ) );
@@ -1740,7 +1740,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
  // between the new and the old value of the linear coefficient, to update
  // the objective[] values without having to recompute them: since they are
  // (potentially) a sum of terms, recomputing them would require fetching
- // back all of the terms, while the delta() can just be applied to the sum
+ // back all the terms, while the delta() can just be applied to the sum
 
  if( auto * modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
   if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
@@ -1985,7 +1985,7 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
 
  // all that has remained to do is to deal with OneVarConstraint
  // we deal with this using the base class BlockModAD, which is *not*
- // template, so as to be able to deal with all derived classes from
+ // template, to be able to deal with all derived classes from
  // OneVarConstraint at once
  if( auto tmod = dynamic_cast< const BlockModAD * >( mod ) ) {
   if( mod->is_variable() )
@@ -2149,15 +2149,15 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
  /* If the check on SingleBound is active, it is important to check that 
  *  no other OneVarConstraint are already associated to the variable. 
  *  If this is the case, then add the new bound to the dictionary. */
- if( single_bound == true ){
-  if( idx < static_vars ){ // the variable is static
-   if( svar_to_bound[idx] != nullptr ) // There was already a bound set
+ if( single_bound == true ) {
+  if( idx < static_vars ) { // the variable is static
+   if( svar_to_bound[ idx ] != nullptr ) // There was already a bound set
      throw( std::logic_error( "Only a single OneVarConstraint can be " + 
      std::string("associated to a variable when the option intSingleBound is ") +
      "set to 1 " ) );
 
    else // No OneVarConstraint was previously associated to the variable. 
-    svar_to_bound[idx] = con; // Update the dictionary
+    svar_to_bound[ idx ] = con; // Update the dictionary
    }
   else{ // the variable is dynamic
    if( dvar_to_bound[idx - static_vars] != nullptr ) // There was already a bound set
@@ -2282,7 +2282,7 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  if( lb.empty() )
   return;
 
- // note: this only works because remove_dynamic_constraint[s]() do *not*
+ // note: this only works because remove_dynamic_constraint[ s ]() do *not*
  //       clear the removed OneVarConstraint, and therefore we can easily
  //       reconstruct which ColVariable it was about
  auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
@@ -2300,9 +2300,9 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  /* If the check on SingleBound is active, we have to remove the pointer to 
  *  the OneVarConstraint from the svar_to_bound or svar_to_bound dictionaries. 
  */
- if( single_bound == true ){
+ if( single_bound == true ) {
   if( idx < static_vars ) // the variable is static
-   svar_to_bound[idx] = nullptr;
+   svar_to_bound[ idx ] = nullptr;
   else // the variable is dynamic
    dvar_to_bound[idx - static_vars] = nullptr;
   }
@@ -2326,11 +2326,11 @@ void MILPSolver::set_par( idx_type par , int value )
   relax_int_vars = bool( value );
   return;
   }
- if( par == intSingleBound ){
+ if( par == intSingleBound ) {
   single_bound = bool( value );
   return;
  }
- if( par == intConsModification ){
+ if( par == intConsModification ) {
   cons_modification = bool( value );
   return;
  }
@@ -3043,7 +3043,7 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
 
   if( throw_reduced_cost_exception ) {
     if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
-     // the Variable is fixed but it has no associated OneVarConstraint
+     // the Variable is fixed, but it has no associated OneVarConstraint
      // with both bounds equal to the value of the Variable
 
      throw( std::logic_error(
@@ -3054,7 +3054,7 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
      }
     else
      if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
-      // the Variable is not fixed and it has no associated OneVarConstraint
+      // the Variable is not fixed, and it has no associated OneVarConstraint
       // an exception is thrown if it has a finite nonzero bound
       if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
 	  ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
