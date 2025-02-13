@@ -435,7 +435,7 @@ void GRBMILPSolver::load_problem( void )
         rmatind.push_back( numcols + count_quad + n_ranged_con );
         rmatval.push_back( 1 );
 
-        // update the CPLEX problem with q x + v <= q_0
+        // update the Gurobi problem with q x + v <= q_0
         GRBaddconstr( model , rmatind.size() , rmatind.data() , 
                         rmatval.data() , sense[ i ] , grb_rhs[ i ] , 
                         name );
