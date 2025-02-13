@@ -999,11 +999,18 @@ bool GRBMILPSolver::has_dual_solution( void )
     return( false );  
   }
 
+
+  // Sometimes we could be interested in retrieveing dual values also for 
+  // unfeasible model to prove dual unboundness
+ int m_status;
+ GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+
  int infunbd_info = 0;
  if( GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info ) )
   throw( std::runtime_error( "An error occurred in getting GRB_INT_PAR_INFUNBDINFO" ) );
 
- if( !infunbd_info ) {
+ if( ( m_status == GRB_INFEASIBLE || m_status == GRB_INF_OR_UNBD || 
+        m_status == GRB_UNBOUNDED ) && !infunbd_info ) {
   if( verbosity )
     DEBUG_LOG( "In order to ask for the dual solution of"
                       "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 

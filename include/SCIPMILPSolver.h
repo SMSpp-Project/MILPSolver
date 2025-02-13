@@ -93,6 +93,8 @@ class SCIPMILPSolver : public MILPSolver
  enum int_par_type_SCPS {
   ///< parameter for deciding if/when cut separation is done
   intCutSepPar = intLastAlgParMILP ,
+  // parameter used to tell SCIP if it needs to compute dual values
+  intComputeDuals ,
   /// First SCIP int/long parameter
   intFirstSCIPPar ,
   /// First allowed new int parameter for derived classes
@@ -446,6 +448,12 @@ class SCIPMILPSolver : public MILPSolver
  /** bitwise-encoded parameter for deciding if and when separation of user
   * cuts and lazy constraints is performed */
  unsigned char CutSepPar;
+
+  /** integer parameter used to understand if SCIP needs to compute dual
+   *  values. In this case, all the other algorithms that run before SCIP
+   *  calls the LP solver, i.e., presolving, propagation, and heuristics
+   *  should be disabled.  */
+ int ComputeDuals;
 
  /** vector containing the indices of the Configuration for the various
   * user cuts / lazy constraints separations in the "Configuration DB" */
