@@ -18,8 +18,8 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.19)
-cmake_policy(VERSION 3.12)
+cmake_minimum_required(VERSION 3.4)
+cmake_policy(VERSION 3.15)
 project(MILPSolver
         VERSION 0.7.1
         DESCRIPTION "SMS++ MILPSolver module"
