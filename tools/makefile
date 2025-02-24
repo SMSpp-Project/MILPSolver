@@ -32,7 +32,11 @@ ifeq ($(UNAME_S),Linux)
     include $(SMS++SDR)/../extlib/makefile-default-paths-linux
 endif
 ifeq ($(UNAME_S),Darwin)
-    include $(SMS++SDR)/../extlib/makefile-default-paths-macos
+    ifeq ($(UNAME_P),x86_64)
+        include $(SMS++SDR)/../extlib/makefile-default-paths-macos-x86_64
+    else
+        include $(SMS++SDR)/../extlib/makefile-default-paths-macos-arm64
+    endif
 endif
 ifeq ($(UNAME_S),Windows)
     include $(SMS++SDR)/../extlib/makefile-default-paths-win
