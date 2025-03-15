@@ -808,12 +808,12 @@ std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
   if( idx < static_vars ) { // the variable is static
    if( svar_to_bound[ idx ] != nullptr )
     active_bounds.push_back( 
-      const_cast< OneVarConstraint *>( svar_to_bound[ idx ] ) );
+      const_cast< OneVarConstraint * >( svar_to_bound[ idx ] ) );
    }
   else{ // the variable is dynamic
    if( dvar_to_bound[idx - static_vars] != nullptr )
     active_bounds.push_back( 
-     const_cast< OneVarConstraint *>( dvar_to_bound[idx - static_vars] ) );
+     const_cast< OneVarConstraint * >( dvar_to_bound[idx - static_vars] ) );
    }
   }
  else{ // The option is not activated, scan all active stuff
@@ -1867,9 +1867,9 @@ void MILPSolver::objective_fvars_modification( const FunctionModVars * mod )
  auto * f = mod->function();
 
  // Check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd *>( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd *>( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst *>( mod ) ) )
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
 			 "This type of FunctionModVars is not handled" ) );
 
@@ -1929,9 +1929,9 @@ void MILPSolver::constraint_fvars_modification( const FunctionModVars * mod )
   return;
 
  // Check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd *>( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd *>( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst *>( mod ) ) )
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
 			 "This type of FunctionModVars is not handled" ) );
 
