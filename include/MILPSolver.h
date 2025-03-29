@@ -386,6 +386,12 @@ class MILPSolver : public CDASolver
  [[nodiscard]] virtual bool has_feasible_sol( void ) {
   return( 0 );
   }
+
+ /// Returns elapsed solver runtime (in second).
+ [[nodiscard]] virtual double get_runtime( void ) const {
+  return( 0 );
+  }
+
   
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/

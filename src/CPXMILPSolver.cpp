@@ -527,6 +527,7 @@ int CPXMILPSolver::compute( bool changedvars )
   }
 
  // the actual call to CPLEX- - - - - - - - - - - - - - - - - - - - - - - - -
+ CPXgettime( env , & starting_time ); // store initial timestamp
 
  if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
 
@@ -2894,6 +2895,19 @@ bool CPXMILPSolver::has_feasible_sol( void )
   }
  
  return( feasible_sol );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+double CPXMILPSolver::get_runtime( void ) const
+{
+ double runtime = 0;
+ double current_time;
+
+ CPXgettime( env , & current_time );
+ runtime = current_time - starting_time;
+ 
+ return( runtime );
  }
 
 /*--------------------------------------------------------------------------*/

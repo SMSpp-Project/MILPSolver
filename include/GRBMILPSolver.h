@@ -218,6 +218,9 @@ class GRBMILPSolver : public MILPSolver {
  //  false otherwise.
  [[nodiscard]] bool has_feasible_sol( void ) override;
 
+ /// Returns elapsed solver runtime (in second).
+ [[nodiscard]] double get_runtime( void ) const override;
+
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;

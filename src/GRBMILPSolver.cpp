@@ -2934,6 +2934,16 @@ bool GRBMILPSolver::has_feasible_sol( void )
 
 /*--------------------------------------------------------------------------*/
 
+double GRBMILPSolver::get_runtime( void ) const
+{
+ double runtime = 0;
+ GRBgetdblattr( model , GRB_DBL_ATTR_RUNTIME , &runtime );
+ 
+ return( runtime );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void GRBMILPSolver::perform_separation( Configuration * cfg ,
 					std::vector< int > & rmatbeg ,
 					std::vector< int > & rmatind ,

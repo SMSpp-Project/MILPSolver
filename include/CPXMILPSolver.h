@@ -220,6 +220,9 @@ class CPXMILPSolver : public MILPSolver {
  //  false otherwise.
  [[nodiscard]] bool has_feasible_sol( void ) override;
 
+ /// Returns elapsed solver runtime (in second).
+ [[nodiscard]] double get_runtime( void ) const override;
+
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
@@ -626,6 +629,9 @@ class CPXMILPSolver : public MILPSolver {
 
  /** pointer used to keep track of the current context of the callback */
  CPXCALLBACKCONTEXTptr current_Cntx;
+
+ /** double storing the timestamp when optimization begins. */
+ double starting_time;
 
  /// the mutex to ensure that CPLEX threads do not overstep in the callback
  /** Since CPLEX is multi-threaded, lock()-ing the Block with the f_id of
