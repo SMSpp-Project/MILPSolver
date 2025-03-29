@@ -2859,6 +2859,45 @@ int CPXMILPSolver::get_explored_nodes( void ) const
 
 /*--------------------------------------------------------------------------*/
 
+int CPXMILPSolver::get_left_nodes( void ) const
+{
+ int n_nodes = 0;
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kInfeasible ):
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+    n_nodes = CPXgetnodeleftcnt( env, lp );
+    break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_NODESLEFT , & n_nodes );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+    }
+    else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "number of nodes to explore during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve number of left nodes" ) );
+  }
+ 
+ return( n_nodes );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 bool CPXMILPSolver::has_feasible_sol( void )
 {
  bool feasible_sol = 0;

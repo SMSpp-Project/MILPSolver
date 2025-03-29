@@ -381,6 +381,11 @@ class MILPSolver : public CDASolver
   return( 0 );
   }
 
+ /// Returns the estimated number of nodes to explore.
+ [[nodiscard]] virtual int get_left_nodes( void ) const {
+  return( 0 );
+  }
+
  /// Returns a true value if a feasible solution is known, 
  //  false otherwise.
  [[nodiscard]] virtual bool has_feasible_sol( void ) {
