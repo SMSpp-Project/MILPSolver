@@ -665,10 +665,6 @@ class HiGHSMILPSolver : public MILPSolver {
   * HiGHS status returned by Highs_getModelStatus() in case of a LP/QP. */
  static int decode_model_status( int status );
 
- /** Returns the SMS++ status corresponding to the given
-  * HiGHS error returned by Highs_run(). */
- static int decode_highs_error( int error );
-
  /** Reloads a constraint.
   * To be used as fallback method for constraint FunctionMods. */
  // void reload_constraint( const LinearFunction * lf );
