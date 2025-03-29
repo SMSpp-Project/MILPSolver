@@ -560,6 +560,10 @@ bool SCIPMILPSolver::has_dual_solution( void )
  if( verb > 4 )
   print = TRUE;
 
+ if( ComputeDuals == 0 )
+  throw( std::runtime_error( "To retrieve dual values you must specify the "
+    "parameter intComputeDuals " ) );
+
  has_dual_solution = SCIPisDualSolAvailable( scip , print );
  
  if( has_dual_solution )
@@ -1934,6 +1938,16 @@ void SCIPMILPSolver::set_par( idx_type par, int value )
   case( intCutSepPar ): 
    CutSepPar = value; 
    return;
+  case( intComputeDuals ): 
+   // Duals need to be computed. 
+   ComputeDuals = value; 
+   // Disable all the algorithms that run before the call to the Solver.
+   SCIP_CALL_ABORT( SCIPsetPresolving(scip, SCIP_PARAMSETTING_OFF, TRUE) );
+   SCIP_CALL_ABORT( SCIPsetIntParam(scip, "propagating/maxroundsroot", 0) );
+   SCIP_CALL_ABORT( SCIPsetIntParam(scip, "propagating/maxrounds", 0) );
+   SCIP_CALL_ABORT( SCIPsetHeuristics(scip, SCIP_PARAMSETTING_OFF, TRUE) );
+
+   return;
   case( intMaxIter ):
    SCIP_CALL_ABORT( SCIPsetLongintParam( scip, "limits/nodes", value ) );
    return;
@@ -2132,6 +2146,8 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const
  switch( par ) {
   case( intCutSepPar ):
    return( CutSepPar );
+  case( intComputeDuals ):
+   return( ComputeDuals );
   case( intMaxIter ):
    SCIP_CALL_ABORT( SCIPgetLongintParam( scip , "limits/nodes" , & long_val
 					 ) );
@@ -2269,7 +2285,7 @@ const std::vector< std::string > & SCIPMILPSolver::get_vstr_par( idx_type par )
 
 int SCIPMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
+ if( par == intCutSepPar || par == intComputeDuals)
   return( 0 );
 
  int value;
@@ -2415,6 +2431,9 @@ Solver::idx_type SCIPMILPSolver::int_par_str2idx( const std::string & name )
  if( name == "intCutSepPar" )
   return( intCutSepPar );
 
+ if( name == "intComputeDuals" )
+  return( intComputeDuals );
+
  // SCIP parameters
  auto it = find_if( SCIP_to_SMSpp_int_pars.begin(),
                     SCIP_to_SMSpp_int_pars.end(),
@@ -2432,10 +2451,12 @@ Solver::idx_type SCIPMILPSolver::int_par_str2idx( const std::string & name )
 
 const std::string & SCIPMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::array< std::string , 1 > _pars =
-                     { "intCutSepPar" };
+ static const std::vector< std::string > _pars =
+                     { "intCutSepPar" , "intComputeDuals" };
  if( idx == intCutSepPar )
   return( _pars[ 0 ] );
+ else if( idx == intComputeDuals)
+  return( _pars[ 1 ] );
 
  // SCIP parameters
  if( ( idx >= intFirstSCIPPar ) && ( idx < intLastAlgParSCPS ) )

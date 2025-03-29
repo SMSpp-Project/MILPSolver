@@ -339,31 +339,14 @@ int HiGHSMILPSolver::compute( bool changedvars )
   else
    if( f_callback_set )  // the callback was set
     f_callback_set = false;
-
-  if( Highs_run( highs ) == -1 ) { //error
-
-   int model_status = Highs_getModelStatus( highs );
-   
-   sol_status = decode_highs_error( model_status );
-   goto Return_status;
-  }
-   
-
-  int m_status;
-  m_status = Highs_getModelStatus( highs );
-
-  sol_status = decode_model_status( m_status );
-  goto Return_status;
   }
 
- // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+ // Call HiGHS to solve the problem
  if( Highs_run( highs ) == -1 ) {
-
-  int model_status = Highs_getModelStatus( highs );
-  
-  sol_status = decode_highs_error( model_status );
-  goto Return_status;
+  // An error happened during the call of HiGHS_run. Notice that this is not
+  // an error related to the model and so the model status could be incorrect.
+  std::cerr << "WARNING: An unmanaged error occurred during the execution of  " <<
+  "HiGHS_run" << std::endl;
  }
 
  int m_status;
@@ -400,9 +383,6 @@ int HiGHSMILPSolver::decode_model_status( int status )
   case( kHighsModelStatusSolveError ):
    // There has been an error when solving the model.
    return( kError );
-  // NOTE: those first cases should never occurr, because if an
-  // error has been found, the compiler should call 
-  // HiGHSMILPSolver::decode_highs_error
   case( kHighsModelStatusModelEmpty ):
    // The model is empty.
    return( kError );
@@ -439,37 +419,6 @@ int HiGHSMILPSolver::decode_model_status( int status )
 
  throw( std::runtime_error( "HiGHS_ModelStatus returned unknown status " +
 			    std::to_string( status ) ) );
- }
-
-/*--------------------------------------------------------------------------*/
-
-int HiGHSMILPSolver::decode_highs_error( int error )
-{
- DEBUG_LOG( "HIGHS returned " << error << std::endl );
-
- /* The following symbols represent error codes returned by HIGHS, mainly
-  * by Highs_run(). */
- switch( error ) {
-  case( kHighsModelStatusNotset ):
-   // The model status has not been set.
-   throw( std::runtime_error( "The HiGHS model status has not been set" ) );
-  case( kHighsModelStatusLoadError ):
-   // There has been an error in the load of the model.
-   throw( std::runtime_error( "An error occurred in the load of the model." ) );
-  case( kHighsModelStatusModelError ):
-   // There is an error in the model.
-   throw( std::runtime_error( "There is an error in the model." ) );
-  case( kHighsModelStatusPresolveError ):
-   // There has been an error in the presolve phase.
-   throw( std::runtime_error( 
-            "An error occurred in the presolve phase of the model." ) );
-  case( kHighsModelStatusSolveError ):
-   // There has been an error when solving the model.
-   throw( std::runtime_error( "An error occurred when solving the model." ) );
-  }
-
- throw( std::runtime_error( "HIGHS returned unmanaged error " +
-			    std::to_string( error ) ) );
  }
 
 /*--------------------------------------------------------------------------*/

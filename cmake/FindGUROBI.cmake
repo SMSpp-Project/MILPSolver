@@ -25,7 +25,6 @@
 #    This find module is provided because GUROBI does not provide             #
 #    a CMake configuration file on its own.                                   #
 #                                                                             #
-#                              Niccolo' Iardella                              #
 #                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
@@ -106,12 +105,12 @@ else ()
     # ----- Find the GUROBI library ----------------------------------------- #
     if (UNIX)
         if (APPLE)
-            file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/libgurobi*.dylib")
+            file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/libgurobi[0-9]*.dylib")
         else ()
-            file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/libgurobi*.so")
+            file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/libgurobi[0-9]*.so")
         endif ()
     elseif (WIN32)
-        file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/gurobi*.lib")
+        file(GLOB GUROBI_LIBRARIES "${GUROBI_DIR}/lib/gurobi[0-9]*.lib")
     endif ()
 
     if (GUROBI_LIBRARIES)

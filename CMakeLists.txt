@@ -14,13 +14,12 @@
 #    Note: this file tries to respect the principles of Modern CMake,         #
 #          keep it in mind when editing it.                                   #
 #                                                                             #
-#                              Niccolo' Iardella                              #
 #                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.19)
-cmake_policy(VERSION 3.12)
+cmake_minimum_required(VERSION 3.4)
+cmake_policy(VERSION 3.15)
 project(MILPSolver
         VERSION 0.7.1
         DESCRIPTION "SMS++ MILPSolver module"
@@ -299,7 +298,7 @@ endif ()
 # Using this with the umbrella project is too messy.
 if (NOT hasParent)
     set(CPACK_PACKAGE_VENDOR "SMS++ Team")
-    set(CPACK_PACKAGE_CONTACT "Niccolo' Iardella")
+    set(CPACK_PACKAGE_CONTACT "Donato Meoli")
     set(CPACK_PACKAGE_DESCRIPTION_SUMMARY ${PROJECT_DESCRIPTION})
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_LIST_DIR}/LICENSE")
     set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_LIST_DIR}/README.md")

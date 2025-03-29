@@ -1,10 +1,10 @@
 /* FILE GENERATED AUTOMATICALLY, DO NOT EDIT */
 
-#ifndef __HiGHS181_DEFS
-#define __HiGHS181_DEFS
+#ifndef __HiGHS190_DEFS
+#define __HiGHS190_DEFS
 
 #define HiGHS_NUM_INT_PARS 83
 #define HiGHS_NUM_DBL_PARS 31
 #define HiGHS_NUM_STR_PARS 11
 
-#endif //__HiGHS181_DEFS
+#endif //__HiGHS190_DEFS
