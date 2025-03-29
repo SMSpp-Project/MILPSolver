@@ -1493,52 +1493,6 @@ void CPXMILPSolver::write_lp( const std::string & filename )
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::get_nodes( void ) const
-{
- return( CPXgetnodecnt( env , lp ) );
- }
-
-/*--------------------------------------------------------------------------*/
-
-int CPXMILPSolver::get_explored_nodes( void ) const
-{
- int n_nodes = 0;
-
- switch( sol_status ) {
-  case( kUnbounded ):  
-  case( kInfeasible ):
-  case( kOK ):
-  case( kStopIter ):
-  case( kStopTime ):
-    n_nodes = get_nodes();
-    break;
-  
-  case( kUnEval ): 
-  /* It is possible that during the execution of a callback we would like
-   * to retrieve the number of nodes explored so far. */
-    if( f_callback_set ){
-    // The callback is set
-      if( current_Cntx != nullptr ){
-        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_NODECOUNT , & n_nodes );
-        break;
-      }
-      else
-        throw( std::runtime_error( "Could not determine current context of callback function" ) );
-    }
-    else
-      throw( std::runtime_error( "The callback must be set in order to retrieve "
-        "bounds of the problem during the optimization." ) );
-
-  default:
-    // This should never happen
-    throw( std::runtime_error( "sol_status must be set in order to retrieve bounds of the problem" ) );
-  }
- 
- return( n_nodes );
- }
-
-/*--------------------------------------------------------------------------*/
-
 int CPXMILPSolver::cpx_index_of_variable( const ColVariable * var ) const
 {
  auto idx = index_of_variable( var );
@@ -2854,6 +2808,92 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  return( 0 );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+ int CPXMILPSolver::get_nodes( void ) const
+{
+ return( CPXgetnodecnt( env , lp ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::get_explored_nodes( void ) const
+{
+ int n_nodes = 0;
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kInfeasible ):
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+    n_nodes = get_nodes();
+    break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_NODECOUNT , & n_nodes );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+    }
+    else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "number of explored nodes during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve number of explored nodes" ) );
+  }
+ 
+ return( n_nodes );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool CPXMILPSolver::has_feasible_sol( void )
+{
+ bool feasible_sol = 0;
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+    feasible_sol = is_var_feasible();
+    break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_Cntx != nullptr ){
+        int feasible;
+        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_FEASIBLE , & feasible );
+        feasible_sol = bool( feasible );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+    }
+    else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "feasibility of the problem during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve feasibility of the problem" ) );
+  }
+ 
+ return( feasible_sol );
  }
 
 /*--------------------------------------------------------------------------*/

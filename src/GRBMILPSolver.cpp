@@ -1267,69 +1267,6 @@ void GRBMILPSolver::write_lp( const std::string & filename )
 
 /*--------------------------------------------------------------------------*/
 
-int GRBMILPSolver::get_nodes( void ) const
-{
- double nodecnt;
- GRBgetdblattr( model , GRB_DBL_ATTR_NODECOUNT , & nodecnt );
- return( nodecnt );
- }
-
-/*--------------------------------------------------------------------------*/
-
-int GRBMILPSolver::get_explored_nodes( void ) const
-{
- int n_nodes = 0;
-
- switch( sol_status ) {
-  case( kUnbounded ):  
-  case( kInfeasible ):
-  case( kOK ):
-  case( kStopIter ):
-  case( kStopTime ):
-    n_nodes = get_nodes();
-    break;
-  
-  case( kUnEval ): 
-  /* It is possible that during the execution of a callback we would like
-   * to retrieve the number of nodes explored so far. */
-    if( f_callback_set ){
-    // The callback is set
-      if( current_cbdata != nullptr ){
-        switch( current_cbwhere ){
-          // Call the right function based on the current status of callback
-          case( GRB_CB_MIP ): 
-            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIP_NODCNT , & n_nodes );
-            break;
-          case( GRB_CB_MIPSOL ):
-            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIPSOL_NODCNT , & n_nodes );
-            break;
-          case( GRB_CB_MIPNODE ):
-            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIPNODE_NODCNT , & n_nodes );
-            break;
-
-          default:
-            throw( std::runtime_error( "Could not access current best objective "
-            "from callback status " + std::to_string(current_cbwhere) ) );
-        }
-    }
-    else
-      throw( std::runtime_error( "Could not determine current callback data in "
-        "GRBMILPSolver::get_explored_nodes()" ) );
-    }
-  else
-    throw( std::runtime_error( "The callback must be set in order to retrieve "
-      "number of explored nodes during the optimization." ) );
-
-  default:
-    // This should never happen
-    throw( std::runtime_error( "sol_status must be set in order to retrieve information of the problem" ) );
-  }
- 
- return( n_nodes );
- }
-
-/*--------------------------------------------------------------------------*/
-
 int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
 {
  auto idx = index_of_variable( var );
@@ -2803,6 +2740,9 @@ Solver::OFValue GRBMILPSolver::get_bestsol_callback( void ){
     if( current_cbdata != nullptr ){
       switch( current_cbwhere ){
         // Call the right function based on the current status of callback
+        case( GRB_CB_SIMPLEX ): 
+          GRBcbget( current_cbdata , current_cbwhere , GRB_CB_SPX_OBJVAL , & best_sol );
+          break; 
         case( GRB_CB_MIP ): 
           GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIP_OBJBST , & best_sol );
           break;
@@ -2864,6 +2804,133 @@ Solver::OFValue GRBMILPSolver::get_bestbound_callback( void ){
 
   return( best_bnd );
 }
+
+/*--------------------------------------------------------------------------*/
+
+int GRBMILPSolver::get_nodes( void ) const
+{
+ double nodecnt;
+ GRBgetdblattr( model , GRB_DBL_ATTR_NODECOUNT , & nodecnt );
+ return( nodecnt );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int GRBMILPSolver::get_explored_nodes( void ) const
+{
+ int n_nodes = 0;
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kInfeasible ):
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+    n_nodes = get_nodes();
+    break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_cbdata != nullptr ){
+        switch( current_cbwhere ){
+          // Call the right function based on the current status of callback
+          case( GRB_CB_MIP ): 
+            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIP_NODCNT , & n_nodes );
+            break;
+          case( GRB_CB_MIPSOL ):
+            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIPSOL_NODCNT , & n_nodes );
+            break;
+          case( GRB_CB_MIPNODE ):
+            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIPNODE_NODCNT , & n_nodes );
+            break;
+
+          default:
+            throw( std::runtime_error( "Could not access current best objective "
+            "from callback status " + std::to_string(current_cbwhere) ) );
+        }
+    }
+    else
+      throw( std::runtime_error( "Could not determine current callback data in "
+        "GRBMILPSolver::get_explored_nodes()" ) );
+    }
+  else
+    throw( std::runtime_error( "The callback must be set in order to retrieve "
+      "number of explored nodes during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve information of the problem" ) );
+  }
+ 
+ return( n_nodes );
+ }
+
+ /*--------------------------------------------------------------------------*/
+
+bool GRBMILPSolver::has_feasible_sol( void )
+{
+ int feasible_sol = 0;
+ int solcnt; // Number of solutions explored so far
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kInfeasible ):
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+   feasible_sol = is_var_feasible();
+   break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_cbdata != nullptr ){
+        switch( current_cbwhere ){
+          // Call the right function based on the current status of callback
+          case( GRB_CB_SIMPLEX ):
+            double priminf; // Retrieve primal infeasibility
+            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_SPX_PRIMINF , & priminf );
+            if( priminf > 0 )
+              feasible_sol = 0;
+            else
+              feasible_sol = 1;
+          case( GRB_CB_MIP ):
+            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIP_SOLCNT , & solcnt );
+            feasible_sol = bool( solcnt );
+            break;
+          case( GRB_CB_MIPSOL ):
+            feasible_sol = 1; // We are currently exploring a feasible solution
+            break;
+          case( GRB_CB_MIPNODE ):
+            GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIPNODE_SOLCNT , & solcnt );
+            feasible_sol = bool( solcnt );
+            break;
+
+          default:
+            throw( std::runtime_error( "Could not access current feasibility "
+            "from callback status " + std::to_string(current_cbwhere) ) );
+        }
+    }
+    else
+      throw( std::runtime_error( "Could not determine current callback data in "
+        "GRBMILPSolver::has_feasible_sol()" ) );
+    }
+  else
+    throw( std::runtime_error( "The callback must be set in order to retrieve "
+      "feasibility during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve information of the problem" ) );
+  }
+ 
+ return( feasible_sol );
+ }
 
 /*--------------------------------------------------------------------------*/
 

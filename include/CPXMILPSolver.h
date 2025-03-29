@@ -216,6 +216,10 @@ class CPXMILPSolver : public MILPSolver {
  /// returns the number of nodes used to solve a MIP
  [[nodiscard]] int get_explored_nodes( void ) const override;
 
+ /// Returns a true value if a feasible solution is known, 
+ //  false otherwise.
+ [[nodiscard]] bool has_feasible_sol( void ) override;
+
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;

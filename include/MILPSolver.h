@@ -380,6 +380,12 @@ class MILPSolver : public CDASolver
  [[nodiscard]] virtual int get_explored_nodes( void ) const {
   return( 0 );
   }
+
+ /// Returns a true value if a feasible solution is known, 
+ //  false otherwise.
+ [[nodiscard]] virtual bool has_feasible_sol( void ) {
+  return( 0 );
+  }
   
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
