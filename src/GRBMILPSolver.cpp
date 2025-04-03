@@ -1008,11 +1008,73 @@ void GRBMILPSolver::get_var_solution( Configuration * solc )
 
 /*--------------------------------------------------------------------------*/
 
+bool GRBMILPSolver::has_var_direction( void )
+{
+ int isMIP = 1;
+ GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP );
+ 
+ int verbosity = 0;
+ GRBgetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
+
+ if( ( isMIP ) ) {
+ // The model is a MIP
+    if( verbosity )
+      DEBUG_LOG( "Unbounded direction isavailable only for LP model" << std::endl);
+    return( false );  
+  }
+
+
+ // Sometimes we could be interested in retrieveing dual values also for 
+ // unfeasible model to prove dual unboundness
+ int m_status;
+ GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+
+ int infunbd_info = 0;
+ GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
+
+ if( ( m_status != GRB_UNBOUNDED ) || !infunbd_info ) {
+  if( verbosity )
+    DEBUG_LOG( "In order to ask for the unbounded direction of"
+                "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
+                "should be set to 1" << std::endl);
+  return( false );
+ }
+
+ return( true );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::get_var_direction( Configuration * dirc )
+{
+ int n_ranged_con = map_rng_con_aux_var.size();
+ std::vector< double > x( numcols , 0 );
+ std::vector< double > x_grb( numcols + n_ranged_con, 0 );
+ 
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_UNBDRAY , 0 , numcols + n_ranged_con , x_grb.data() ) )
+  throw( std::runtime_error( "Unable to get the unbounded direction with GRB_DBL_ATTR_UNBDRAY" ) );
+ 
+ if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
+  x = x_grb;
+ else{
+  int aux_counter = 0;
+  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
+    if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
+      x[ j - aux_counter ] = x_grb[ j ];
+    else
+      ++aux_counter;
+   }
+ }
+ 
+ MILPSolver::write_var_solution( x );
+}
+
+/*--------------------------------------------------------------------------*/
+
 bool GRBMILPSolver::has_dual_solution( void )
 {
  int isMIP = 1;
- if( GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP ) )
-  throw( std::runtime_error( "An error occurred in getting GRB_INT_ATTR_IS_MIP" ) );
+ GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP );
  
  int verbosity = 0;
  GRBgetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
@@ -1031,8 +1093,7 @@ bool GRBMILPSolver::has_dual_solution( void )
  GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
 
  int infunbd_info = 0;
- if( GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info ) )
-  throw( std::runtime_error( "An error occurred in getting GRB_INT_PAR_INFUNBDINFO" ) );
+ GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
 
  if( ( m_status == GRB_INFEASIBLE || m_status == GRB_INF_OR_UNBD || 
         m_status == GRB_UNBOUNDED ) && !infunbd_info ) {

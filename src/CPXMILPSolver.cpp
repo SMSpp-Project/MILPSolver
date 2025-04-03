@@ -1341,6 +1341,34 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
 
 /*--------------------------------------------------------------------------*/
 
+bool CPXMILPSolver::has_var_direction( void )
+{
+  int sol_status = CPXgetstat( env , lp );
+  
+  if( sol_status != CPX_STAT_UNBOUNDED )
+    return( false );
+  else
+    return( true );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::get_var_direction( Configuration * dirc )
+{
+ std::vector< double > x( numcols, 0 );
+ if( numquadrows > 0 )
+  // dual ray is available only for LP models
+  throw( std::runtime_error( "Dual ray in CPLEX is available only for linear models" ) );
+ else {
+  if( CPXgetray( env , lp , x.data() ) )
+    throw( std::runtime_error( "Unable to get the dual ray with CPXgetray()" ) );
+ }
+
+ MILPSolver::write_var_solution( x );
+}
+
+/*--------------------------------------------------------------------------*/
+
 bool CPXMILPSolver::has_dual_solution( void )
 {
  int solnmethod , solntype , pfeasind , dfeasind;

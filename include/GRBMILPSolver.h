@@ -184,6 +184,12 @@ class GRBMILPSolver : public MILPSolver {
   * long as there are columns (no checks performed). */
  void get_var_solution( const std::vector< double > & x );
 
+ /// tells whether an unbounded direction is available
+ bool has_var_direction( void ) override;
+
+ /// writes the current unbounded direction in the Block
+ void get_var_direction( Configuration * dirc = nullptr ) override;
+
  /// tells whether a dual solution is available
  bool has_dual_solution( void ) override;
 

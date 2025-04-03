@@ -548,6 +548,24 @@ void SCIPMILPSolver::get_var_solution( Configuration * solc )
 
 /*--------------------------------------------------------------------------*/
 
+bool SCIPMILPSolver::has_var_direction( void )
+{
+ return( SCIPhasPrimalRay( scip ) );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::get_var_direction( Configuration * dirc )
+{
+ std::vector< double > x( numcols , 0 );
+ for( int i = 0 ; i < numcols ; ++i )
+  x[ i ] = SCIPgetPrimalRayVal( scip , vars[ i ] );
+
+ MILPSolver::write_var_solution( x );
+}
+
+/*--------------------------------------------------------------------------*/
+
 bool SCIPMILPSolver::has_dual_solution( void )
 {
  SCIP_Bool has_dual_solution;

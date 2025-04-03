@@ -602,6 +602,32 @@ void HiGHSMILPSolver::get_var_solution( Configuration * solc )
 
 /*--------------------------------------------------------------------------*/
 
+bool HiGHSMILPSolver::has_var_direction( void )
+{
+ int has_primal_ray = 0;
+ 
+ Highs_getPrimalRay( highs , & has_primal_ray , nullptr );
+ return( bool( has_primal_ray ) );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::get_var_direction( Configuration * dirc )
+{
+ int has_primal_ray = 0;
+ std::vector< double > col_value( numcols );
+  
+ int status;
+ status = Highs_getPrimalRay( highs , & has_primal_ray , col_value.data() );
+
+ if( status == kHighsStatusError )
+  throw( std::runtime_error( "An error occurred in Highs_getSolution()" ) );
+
+ MILPSolver::write_var_solution( col_value );
+}
+
+/*--------------------------------------------------------------------------*/
+
 bool HiGHSMILPSolver::has_dual_solution( void )
 { 
  int dual_sol_status;
@@ -666,9 +692,8 @@ void HiGHSMILPSolver::get_dual_solution( Configuration * solc )
 
 bool HiGHSMILPSolver::has_dual_direction( void )
 {
- std::vector< double > y( numrows , 0 );
  int has_dual_ray;
- Highs_getDualRay( highs , & has_dual_ray , y.data() );
+ Highs_getDualRay( highs , & has_dual_ray , nullptr );
  return( bool( has_dual_ray ) );
 }
 
