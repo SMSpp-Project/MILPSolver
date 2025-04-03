@@ -551,6 +551,7 @@ int CPXMILPSolver::compute( bool changedvars )
     CPXcallbacksetfunc( env , lp , 0 , nullptr , nullptr );  // un-set it
     f_callback_set = false;
     current_Cntx = nullptr;
+    current_Cntx_id = 0;
     }
 
   if( int status = CPXmipopt( env , lp ) ) {  // error
@@ -2675,7 +2676,9 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 {
  // main switch: depending on contextid - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // save current context and id in CPXMILPSolver
  current_Cntx = context; // save current context in CPXMILPSolver
+ current_Cntx_id = contextid;
  
  switch( contextid ) {
   case( CPX_CALLBACKCONTEXT_LOCAL_PROGRESS ):
@@ -2879,7 +2882,7 @@ int CPXMILPSolver::get_explored_nodes( void ) const
 
   default:
     // This should never happen
-    throw( std::runtime_error( "sol_status must be set in order to retrieve number of explored nodes" ) );
+    throw( std::runtime_error( "sol_status must be set in order to retrieve process information" ) );
   }
  
  return( n_nodes );
@@ -2887,9 +2890,9 @@ int CPXMILPSolver::get_explored_nodes( void ) const
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::get_left_nodes( void ) const
+long CPXMILPSolver::get_left_nodes( void ) const
 {
- int n_nodes = 0;
+ CPXLONG n_nodes = 0;
 
  switch( sol_status ) {
   case( kUnbounded ):  
@@ -2906,7 +2909,7 @@ int CPXMILPSolver::get_left_nodes( void ) const
     if( f_callback_set ){
     // The callback is set
       if( current_Cntx != nullptr ){
-        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_NODESLEFT , & n_nodes );
+        CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODESLEFT , & n_nodes );
         break;
       }
       else
@@ -2918,7 +2921,7 @@ int CPXMILPSolver::get_left_nodes( void ) const
 
   default:
     // This should never happen
-    throw( std::runtime_error( "sol_status must be set in order to retrieve number of left nodes" ) );
+    throw( std::runtime_error( "sol_status must be set in order to retrieve process information" ) );
   }
  
  return( n_nodes );
@@ -2958,7 +2961,7 @@ bool CPXMILPSolver::has_feasible_sol( void )
 
   default:
     // This should never happen
-    throw( std::runtime_error( "sol_status must be set in order to retrieve feasibility of the problem" ) );
+    throw( std::runtime_error( "sol_status must be set in order to retrieve process information" ) );
   }
  
  return( feasible_sol );
@@ -2975,6 +2978,46 @@ double CPXMILPSolver::get_runtime( void ) const
  runtime = current_time - starting_time;
  
  return( runtime );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+long CPXMILPSolver::get_id_node( void ) const
+{
+  CPXLONG id_node = -1;
+
+  switch( sol_status ) {
+   case( kUnEval ): 
+   /* This method can be called only during the execution of the callback. */
+     if( f_callback_set ){
+     // The callback is set
+      switch( current_Cntx_id ){
+       case( CPX_CALLBACKCONTEXT_RELAXATION ) :
+       case( CPX_CALLBACKCONTEXT_BRANCHING ) :
+       case( CPX_CALLBACKCONTEXT_CANDIDATE ) :
+        if( current_Cntx != nullptr ){
+         CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODEUID , & id_node );
+         break;
+         }
+        else
+         throw( std::runtime_error( "Could not determine current context of callback function" ) );
+       
+       default:
+        // If the callback is invoked in a situation where there is no current node, 
+        // then the query produces an error.
+        throw( std::runtime_error( "Could not query current node from CPX_CONTEXT " + current_Cntx_id ) );
+      }
+     }
+     else
+       throw( std::runtime_error( "The callback must be set in order to retrieve "
+         "current node in branch and bound algorithm." ) );
+ 
+   default:
+     // This should never happen
+     throw( std::runtime_error( "sol_status must be set in order to retrieve process information" ) );
+   }
+  
+  return( id_node );
  }
 
 /*--------------------------------------------------------------------------*/

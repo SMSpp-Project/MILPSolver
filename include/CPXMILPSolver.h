@@ -223,7 +223,7 @@ class CPXMILPSolver : public MILPSolver {
  [[nodiscard]] int get_explored_nodes( void ) const override;
 
  /// returns the estimated number of nodes left
- [[nodiscard]] int get_left_nodes( void ) const override;
+ [[nodiscard]] long get_left_nodes( void ) const override;
 
  /// Returns a true value if a feasible solution is known, 
  //  false otherwise.
@@ -231,6 +231,14 @@ class CPXMILPSolver : public MILPSolver {
 
  /// Returns elapsed solver runtime (in second).
  [[nodiscard]] double get_runtime( void ) const override;
+
+ /// Returns a unique identifier for the node currently being explored  
+ //  in the branch-and-bound algorithm for a MIP problem.  
+ //  
+ /// NOTE: This method should only be called during the callback process  
+ //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and you need to identify the node from which it originates).  
+ [[nodiscard]] long get_id_node( void ) const override;
 
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
@@ -638,6 +646,9 @@ class CPXMILPSolver : public MILPSolver {
 
  /** pointer used to keep track of the current context of the callback */
  CPXCALLBACKCONTEXTptr current_Cntx;
+
+ /** an integer value specifying the context in which the callback is invoked. */
+ CPXLONG current_Cntx_id;
 
  /** double storing the timestamp when optimization begins. */
  double starting_time;
