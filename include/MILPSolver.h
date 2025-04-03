@@ -378,22 +378,47 @@ class MILPSolver : public CDASolver
 
  /// Returns the number of nodes explored so far.
  [[nodiscard]] virtual int get_explored_nodes( void ) const {
+  throw( std::runtime_error( "Function get_explored_nodes is not supported "
+    "by the current *MILPSolver" ) );
+  
   return( 0 );
   }
 
  /// Returns the estimated number of nodes to explore.
- [[nodiscard]] virtual int get_left_nodes( void ) const {
+ [[nodiscard]] virtual long get_left_nodes( void ) const {
+  throw( std::runtime_error( "Function get_left_nodes is not supported "
+    "by the current *MILPSolver" ) );
+  
   return( 0 );
   }
 
  /// Returns a true value if a feasible solution is known, 
  //  false otherwise.
  [[nodiscard]] virtual bool has_feasible_sol( void ) {
+  throw( std::runtime_error( "Function has_feasible_sol is not supported "
+    "by the current *MILPSolver" ) );
+  
   return( 0 );
   }
 
  /// Returns elapsed solver runtime (in second).
  [[nodiscard]] virtual double get_runtime( void ) const {
+  throw( std::runtime_error( "Function get_runtime is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /// Returns a unique identifier for the node currently being explored  
+ //  in the branch-and-bound algorithm for a MIP problem.  
+ //  
+ /// NOTE: This method should only be called during the callback process  
+ //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and you need to identify the node from which it originates).  
+ [[nodiscard]] virtual long get_id_node( void ) const {
+  throw( std::runtime_error( "Function get_id_node is not supported "
+    "by the current *MILPSolver" ) );
+  
   return( 0 );
   }
 
