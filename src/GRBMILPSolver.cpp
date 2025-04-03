@@ -2932,7 +2932,7 @@ int GRBMILPSolver::get_explored_nodes( void ) const
 
 /*--------------------------------------------------------------------------*/
 
-int GRBMILPSolver::get_left_nodes( void ) const
+long GRBMILPSolver::get_left_nodes( void ) const
 {
  double n_nodes = 0;
 

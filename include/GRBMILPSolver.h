@@ -221,7 +221,7 @@ class GRBMILPSolver : public MILPSolver {
  [[nodiscard]] int get_explored_nodes( void ) const override;
 
  /// returns the estimated number of nodes left
- [[nodiscard]] int get_left_nodes( void ) const override;
+ [[nodiscard]] long get_left_nodes( void ) const override;
 
  /// Returns a true value if a feasible solution is known, 
  //  false otherwise.
