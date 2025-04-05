@@ -2018,7 +2018,7 @@ int HiGHSMILPSolver::callback( const int callback_type,
   case( kHighsCallbackLogging ): break; /* Ignore Logging callback */
   case( kHighsCallbackSimplexInterrupt ): break; /* Ignore Simplex callback */
   case( kHighsCallbackIpmInterrupt ): break; /* Ignore IPM callback */
-  case( kHighsCallbackMipLogging ):
+  case( kHighsCallbackMipLogging ): break; /* Ignore MIP Logging */
   case( kHighsCallbackMipInterrupt ):
    // Currently in MIP- - - - - - - - - - - - - - - - - - - - - - - -
    // check upper / lower bounds and in case stop
@@ -2049,8 +2049,7 @@ int HiGHSMILPSolver::callback( const int callback_type,
      bndv = Inf< double >();
 
     if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ){
-      // Here we should terminate the optimization process but HiGHS currently
-      // does not provide such method. TBD
+      data_in->user_interrupt = 1; // Force interruption of Solver
       }
     }
    break;
