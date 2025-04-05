@@ -450,28 +450,19 @@ class HiGHSMILPSolver : public MILPSolver {
  double lw_cut_off( void ) const { return( LwCutOff ); }
 
 /*--------------------------------------------------------------------------*/
- /// callback implemented as a method of the class ????????
- /** The implementation of Gurobi "generic" callback, which is used to check
+ /// callback implemented as a method of the class 
+ /** The implementation of HiGHS "generic" callback, which is used to check
   * for having reached prescribed upper/lower bounds and for user cuts / lazy
   * constraint separation, just calls this method.
   *
-  * IMPORTANT NOTE: Gurobi has a different stance than SMS++ on dynamic
-  *                 Constraint, in the sense that those that are added inside
-  * a callback are not permanently added to the formulation and may be
-  * discarded whole. In contrast, for SMS++ dynamic Constraint are
-  * first-class citizens of the formulation. To reconcile this two different
-  * viewpoints,
-  *
-  *     THE Modification ADDING DYNAMIC Constraint ARE *NOT* REMOVED FROM
-  *     THE QUEUE OF ACTIVE Modification
-  *
-  * As a result, when Gurobi terminates and gets re-solved (if ever), the
-  * dynamic Constraint will be properly added to the formulation. This is
-  * consistent with the view that Modification happening when the Solver is
-  * running must not *necessarily* be immediately acted upon by changing the
-  * model that the Solver is solving. */
+  * IMPORTANT NOTE: At the moment (HiGHS version 1.10) HiGHS developers are
+  * still working on enabling user cuts and/or lazy constraints. Thus,
+  * this version of the callback simply supports basic checks as upper/lower 
+  * bounds. */
 
- //int callback( GRBmodel *model , void *cbdata , int where );
+ int callback( const int callback_type,
+    const HighsCallbackDataOut* data_out,
+    HighsCallbackDataIn* data_in );
  
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
