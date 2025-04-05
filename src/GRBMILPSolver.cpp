@@ -2840,33 +2840,31 @@ void GRBMILPSolver::perform_separation( Configuration * cfg ,
     sense.push_back( GRB_EQUAL );
     rhs.push_back( con_rhs );
     }
-   else
-    if( con_lhs == -Inf< double >() ) {
-     sense.push_back( GRB_LESS_EQUAL );
-     rhs.push_back( con_rhs );
-     }
-    else
-     if( con_rhs == Inf< double >() ) {
-      sense.push_back( GRB_GREATER_EQUAL );
-      rhs.push_back( con_lhs );
-      }
-     else {
-      // kludge: the added constraint is ranged LHS <= lf( x ) <= RHS, but
-      // GUROBI does not allow cuts to be ranged: hence, separately add
-      // the two constraints lf( x ) >= LHS and lf( x ) <= RHS
-      sense.push_back( GRB_GREATER_EQUAL );
-      rhs.push_back( con_lhs );
-      auto nsz = rmatind.size();
-      rmatbeg.push_back( nsz );
-      sense.push_back( GRB_LESS_EQUAL );
-      rhs.push_back( con_rhs );
-      rmatind.resize( nsz + nzcnt );
-      std::copy( rmatind.begin() + sz , rmatind.begin() + nsz ,
-		                        rmatind.begin() + nsz );
-      rmatval.resize( nsz + nzcnt );
-      std::copy( rmatval.begin() + sz , rmatval.begin() + nsz ,
-		                        rmatval.begin() + nsz );
-      }
+   else if( con_lhs == -Inf< double >() ) {
+    sense.push_back( GRB_LESS_EQUAL );
+    rhs.push_back( con_rhs );
+    }
+   else if( con_rhs == Inf< double >() ) {
+    sense.push_back( GRB_GREATER_EQUAL );
+    rhs.push_back( con_lhs );
+    }
+   else {
+    // kludge: the added constraint is ranged LHS <= lf( x ) <= RHS, but
+    // GUROBI does not allow cuts to be ranged: hence, separately add
+    // the two constraints lf( x ) >= LHS and lf( x ) <= RHS
+    sense.push_back( GRB_GREATER_EQUAL );
+    rhs.push_back( con_lhs );
+    auto nsz = rmatind.size();
+    rmatbeg.push_back( nsz );
+    sense.push_back( GRB_LESS_EQUAL );
+    rhs.push_back( con_rhs );
+    rmatind.resize( nsz + nzcnt );
+    std::copy( rmatind.begin() + sz , rmatind.begin() + nsz ,
+                          rmatind.begin() + nsz );
+    rmatval.resize( nsz + nzcnt );
+    std::copy( rmatval.begin() + sz , rmatval.begin() + nsz ,
+                          rmatval.begin() + nsz );
+    }
 
    rmatbeg.push_back( rmatind.size() );
 
