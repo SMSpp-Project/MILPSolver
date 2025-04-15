@@ -236,7 +236,7 @@ void MILPSolver::load_problem( void )
                         auto it = var.data();
                         for( auto i = var.num_elements() ; i-- ; ++it )
                          numrows += it->size();
-		        }
+		                }
 		       ) )
     continue;
    }
@@ -372,7 +372,7 @@ void MILPSolver::load_problem( void )
   matbeg[ numcols ] = nzelements;
   matcnt.resize( numcols, 0 );
  }
- else{
+ else {
   matbeg.resize( numrows + 1, 0 );
   matbeg[ numrows ] = nzelements;
   matcnt.resize( numrows , 0 );
@@ -810,13 +810,13 @@ std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
     active_bounds.push_back( 
       const_cast< OneVarConstraint * >( svar_to_bound[ idx ] ) );
    }
-  else{ // the variable is dynamic
+  else { // the variable is dynamic
    if( dvar_to_bound[idx - static_vars] != nullptr )
     active_bounds.push_back( 
      const_cast< OneVarConstraint * >( dvar_to_bound[idx - static_vars] ) );
    }
   }
- else{ // The option is not activated, scan all active stuff
+ else { // The option is not activated, scan all active stuff
   for( auto * i : var.active_stuff() )
    if( auto row = dynamic_cast< OneVarConstraint * >( i ) )
     active_bounds.push_back( row );
@@ -2159,7 +2159,7 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
    else // No OneVarConstraint was previously associated to the variable. 
     svar_to_bound[ idx ] = con; // Update the dictionary
    }
-  else{ // the variable is dynamic
+  else { // the variable is dynamic
    if( dvar_to_bound[idx - static_vars] != nullptr ) // There was already a bound set
      throw( std::logic_error( "Only a single OneVarConstraint can be " + 
      std::string("associated to a variable when the option intSingleBound is ") +
