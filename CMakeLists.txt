@@ -18,7 +18,7 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.4)
+cmake_minimum_required(VERSION 3.5)
 cmake_policy(VERSION 3.15)
 project(MILPSolver
         VERSION 0.7.1

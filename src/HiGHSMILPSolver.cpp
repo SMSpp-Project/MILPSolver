@@ -51,6 +51,23 @@ using namespace SMSpp_di_unipi_it;
 SMSpp_insert_in_factory_cpp_0( HiGHSMILPSolver );
 
 /*--------------------------------------------------------------------------*/
+/*----------------------------- FUNCTIONS ----------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver_callback( const int callback_type,
+        const char* message,
+        const HighsCallbackDataOut* data_out,
+        HighsCallbackDataIn* data_in,
+        void* user_callback_data )
+{
+ // just defer to the class method
+ static_cast< HiGHSMILPSolver * >( user_callback_data
+        )->callback( callback_type , data_out , data_in );
+
+ return;
+}
+
+/*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -324,8 +341,11 @@ int HiGHSMILPSolver::compute( bool changedvars )
   if( ( CutSepPar & 7 ) ||
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
    // the callback has to be set 
-   std::cerr << "WARNING: setting the callback in HiGHSMILPSolver is not " <<
-                  "supported yet" << std::endl;
+   Highs_setCallback( highs,  & HiGHSMILPSolver_callback, this );
+
+   // Enable basic Callback type during MIP to check UB/LB
+   Highs_startCallback( highs , kHighsCallbackMipLogging );
+   Highs_startCallback( highs , kHighsCallbackMipInterrupt );
    f_callback_set = true;
 
    if( CutSepPar & 3 ) // we do user cut separation
@@ -333,8 +353,7 @@ int HiGHSMILPSolver::compute( bool changedvars )
       "HiGHS still doesn't support user cut separation" ) );
    
    if( CutSepPar & 4 )  // we do lazy constraint separation
-    throw( std::runtime_error( 
-      "HiGHS still doesn't support lazy constraint separation" ) );
+    Highs_startCallback( highs , kHighsCallbackMipImprovingSolution );
    }
   else
    if( f_callback_set )  // the callback was set
@@ -1985,6 +2004,206 @@ void HiGHSMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 
  Highs_changeColBounds( highs , idx , bd[ 0 ] , bd[ 1 ] );
  }
+
+/*--------------------------------------------------------------------------*/
+
+int HiGHSMILPSolver::callback( const int callback_type,
+  const HighsCallbackDataOut* data_out,
+  HighsCallbackDataIn* data_in )
+{
+ // main switch: depending on callback_type - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ switch( callback_type ) {
+  case( kHighsCallbackLogging ): break; /* Ignore Logging callback */
+  case( kHighsCallbackSimplexInterrupt ): break; /* Ignore Simplex callback */
+  case( kHighsCallbackIpmInterrupt ): break; /* Ignore IPM callback */
+  case( kHighsCallbackMipLogging ): break; /* Ignore MIP Logging */
+  case( kHighsCallbackMipInterrupt ):
+   // Currently in MIP- - - - - - - - - - - - - - - - - - - - - - - -
+   // check upper / lower bounds and in case stop
+
+   double solv , bndv;
+   solv = data_out->objective_function_value;
+   bndv = data_out->mip_primal_bound;
+
+   if( get_objsense() == 1 ) {
+    // a minimization problem: solv is upper bound and bndv is lower bound
+    if( solv >= 1e+75 )
+     solv = Inf< double >();
+
+    if( bndv <= - 1e+75 )
+     bndv = - Inf< double >();
+
+    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) ){
+     // Here we should terminate the optimization process but HiGHS currently
+     // does not provide such method
+     }
+    }
+   else {
+    // a maximization problem: solv is lower bound and bndv is upper bound
+    if( solv <= -1e+75 )
+     solv = - Inf< double >();
+
+    if( bndv >= 1e+75 )
+     bndv = Inf< double >();
+
+    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ){
+      data_in->user_interrupt = 1; // Force interruption of Solver
+      }
+    }
+   break;
+  case( kHighsCallbackMipImprovingSolution ):
+   // a feasible solution has been found- - - - - - - - - - - - - - - - - - -
+   if( ! ( CutSepPar & 4 ) )  // but we don't do lazy constraint separation
+    // strange: this callback type should not be enabled but nothing to do
+    break;              
+
+   // this is a critical section where different GUROBI threads may compete
+   // for access to the Block: ensure mutual exclusion
+   f_callback_mutex.lock();
+
+   // ensure no interference from other threads (except GUROBI ones) by also
+   // lock()-ing the Block
+   bool owned = f_Block->is_owned_by( f_id );
+   if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
+    throw( std::runtime_error( "Unable to lock the Block" ) );
+
+   // get the feasible solution
+   std::vector< double > x( numcols );
+   x.assign(data_out->mip_solution, data_out->mip_solution + numcols);
+
+   // write it in the Variable of the Block
+   MILPSolver::write_var_solution( x );
+
+   // now perform the lazy constraint separation with the right Configuration
+   std::vector< int > rmatbeg;
+   std::vector< int > rmatind;
+   std::vector< double > rmatval;
+   std::vector< double > rhs;
+   std::vector< char > sense;
+   perform_separation( get_cfg( 2 ) ,
+     rmatbeg , rmatind , rmatval , rhs , sense );
+   if( ! owned )
+    f_Block->unlock( f_id );  // unlock the Block
+
+   // critical section ends here, release the mutex
+   f_callback_mutex.unlock();
+
+   // if any lazy constraint was generated, add them
+   if( ! rmatbeg.empty() ) {
+    // Here we should add the lazy constraints generated, but this feature
+    // is currently under development in HiGHS. TBD
+    std::cerr << "WARNING: Detected a new lazy constraint during HiGHS "
+      "callback but this feature is not supported yet" << std::endl;
+    }
+   break;
+  } // end( main switch )- - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
+  std::vector< int > & rmatbeg ,
+  std::vector< int > & rmatind ,
+  std::vector< double > & rmatval ,
+  std::vector< double > & rhs ,
+  std::vector< char > & sense )
+{
+ // note: we assume the Block to have been lock()-ed already and the solution
+ //       (be it from the relaxation or feasible) to have been written in the
+ //       Variable of the Block
+ //
+ // since the Block is lock()-ed we assume that we can freely work with the
+ // Modification list as no-one has a reason tochange it
+
+ auto nM = v_mod.size();  // current number of Modification in the list
+ auto it = v_mod.end();
+ if( nM )                 // if the list is not empty
+  it = prev( it );        // initialize an iterator to the last element
+
+ // call generate_dynamic_constraint()
+ f_Block->generate_dynamic_constraints( cfg );
+
+ if( v_mod.size() <= nM )  // check if new Modification have been inserted
+  return;                  // if not, nothing to do
+
+ if( ! nM )                // if the list was empty at the beginning
+  it = v_mod.begin();      // start from the beginning
+ else                      // the list was nonempty
+  ++it;                    // move to the first new element
+
+ rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
+
+ // main loop: check all new Modification for a Constraint addition
+ for( ; it != v_mod.end() ; ++it ) {
+  // check if the Modification indicates an added FRowConstraint
+  auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >(
+        it->get() );
+  if( ! tmod )  // if not
+   continue;    // next
+
+  // add all the new constraint to the matrix, one by one
+  for( auto con : tmod->added() ) {
+  auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+  if( ! lf )
+   throw( std::invalid_argument( "The Constraint is not linear" ) );
+
+  auto nzcnt = lf->get_num_active_var();
+  auto sz = rmatind.size();
+  rmatind.resize( sz + nzcnt );
+  rmatval.resize( sz + nzcnt );
+
+  // get the coefficients to fill the matrix
+  auto iit = rmatind.begin() + sz;
+  auto vit = rmatval.begin() + sz;
+  for( auto & el : lf->get_v_var() ) {
+   *(iit++) = index_of_variable( el.first );
+   *(vit++) = el.second;
+  }
+
+  // get the bounds
+  auto con_lhs = con->get_lhs();
+  auto con_rhs = con->get_rhs();
+
+  /* TBD: Modify this based on HiGHS version of lazy constraints.
+  if( con_lhs == con_rhs ) {
+   sense.push_back( GRB_EQUAL );
+   rhs.push_back( con_rhs );
+  }
+  else if( con_lhs == -Inf< double >() ) {
+   sense.push_back( GRB_LESS_EQUAL );
+   rhs.push_back( con_rhs );
+  }
+  else if( con_rhs == Inf< double >() ) {
+   sense.push_back( GRB_GREATER_EQUAL );
+   rhs.push_back( con_lhs );
+  }
+  else {
+   // kludge: the added constraint is ranged LHS <= lf( x ) <= RHS, but
+   // GUROBI does not allow cuts to be ranged: hence, separately add
+   // the two constraints lf( x ) >= LHS and lf( x ) <= RHS
+   sense.push_back( GRB_GREATER_EQUAL );
+   rhs.push_back( con_lhs );
+   auto nsz = rmatind.size();
+   rmatbeg.push_back( nsz );
+   sense.push_back( GRB_LESS_EQUAL );
+   rhs.push_back( con_rhs );
+   rmatind.resize( nsz + nzcnt );
+   std::copy( rmatind.begin() + sz , rmatind.begin() + nsz ,
+                      rmatind.begin() + nsz );
+   rmatval.resize( nsz + nzcnt );
+   std::copy( rmatval.begin() + sz , rmatval.begin() + nsz ,
+                      rmatval.begin() + nsz );
+  }
+
+  rmatbeg.push_back( rmatind.size() ); */
+
+  }  // end( for each added FRowConstraint )
+ }  // end( main loop )
+}  // end( HiGHSMILPSolver::perform_separation )
 
 /*--------------------------------------------------------------------------*/
 
