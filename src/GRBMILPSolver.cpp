@@ -2879,7 +2879,7 @@ int GRBMILPSolver::get_nodes( void ) const
 
 int GRBMILPSolver::get_explored_nodes( void ) const
 {
- int n_nodes = 0;
+ double n_nodes = 0;
 
  switch( sol_status ) {
   case( kUnbounded ):  
