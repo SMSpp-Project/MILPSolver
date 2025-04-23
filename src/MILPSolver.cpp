@@ -183,84 +183,24 @@ void MILPSolver::load_problem( void )
 	     << std::endl );
   DEBUG_LOG( *qb << std::endl );
 
+  // Static constraints
   for( const auto & i : qb->get_static_constraints() ) {
-
-   // Single
-   if( un_any_thing_0( FRowConstraint , i ,
-                       {
-                        ++numrows;
-                        ++static_cons;
-                        ++static_con_grps;
-                       } ) )
-    continue;
-
-   // Vector
-   if( un_any_thing_1( FRowConstraint , i ,
-                       {
-                        numrows += var.size();
-                        static_cons += var.size();
-                        ++static_con_grps;
-                       } ) )
-    continue;
-
-   // Vector of vector
-   if( un_any_thing_1( std::vector< FRowConstraint > , i ,
-                       {
-                        Index local = 0;
-                        for( const auto & sub : var )
-                         local += sub.size();
-                        numrows += local;
-                        static_cons += local;
-                        ++static_con_grps;
-                       } ) )
-    continue;
-
-   // Multiarray
-   if( un_any_thing_K( FRowConstraint , i ,
-                       {
-                        numrows += var.num_elements();
-                        static_cons += var.num_elements();
-                        ++static_con_grps;
-                       } ) )
-    continue;
-
-   // Multiarray of vector
-   if( un_any_thing_K( std::vector< FRowConstraint > , i ,
-                       {
-                        Index local = 0;
-                        auto it = var.data();
-                        for( Index j = var.num_elements() ; j-- ; ++it )
-                         local += it->size();
-                        numrows += local;
-                        static_cons += local;
-                        ++static_con_grps;
-                       } ) )
-    continue;
+   auto count = un_any_thing_count_static( FRowConstraint , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument(
+     "MILPSolver: static constraint not a FRowConstraint" ) );
+   numrows += count;
+   static_cons += count;
+   ++static_con_grps;
   }
 
+  // Dynamic constraints
   for( const auto & i : qb->get_dynamic_constraints() ) {
-
-   // Single list
-   if( un_any_thing_0( std::list< FRowConstraint > , i ,
-                       { numrows += var.size(); } ) )
-    continue;
-
-   // Vector of list
-   if( un_any_thing_1( std::list< FRowConstraint > , i ,
-                       {
-                        for( auto & el: var )
-                         numrows += el.size();
-                       } ) )
-    continue;
-
-   // Multiarray of list
-   if( un_any_thing_K( std::list< FRowConstraint > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         numrows += it->size();
-                       } ) )
-    continue;
+   Index count = un_any_thing_count_dynamic( FRowConstraint , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument(
+     "MILPSolver: dynamic constraint not a FRowConstraint" ) );
+   numrows += count;
   }
 
   auto counter_static_lin_quad_row = [ this , & nst_linrow, & nst_quadrow ]
