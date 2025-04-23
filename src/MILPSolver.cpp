@@ -236,89 +236,19 @@ void MILPSolver::load_problem( void )
   static_quadcons = nst_quadrow;
 
   for( const auto & i : qb->get_static_variables() ) {
-
-   // Single
-   if( un_any_thing_0( ColVariable , i ,
-                       {
-                        ++numcols;
-                        ++static_vars;
-                        ++static_var_grps;
-                       } ) )
-    continue;
-
-   // Vector
-   if( un_any_thing_1( ColVariable , i ,
-                       {
-                        numcols += var.size();
-                        static_vars += var.size();
-                        ++static_var_grps;
-                       } ) )
-    continue;
-
-   // Vector of vector
-   if( un_any_thing_1( std::vector< ColVariable > , i ,
-                       {
-                        Index local = 0;
-                        for( const auto & sub : var )
-                         local += sub.size();
-                        numcols += local;
-                        static_vars += local;
-                        ++static_var_grps;
-                       } ) )
-    continue;
-
-   // Multiarray
-   if( un_any_thing_K( ColVariable , i ,
-                       {
-                        numcols += var.num_elements();
-                        static_vars += var.num_elements();
-                        ++static_var_grps;
-                       } ) )
-    continue;
-
-   // Multiarray of vector
-   if( un_any_thing_K( std::vector< ColVariable > , i ,
-                       {
-                        Index local = 0;
-                        auto it = var.data();
-                        for( Index j = var.num_elements() ; j-- ; ++it )
-                         local += it->size();
-                        numcols += local;
-                        static_vars += local;
-                        ++static_var_grps;
-                       } ) )
-    continue;
-
-   // if none of the above this is not a ColVariable
-   throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   Index count = un_any_thing_count_static( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   numcols += count;
+   static_vars += count;
+   ++static_var_grps;
   }
 
   for( const auto & i : qb->get_dynamic_variables() ) {
-
-   // Single list
-   if( un_any_thing_0( std::list< ColVariable > , i ,
-                       { numcols += var.size(); } ) )
-    continue;
-
-   // Vector of list
-   if( un_any_thing_1( std::list< ColVariable > , i ,
-                       {
-                        for( auto & el : var )
-                         numcols += el.size();
-                       } ) )
-    continue;
-
-   // Multiarray of list
-   if( un_any_thing_K( std::list< ColVariable > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         numcols += it->size();
-                       } ) )
-    continue;
-
-   // if none of the above this is not a ColVariable
-   throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   Index count = un_any_thing_count_dynamic( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   numcols += count;
   }
 
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
