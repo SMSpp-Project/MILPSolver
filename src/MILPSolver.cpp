@@ -173,7 +173,7 @@ void MILPSolver::load_problem( void )
  // exception if any Variable, be it static or dynamic, is not a ColVariable
 
  Index num_block = 0;        // counter for the blocks
- Index row = 0;          // counter for the rows
+ Index row = 0;              // counter for the rows
  Index col = 0;              // counter for the columns
  Index static_con_grps = 0;  // counter for static constraint groups
  Index static_var_grps = 0;  // counter for static variable groups
@@ -182,64 +182,86 @@ void MILPSolver::load_problem( void )
   DEBUG_LOG( "Processing Block " << num_block << " [" << qb << "]"
 	     << std::endl );
   DEBUG_LOG( *qb << std::endl );
- 
+
   for( const auto & i : qb->get_static_constraints() ) {
-   // Singles
+
+   // Single
    if( un_any_thing_0( FRowConstraint , i ,
                        {
-                        ++numrows;
-                        ++static_cons;
-                        ++static_con_grps;
-                        }
-		       ) )
+                       ++numrows;
+                       ++static_cons;
+                       ++static_con_grps;
+                       } ) )
     continue;
 
-   // Vectors
+   // Vector
    if( un_any_thing_1( FRowConstraint , i ,
                        {
-                        numrows += var.size();
-                        static_cons += var.size();
-                        ++static_con_grps;
-                        }
-		       ) )
+                       numrows += var.size();
+                       static_cons += var.size();
+                       ++static_con_grps;
+                       } ) )
     continue;
 
-   // Multiarrays
-   if( un_any_thing_K( FRowConstraint, i,
+   // Vector of vector
+   if( un_any_thing_1( std::vector< FRowConstraint > , i ,
                        {
-                        numrows += var.num_elements();
-                        static_cons += var.num_elements();
-                        ++static_con_grps;
-                        }
-		       ) )
+                       Index local = 0;
+                       for( const auto & sub : var )
+                       local += sub.size();
+                       numrows += local;
+                       static_cons += local;
+                       ++static_con_grps;
+                       } ) )
     continue;
-   }
+
+   // Multiarray
+   if( un_any_thing_K( FRowConstraint , i ,
+                       {
+                       numrows += var.num_elements();
+                       static_cons += var.num_elements();
+                       ++static_con_grps;
+                       } ) )
+    continue;
+
+   // Multiarray of vector
+   if( un_any_thing_K( std::vector< FRowConstraint > , i ,
+                       {
+                       Index local = 0;
+                       auto it = var.data();
+                       for( Index j = var.num_elements() ; j-- ; ++it )
+                       local += it->size();
+                       numrows += local;
+                       static_cons += local;
+                       ++static_con_grps;
+                       } ) )
+    continue;
+  }
 
   for( const auto & i : qb->get_dynamic_constraints() ) {
-   // Single lists
+
+   // Single list
    if( un_any_thing_0( std::list< FRowConstraint > , i ,
                        { numrows += var.size(); } ) )
     continue;
 
-   // Vectors of lists
+   // Vector of list
    if( un_any_thing_1( std::list< FRowConstraint > , i ,
                        {
-                        for( auto & el: var )
-                         numrows += el.size();
-                        }
-		       ) )
+                       for( auto & el: var )
+                       numrows += el.size();
+                       } ) )
     continue;
 
-   // Multiarrays of lists
+   // Multiarray of list
    if( un_any_thing_K( std::list< FRowConstraint > , i ,
                        {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         numrows += it->size();
-		                }
-		       ) )
+                       auto it = var.data();
+                       for( auto i = var.num_elements() ; i-- ; ++it )
+                       numrows += it->size();
+                       } ) )
     continue;
-   }
+  }
 
   auto counter_static_lin_quad_row = [ this , & nst_linrow, & nst_quadrow ]
                               ( FRowConstraint & cons ) {
@@ -274,68 +296,90 @@ void MILPSolver::load_problem( void )
   static_quadcons = nst_quadrow;
 
   for( const auto & i : qb->get_static_variables() ) {
-   // Singles
+
+   // Single
    if( un_any_thing_0( ColVariable , i ,
                        {
                         ++numcols;
                         ++static_vars;
                         ++static_var_grps;
-                        }
-		       ) )
+                       } ) )
     continue;
 
-   // Vectors
+   // Vector
    if( un_any_thing_1( ColVariable , i ,
                        {
                         numcols += var.size();
                         static_vars += var.size();
                         ++static_var_grps;
-                        }
-		       ) )
+                       } ) )
     continue;
 
-   // Multiarrays
+   // Vector of vector
+   if( un_any_thing_1( std::vector< ColVariable > , i ,
+                       {
+                        Index local = 0;
+                        for( const auto & sub : var )
+                         local += sub.size();
+                        numcols += local;
+                        static_vars += local;
+                        ++static_var_grps;
+                       } ) )
+    continue;
+
+   // Multiarray
    if( un_any_thing_K( ColVariable , i ,
                        {
                         numcols += var.num_elements();
                         static_vars += var.num_elements();
                         ++static_var_grps;
-                        }
-		       ) )
+                       } ) )
+    continue;
+
+   // Multiarray of vector
+   if( un_any_thing_K( std::vector< ColVariable > , i ,
+                       {
+                        Index local = 0;
+                        auto it = var.data();
+                        for( Index j = var.num_elements() ; j-- ; ++it )
+                         local += it->size();
+                        numcols += local;
+                        static_vars += local;
+                        ++static_var_grps;
+                       } ) )
     continue;
 
    // if none of the above this is not a ColVariable
    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
-   }
+  }
 
   for( const auto & i : qb->get_dynamic_variables() ) {
-   // Single lists
+
+   // Single list
    if( un_any_thing_0( std::list< ColVariable > , i ,
                        { numcols += var.size(); } ) )
     continue;
 
-   // Vectors of lists
+   // Vector of list
    if( un_any_thing_1( std::list< ColVariable > , i ,
                        {
                         for( auto & el : var )
                          numcols += el.size();
-                        }
-		       ) )
+                       } ) )
     continue;
 
-   // Multiarrays of lists
+   // Multiarray of list
    if( un_any_thing_K( std::list< ColVariable > , i ,
                        {
                         auto it = var.data();
                         for( auto i = var.num_elements() ; i-- ; ++it )
                          numcols += it->size();
-                        }
-		       ) )
+                       } ) )
     continue;
 
    // if none of the above this is not a ColVariable
    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
-   }
+  }
 
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
    for( auto * i : var.active_stuff() )
@@ -1228,7 +1272,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
       // Now update local quadratic matrix into global one
       int k_term = 0;
       for (int k=0; k < local_qmatrix.outerSize(); ++k) {
-        for (Qmat::InnerIterator it(local_qmatrix,k); it; ++it) {
+        for( Qmat::InnerIterator it( local_qmatrix , k ) ; it ; ++it ) {
           int glob_idx1 = map_local_to_global[ it.row() ];
           int glob_idx2 = map_local_to_global[ it.col() ];
           global_qmatrix[{glob_idx1, glob_idx2}] = it.value();
@@ -2604,130 +2648,171 @@ void MILPSolver::check_status( void )
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto * i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
   for( const auto & i : q_Block->get_static_constraints() ) {
-   // Singles
+
+   // Single
    if( un_any_thing_0( FRowConstraint , i ,
                        {
                         ++scg;
                         ++c;
                         ++sc;
-                        }
-		       ) )
+                       } ) )
     continue;
 
-   // Vectors
+   // Vector
    if( un_any_thing_1( FRowConstraint , i ,
                        {
                         ++scg;
                         c += var.size();
                         sc += var.size();
-                        }
-		       ) )
+                       } ) )
     continue;
 
-   // Multiarrays
-   if( un_any_thing_K( FRowConstraint, i,
+   // Vector of vector
+   if( un_any_thing_1( std::vector< FRowConstraint > , i ,
+                       {
+                        Index local = 0;
+                        for( const auto & sub : var )
+                         local += sub.size();
+                        ++scg;
+                        c += local;
+                        sc += local;
+                       } ) )
+    continue;
+
+   // Multiarray
+   if( un_any_thing_K( FRowConstraint , i ,
                        {
                         ++scg;
                         c += var.num_elements();
                         sc += var.num_elements();
-                        }
-		       ) )
+                       } ) )
     continue;
-   }
+
+   // Multiarray of vector
+   if( un_any_thing_K( std::vector< FRowConstraint > , i ,
+                       {
+                        Index local = 0;
+                        auto it = var.data();
+                        for( Index j = var.num_elements() ; j-- ; ++it )
+                         local += it->size();
+                        ++scg;
+                        c += local;
+                        sc += local;
+                       } ) )
+    continue;
+  }
 
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   // Single lists
+
+   // Single list
    if( un_any_thing_0( std::list< FRowConstraint > , i ,
-                       { c += var.size();  } ) )
+                       { c += var.size(); } ) )
     continue;
 
-   // Vectors of lists
-   if( un_any_thing_1( std::list< FRowConstraint >, i,
+   // Vector of list
+   if( un_any_thing_1( std::list< FRowConstraint > , i ,
                        {
                         for( auto & el: var )
                          c += el.size();
-                        }
-		       ) )
+                       } ) )
     continue;
 
-   // Multiarrays of lists
+   // Multiarray of list
    if( un_any_thing_K( std::list< FRowConstraint > , i ,
                        {
                         auto it = var.data();
                         for( auto i = var.num_elements() ; i-- ; ++it )
                          c += it->size();
-                        }
-		       ) )
+                       } ) )
     continue;
-   }
+  }
 
   dc = c - sc;
 
   for( const auto & i : q_Block->get_static_variables() ) {
-   // Singles
+
+   // Single
    if( un_any_thing_0( ColVariable , i ,
                        {
                         ++svg;
                         ++v;
                         ++sv;
-                        }
-		       ) )
+                       } ) )
     continue;
 
-   // Vectors
+   // Vector
    if( un_any_thing_1( ColVariable , i ,
                        {
                         ++svg;
                         v += var.size();
                         sv += var.size();
-                        }
-		       ) )
+                       } ) )
     continue;
 
-   // Multiarrays
+   // Vector of vector
+   if( un_any_thing_1( std::vector< ColVariable > , i ,
+                       {
+                        Index local = 0;
+                        for( const auto & sub : var )
+                         local += sub.size();
+                        ++svg;
+                        v += local;
+                        sv += local;
+                       } ) )
+    continue;
+
+   // Multiarray
    if( un_any_thing_K( ColVariable , i ,
                        {
                         ++svg;
                         v += var.num_elements();
                         sv += var.num_elements();
-                        }
-		       ) )
+                       } ) )
     continue;
-   }
+
+   // Multiarray of vector
+   if( un_any_thing_K( std::vector< ColVariable > , i ,
+                       {
+                        Index local = 0;
+                        auto it = var.data();
+                        for( Index j = var.num_elements() ; j-- ; ++it )
+                         local += it->size();
+                        ++svg; v += local; sv += local;
+                       } ) )
+    continue;
+  }
 
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-   // Single lists
+
+   // Single list
    if( un_any_thing_0( std::list< ColVariable > , i ,
                        { v += var.size(); } ) )
     continue;
 
-   // Vectors of lists
+   // Vector of list
    if( un_any_thing_1( std::list< ColVariable > , i ,
                        {
                         for( auto & el: var )
                          v += el.size();
-                        }
-		       ) )
+                       } ) )
     continue;
 
-   // Multiarrays of lists
+   // Multiarray of list
    if( un_any_thing_K( std::list< ColVariable > , i ,
                        {
                         auto it = var.data();
                         for( auto i = var.num_elements() ; i-- ; ++it )
                          v += it->size();
-                        }
-		       ) )
+                       } ) )
     continue;
-   }
+  }
 
   dv = v - sv;
-  }
+ }
 
  // Unlock the Block
  if( ! owned )
