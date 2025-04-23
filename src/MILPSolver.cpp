@@ -188,39 +188,39 @@ void MILPSolver::load_problem( void )
    // Single
    if( un_any_thing_0( FRowConstraint , i ,
                        {
-                       ++numrows;
-                       ++static_cons;
-                       ++static_con_grps;
+                        ++numrows;
+                        ++static_cons;
+                        ++static_con_grps;
                        } ) )
     continue;
 
    // Vector
    if( un_any_thing_1( FRowConstraint , i ,
                        {
-                       numrows += var.size();
-                       static_cons += var.size();
-                       ++static_con_grps;
+                        numrows += var.size();
+                        static_cons += var.size();
+                        ++static_con_grps;
                        } ) )
     continue;
 
    // Vector of vector
    if( un_any_thing_1( std::vector< FRowConstraint > , i ,
                        {
-                       Index local = 0;
-                       for( const auto & sub : var )
-                       local += sub.size();
-                       numrows += local;
-                       static_cons += local;
-                       ++static_con_grps;
+                        Index local = 0;
+                        for( const auto & sub : var )
+                         local += sub.size();
+                        numrows += local;
+                        static_cons += local;
+                        ++static_con_grps;
                        } ) )
     continue;
 
    // Multiarray
    if( un_any_thing_K( FRowConstraint , i ,
                        {
-                       numrows += var.num_elements();
-                       static_cons += var.num_elements();
-                       ++static_con_grps;
+                        numrows += var.num_elements();
+                        static_cons += var.num_elements();
+                        ++static_con_grps;
                        } ) )
     continue;
 
@@ -248,17 +248,17 @@ void MILPSolver::load_problem( void )
    // Vector of list
    if( un_any_thing_1( std::list< FRowConstraint > , i ,
                        {
-                       for( auto & el: var )
-                       numrows += el.size();
+                        for( auto & el: var )
+                         numrows += el.size();
                        } ) )
     continue;
 
    // Multiarray of list
    if( un_any_thing_K( std::list< FRowConstraint > , i ,
                        {
-                       auto it = var.data();
-                       for( auto i = var.num_elements() ; i-- ; ++it )
-                       numrows += it->size();
+                        auto it = var.data();
+                        for( auto i = var.num_elements() ; i-- ; ++it )
+                         numrows += it->size();
                        } ) )
     continue;
   }
