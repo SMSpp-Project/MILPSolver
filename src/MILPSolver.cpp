@@ -1261,7 +1261,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         // Thus, if there are nonzeros, we have to insert them.
         double q_coeff = std::get< 2 >( el );
         if( q_coeff != 0 ) {
-          global_qmatrix[{idx_v, idx_v}] = q_coeff;
+          global_qmatrix[ { idx_v , idx_v } ] = q_coeff;
           //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
           //vv_nd.push_back( term ); 
         }
@@ -1275,7 +1275,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         for( Qmat::InnerIterator it( local_qmatrix , k ) ; it ; ++it ) {
           int glob_idx1 = map_local_to_global[ it.row() ];
           int glob_idx2 = map_local_to_global[ it.col() ];
-          global_qmatrix[{glob_idx1, glob_idx2}] = it.value();
+          global_qmatrix[ { glob_idx1 , glob_idx2 } ] = it.value();
           //Eigen::Triplet< Coefficient > term( glob_idx1 , glob_idx2 , it.value() );
           //vv_nd[ k_term ] = term;
           ++k_term;
@@ -1316,7 +1316,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         // Check if the diagonal quadratic coefficient is nonzero
         double q_coeff = std::get< 2 >( el );
         if( q_coeff != 0 ) {
-          global_qmatrix[{idx_v, idx_v}] = q_coeff;
+          global_qmatrix[ { idx_v , idx_v } ] = q_coeff;
           //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
           //vv_nd.push_back( term ); 
         }
