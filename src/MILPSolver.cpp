@@ -227,13 +227,13 @@ void MILPSolver::load_problem( void )
    // Multiarray of vector
    if( un_any_thing_K( std::vector< FRowConstraint > , i ,
                        {
-                       Index local = 0;
-                       auto it = var.data();
-                       for( Index j = var.num_elements() ; j-- ; ++it )
-                       local += it->size();
-                       numrows += local;
-                       static_cons += local;
-                       ++static_con_grps;
+                        Index local = 0;
+                        auto it = var.data();
+                        for( Index j = var.num_elements() ; j-- ; ++it )
+                         local += it->size();
+                        numrows += local;
+                        static_cons += local;
+                        ++static_con_grps;
                        } ) )
     continue;
   }
@@ -2781,7 +2781,9 @@ void MILPSolver::check_status( void )
                         auto it = var.data();
                         for( Index j = var.num_elements() ; j-- ; ++it )
                          local += it->size();
-                        ++svg; v += local; sv += local;
+                        ++svg;
+                        v += local;
+                        sv += local;
                        } ) )
     continue;
   }
