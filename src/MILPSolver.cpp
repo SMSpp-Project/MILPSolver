@@ -205,10 +205,18 @@ void MILPSolver::load_problem( void )
   // Dynamic constraints
   for( const auto & i : qb->get_dynamic_constraints() ) {
    Index count = un_any_thing_count_dynamic( FRowConstraint , i );
-   if( count == Inf< std::size_t >() )
-    throw( std::invalid_argument(
-     "MILPSolver: dynamic constraint not a FRowConstraint" ) );
-   numrows += count;
+   if( count != Inf< std::size_t >() ) {
+    numrows += count;
+    continue;
+   }
+
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_dynamic( i , [](){}() ) )
+    continue;
+
+   throw( std::invalid_argument(
+    "MILPSolver: dynamic constraint is neither "
+    "FRowConstraint nor OneVarConstraint" ) );
   }
 
   auto counter_static_lin_quad_row = [ this , & nst_linrow, & nst_quadrow ]
