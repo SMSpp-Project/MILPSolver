@@ -186,12 +186,20 @@ void MILPSolver::load_problem( void )
   // Static constraints
   for( const auto & i : qb->get_static_constraints() ) {
    auto count = un_any_thing_count_static( FRowConstraint , i );
-   if( count == Inf< std::size_t >() )
-    throw( std::invalid_argument(
-     "MILPSolver: static constraint not a FRowConstraint" ) );
-   numrows += count;
-   static_cons += count;
-   ++static_con_grps;
+   if( count != Inf< std::size_t >() ) {
+    numrows += count;
+    static_cons += count;
+    ++static_con_grps;
+    continue;
+   }
+
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_static( i , [](){}() ) )
+    continue;
+
+   throw( std::invalid_argument(
+    "MILPSolver: static constraint is neither "
+    "FRowConstraint nor OneVarConstraint" ) );
   }
 
   // Dynamic constraints
