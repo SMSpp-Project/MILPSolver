@@ -36,8 +36,6 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include <queue>
-
 #include <LinearFunction.h>
 
 #include "MILPSolver.h"
@@ -204,7 +202,7 @@ void MILPSolver::load_problem( void )
 
   // Dynamic constraints
   for( const auto & i : qb->get_dynamic_constraints() ) {
-   Index count = un_any_thing_count_dynamic( FRowConstraint , i );
+   auto count = un_any_thing_count_dynamic( FRowConstraint , i );
    if( count != Inf< std::size_t >() ) {
     numrows += count;
     continue;
@@ -252,7 +250,7 @@ void MILPSolver::load_problem( void )
   static_quadcons = nst_quadrow;
 
   for( const auto & i : qb->get_static_variables() ) {
-   Index count = un_any_thing_count_static( ColVariable , i );
+   auto count = un_any_thing_count_static( ColVariable , i );
    if( count == Inf< std::size_t >() )
     throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
    numcols += count;
@@ -261,7 +259,7 @@ void MILPSolver::load_problem( void )
   }
 
   for( const auto & i : qb->get_dynamic_variables() ) {
-   Index count = un_any_thing_count_dynamic( ColVariable , i );
+   auto count = un_any_thing_count_dynamic( ColVariable , i );
    if( count == Inf< std::size_t >() )
     throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
    numcols += count;
