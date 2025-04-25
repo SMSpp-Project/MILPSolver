@@ -27,6 +27,7 @@
  * used to check the whole set of data structures. */
 
 #ifdef MILPSolver_DEBUG
+ #include <queue>
  #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
 #else
  #define DEBUG_LOG( stuff )
@@ -2536,165 +2537,55 @@ void MILPSolver::check_status( void )
    Q.push( i );
 
   for( const auto & i : q_Block->get_static_constraints() ) {
+   auto count = un_any_thing_count_static( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    ++scg;
+    c += count;
+    sc += count;
+    continue;
+   }
 
-   // Single
-   if( un_any_thing_0( FRowConstraint , i ,
-                       {
-                        ++scg;
-                        ++c;
-                        ++sc;
-                       } ) )
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_static( i , [](){}() ) )
     continue;
 
-   // Vector
-   if( un_any_thing_1( FRowConstraint , i ,
-                       {
-                        ++scg;
-                        c += var.size();
-                        sc += var.size();
-                       } ) )
-    continue;
-
-   // Vector of vector
-   if( un_any_thing_1( std::vector< FRowConstraint > , i ,
-                       {
-                        Index local = 0;
-                        for( const auto & sub : var )
-                         local += sub.size();
-                        ++scg;
-                        c += local;
-                        sc += local;
-                       } ) )
-    continue;
-
-   // Multiarray
-   if( un_any_thing_K( FRowConstraint , i ,
-                       {
-                        ++scg;
-                        c += var.num_elements();
-                        sc += var.num_elements();
-                       } ) )
-    continue;
-
-   // Multiarray of vector
-   if( un_any_thing_K( std::vector< FRowConstraint > , i ,
-                       {
-                        Index local = 0;
-                        auto it = var.data();
-                        for( Index j = var.num_elements() ; j-- ; ++it )
-                         local += it->size();
-                        ++scg;
-                        c += local;
-                        sc += local;
-                       } ) )
-    continue;
+   throw( std::invalid_argument(
+    "MILPSolver: static Constraint is not a valid "
+    "FRowConstraint nor OneVarConstraint" ) );
   }
 
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
+   auto count = un_any_thing_count_dynamic( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    c += count;
+    continue;
+   }
 
-   // Single list
-   if( un_any_thing_0( std::list< FRowConstraint > , i ,
-                       { c += var.size(); } ) )
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_dynamic( i , [](){}() ) )
     continue;
 
-   // Vector of list
-   if( un_any_thing_1( std::list< FRowConstraint > , i ,
-                       {
-                        for( auto & el: var )
-                         c += el.size();
-                       } ) )
-    continue;
-
-   // Multiarray of list
-   if( un_any_thing_K( std::list< FRowConstraint > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         c += it->size();
-                       } ) )
-    continue;
+   throw( std::invalid_argument(
+    "MILPSolver: dynamic Constraint is not a valid "
+    "FRowConstraint nor OneVarConstraint" ) );
   }
 
   dc = c - sc;
 
   for( const auto & i : q_Block->get_static_variables() ) {
-
-   // Single
-   if( un_any_thing_0( ColVariable , i ,
-                       {
-                        ++svg;
-                        ++v;
-                        ++sv;
-                       } ) )
-    continue;
-
-   // Vector
-   if( un_any_thing_1( ColVariable , i ,
-                       {
-                        ++svg;
-                        v += var.size();
-                        sv += var.size();
-                       } ) )
-    continue;
-
-   // Vector of vector
-   if( un_any_thing_1( std::vector< ColVariable > , i ,
-                       {
-                        Index local = 0;
-                        for( const auto & sub : var )
-                         local += sub.size();
-                        ++svg;
-                        v += local;
-                        sv += local;
-                       } ) )
-    continue;
-
-   // Multiarray
-   if( un_any_thing_K( ColVariable , i ,
-                       {
-                        ++svg;
-                        v += var.num_elements();
-                        sv += var.num_elements();
-                       } ) )
-    continue;
-
-   // Multiarray of vector
-   if( un_any_thing_K( std::vector< ColVariable > , i ,
-                       {
-                        Index local = 0;
-                        auto it = var.data();
-                        for( Index j = var.num_elements() ; j-- ; ++it )
-                         local += it->size();
-                        ++svg;
-                        v += local;
-                        sv += local;
-                       } ) )
-    continue;
+   auto count = un_any_thing_count_static( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   ++svg;
+   v += count;
+   sv += count;
   }
 
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-
-   // Single list
-   if( un_any_thing_0( std::list< ColVariable > , i ,
-                       { v += var.size(); } ) )
-    continue;
-
-   // Vector of list
-   if( un_any_thing_1( std::list< ColVariable > , i ,
-                       {
-                        for( auto & el: var )
-                         v += el.size();
-                       } ) )
-    continue;
-
-   // Multiarray of list
-   if( un_any_thing_K( std::list< ColVariable > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         v += it->size();
-                       } ) )
-    continue;
+   auto count = un_any_thing_count_dynamic( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   v += count;
   }
 
   dv = v - sv;
