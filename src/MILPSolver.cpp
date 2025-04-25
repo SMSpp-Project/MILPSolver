@@ -27,6 +27,7 @@
  * used to check the whole set of data structures. */
 
 #ifdef MILPSolver_DEBUG
+ #include <queue>
  #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
 #else
  #define DEBUG_LOG( stuff )
@@ -35,8 +36,6 @@
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
-
-#include <queue>
 
 #include <LinearFunction.h>
 
@@ -173,7 +172,7 @@ void MILPSolver::load_problem( void )
  // exception if any Variable, be it static or dynamic, is not a ColVariable
 
  Index num_block = 0;        // counter for the blocks
- Index row = 0;          // counter for the rows
+ Index row = 0;              // counter for the rows
  Index col = 0;              // counter for the columns
  Index static_con_grps = 0;  // counter for static constraint groups
  Index static_var_grps = 0;  // counter for static variable groups
@@ -182,64 +181,42 @@ void MILPSolver::load_problem( void )
   DEBUG_LOG( "Processing Block " << num_block << " [" << qb << "]"
 	     << std::endl );
   DEBUG_LOG( *qb << std::endl );
- 
+
+  // Static constraints
   for( const auto & i : qb->get_static_constraints() ) {
-   // Singles
-   if( un_any_thing_0( FRowConstraint , i ,
-                       {
-                        ++numrows;
-                        ++static_cons;
-                        ++static_con_grps;
-                        }
-		       ) )
-    continue;
-
-   // Vectors
-   if( un_any_thing_1( FRowConstraint , i ,
-                       {
-                        numrows += var.size();
-                        static_cons += var.size();
-                        ++static_con_grps;
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays
-   if( un_any_thing_K( FRowConstraint, i,
-                       {
-                        numrows += var.num_elements();
-                        static_cons += var.num_elements();
-                        ++static_con_grps;
-                        }
-		       ) )
+   auto count = un_any_thing_count_static( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    numrows += count;
+    static_cons += count;
+    ++static_con_grps;
     continue;
    }
 
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_static( i , [](){}() ) )
+    continue;
+
+   throw( std::invalid_argument(
+    "MILPSolver: static constraint is neither "
+    "FRowConstraint nor OneVarConstraint" ) );
+  }
+
+  // Dynamic constraints
   for( const auto & i : qb->get_dynamic_constraints() ) {
-   // Single lists
-   if( un_any_thing_0( std::list< FRowConstraint > , i ,
-                       { numrows += var.size(); } ) )
-    continue;
-
-   // Vectors of lists
-   if( un_any_thing_1( std::list< FRowConstraint > , i ,
-                       {
-                        for( auto & el: var )
-                         numrows += el.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays of lists
-   if( un_any_thing_K( std::list< FRowConstraint > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         numrows += it->size();
-		                }
-		       ) )
+   auto count = un_any_thing_count_dynamic( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    numrows += count;
     continue;
    }
+
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_dynamic( i , [](){}() ) )
+    continue;
+
+   throw( std::invalid_argument(
+    "MILPSolver: dynamic constraint is neither "
+    "FRowConstraint nor OneVarConstraint" ) );
+  }
 
   auto counter_static_lin_quad_row = [ this , & nst_linrow, & nst_quadrow ]
                               ( FRowConstraint & cons ) {
@@ -274,68 +251,20 @@ void MILPSolver::load_problem( void )
   static_quadcons = nst_quadrow;
 
   for( const auto & i : qb->get_static_variables() ) {
-   // Singles
-   if( un_any_thing_0( ColVariable , i ,
-                       {
-                        ++numcols;
-                        ++static_vars;
-                        ++static_var_grps;
-                        }
-		       ) )
-    continue;
-
-   // Vectors
-   if( un_any_thing_1( ColVariable , i ,
-                       {
-                        numcols += var.size();
-                        static_vars += var.size();
-                        ++static_var_grps;
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays
-   if( un_any_thing_K( ColVariable , i ,
-                       {
-                        numcols += var.num_elements();
-                        static_vars += var.num_elements();
-                        ++static_var_grps;
-                        }
-		       ) )
-    continue;
-
-   // if none of the above this is not a ColVariable
-   throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
-   }
+   auto count = un_any_thing_count_static( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   numcols += count;
+   static_vars += count;
+   ++static_var_grps;
+  }
 
   for( const auto & i : qb->get_dynamic_variables() ) {
-   // Single lists
-   if( un_any_thing_0( std::list< ColVariable > , i ,
-                       { numcols += var.size(); } ) )
-    continue;
-
-   // Vectors of lists
-   if( un_any_thing_1( std::list< ColVariable > , i ,
-                       {
-                        for( auto & el : var )
-                         numcols += el.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays of lists
-   if( un_any_thing_K( std::list< ColVariable > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         numcols += it->size();
-                        }
-		       ) )
-    continue;
-
-   // if none of the above this is not a ColVariable
-   throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
-   }
+   auto count = un_any_thing_count_dynamic( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   numcols += count;
+  }
 
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
    for( auto * i : var.active_stuff() )
@@ -1217,7 +1146,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         // Thus, if there are nonzeros, we have to insert them.
         double q_coeff = std::get< 2 >( el );
         if( q_coeff != 0 ) {
-          global_qmatrix[{idx_v, idx_v}] = q_coeff;
+          global_qmatrix[ { idx_v , idx_v } ] = q_coeff;
           //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
           //vv_nd.push_back( term ); 
         }
@@ -1228,10 +1157,10 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
       // Now update local quadratic matrix into global one
       int k_term = 0;
       for (int k=0; k < local_qmatrix.outerSize(); ++k) {
-        for (Qmat::InnerIterator it(local_qmatrix,k); it; ++it) {
+        for( Qmat::InnerIterator it( local_qmatrix , k ) ; it ; ++it ) {
           int glob_idx1 = map_local_to_global[ it.row() ];
           int glob_idx2 = map_local_to_global[ it.col() ];
-          global_qmatrix[{glob_idx1, glob_idx2}] = it.value();
+          global_qmatrix[ { glob_idx1 , glob_idx2 } ] = it.value();
           //Eigen::Triplet< Coefficient > term( glob_idx1 , glob_idx2 , it.value() );
           //vv_nd[ k_term ] = term;
           ++k_term;
@@ -1272,7 +1201,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         // Check if the diagonal quadratic coefficient is nonzero
         double q_coeff = std::get< 2 >( el );
         if( q_coeff != 0 ) {
-          global_qmatrix[{idx_v, idx_v}] = q_coeff;
+          global_qmatrix[ { idx_v , idx_v } ] = q_coeff;
           //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
           //vv_nd.push_back( term ); 
         }
@@ -2604,130 +2533,63 @@ void MILPSolver::check_status( void )
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto * i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
   for( const auto & i : q_Block->get_static_constraints() ) {
-   // Singles
-   if( un_any_thing_0( FRowConstraint , i ,
-                       {
-                        ++scg;
-                        ++c;
-                        ++sc;
-                        }
-		       ) )
-    continue;
-
-   // Vectors
-   if( un_any_thing_1( FRowConstraint , i ,
-                       {
-                        ++scg;
-                        c += var.size();
-                        sc += var.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays
-   if( un_any_thing_K( FRowConstraint, i,
-                       {
-                        ++scg;
-                        c += var.num_elements();
-                        sc += var.num_elements();
-                        }
-		       ) )
+   auto count = un_any_thing_count_static( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    ++scg;
+    c += count;
+    sc += count;
     continue;
    }
+
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_static( i , [](){}() ) )
+    continue;
+
+   throw( std::invalid_argument(
+    "MILPSolver: static Constraint is not a valid "
+    "FRowConstraint nor OneVarConstraint" ) );
+  }
 
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   // Single lists
-   if( un_any_thing_0( std::list< FRowConstraint > , i ,
-                       { c += var.size();  } ) )
-    continue;
-
-   // Vectors of lists
-   if( un_any_thing_1( std::list< FRowConstraint >, i,
-                       {
-                        for( auto & el: var )
-                         c += el.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays of lists
-   if( un_any_thing_K( std::list< FRowConstraint > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         c += it->size();
-                        }
-		       ) )
+   auto count = un_any_thing_count_dynamic( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    c += count;
     continue;
    }
+
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_dynamic( i , [](){}() ) )
+    continue;
+
+   throw( std::invalid_argument(
+    "MILPSolver: dynamic Constraint is not a valid "
+    "FRowConstraint nor OneVarConstraint" ) );
+  }
 
   dc = c - sc;
 
   for( const auto & i : q_Block->get_static_variables() ) {
-   // Singles
-   if( un_any_thing_0( ColVariable , i ,
-                       {
-                        ++svg;
-                        ++v;
-                        ++sv;
-                        }
-		       ) )
-    continue;
-
-   // Vectors
-   if( un_any_thing_1( ColVariable , i ,
-                       {
-                        ++svg;
-                        v += var.size();
-                        sv += var.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays
-   if( un_any_thing_K( ColVariable , i ,
-                       {
-                        ++svg;
-                        v += var.num_elements();
-                        sv += var.num_elements();
-                        }
-		       ) )
-    continue;
-   }
+   auto count = un_any_thing_count_static( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   ++svg;
+   v += count;
+   sv += count;
+  }
 
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-   // Single lists
-   if( un_any_thing_0( std::list< ColVariable > , i ,
-                       { v += var.size(); } ) )
-    continue;
-
-   // Vectors of lists
-   if( un_any_thing_1( std::list< ColVariable > , i ,
-                       {
-                        for( auto & el: var )
-                         v += el.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays of lists
-   if( un_any_thing_K( std::list< ColVariable > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         v += it->size();
-                        }
-		       ) )
-    continue;
-   }
+   auto count = un_any_thing_count_dynamic( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   v += count;
+  }
 
   dv = v - sv;
-  }
+ }
 
  // Unlock the Block
  if( ! owned )
