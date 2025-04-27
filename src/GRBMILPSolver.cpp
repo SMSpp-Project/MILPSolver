@@ -1334,16 +1334,31 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
  if( idx == Inf< int >() )
   return( idx );
 
+ // Call the method to skip auxiliary variables
+ int new_idx = grb_index_of_variable( idx );
+
+ return( new_idx );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int GRBMILPSolver::grb_index_of_variable( int old_idx ) const
+{
+ int new_idx = old_idx;
  int n_ranged_con = map_rng_con_aux_var.size();
 
  bool is_qcp = ( numquadrows > 0 );
- 
- if( !is_qcp && n_ranged_con != 0 ) {
+
+ if( !is_qcp && n_ranged_con == 0 ){
+  // Nothing to do
+  return( new_idx );
+ }
+ else if( !is_qcp && n_ranged_con != 0 ) {
   // Simply "jump" ranged constraints auxiliary variables
   int tmp_count = 0;
-    while( tmp_count < n_ranged_con && idx >= map_rng_con_aux_var[ tmp_count ].second ) {
+    while( tmp_count < n_ranged_con && new_idx >= map_rng_con_aux_var[ tmp_count ].second ) {
       ++tmp_count;
-      ++idx;
+      ++new_idx;
     }
   }
  else if( is_qcp && n_ranged_con == 0 ) {
@@ -1351,37 +1366,37 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
   // We can use the cpx_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
   int count = 0;
-  while( grb_idx_aux_qvar[ count ] < idx && count < grb_idx_aux_qvar.size() ){
-    ++idx;
+  while( grb_idx_aux_qvar[ count ] < new_idx && count < grb_idx_aux_qvar.size() ){
+    ++new_idx;
     ++count;
+   }
   }
- }
  else{
   // We have to skip both
   bool update_idx = 1;
 
   int tmp_count = 0;
-  auto it = lower_bound( grb_quad_var_aux.begin() , grb_quad_var_aux.end() , idx + 1 );
+  auto it = lower_bound( grb_quad_var_aux.begin() , grb_quad_var_aux.end() , new_idx + 1 );
   auto last_it = grb_quad_var_aux.begin();
 
   while( update_idx ) {
 
-    if( tmp_count < n_ranged_con && idx >= map_rng_con_aux_var[ tmp_count ].second ) {
+    if( tmp_count < n_ranged_con && new_idx >= map_rng_con_aux_var[ tmp_count ].second ) {
       ++tmp_count;
-      ++idx;
-      it = lower_bound( last_it , grb_quad_var_aux.end() , idx + 1 );
+      ++new_idx;
+      it = lower_bound( last_it , grb_quad_var_aux.end() , new_idx + 1 );
     }
     else if( it != grb_quad_var_aux.end() ) {
-      ++idx;
+      ++new_idx;
       last_it = it + 1;
-      it = lower_bound( it + 1 , grb_quad_var_aux.end() , idx + 1 );
+      it = lower_bound( it + 1 , grb_quad_var_aux.end() , new_idx + 1 );
     }
     else
       update_idx = 0;
+   }
   }
- }
 
-  return( idx );
+ return( new_idx );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -3052,6 +3067,33 @@ double GRBMILPSolver::get_runtime( void ) const
  GRBgetdblattr( model , GRB_DBL_ATTR_RUNTIME , &runtime );
  
  return( runtime );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues )
+{
+ // Get number of starts
+ int nstarts = varidxs.size();
+
+ // Tell Gurobi how many MIP start will be provided
+ GRBsetintattr( model , GRB_INT_ATTR_NUMSTART , nstarts );
+
+ // Loop over each MIP start
+ for( int i = 0; i < nstarts; ++i ) {
+  // Set the number of the MIP start provided
+  GRBsetintparam( env , GRB_INT_PAR_STARTNUMBER , i );
+
+  // Loop over each provided value
+  for( int j = 0; j < varidxs[ i ].size(); ++j ){
+    // Retrieve correct index of variable
+    int new_idx = grb_index_of_variable( varidxs[ i ][ j ] );
+
+    GRBsetdblattrelement( model , GRB_DBL_ATTR_START , new_idx , varvalues[ i ][ j ] );
+   }
+  }
  }
 
 /*--------------------------------------------------------------------------*/

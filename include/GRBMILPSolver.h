@@ -230,6 +230,18 @@ class GRBMILPSolver : public MILPSolver {
  /// Returns elapsed solver runtime (in second).
  [[nodiscard]] double get_runtime( void ) const override;
 
+/** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ) override;
+
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
@@ -713,8 +725,10 @@ class GRBMILPSolver : public MILPSolver {
  // last static ranged constraint added
  int last_static_rng_con;
 
- // function to retrieve actual idx of variable considering auxiliary ones
+ // functions to retrieve actual idx of variable considering auxiliary ones
  int grb_index_of_variable( const ColVariable * var ) const;
+
+ int grb_index_of_variable( const int old_idx ) const;
 
  // function to retrieve actual idx of dynamic variable considering auxiliary ones
  int grb_index_of_dynamic_variable( const ColVariable * var ) const; 
