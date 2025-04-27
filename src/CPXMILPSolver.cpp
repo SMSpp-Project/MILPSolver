@@ -3022,6 +3022,54 @@ long CPXMILPSolver::get_id_node( void ) const
 
 /*--------------------------------------------------------------------------*/
 
+void CPXMILPSolver::add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues )
+{
+ // Get number of starts
+ int nstarts = varidxs.size();
+
+ // Prepare CPLEX structures
+ int nzcnt = 0;
+ std::vector< int > beg( nzcnt, 0); // where the values of a mip start begin
+ std::vector< int > idxs;
+ std::vector< double > val;
+
+ // Loop over each MIP start
+ for ( int i = 0; i < nstarts; ++i ) {
+  // Update beg vector
+  beg[ i ] = nzcnt;
+
+  // Add all nonzeros of current mip start
+  nzcnt += varidxs[ i ].size();
+  val.insert( val.end(), varvalues[ i ].begin(), varvalues[ i ].end() );
+
+  // We have to keep attention to skip auxiliary variables (only for QP)
+  if( numquadrows = 0 ){
+   //Simply copy provided indices
+   idxs.insert( idxs.end(), varidxs[ i ].begin(), varidxs[ i ].end() );
+  }
+  else{
+   int count = 0;
+   for( int idx : varidxs[ i ] ) {
+    // Iterate over each index and skip auxiliary indices
+    while( count < cpx_idx_aux_qvar.size() && idx >= cpx_idx_aux_qvar[count] )
+     count++;
+    
+    // Add correct index
+    idxs.push_back( idx + count );
+    }
+   }
+
+  // Call specific CPLEX function
+  if( CPXaddmipstarts( env , lp , nstarts , nzcnt , beg.data() , 
+              idxs.data() , val.data() , NULL , NULL ) )
+   throw( std::runtime_error( "Unable to get add specific MIP starts" ) );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void CPXMILPSolver::perform_separation( Configuration * cfg ,
 					std::vector< int > & rmatbeg ,
 					std::vector< int > & rmatind ,

@@ -240,6 +240,18 @@ class CPXMILPSolver : public MILPSolver {
  //  and you need to identify the node from which it originates).  
  [[nodiscard]] long get_id_node( void ) const override;
 
+/** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+ void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ) override;
+
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
