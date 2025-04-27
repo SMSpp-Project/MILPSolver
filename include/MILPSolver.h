@@ -425,10 +425,7 @@ class MILPSolver : public CDASolver
   
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
-
-/** @} ---------------------------------------------------------------------*/
-/*--------------------------------------------------------------------------*/
- /** @name Methods that use the dictionaries
+/** @name Methods that use the dictionaries
   *
   * The following methods use the dictionaries to get the indices of the
   * Variables/Constraints from the pointers and viceversa.
@@ -572,6 +569,28 @@ class MILPSolver : public CDASolver
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// Returns the number of integer variables
  [[nodiscard]] int get_num_integer_vars( void ) const { return( int_vars ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ * 
+ * @param varidxs A vector of vectors. Each inner vector contains the indices 
+ * of the variables for which starting values are specified.
+ * @param varvalues A vector of vectors. Each inner vector contains the starting 
+ * values corresponding to the variables identified in the respective inner vector 
+ * of varidxs.
+ */
+ virtual void add_mip_starts( 
+        std::vector< std::vector<int> > varidxs, 
+        std::vector< std::vector<double> > varvalues ){
+  throw( std::runtime_error( "Function add_mip_starts is not supported "
+    "by the current *MILPSolver" ) );
+ }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  #ifdef MILPSolver_DEBUG
