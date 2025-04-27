@@ -217,6 +217,18 @@ class HiGHSMILPSolver : public MILPSolver {
  /// loads the problem into HiGHS
  void load_problem( void ) override;
 
+ /** 
+ * Adds a single MIP starts to a MIP problem. This function allows the solver 
+ * to receive a single set of starting values by providing vectors of variable 
+ * indices and corresponding values.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ) override;
+
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
