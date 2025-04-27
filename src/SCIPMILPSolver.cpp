@@ -1838,6 +1838,35 @@ void SCIPMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 
 /*--------------------------------------------------------------------------*/
 
+void SCIPMILPSolver::add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues )
+{
+ // Get number of starts
+ int nstarts = varidxs.size();
+
+ // Loop over each MIP start
+ for( int i = 0; i < nstarts; ++i ) {
+  // Initialize an empty solution
+  SCIP_SOL* newsol;
+
+  SCIP_CALL_ABORT( SCIPcreatePartialSol( scip , &newsol , nullptr ) );
+
+  // Loop over each provided value
+  for( int j = 0; j < varidxs[ i ].size(); ++j ){
+    // Set the value in the partial solution
+    int idx = varidxs[ i ][ j ];
+    SCIP_CALL_ABORT( SCIPsetSolVal( scip ,	newsol , vars[ idx ] , 
+        varvalues[ i ][ j ] ) );	
+   }
+  // Add the new (partial) solution to the problem
+  SCIP_Bool stored;
+  SCIP_CALL_ABORT( SCIPaddSolFree( scip , &newsol , &stored ) );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void SCIPMILPSolver::perform_separation( Configuration * cfg ,
 					std::vector< int > & rmatbeg ,
 					std::vector< int > & rmatind ,
