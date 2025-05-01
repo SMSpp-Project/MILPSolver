@@ -17,7 +17,7 @@ BlockSolverConfig     # exact type of the Configuration object
 2  # number of (the names of) Solver in this BlockSolverConfig
 # now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
 CPXMILPSolver    # name of Solver
-#GRBMILPSolver   # name of Solver
+GRBMILPSolver    # name of Solver
 #SCIPMILPSolver  # name of Solver
 #HiGHSMILPSolver # name of Solver
 

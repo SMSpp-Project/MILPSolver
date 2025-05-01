@@ -2622,8 +2622,8 @@ const std::string & SCIPMILPSolver::vstr_par_idx2str( idx_type idx ) const
 bool NotIsNull( SCIP_VAR * v ) { return( ! ( v == NULL) ); }
 
 void SCIPMILPSolver::check_status( void )
-{ // TODO: FIXME
- /*auto n_aux_var = std::count_if( aux_vars.begin() , aux_vars.end() , NotIsNull );
+{
+ int n_aux_var = ( obj_aux_var != nullptr ) ? 1 : 0;
  auto tmp = SCIPgetNVars( scip ) - n_aux_var;
  if( numcols != tmp )
   DEBUG_LOG( "numcols is " << numcols << " but SCIPgetNVars() returns "
@@ -2637,7 +2637,7 @@ void SCIPMILPSolver::check_status( void )
  tmp = SCIPgetNBinVars( scip ) + SCIPgetNIntVars( scip );
  if( int_vars != tmp )
   DEBUG_LOG( "int_vars is " << int_vars << " but SCIP has actually "
-	     << tmp << " integer variables" << std::endl );*/
+	     << tmp << " integer variables" << std::endl );
 
  MILPSolver::check_status();
  }

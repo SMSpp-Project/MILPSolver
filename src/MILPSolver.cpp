@@ -190,16 +190,16 @@ void MILPSolver::load_problem( void )
     static_cons += count;
     ++static_con_grps;
     continue;
-   }
+    }
 
    // if it's not FRowConstraint, accept any known OneVarConstraint silently
-   if( un_any_thing_OneVarConstraint_static( i , [](){}() ) )
+   // note that the second argument of the macro is empty
+   if( un_any_thing_OneVarConstraint_static( i , ) )
     continue;
 
-   throw( std::invalid_argument(
-    "MILPSolver: static constraint is neither "
-    "FRowConstraint nor OneVarConstraint" ) );
-  }
+   throw( std::invalid_argument( "MILPSolver: static constraint is neither "
+				 "FRowConstraint nor OneVarConstraint" ) );
+   }
 
   // Dynamic constraints
   for( const auto & i : qb->get_dynamic_constraints() ) {
@@ -207,44 +207,48 @@ void MILPSolver::load_problem( void )
    if( count != Inf< std::size_t >() ) {
     numrows += count;
     continue;
-   }
+    }
 
    // if it's not FRowConstraint, accept any known OneVarConstraint silently
-   if( un_any_thing_OneVarConstraint_dynamic( i , [](){}() ) )
+   // note that the second argument of the macro is empty
+   if( un_any_thing_OneVarConstraint_dynamic( i , ) )
     continue;
 
-   throw( std::invalid_argument(
-    "MILPSolver: dynamic constraint is neither "
-    "FRowConstraint nor OneVarConstraint" ) );
-  }
+   throw( std::invalid_argument( "MILPSolver: dynamic constraint is neither "
+				 "FRowConstraint nor OneVarConstraint" ) );
+   }
 
   auto counter_static_lin_quad_row = [ this , & nst_linrow, & nst_quadrow ]
                               ( FRowConstraint & cons ) {
-  if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
     ++nst_linrow;
-  else if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
-    ++nst_quadrow;
-  else if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
-    ++nst_quadrow;
-  };
+   else
+    if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+     ++nst_quadrow;
+    else
+     if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+      ++nst_quadrow;
+   };
 
   auto counter_dynamic_lin_quad_row = [ this , & ndy_linrow, & ndy_quadrow ]
                               ( FRowConstraint & cons ) {
-  if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
     ++ndy_linrow;
-  else if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
-    ++ndy_quadrow;
-  else if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
-    ++ndy_quadrow;
-  };
+   else
+    if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+     ++ndy_quadrow;
+    else
+     if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+      ++ndy_quadrow;
+   };
 
   for( const auto & i : qb->get_static_constraints() )
    un_any_const_static( i , counter_static_lin_quad_row ,
-                          un_any_type< FRowConstraint >() );
+			un_any_type< FRowConstraint >() );
 
   for( const auto & i : qb->get_dynamic_constraints() )
    un_any_const_dynamic( i , counter_dynamic_lin_quad_row , 
-                          un_any_type< FRowConstraint >() );
+			 un_any_type< FRowConstraint >() );
 
   // Fill number of quadratic rows
   numquadrows = nst_quadrow + ndy_quadrow;
@@ -257,14 +261,14 @@ void MILPSolver::load_problem( void )
    numcols += count;
    static_vars += count;
    ++static_var_grps;
-  }
+   }
 
   for( const auto & i : qb->get_dynamic_variables() ) {
    auto count = un_any_thing_count_dynamic( ColVariable , i );
    if( count == Inf< std::size_t >() )
     throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
    numcols += count;
-  }
+   }
 
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
    for( auto * i : var.active_stuff() )
@@ -300,13 +304,13 @@ void MILPSolver::load_problem( void )
   matbeg.resize( numcols + 1, 0 );
   matbeg[ numcols ] = nzelements;
   matcnt.resize( numcols, 0 );
- }
+  }
  else {
   matbeg.resize( numrows + 1, 0 );
   matbeg[ numrows ] = nzelements;
   matcnt.resize( numrows , 0 );
   q_part.resize( numrows );
- }
+  }
 
  matind.resize( nzelements, 0 );
  matval.resize( nzelements, 0 );
@@ -345,7 +349,7 @@ void MILPSolver::load_problem( void )
   dvar_to_bound.clear();
   svar_to_bound.reserve( static_vars );
   dvar_to_bound.reserve( numcols - static_vars );
- }
+  }
 
  /* Now we have to check wheter there are any quadratic constraints. 
   * If this is the case, then matbeg, matcnt, ... will represent the 
@@ -359,7 +363,8 @@ void MILPSolver::load_problem( void )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  num_block = 0;
- //quad_row = nst_linrow + ndy_linrow; // quadratic rows starts after linear ones
+ // quad_row = nst_linrow + ndy_linrow;
+ // quadratic rows starts after linear ones
  for( auto qb : v_BFS ) {
   Index set = 0;  // counter for the constraint groups
 
@@ -368,9 +373,9 @@ void MILPSolver::load_problem( void )
    Index start = row;
 
    auto scan = [ this , & elements , & row ]
-          ( const FRowConstraint & c ) {
-            scan_static_constraint( c , elements , row );
-    };
+    ( const FRowConstraint & c ) {
+     scan_static_constraint( c , elements , row );
+     };
    un_any_const_static( i , scan , un_any_type< FRowConstraint >() );
 
    //  write names
@@ -385,7 +390,8 @@ void MILPSolver::load_problem( void )
      name = base + "_" + std::to_string( num_block )
           + "_" + std::to_string( n );
 
-    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] ,
+				   name.c_str() );
     }
    set++;
    if( elements )
@@ -407,9 +413,7 @@ void MILPSolver::load_problem( void )
    Index start = row;
 
    auto scan = [ this , & row ]
-      ( const FRowConstraint & c ) {
-        scan_dynamic_constraint( c , row );
-    };
+    ( const FRowConstraint & c ) { scan_dynamic_constraint( c , row ); };
    un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
 
    //  write names
@@ -424,7 +428,8 @@ void MILPSolver::load_problem( void )
      name = base + "_" + std::to_string( num_block )
           + "_" + std::to_string( n );
 
-    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] ,
+				   name.c_str() );
     }
    set++;
    }
