@@ -168,6 +168,8 @@ class MILPSolver : public CDASolver
  enum str_par_type_MILP {
   strProblemName = strLastParCDAS ,  ///< problem name
   strOutputFile ,                    ///< output filename
+  strWarmStartSolution ,             ///< warm start solution filename
+  strWarmStartVariables ,            ///< warm start variables filename
   strLastAlgParMILP  ///< 1st allowed new string parameter for derived classes
   };
 
@@ -571,26 +573,24 @@ class MILPSolver : public CDASolver
  [[nodiscard]] int get_num_integer_vars( void ) const { return( int_vars ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
 /** 
- * Adds multiple MIP starts to a MIP problem. This function allows the solver 
- * to receive multiple sets of starting values by providing vectors of variable 
- * indices and corresponding values for each start.
+ * Adds a new warm start to the solver. See Solver.h for further details.
  * 
  * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
- * to infer values for the unspecified variables.
+ * to infer values for the unspecified variables.  */
+ void add_warm_start( const Solution * sol ,
+                      const std::vector< AbstractPath > varpaths ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+/** 
+ * Adds a set of warm start to the solver. See Solver.h for further details.
  * 
- * @param varidxs A vector of vectors. Each inner vector contains the indices 
- * of the variables for which starting values are specified.
- * @param varvalues A vector of vectors. Each inner vector contains the starting 
- * values corresponding to the variables identified in the respective inner vector 
- * of varidxs.
- */
- virtual void add_mip_starts( 
-        std::vector< std::vector<int> > varidxs, 
-        std::vector< std::vector<double> > varvalues ){
-  throw( std::runtime_error( "Function add_mip_starts is not supported "
-    "by the current *MILPSolver" ) );
- }
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.  */
+void add_warm_start( const std::vector< Solution * > sols ,
+                     const std::vector< AbstractPath > varpaths ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  #ifdef MILPSolver_DEBUG
@@ -1001,6 +1001,52 @@ class MILPSolver : public CDASolver
  int static_vars{};        ///< Number of static variables
  int static_cons{};        ///< Number of static constraints
  int static_quadcons{};    ///< Number of static quadratic constraints
+
+ /** Warm start structures used by the solver.
+ *
+ * These fields store the initial solution data that can be provided to
+ * the solver. As described in Solver.h, each warm start is represented
+ * as a tuple: (Solution*, std::vector<AbstractPath>).
+ *
+ * Since multiple warm starts may be supplied, two vectors are maintained:
+ * - v_warmstart_sol: stores the Solution* instances
+ * - v_warmstart_vars: stores the AbstractPath vectors
+ *
+ * @note A single std::vector<AbstractPath> can be shared across multiple
+ * Solution * instances. To track this association, a std::vector<int> 
+ * — matching the length of v_warmstart_sol— is used to record which :AbstractPath
+ * vector is referenced by each Solution *.
+ *
+ * Currently, warm starts can be provided in two ways:
+ *
+ * 1. **Programmatically**, by storing the necessary data structures
+ *    directly in the Solver instance using the methods `add_warm_start()`
+ *    or `add_warm_starts()`.
+ *
+ * 2. **Via input files**, using two files of type `eWarmStartFile` and
+ *    `eSolutionFile`. The corresponding filenames can be set using the
+ *    string parameters:
+ *      - "strWarmStartVariables" — path to the file defining set of variables
+ *      for which we would like to provide a warm start.
+ *      - "strWarmStartSolution"  — path to the file containing the
+ *      warm start solution (i.e. initial values for the specified set of
+ *      variables).
+ *
+ *    If a filename follows the format "filename[idx]", only the indexed 
+ *    structure within the file will be used. 
+ *    (Behavior for unspecified indices or other formats is TBD.)
+ */
+
+ std::string warmstart_variables; // warm start variables filename
+ std::string warmstart_solution;  // warm start solution filename
+
+ std::vector< std::vector< AbstractPath >> v_warmstart_vars;
+                                  // warm start variables
+ std::vector< Solution * > v_warmstart_sol;               
+                                  // warm start solutions
+ 
+ std::vector< int > v_warmstart_sol2vars; 
+                                  // corresponding variables for each solution
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------- PROTECTED METHODS ----------------------------*/
