@@ -831,7 +831,6 @@ int MILPSolver::index_of_constraint( const FRowConstraint * con ) const
 
 /*--------------------------------------------------------------------------*/
 
-
 int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) const
 {
  if( scon_to_idx.empty() )
