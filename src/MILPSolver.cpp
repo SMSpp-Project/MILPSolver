@@ -344,7 +344,7 @@ void MILPSolver::load_problem( void )
  idx_to_dcon.reserve( numrows - static_cons );
 
  // Acccount also for link between variables and bound
- if( single_bound == true ) {
+ if( single_bound ) {
   svar_to_bound.clear();
   dvar_to_bound.clear();
   svar_to_bound.reserve( static_vars );
@@ -478,7 +478,7 @@ void MILPSolver::load_problem( void )
    // OneVarConstraint is associated with a single variable.
    // Morevorer, the vector linking the variable with the associated bound, 
    // needs to be filled.
-   if( single_bound == true ) {
+   if( single_bound ) {
     auto scan_bound = [ this ]( const ColVariable & v ) {
       scan_static_variable_bound( v );
     };
@@ -526,7 +526,7 @@ void MILPSolver::load_problem( void )
    // OneVarConstraint is associated with a single variable.
    // Morevorer, the vector linking the variable with the associated bound, 
    // needs to be filled.
-   if( single_bound == true ) {
+   if( single_bound ) {
     auto scan_bound = [ this ]( const ColVariable & v ) {
       scan_dynamic_variable_bound( v );
     };
@@ -725,8 +725,7 @@ std::vector< FRowConstraint * > MILPSolver::get_active_constraints(
 /*--------------------------------------------------------------------------*/
 
 std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
-					      const ColVariable & var ,
-                bool first_scan ) const
+					      const ColVariable & var , bool first_scan ) const
 {
  std::vector< OneVarConstraint * > active_bounds;
  
@@ -736,7 +735,7 @@ std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
  *  We also check if we are calling this function from the load_problem: in
  *  this case (i.e. first_scan = true) we still have to fill the dictionaries.
  */
- if( single_bound == true && first_scan == false ) {
+ if( single_bound && ( ! first_scan ) ) {
   int idx = index_of_variable( &var ); // get variable index
 
   if( idx < static_vars ) { // the variable is static
@@ -2034,7 +2033,7 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
 
  /* If the check on SingleBound is active, scan the 
  *  OneVarConstraint associated to the variable */
- if( single_bound == true )
+ if( single_bound )
   scan_dynamic_variable_bound( *var );
 
  // update the matrix, if any
@@ -2083,7 +2082,7 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
  /* If the check on SingleBound is active, it is important to check that 
  *  no other OneVarConstraint are already associated to the variable. 
  *  If this is the case, then add the new bound to the dictionary. */
- if( single_bound == true ) {
+ if( single_bound ) {
   if( idx < static_vars ) { // the variable is static
    if( svar_to_bound[ idx ] != nullptr ) // There was already a bound set
      throw( std::logic_error( "Only a single OneVarConstraint can be " + 
@@ -2168,7 +2167,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
   index = it1->second;
   dvar_to_idx.erase( it1 );
   idx_to_dvar.erase( idx_to_dvar.begin() + ( index - static_vars ) );
-  if( single_bound == true )
+  if( single_bound )
     dvar_to_bound.erase( dvar_to_bound.begin() + ( index - static_vars ) );
   }
  else
@@ -2234,7 +2233,7 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  /* If the check on SingleBound is active, we have to remove the pointer to 
  *  the OneVarConstraint from the svar_to_bound or svar_to_bound dictionaries. 
  */
- if( single_bound == true ) {
+ if( single_bound ) {
   if( idx < static_vars ) // the variable is static
    svar_to_bound[ idx ] = nullptr;
   else // the variable is dynamic
@@ -2621,8 +2620,8 @@ void MILPSolver::check_status( void )
  for( auto & i: idx_to_svar ) {
   auto j = std::find_if( svar_to_idx.begin(), svar_to_idx.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 1 >( pair ) == i.first &&
-                                  std::get< 0 >( pair ) == i.second );
+                          return( ( std::get< 1 >( pair ) == i.first ) &&
+                                  ( std::get< 0 >( pair ) == i.second ) );
                          } );
   if( j == svar_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
@@ -2634,8 +2633,8 @@ void MILPSolver::check_status( void )
  for( auto & i: svar_to_idx ) {
   auto j = std::find_if( idx_to_svar.begin(), idx_to_svar.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 0 >( i ) == pair.second &&
-                                  std::get< 1 >( i ) == pair.first );
+                          return( ( std::get< 0 >( i ) == pair.second ) &&
+                                  ( std::get< 1 >( i ) == pair.first ) );
                          } );
   if( j == idx_to_svar.end() ) {
    DEBUG_LOG( ", " << std::get< 1 >( i ) <<
@@ -2695,8 +2694,8 @@ void MILPSolver::check_status( void )
  for( auto & i: idx_to_scon ) {
   auto j = std::find_if( scon_to_idx.begin(), scon_to_idx.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 1 >( pair ) == i.first &&
-                                  std::get< 0 >( pair ) == i.second );
+                          return( ( std::get< 1 >( pair ) == i.first ) &&
+                                  ( std::get< 0 >( pair ) == i.second ) );
                          } );
   if( j == scon_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
@@ -2708,8 +2707,8 @@ void MILPSolver::check_status( void )
  for( auto & i: scon_to_idx ) {
   auto j = std::find_if( idx_to_scon.begin(), idx_to_scon.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 0 >( i ) == pair.second &&
-                                  std::get< 1 >( i ) == pair.first );
+                          return( ( std::get< 0 >( i ) == pair.second ) &&
+                                  ( std::get< 1 >( i ) == pair.first ) );
                          } );
   if( j == idx_to_scon.end() ) {
    DEBUG_LOG( ", " << std::get< 1 >( i )

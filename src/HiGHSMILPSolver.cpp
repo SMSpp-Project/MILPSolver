@@ -321,8 +321,8 @@ int HiGHSMILPSolver::compute( bool changedvars )
   throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
 
  // HiGHS doesn't actually support MIQP problem
- if( int_vars > 0 && q_obj_val.size() > 0 )
-  if( relax_int_vars == false ) // we are not relaxing int variables
+ if( ( int_vars > 0 ) && ( q_obj_val.size() > 0 ) )
+  if( ! relax_int_vars ) // we are not relaxing int variables
     throw( std::runtime_error( 
   "HiGHS cannot solve QP models where some of the variables must take integer values" ) );
 
@@ -1086,7 +1086,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
 
   auto qf = dynamic_cast< const QuadFunction * >( f );
   auto dqf = dynamic_cast< const DQuadFunction * >( f );
-  if( ( !qf ) && ( !dqf ) )
+  if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
 		       "unexpected *C05FunctionMod* from Linear Objective" ) );
 
@@ -1137,7 +1137,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      // column cidx.
      int var_coeff_begin = q_obj_begin[ cidx ];
      auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit ); 
-     if( q_obj_ind[ var_coeff_begin ] != cidx && delta_q_coeff != 0) {
+     if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
       // no quadratic coefficient was already set for the diagonal term and
       // the quadratic coefficient is nonzero
       ++nnz_new_hessian;
@@ -1238,7 +1238,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      // column cidx.
      int var_coeff_begin = q_obj_begin[ cidx ];
      auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit );
-     if( q_obj_ind[ var_coeff_begin ] != cidx && delta_q_coeff != 0) {
+     if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
       // no quadratic coefficient was already set for the diagonal term and
       // the quadratic coefficient is nonzero
       ++nnz_new_hessian;
@@ -1330,7 +1330,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
                                  q_obj_ind.begin() + var1_coeff_end , 
                                  idx2 );
 
-   if( qobj_indit == q_obj_ind.begin() + var1_coeff_end && delta_coeff != 0) {
+   if( ( qobj_indit == q_obj_ind.begin() + var1_coeff_end ) &&
+       ( delta_coeff != 0 ) ) {
     // no quadratic coefficient was already set for the term and
     // the quadratic coefficient is nonzero
     ++nnz_new_hessian;
@@ -1527,7 +1528,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   int nnz_new_hessian = nnz_old_hessian;
   
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -1577,7 +1578,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq = static_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -1660,7 +1661,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   int nnz_new_hessian = nnz_old_hessian;
 
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -1708,7 +1709,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -2035,7 +2036,7 @@ int HiGHSMILPSolver::callback( const int callback_type,
     if( bndv <= - 1e+75 )
      bndv = - Inf< double >();
 
-    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) ){
+    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) ) {
      // Here we should terminate the optimization process but HiGHS currently
      // does not provide such method
      }
@@ -2048,7 +2049,7 @@ int HiGHSMILPSolver::callback( const int callback_type,
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
 
-    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ){
+    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ) {
       data_in->user_interrupt = 1; // Force interruption of Solver
       }
     }
@@ -2446,7 +2447,7 @@ double HiGHSMILPSolver::get_dflt_dbl_par( idx_type par ) const
  std::string highs_opt = highs_dbl_par_map( par );
  if( highs_opt.size() > 0 ) {
   if( highs_opt == "NoPar" )
-    return 0;
+    return( 0 );
   else{
     double value, default_value;
     Highs_getDoubleOptionValues( highs , highs_opt.data() , & value, NULL ,
