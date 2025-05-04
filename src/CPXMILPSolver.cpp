@@ -1370,7 +1370,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
   for( int i = 0 ; i < numrows ; ++i ) {
     if( q_part[ i ].empty() ) {
       // Simple Linear Constraint
-      pi[i] = pi_cpx[count_pi];
+      pi[ i ] = pi_cpx[ count_pi ];
       count_pi++;
     }
     else{
@@ -1380,7 +1380,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
       // Evaluate dual for quadratic constraint
       pi[ i ] = evaluate_dual_qcon( i , x_q );
 
-      if( cpx_quad_con_aux[i] != -1 ) {
+      if( cpx_quad_con_aux[ i ] != -1 ) {
         // Linear part available, simply skip the retrieved dual value
         count_pi++;
       }

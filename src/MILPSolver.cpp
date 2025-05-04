@@ -744,9 +744,9 @@ std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
       const_cast< OneVarConstraint * >( svar_to_bound[ idx ] ) );
    }
   else { // the variable is dynamic
-   if( dvar_to_bound[idx - static_vars] != nullptr )
+   if( dvar_to_bound[ idx - static_vars ] != nullptr )
     active_bounds.push_back( 
-     const_cast< OneVarConstraint * >( dvar_to_bound[idx - static_vars] ) );
+     const_cast< OneVarConstraint * >( dvar_to_bound[ idx - static_vars ] ) );
    }
   }
  else { // The option is not activated, scan all active stuff
@@ -1119,7 +1119,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
        * Eigen::SparseMatrix, as already done in QuadFunction. However, we
        * need to translate the local indices stored in a specific QuadFunction
        * into the global one of the model. */
-      
+
       // Retrieve sparse quadratic matrix
       auto local_qmatrix = qf->get_matrix();
       std::map< mat_indices , float > global_qmatrix;
@@ -1141,7 +1141,6 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         if( std::get< 1 >( el ) != 0 ) {
           matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
           matind[ matbeg[ row ] + nnz ] = idx_v;
-
           nnz++;
         }
 
@@ -1197,7 +1196,6 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         if( std::get< 1 >( el ) != 0 ) {
           matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
           matind[ matbeg[ row ] + nnz ] = idx_v;
-
           nnz++;
         }
 
@@ -1271,9 +1269,9 @@ void MILPSolver::scan_static_variable_bound( const ColVariable & var )
  // set to true. Thus, we have to check that maximum a single OneVarConstraint
  // is contained in the vector.
  if( active_bounds.size() > 1 )
-   throw( std::logic_error( "Only a single OneVarConstraint can be " + 
-    std::string("associated to a variable when the option intSingleBound is ") +
-    "set to 1 " ) );
+   throw( std::logic_error( "Only a single OneVarConstraint can be associated "
+                            "to a variable when the option intSingleBound is "
+                            "set to 1" ) );
 
  // Otherwise, if a single OneVarConstraint exists, we have to fill the 
  // dictionary.
@@ -1294,9 +1292,9 @@ void MILPSolver::scan_dynamic_variable_bound( const ColVariable & var )
  // set to true. Thus, we have to check that maximum a single OneVarConstraint
  // is contained in the vector.
  if( active_bounds.size() > 1 )
-   throw( std::logic_error( "Only a single OneVarConstraint can be " + 
-    std::string("associated to a variable when the option intSingleBound is ") +
-    "set to 1 " ) );
+   throw( std::logic_error( "Only a single OneVarConstraint can be associated "
+                            "to a variable when the option intSingleBound is "
+                            "set to 1" ) );
 
  // Otherwise, if a single OneVarConstraint exists, we have to fill the 
  // dictionary.
@@ -2031,7 +2029,7 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
   }
 
  /* If the check on SingleBound is active, scan the 
- *  OneVarConstraint associated to the variable */
+ *  OneVarConstraint associated with the variable */
  if( single_bound )
   scan_dynamic_variable_bound( *var );
 
@@ -2079,26 +2077,26 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
  ub[ idx ] = bd[ 1 ];
 
  /* If the check on SingleBound is active, it is important to check that 
- *  no other OneVarConstraint are already associated to the variable. 
+ *  no other OneVarConstraint are already associated with the variable.
  *  If this is the case, then add the new bound to the dictionary. */
  if( single_bound ) {
   if( idx < static_vars ) { // the variable is static
    if( svar_to_bound[ idx ] != nullptr ) // There was already a bound set
-     throw( std::logic_error( "Only a single OneVarConstraint can be " + 
-     std::string("associated to a variable when the option intSingleBound is ") +
-     "set to 1 " ) );
+     throw( std::logic_error( "Only a single OneVarConstraint can be associated"
+                              " to a variable when the option intSingleBound is"
+                              " set to 1" ) );
 
-   else // No OneVarConstraint was previously associated to the variable. 
+   else // No OneVarConstraint was previously associated with the variable.
     svar_to_bound[ idx ] = con; // Update the dictionary
    }
   else { // the variable is dynamic
-   if( dvar_to_bound[idx - static_vars] != nullptr ) // There was already a bound set
-     throw( std::logic_error( "Only a single OneVarConstraint can be " + 
-     std::string("associated to a variable when the option intSingleBound is ") +
-     "set to 1 " ) );
+   if( dvar_to_bound[ idx - static_vars ] != nullptr ) // There was already a bound set
+     throw( std::logic_error( "Only a single OneVarConstraint can be associated"
+                              " to a variable when the option intSingleBound is"
+                              " set to 1" ) );
 
-   else // No OneVarConstraint was previously associated to the variable. 
-    dvar_to_bound[idx - static_vars] = con; // Update the dictionary
+   else // No OneVarConstraint was previously associated with the variable.
+    dvar_to_bound[ idx - static_vars ] = con; // Update the dictionary
    }
   }
  }
@@ -2236,7 +2234,7 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
   if( idx < static_vars ) // the variable is static
    svar_to_bound[ idx ] = nullptr;
   else // the variable is dynamic
-   dvar_to_bound[idx - static_vars] = nullptr;
+   dvar_to_bound[ idx - static_vars ] = nullptr;
   }
  }
 

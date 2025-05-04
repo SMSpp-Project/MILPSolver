@@ -192,7 +192,7 @@ void GRBMILPSolver::load_problem( void )
 
   // creating a vector containg only non-zero coefficients for quadratic terms and corresponding indices
   for( int i = 0 ; i < numcols ; ++i ) {
-	 if( double_q_obj[n_qp] != 0 ) {
+	 if( double_q_obj[ n_qp ] != 0 ) {
 	  n_qp = n_qp + 1;
 	  qp_indices.push_back( i );
 	 }
@@ -971,7 +971,7 @@ void GRBMILPSolver::get_var_solution( Configuration * solc )
  else{
   int aux_counter = 0;
   for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
+    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
       x[ j - aux_counter ] = x_grb[ j ];
     else
       ++aux_counter;
@@ -1034,7 +1034,7 @@ void GRBMILPSolver::get_var_direction( Configuration * dirc )
  else{
   int aux_counter = 0;
   for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
+    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
       x[ j - aux_counter ] = x_grb[ j ];
     else
       ++aux_counter;
@@ -1193,17 +1193,17 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
   for( int i = 0 ; i < numrows ; ++i ) {
     if( q_part[ i ].empty() ) {
       // Simple Linear Constraint
-      pi[ i ] = pi_grb[count_pi];
+      pi[ i ] = pi_grb[ count_pi ];
       count_pi++;
     }
     else{
       // Quadratic Constraint
 
       // Evaluate dual for quadratic constraint
-      int idx_q_con  = grb_quad_con_aux[i];
+      int idx_q_con  = grb_quad_con_aux[ i ];
       pi[ i ] = pi_quad[ idx_q_con ];
 
-      if( grb_quad_var_aux[i] != -1 ) {
+      if( grb_quad_var_aux[ i ] != -1 ) {
         // Linear part available, simply skip the retrieved dual value
         count_pi++;
       }
@@ -1279,7 +1279,7 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  else{
   int aux_counter = 0;
   for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
+    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
       dj[ j - aux_counter ] = dj_grb[ j ];
     else
       ++aux_counter;

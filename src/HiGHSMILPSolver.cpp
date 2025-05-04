@@ -235,9 +235,9 @@ void HiGHSMILPSolver::load_problem( void )
   * to prepare three different vector:
   * - q_obj_begin: An array of length [ numcols ] containing the starting index
   *   of each column in `index`;
-  * - q_obj_ind: An array of length [num_nz_q] with indices of hessian matrix 
+  * - q_obj_ind: An array of length [ num_nz_q ] with indices of hessian matrix
   *   entries 
-  * - q_obj_val: An array of length [num_nz_q] with values of hessian matrix 
+  * - q_obj_val: An array of length [ num_nz_q ] with values of hessian matrix
   *   entries. */
 
   // Call specific function to generate the structures required
