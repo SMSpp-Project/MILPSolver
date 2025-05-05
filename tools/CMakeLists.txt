@@ -44,14 +44,14 @@ if (MILPSolver_USE_CPLEX)
         endif ()
 
         # Custom command to run cpx_pars in the tools directory
-        add_custom_command(
-                TARGET cpx_pars
-                POST_BUILD
-                COMMAND ${CPX_PARS_EXE}
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                COMMENT "Running cpx_pars to generate necessary headers"
-                VERBATIM
-        )
+        #add_custom_command(
+        #        TARGET cpx_pars
+        #        POST_BUILD
+        #        COMMAND ${CPX_PARS_EXE}
+        #        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        #        COMMENT "Running cpx_pars to generate necessary headers"
+        #        VERBATIM
+        #)
 
         # ----- Install instructions ---------------------------------------- #
         include(GNUInstallDirs)
