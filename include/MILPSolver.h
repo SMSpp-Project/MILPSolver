@@ -274,6 +274,21 @@ class MILPSolver : public CDASolver
 
  virtual void load_problem( void );
 
+/*--------------------------------------------------------------------------*/
+ /// methods to scan a single group of Constraints or Variables
+
+ template< typename T >
+ void scan_group( const boost::any & gr , Block * qb , Index num_block ,
+                  Index set , Index & row , un_any_type< T > );
+
+ template< typename T >
+ void scan_st_group( const boost::any & gr , Block * qb , Index num_block ,
+                    Index set , Index & row , un_any_type< T > );
+
+ template< typename T >
+ void scan_multiarray_st_group( const boost::any & gr , Block * qb ,
+            Index num_block , Index set , Index & row , un_any_type< T > );
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Getters for the vectors of the MILP problem.
@@ -1159,6 +1174,45 @@ class MILPSolver : public CDASolver
   * @param obj a FRealObjective */
 
  void scan_objective( const FRealObjective * obj );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /** Tries to cast a boost::any structure into a 
+  * boost::multi_array<std::vector<Const>, 2 >>.
+  * This method is needed to handle the boost::multi_array structure 
+  * (introduced with TwoStageStochasticBlock), which needs to be "exploded"
+  * into the singles std::vector to properly manage constraints.
+  *
+  * @param a a const boost::any supposedly containing a group of Constraints.
+  *  */
+
+ //const boost::multi_array< std::vector< FRowConstraint >, 2 >* 
+  //  get_multi_array( const boost::any& a); 
+
+ template< typename T , unsigned short K >
+  int get_multi_array_dim( const boost::any & any ,
+                           un_any_type< T > , un_any_int< K > );
+
+ template< typename T >
+  int get_multi_array_dim( const boost::any & ,
+                          un_any_type< T > , un_any_int< 9 > ) {
+  return( -1 );
+ }
+
+ template< typename T >
+  int get_multi_array_type( 
+                         const boost::any & any ,
+                         un_any_type< T > , 
+                         un_any_int< 2 > );
+
+ template< typename T >
+ boost::multi_array< T , 2 > * get_multi_array0( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 2 > );
+
+ template< typename T >
+ boost::multi_array< std::vector< T >, 2 > * get_multi_array1( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 2 > );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
