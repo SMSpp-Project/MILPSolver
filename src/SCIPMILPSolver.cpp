@@ -198,7 +198,7 @@ void SCIPMILPSolver::load_problem( void )
 
   SCIP_CONS * con = nullptr;
   char * name = use_custom_names ? rowname[ i ] : nullptr;
-  if( !is_qcp ) {
+  if( ! is_qcp ) {
     // We are adding a linear constraint
     // NOTE: in this first scan we simply add an empty constraint.
     SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip , & con , name , 0 ,
@@ -252,7 +252,7 @@ void SCIPMILPSolver::load_problem( void )
   }
 
  // add linear constraint coefficients
- if( !is_qcp ) {
+ if( ! is_qcp ) {
   for( int c = 0 ; c < numcols ; ++c )
    for( int i = matbeg[ c ] ; i < matbeg[ c + 1 ] ; ++i )
     SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , cons[ matind[ i ] ] ,
@@ -394,7 +394,7 @@ int SCIPMILPSolver::compute( bool changedvars )
 
  if( ( CutSepPar & 7 ) ||
    ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
-   if( f_callback_set == false ) {
+   if( ! f_callback_set ) {
     // the callback has to be set
     SCIP_CALL_ABORT( SCIPincludeObjConshdlr( scip , 
                     new SCIPMILPSolver_Conhdlr( scip , this , CutSepPar ),
@@ -825,7 +825,7 @@ void SCIPMILPSolver::bound_modification( const OneVarConstraintMod * mod )
    SCIP_Real lb = SCIPMILPSolver::get_problem_lb( *var );
    SCIP_VARTYPE type = SCIPvarGetType	(	scip_var );
    SCIP_Bool inf;
-   if( type == SCIP_VARTYPE_BINARY && lb != 0 ) {
+   if( ( type == SCIP_VARTYPE_BINARY ) && ( lb != 0 ) ) {
     /* During presolving, an integer variable whose bound changes to {0,1} 
     *  is upgraded by SCIP to a binary variable. Thus, here we assume that 
     *  we are changing bound for a previously declared integer variable,
@@ -843,7 +843,7 @@ void SCIPMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   case( RowConstraintMod::eChgRHS ): {
    SCIP_Real ub = SCIPMILPSolver::get_problem_ub( *var );
    SCIP_VARTYPE type = SCIPvarGetType	(	scip_var );
-   if( type == SCIP_VARTYPE_BINARY && ub != 1 ) {
+   if( ( type == SCIP_VARTYPE_BINARY ) && ( ub != 1 ) ) {
     /* During presolving, an integer variable whose bound changes to {0,1} 
     *  is upgraded by SCIP to a binary variable. Thus, here we assume that 
     *  we are changing bound for a previously declared integer variable,
@@ -861,7 +861,8 @@ void SCIPMILPSolver::bound_modification( const OneVarConstraintMod * mod )
   case( RowConstraintMod::eChgBTS ): {
    auto bd = SCIPMILPSolver::get_problem_bounds( *var );
    SCIP_VARTYPE type = SCIPvarGetType	(	scip_var );
-   if( type == SCIP_VARTYPE_BINARY && ( bd[ 0 ] != 0 || bd[ 1 ] != 1 ) ) {
+   if( ( type == SCIP_VARTYPE_BINARY ) &&
+       ( ( bd[ 0 ] != 0 ) || ( bd[ 1 ] != 1 ) ) ) {
     /* During presolving, an integer variable whose bound changes to {0,1} 
     *  is upgraded by SCIP to a binary variable. Thus, here we assume that 
     *  we are changing bound for a previously declared integer variable,
@@ -994,7 +995,7 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
 
   auto qf = dynamic_cast< const QuadFunction * >( f );
   auto dqf = dynamic_cast< const DQuadFunction * >( f );
-  if( ( !qf ) && ( !dqf ) )
+  if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
 		       "unexpected *C05FunctionMod* from Linear Objective" ) );
 
@@ -1056,7 +1057,7 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
        qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , vidx );
      }
 
-     if( !found_qterm && std::get< 1 >( *dcoeffit ) != 0 ) {
+     if( ( ! found_qterm ) && ( std::get< 1 >( *dcoeffit ) != 0 ) ) {
       // v didn't have previously a quadratic coefficient associated
       SCIP_EXPR * new_term;
       std::vector< SCIP_VAR * > var_expr = { vars[ vidx ] };
@@ -1132,7 +1133,7 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
        qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , vidx );
      }
 
-     if( !found_qterm && std::get< 1 >( *dcoeffit ) != 0 ) {
+     if( ( ! found_qterm ) && ( std::get< 1 >( *dcoeffit ) != 0 ) ) {
       // v didn't have previously a quadratic coefficient associated
       SCIP_EXPR * new_term;
       std::vector< SCIP_VAR * > var_expr = { vars[ vidx ] };
@@ -1207,7 +1208,7 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
      qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , idx1 );
    }
 
-   if( !found_qterm ) {
+   if( ! found_qterm ) {
     // v didn't have previously a quadratic coefficient associated
     SCIP_EXPR * new_term;
     std::vector< SCIP_VAR * > var_expr1 = { vars[ idx1 ] };
@@ -1370,7 +1371,7 @@ void SCIPMILPSolver::objective_fvars_modification(
   // Quadratic objective function modification
 
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -1414,7 +1415,7 @@ void SCIPMILPSolver::objective_fvars_modification(
   }
 
   auto modq = static_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -1463,7 +1464,7 @@ void SCIPMILPSolver::objective_fvars_modification(
         qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , glob_idx1 );
     }
 
-    if( !found_qterm ) {
+    if( ! found_qterm ) {
       // v didn't have previously a quadratic coefficient associated
       SCIP_EXPR * new_term;
       std::vector< SCIP_VAR * > var_expr1 = { scip_var1 };
@@ -1489,7 +1490,7 @@ void SCIPMILPSolver::objective_fvars_modification(
   // Separable quadratic objective function modification
 
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -1531,7 +1532,7 @@ void SCIPMILPSolver::objective_fvars_modification(
   }
 
   auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -1576,7 +1577,7 @@ void SCIPMILPSolver::objective_fvars_modification(
           qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , idx );
       }
 
-      if( !found_qterm ) {
+      if( ! found_qterm ) {
         // v didn't have previously a quadratic coefficient associated
         SCIP_EXPR * new_term;
         std::vector< SCIP_VAR * > var_expr = { scip_var };
@@ -1942,7 +1943,7 @@ void SCIPMILPSolver::unset_f_cb_mutex( ) {
 
 std::vector< SCIP_VAR * > SCIPMILPSolver::get_SCIP_var( void ) {
   // return the SCIP variable stored in the protected field of the class
-  return vars;
+  return( vars );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2235,7 +2236,7 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const
   }
 
  // SCIP parameters
- if( par >= dblFirstSCIPPar && par < dblLastAlgParSCPS ) {
+ if( ( par >= dblFirstSCIPPar ) && ( par < dblLastAlgParSCPS ) ) {
   const std::string & scip_par =
    SMSpp_to_SCIP_dbl_pars[ par - dblFirstSCIPPar ];
   SCIP_CALL_ABORT( SCIPgetRealParam( scip, scip_par.c_str(), &value ) );
@@ -2870,7 +2871,7 @@ SCIPMILPSolver_Conhdlr::SCIPMILPSolver_Conhdlr( SCIP* scip,
  // critical section ends here, release the mutex
  scipmilpsolver->unset_f_cb_mutex();
 
- return SCIP_OKAY;
+ return( SCIP_OKAY );
 }
 
 /** local method used to check if a user cut/lazy constraint exists
@@ -2938,7 +2939,7 @@ SCIPMILPSolver_Conhdlr::SCIPMILPSolver_Conhdlr( SCIP* scip,
                               // a no cut is available
  }
 
- return SCIP_OKAY;
+ return( SCIP_OKAY );
 }
 
 
@@ -2975,9 +2976,9 @@ SCIPMILPSolver_Conhdlr::SCIPMILPSolver_Conhdlr( SCIP* scip,
  assert(consdata != NULL);
 
  /* if a new cut is available, the constraint data must be already informed */
- if( !consdata->new_cut )
+ if( ! consdata->new_cut )
   // strange, but nothing to do
-  return SCIP_OKAY;
+  return( SCIP_OKAY );
 
  std::vector< SCIP_VAR * > scip_vars;
  int nvars;
@@ -3045,7 +3046,7 @@ SCIPMILPSolver_Conhdlr::SCIPMILPSolver_Conhdlr( SCIP* scip,
       SCIP_CALL( SCIPreleaseRow(scip, &row) );
       }
 
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -3061,12 +3062,12 @@ SCIP_DECL_CONSENFOLP(SCIPMILPSolver_Conhdlr::scip_enfolp)
  assert( result != NULL );
 
  if( ! ( CutSepPar & 4 ) )  // but we don't do lazy constraint separation
-   return SCIP_OKAY;         // nothing to do
+   return( SCIP_OKAY );         // nothing to do
 
  SCIP_CALL( scipmilpsolver_separation ( scip, conshdlr, parent_scipmilpsolver,
                 conss , NULL , TRUE, result ) );
 
- return SCIP_OKAY;
+ return( SCIP_OKAY );
 
 }
 
@@ -3078,7 +3079,7 @@ SCIP_DECL_CONSSEPALP(SCIPMILPSolver_Conhdlr::scip_sepalp)
  assert( result != NULL );
 
  if( ! ( CutSepPar & 3 ) )  // but we don't do user cut separation
-   return SCIP_OKAY;        // nothing to do
+   return( SCIP_OKAY );        // nothing to do
 
  int depth;
  depth = SCIPgetSubscipDepth( scip ); // find the depth of the current node
@@ -3086,12 +3087,12 @@ SCIP_DECL_CONSSEPALP(SCIPMILPSolver_Conhdlr::scip_sepalp)
  // if we are at a depth for which separation is not enabled
  if( ( ( ! depth ) && ( ! ( CutSepPar & 1 ) ) ) ||
    ( depth && ( ! ( CutSepPar & 2 ) ) ) )
-     return SCIP_OKAY;     // nothing to do
+     return( SCIP_OKAY );     // nothing to do
 
  SCIP_CALL( scipmilpsolver_separation ( scip, conshdlr , parent_scipmilpsolver,
                 conss , NULL , FALSE, result) );
 
- return SCIP_OKAY;
+ return( SCIP_OKAY );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -3100,7 +3101,7 @@ SCIP_DECL_CONSSEPALP(SCIPMILPSolver_Conhdlr::scip_sepalp)
 SCIP_DECL_CONSENFOPS(SCIPMILPSolver_Conhdlr::scip_enfops)
 {  /*lint --e{715}*/
    *result = SCIP_DIDNOTRUN;
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 }
 
 /** feasibility check method of constraint handler for primal solutions */
@@ -3120,7 +3121,7 @@ SCIP_DECL_CONSCHECK(SCIPMILPSolver_Conhdlr::scip_check)
    else // we can add some user cut/lazy constraint
     *result = SCIP_INFEASIBLE;
 
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 }
 
 /** variable rounding lock method of constraint handler */
@@ -3141,7 +3142,7 @@ SCIP_DECL_CONSLOCK(SCIPMILPSolver_Conhdlr::scip_lock)
       SCIP_CALL( SCIPaddVarLocksType(scip, scip_vars[ i ], locktype, nlockspos + nlocksneg, nlockspos + nlocksneg) );
    }
 
- return SCIP_OKAY;
+ return( SCIP_OKAY );
 }
 
 /** transforms constraint data into data belonging to the transformed problem */
@@ -3162,7 +3163,7 @@ SCIP_DECL_CONSTRANS(SCIPMILPSolver_Conhdlr::scip_trans) {
          SCIPconsIsModifiable(sourcecons), SCIPconsIsDynamic(sourcecons), SCIPconsIsRemovable(sourcecons),
          SCIPconsIsStickingAtNode(sourcecons)) );
 
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 }
 
 /** frees specific constraint data */
@@ -3171,7 +3172,7 @@ SCIP_DECL_CONSDELETE(SCIPMILPSolver_Conhdlr::scip_delete) {  /*lint --e{715}*/
    assert(consdata != NULL);
    SCIPfreeBlockMemory(scip, consdata);
 
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 }
 
 
@@ -3187,7 +3188,7 @@ SCIP_RETCODE SMSpp_di_unipi_it::SCIPcreateSCIPMILPSolver_basiccb(
    SCIP_CALL( SCIPcreateSCIPMILPSolver_cb(scip, cons, name, vars ,
          FALSE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, TRUE) );
 
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 }
 
 /** creates and captures a constraint used which will be used as a separator */
@@ -3224,7 +3225,7 @@ SCIP_RETCODE SMSpp_di_unipi_it::SCIPcreateSCIPMILPSolver_basiccb(
    if( conshdlr == NULL )
    {
       SCIPerrorMessage("scipmilpsolver constraint handler not found\n");
-      return SCIP_PLUGINNOTFOUND;
+      return( SCIP_PLUGINNOTFOUND );
    }
 
    /* create constraint data */
@@ -3237,7 +3238,7 @@ SCIP_RETCODE SMSpp_di_unipi_it::SCIPcreateSCIPMILPSolver_basiccb(
          separate, enforce, check, propagate, local, modifiable, dynamic, 
          removable, FALSE) );
 
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 }
 
 /*--------------------------------------------------------------------------*/

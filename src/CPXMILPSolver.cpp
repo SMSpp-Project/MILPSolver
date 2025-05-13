@@ -190,7 +190,7 @@ void CPXMILPSolver::load_problem( void )
  // Quadratic constrained problem
  bool is_qcp = ( numquadrows > 0 );
 
- if( !is_qcp ) {
+ if( ! is_qcp ) {
   // In the LP configuration we can simply add all the linear constraints together.
   #if CPXMILPSOLVER_CHECK
     status = CPXcheckcopylp( env , lp , numcols , numrows , objsense ,
@@ -256,7 +256,7 @@ void CPXMILPSolver::load_problem( void )
   // Now add all constraints
   int count_quad = 0; // Counter of already inserted quadratic constraint
   int num_qauxvar = 0; // Counter of already inserted auxiliary variables
-  for( int i = 0 ; i < numrows ; i++ ){
+  for( int i = 0 ; i < numrows ; i++ ) {
     char * name = use_custom_names ? rowname[ i ] : NULL; // retrieve constraint name
     
     //if( q_part[ i ].nonZeros() == 0 ) {
@@ -299,7 +299,7 @@ void CPXMILPSolver::load_problem( void )
       // Retrieve number of nonzeros in the linear part of the constraint
       int nzcnt = matcnt[ i ];
 
-      if( nzcnt == 0 ){
+      if( nzcnt == 0 ) {
         // Case where q is null
         
         // Prepare coefficients for quadratic part
@@ -328,7 +328,7 @@ void CPXMILPSolver::load_problem( void )
         rmatval.reserve( nzcnt );
 
         // get the coefficients to fill the matrix
-        for( int j = 0 ; j < nzcnt ; j++ ){
+        for( int j = 0 ; j < nzcnt ; j++ ) {
           rmatind.push_back( matind[ start + j ] );
           rmatval.push_back( matval[ start + j ] );
         }
@@ -1245,7 +1245,7 @@ Solver::OFValue CPXMILPSolver::get_var_value( void )
 void CPXMILPSolver::get_var_solution( Configuration * solc )
 {
  std::vector< double > x( numcols, 0 );
- if( numquadrows > 0 ){
+ if( numquadrows > 0 ) {
   // if we have a QCP model, we need also to retrieve the objective values of
   // auxiliary variables
   std::vector< double > x_q( numcols + cpx_idx_aux_qvar.size() , 0 );
@@ -1356,7 +1356,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
  // build a linear constraint (for which a dual value is available). In the same
  // case we also create an auxiliary variable that has to be removed from dj.
  int count_pi = 0;
- if( numquadrows == 0 ){
+ if( numquadrows == 0 ) {
   // Simple linear model
   pi = pi_cpx;
  }
@@ -1367,10 +1367,10 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
   if( CPXgetx( env , lp , x_q.data() , 0 , numcols + cpx_idx_aux_qvar.size() - 1 ) )
     throw( std::runtime_error( "Unable to get the solution with CPXgetx() in QCP" ) );
   
-  for( int i = 0 ; i < numrows ; ++i ){
-    if( q_part[ i ].empty() ){
+  for( int i = 0 ; i < numrows ; ++i ) {
+    if( q_part[ i ].empty() ) {
       // Simple Linear Constraint
-      pi[i] = pi_cpx[count_pi];
+      pi[ i ] = pi_cpx[ count_pi ];
       count_pi++;
     }
     else{
@@ -1380,7 +1380,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
       // Evaluate dual for quadratic constraint
       pi[ i ] = evaluate_dual_qcon( i , x_q );
 
-      if( cpx_quad_con_aux[i] != -1 ){
+      if( cpx_quad_con_aux[ i ] != -1 ) {
         // Linear part available, simply skip the retrieved dual value
         count_pi++;
       }
@@ -1396,7 +1396,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
 
  // Now remove all dual values for auxiliary variables (supposed sorted).
  int count = 0;
- for( auto idx : cpx_idx_aux_qvar ){
+ for( auto idx : cpx_idx_aux_qvar ) {
   dj.erase( dj.begin() + idx - count );
   ++count;
  }
@@ -1472,7 +1472,8 @@ int CPXMILPSolver::cpx_index_of_variable( const ColVariable * var ) const
   // We can use the cpx_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
   int count = 0;
-  while( cpx_idx_aux_qvar[ count ] < idx && count < cpx_idx_aux_qvar.size() ){
+  while( ( cpx_idx_aux_qvar[ count ] < idx ) &&
+         ( count < cpx_idx_aux_qvar.size() ) ) {
     ++idx;
     ++count;
   }
@@ -1496,7 +1497,8 @@ int CPXMILPSolver::cpx_index_of_dynamic_variable( const ColVariable * var ) cons
   // We can use the cpx_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
   int count = 0;
-  while( cpx_idx_aux_qvar[ count ] < idx && count < cpx_idx_aux_qvar.size() ){
+  while( ( cpx_idx_aux_qvar[ count ] < idx ) &&
+         ( count < cpx_idx_aux_qvar.size() ) ) {
     ++idx;
     ++count;
   }
@@ -1515,13 +1517,13 @@ int CPXMILPSolver::cpx_index_of_linear_constraint( const FRowConstraint * con ) 
 
  bool is_qcp = ( numquadrows > 0 );
 
- if( !is_qcp ){
+ if( ! is_qcp ) {
   // Simple Linear Problem
   return( idx );
  }
  else{
   // Check if we are actually asking the index of a linear constraint
-  if( !q_part[ idx].empty() )
+  if( ! q_part[ idx].empty() )
     throw( std::runtime_error( "Tried to retrieve index of quadratic constraint "
       "with cpx_index_of_linear_constraint() method." ) );
 
@@ -1531,13 +1533,13 @@ int CPXMILPSolver::cpx_index_of_linear_constraint( const FRowConstraint * con ) 
   // only quadratic constraint without a linear part, i.e. for which an 
   // auxiliary variable has not been built.
   auto new_idx = idx;
-  for( int j = 0 ; j < idx ; j++ ){
-    if( !q_part[ j ].empty() && cpx_quad_var_aux[ j ] == -1 ){
+  for( int j = 0 ; j < idx ; j++ ) {
+    if( ( ! q_part[ j ].empty() )  && ( cpx_quad_var_aux[ j ] == -1 ) ) {
       // Quadratic constraint without linear part
       new_idx--;
     }
    }
-  return new_idx;
+  return( new_idx );
   }
  }
 
@@ -1907,7 +1909,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
 
   auto qf = dynamic_cast< const QuadFunction * >( f );
   auto dqf = dynamic_cast< const DQuadFunction * >( f );
-  if( ( !qf ) && ( !dqf ) )
+  if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
 		       "unexpected *C05FunctionMod* from Linear Objective" ) );
 
@@ -2204,7 +2206,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // Quadratic objective function modification
   
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -2223,7 +2225,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq = static_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -2259,7 +2261,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // Separable quadratic objective function modification
 
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -2276,7 +2278,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -3709,7 +3711,7 @@ void CPXMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
   qcoeff.resize( qmat.size() );
   int k_term = 0;
 
-  for ( auto entry : qmat ){
+  for ( auto entry : qmat ) {
     auto idx = entry.first; // couple of indices
     qidx1[ k_term ] = idx.first;
     qidx2[ k_term ] = idx.second;
@@ -3743,7 +3745,7 @@ void CPXMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
   std::vector< double > val_gradient;
   val_gradient.reserve( n_nz_QMat );
 
-  for( auto it = QMatrix.begin(); it != QMatrix.end(); ++it){
+  for( auto it = QMatrix.begin(); it != QMatrix.end(); ++it) {
     auto tuple_idxs = it->first;
     int first_idx = tuple_idxs.first;
     int second_idx = tuple_idxs.second;
@@ -3752,7 +3754,7 @@ void CPXMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
     
     // Verify if we already have seen the row index
     auto it_idx = std::find( ind_gradient.begin() , ind_gradient.end() , first_idx );
-    if( it_idx == ind_gradient.end() ){
+    if( it_idx == ind_gradient.end() ) {
       // Insert new element into the gradient structures
       ind_gradient.push_back( first_idx );
       val_gradient.push_back( coeff * x_sol[ second_idx ] );
@@ -3778,7 +3780,7 @@ void CPXMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
       "constraint " + std::to_string( row ) ));
 
 
-  return -1.0;
+  return( -1.0 );
  }
 
 /*--------------------------------------------------------------------------*/

@@ -191,16 +191,16 @@ void MILPSolver::load_problem( void )
     static_cons += count;
     ++static_con_grps;
     continue;
-   }
+    }
 
    // if it's not FRowConstraint, accept any known OneVarConstraint silently
-   if( un_any_thing_OneVarConstraint_static( i , [](){}() ) )
+   // note that the second argument of the macro is empty
+   if( un_any_thing_OneVarConstraint_static( i , ) )
     continue;
 
-   throw( std::invalid_argument(
-    "MILPSolver: static constraint is neither "
-    "FRowConstraint nor OneVarConstraint" ) );
-  }
+   throw( std::invalid_argument( "MILPSolver: static constraint is neither "
+				 "FRowConstraint nor OneVarConstraint" ) );
+   }
 
   // Dynamic constraints
   for( const auto & i : qb->get_dynamic_constraints() ) {
@@ -208,44 +208,48 @@ void MILPSolver::load_problem( void )
    if( count != Inf< std::size_t >() ) {
     numrows += count;
     continue;
-   }
+    }
 
    // if it's not FRowConstraint, accept any known OneVarConstraint silently
-   if( un_any_thing_OneVarConstraint_dynamic( i , [](){}() ) )
+   // note that the second argument of the macro is empty
+   if( un_any_thing_OneVarConstraint_dynamic( i , ) )
     continue;
 
-   throw( std::invalid_argument(
-    "MILPSolver: dynamic constraint is neither "
-    "FRowConstraint nor OneVarConstraint" ) );
-  }
+   throw( std::invalid_argument( "MILPSolver: dynamic constraint is neither "
+				 "FRowConstraint nor OneVarConstraint" ) );
+   }
 
   auto counter_static_lin_quad_row = [ this , & nst_linrow, & nst_quadrow ]
                               ( FRowConstraint & cons ) {
-  if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
     ++nst_linrow;
-  else if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
-    ++nst_quadrow;
-  else if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
-    ++nst_quadrow;
-  };
+   else
+    if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+     ++nst_quadrow;
+    else
+     if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+      ++nst_quadrow;
+   };
 
   auto counter_dynamic_lin_quad_row = [ this , & ndy_linrow, & ndy_quadrow ]
                               ( FRowConstraint & cons ) {
-  if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
     ++ndy_linrow;
-  else if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
-    ++ndy_quadrow;
-  else if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
-    ++ndy_quadrow;
-  };
+   else
+    if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+     ++ndy_quadrow;
+    else
+     if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+      ++ndy_quadrow;
+   };
 
   for( const auto & i : qb->get_static_constraints() )
    un_any_const_static( i , counter_static_lin_quad_row ,
-                          un_any_type< FRowConstraint >() );
+			un_any_type< FRowConstraint >() );
 
   for( const auto & i : qb->get_dynamic_constraints() )
    un_any_const_dynamic( i , counter_dynamic_lin_quad_row , 
-                          un_any_type< FRowConstraint >() );
+			 un_any_type< FRowConstraint >() );
 
   // Fill number of quadratic rows
   numquadrows = nst_quadrow + ndy_quadrow;
@@ -258,14 +262,14 @@ void MILPSolver::load_problem( void )
    numcols += count;
    static_vars += count;
    ++static_var_grps;
-  }
+   }
 
   for( const auto & i : qb->get_dynamic_variables() ) {
    auto count = un_any_thing_count_dynamic( ColVariable , i );
    if( count == Inf< std::size_t >() )
     throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
    numcols += count;
-  }
+   }
 
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
    for( auto * i : var.active_stuff() )
@@ -301,13 +305,13 @@ void MILPSolver::load_problem( void )
   matbeg.resize( numcols + 1, 0 );
   matbeg[ numcols ] = nzelements;
   matcnt.resize( numcols, 0 );
- }
+  }
  else {
   matbeg.resize( numrows + 1, 0 );
   matbeg[ numrows ] = nzelements;
   matcnt.resize( numrows , 0 );
   q_part.resize( numrows );
- }
+  }
 
  matind.resize( nzelements, 0 );
  matval.resize( nzelements, 0 );
@@ -341,12 +345,12 @@ void MILPSolver::load_problem( void )
  idx_to_dcon.reserve( numrows - static_cons );
 
  // Acccount also for link between variables and bound
- if( single_bound == true ) {
+ if( single_bound ) {
   svar_to_bound.clear();
   dvar_to_bound.clear();
   svar_to_bound.reserve( static_vars );
   dvar_to_bound.reserve( numcols - static_vars );
- }
+  }
 
  /* Now we have to check wheter there are any quadratic constraints. 
   * If this is the case, then matbeg, matcnt, ... will represent the 
@@ -360,7 +364,8 @@ void MILPSolver::load_problem( void )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  num_block = 0;
- //quad_row = nst_linrow + ndy_linrow; // quadratic rows starts after linear ones
+ // quad_row = nst_linrow + ndy_linrow;
+ // quadratic rows starts after linear ones
  for( auto qb : v_BFS ) {
   Index set = 0;  // counter for the constraint groups
 
@@ -385,9 +390,7 @@ void MILPSolver::load_problem( void )
    Index start = row;
 
    auto scan = [ this , & row ]
-      ( const FRowConstraint & c ) {
-        scan_dynamic_constraint( c , row );
-    };
+    ( const FRowConstraint & c ) { scan_dynamic_constraint( c , row ); };
    un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
 
    //  write names
@@ -402,7 +405,8 @@ void MILPSolver::load_problem( void )
      name = base + "_" + std::to_string( num_block )
           + "_" + std::to_string( n );
 
-    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] ,
+				   name.c_str() );
     }
    set++;
    }
@@ -451,7 +455,7 @@ void MILPSolver::load_problem( void )
    // OneVarConstraint is associated with a single variable.
    // Morevorer, the vector linking the variable with the associated bound, 
    // needs to be filled.
-   if( single_bound == true ) {
+   if( single_bound ) {
     auto scan_bound = [ this ]( const ColVariable & v ) {
       scan_static_variable_bound( v );
     };
@@ -499,7 +503,7 @@ void MILPSolver::load_problem( void )
    // OneVarConstraint is associated with a single variable.
    // Morevorer, the vector linking the variable with the associated bound, 
    // needs to be filled.
-   if( single_bound == true ) {
+   if( single_bound ) {
     auto scan_bound = [ this ]( const ColVariable & v ) {
       scan_dynamic_variable_bound( v );
     };
@@ -908,8 +912,7 @@ std::vector< FRowConstraint * > MILPSolver::get_active_constraints(
 /*--------------------------------------------------------------------------*/
 
 std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
-					      const ColVariable & var ,
-                bool first_scan ) const
+					      const ColVariable & var , bool first_scan ) const
 {
  std::vector< OneVarConstraint * > active_bounds;
  
@@ -919,7 +922,7 @@ std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
  *  We also check if we are calling this function from the load_problem: in
  *  this case (i.e. first_scan = true) we still have to fill the dictionaries.
  */
- if( single_bound == true && first_scan == false ) {
+ if( single_bound && ( ! first_scan ) ) {
   int idx = index_of_variable( &var ); // get variable index
 
   if( idx < static_vars ) { // the variable is static
@@ -928,9 +931,9 @@ std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
       const_cast< OneVarConstraint * >( svar_to_bound[ idx ] ) );
    }
   else { // the variable is dynamic
-   if( dvar_to_bound[idx - static_vars] != nullptr )
+   if( dvar_to_bound[ idx - static_vars ] != nullptr )
     active_bounds.push_back( 
-     const_cast< OneVarConstraint * >( dvar_to_bound[idx - static_vars] ) );
+     const_cast< OneVarConstraint * >( dvar_to_bound[ idx - static_vars ] ) );
    }
   }
  else { // The option is not activated, scan all active stuff
@@ -1014,7 +1017,6 @@ int MILPSolver::index_of_constraint( const FRowConstraint * con ) const
  }
 
 /*--------------------------------------------------------------------------*/
-
 
 int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) const
 {
@@ -1304,7 +1306,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
        * Eigen::SparseMatrix, as already done in QuadFunction. However, we
        * need to translate the local indices stored in a specific QuadFunction
        * into the global one of the model. */
-      
+
       // Retrieve sparse quadratic matrix
       auto local_qmatrix = qf->get_matrix();
       std::map< mat_indices , float > global_qmatrix;
@@ -1326,7 +1328,6 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         if( std::get< 1 >( el ) != 0 ) {
           matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
           matind[ matbeg[ row ] + nnz ] = idx_v;
-
           nnz++;
         }
 
@@ -1382,7 +1383,6 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         if( std::get< 1 >( el ) != 0 ) {
           matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
           matind[ matbeg[ row ] + nnz ] = idx_v;
-
           nnz++;
         }
 
@@ -1456,9 +1456,9 @@ void MILPSolver::scan_static_variable_bound( const ColVariable & var )
  // set to true. Thus, we have to check that maximum a single OneVarConstraint
  // is contained in the vector.
  if( active_bounds.size() > 1 )
-   throw( std::logic_error( "Only a single OneVarConstraint can be " + 
-    std::string("associated to a variable when the option intSingleBound is ") +
-    "set to 1 " ) );
+   throw( std::logic_error( "Only a single OneVarConstraint can be associated "
+                            "to a variable when the option intSingleBound is "
+                            "set to 1" ) );
 
  // Otherwise, if a single OneVarConstraint exists, we have to fill the 
  // dictionary.
@@ -1479,9 +1479,9 @@ void MILPSolver::scan_dynamic_variable_bound( const ColVariable & var )
  // set to true. Thus, we have to check that maximum a single OneVarConstraint
  // is contained in the vector.
  if( active_bounds.size() > 1 )
-   throw( std::logic_error( "Only a single OneVarConstraint can be " + 
-    std::string("associated to a variable when the option intSingleBound is ") +
-    "set to 1 " ) );
+   throw( std::logic_error( "Only a single OneVarConstraint can be associated "
+                            "to a variable when the option intSingleBound is "
+                            "set to 1" ) );
 
  // Otherwise, if a single OneVarConstraint exists, we have to fill the 
  // dictionary.
@@ -2274,8 +2274,8 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
   }
 
  /* If the check on SingleBound is active, scan the 
- *  OneVarConstraint associated to the variable */
- if( single_bound == true )
+ *  OneVarConstraint associated with the variable */
+ if( single_bound )
   scan_dynamic_variable_bound( *var );
 
  // update the matrix, if any
@@ -2322,26 +2322,26 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
  ub[ idx ] = bd[ 1 ];
 
  /* If the check on SingleBound is active, it is important to check that 
- *  no other OneVarConstraint are already associated to the variable. 
+ *  no other OneVarConstraint are already associated with the variable.
  *  If this is the case, then add the new bound to the dictionary. */
- if( single_bound == true ) {
+ if( single_bound ) {
   if( idx < static_vars ) { // the variable is static
    if( svar_to_bound[ idx ] != nullptr ) // There was already a bound set
-     throw( std::logic_error( "Only a single OneVarConstraint can be " + 
-     std::string("associated to a variable when the option intSingleBound is ") +
-     "set to 1 " ) );
+     throw( std::logic_error( "Only a single OneVarConstraint can be associated"
+                              " to a variable when the option intSingleBound is"
+                              " set to 1" ) );
 
-   else // No OneVarConstraint was previously associated to the variable. 
+   else // No OneVarConstraint was previously associated with the variable.
     svar_to_bound[ idx ] = con; // Update the dictionary
    }
   else { // the variable is dynamic
-   if( dvar_to_bound[idx - static_vars] != nullptr ) // There was already a bound set
-     throw( std::logic_error( "Only a single OneVarConstraint can be " + 
-     std::string("associated to a variable when the option intSingleBound is ") +
-     "set to 1 " ) );
+   if( dvar_to_bound[ idx - static_vars ] != nullptr ) // There was already a bound set
+     throw( std::logic_error( "Only a single OneVarConstraint can be associated"
+                              " to a variable when the option intSingleBound is"
+                              " set to 1" ) );
 
-   else // No OneVarConstraint was previously associated to the variable. 
-    dvar_to_bound[idx - static_vars] = con; // Update the dictionary
+   else // No OneVarConstraint was previously associated with the variable.
+    dvar_to_bound[ idx - static_vars ] = con; // Update the dictionary
    }
   }
  }
@@ -2409,7 +2409,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
   index = it1->second;
   dvar_to_idx.erase( it1 );
   idx_to_dvar.erase( idx_to_dvar.begin() + ( index - static_vars ) );
-  if( single_bound == true )
+  if( single_bound )
     dvar_to_bound.erase( dvar_to_bound.begin() + ( index - static_vars ) );
   }
  else
@@ -2475,11 +2475,11 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  /* If the check on SingleBound is active, we have to remove the pointer to 
  *  the OneVarConstraint from the svar_to_bound or svar_to_bound dictionaries. 
  */
- if( single_bound == true ) {
+ if( single_bound ) {
   if( idx < static_vars ) // the variable is static
    svar_to_bound[ idx ] = nullptr;
   else // the variable is dynamic
-   dvar_to_bound[idx - static_vars] = nullptr;
+   dvar_to_bound[ idx - static_vars ] = nullptr;
   }
  }
 
@@ -2862,8 +2862,8 @@ void MILPSolver::check_status( void )
  for( auto & i: idx_to_svar ) {
   auto j = std::find_if( svar_to_idx.begin(), svar_to_idx.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 1 >( pair ) == i.first &&
-                                  std::get< 0 >( pair ) == i.second );
+                          return( ( std::get< 1 >( pair ) == i.first ) &&
+                                  ( std::get< 0 >( pair ) == i.second ) );
                          } );
   if( j == svar_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
@@ -2875,8 +2875,8 @@ void MILPSolver::check_status( void )
  for( auto & i: svar_to_idx ) {
   auto j = std::find_if( idx_to_svar.begin(), idx_to_svar.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 0 >( i ) == pair.second &&
-                                  std::get< 1 >( i ) == pair.first );
+                          return( ( std::get< 0 >( i ) == pair.second ) &&
+                                  ( std::get< 1 >( i ) == pair.first ) );
                          } );
   if( j == idx_to_svar.end() ) {
    DEBUG_LOG( ", " << std::get< 1 >( i ) <<
@@ -2936,8 +2936,8 @@ void MILPSolver::check_status( void )
  for( auto & i: idx_to_scon ) {
   auto j = std::find_if( scon_to_idx.begin(), scon_to_idx.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 1 >( pair ) == i.first &&
-                                  std::get< 0 >( pair ) == i.second );
+                          return( ( std::get< 1 >( pair ) == i.first ) &&
+                                  ( std::get< 0 >( pair ) == i.second ) );
                          } );
   if( j == scon_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
@@ -2949,8 +2949,8 @@ void MILPSolver::check_status( void )
  for( auto & i: scon_to_idx ) {
   auto j = std::find_if( idx_to_scon.begin(), idx_to_scon.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 0 >( i ) == pair.second &&
-                                  std::get< 1 >( i ) == pair.first );
+                          return( ( std::get< 0 >( i ) == pair.second ) &&
+                                  ( std::get< 1 >( i ) == pair.first ) );
                          } );
   if( j == idx_to_scon.end() ) {
    DEBUG_LOG( ", " << std::get< 1 >( i )
