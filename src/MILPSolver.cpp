@@ -1199,9 +1199,8 @@ template< typename T >
    throw std::runtime_error("Unsupported multi-array type");
  }
  else
-    // Handle invalid or unsupported ma_dim
-    throw std::runtime_error("MILPSolver currently support only "
-      "2D or 3D multi-array");
+    // Handle invalid or unsupported ma_dim 
+    return; 
 
 } // end( MILPSolver::scan_multiarray_st_group )
 
