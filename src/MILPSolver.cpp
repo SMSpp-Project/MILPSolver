@@ -1334,7 +1334,7 @@ int MILPSolver::index_of_static_variable( const ColVariable * var ) const
  auto first = const_cast< const ColVariable * >( std::get< 0 >( *it ) );
  int distance = std::distance( first , var );
 
- if( ( distance >= 0 ))// && ( distance < std::get< 2 >( *it ) ) )
+ if( ( distance >= 0 ) && ( distance < std::get< 2 >( *it ) ) )
   // The element belongs to this group
   return( std::get< 1 >( *it ) + distance );
 
