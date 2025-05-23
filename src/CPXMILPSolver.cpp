@@ -120,6 +120,10 @@ CPXMILPSolver::~CPXMILPSolver()
   CPXfreeprob( env , & lp );
 
  CPXcloseCPLEX( & env );
+
+ cpx_quad_var_aux.clear();
+ cpx_quad_con_aux.clear();
+ cpx_idx_aux_qvar.clear();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -155,6 +159,11 @@ void CPXMILPSolver::load_problem( void )
  MILPSolver::load_problem();
 
  int status = 0;
+
+ cpx_quad_var_aux.clear();
+ cpx_quad_con_aux.clear();
+ cpx_idx_aux_qvar.clear();
+
  if( lp )
   CPXfreeprob( env , & lp );
  lp = CPXcreateprob( env , & status , prob_name.c_str() );
@@ -358,6 +367,8 @@ void CPXMILPSolver::load_problem( void )
 
         CPXnewcols( env , lp , 1 , 0 , v_lb.data() , 
                v_ub.data() , nullptr , v_name.data() );
+
+        delete[] v_name[ 0 ];
 
         rmatind.push_back( numcols + count_quad );
         rmatval.push_back( 1 );
