@@ -119,6 +119,8 @@ void SCIPMILPSolver::load_problem( void )
  qobj_idx1.clear();
  qobj_idx2.clear();
 
+ obj_aux_con = nullptr;
+
  SCIP_CALL_ABORT( SCIPfreeProb( scip ) );
  SCIP_CALL_ABORT( SCIPcreateProbBasic( scip , prob_name.c_str() ) );
 

@@ -149,6 +149,8 @@ void GRBMILPSolver::load_problem( void )
  grb_quad_con_aux.clear();
  grb_idx_aux_qvar.clear();
 
+ map_rng_con_aux_var.clear();
+
  if( model ) {
   GRBfreemodel( model );
   model = nullptr;
