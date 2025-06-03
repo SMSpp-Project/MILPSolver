@@ -90,6 +90,11 @@ HiGHSMILPSolver::~HiGHSMILPSolver()
   delete el;
 
  Highs_destroy(highs);
+
+ // Free auxiliary structures
+ q_obj_begin.clear();
+ q_obj_ind.clear();
+ q_obj_val.clear();
  }
 
  /*--------------------------------------------------------------------------*/
@@ -120,6 +125,10 @@ void HiGHSMILPSolver::clear_problem( unsigned int what )
 void HiGHSMILPSolver::load_problem( void )
 {
  MILPSolver::load_problem();
+
+ q_obj_begin.clear();
+ q_obj_ind.clear();
+ q_obj_val.clear();
 
  int model_status = Highs_getModelStatus( highs );
  if( model_status == kHighsModelStatusModelEmpty )
