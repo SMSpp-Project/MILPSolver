@@ -75,6 +75,13 @@ SCIPMILPSolver::~SCIPMILPSolver()
   delete el;
 
  SCIPfree( & scip );
+
+ // Free auxiliary structures
+ vars.clear();
+ cons.clear();
+
+ qobj_idx1.clear();
+ qobj_idx2.clear();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -105,6 +112,12 @@ void SCIPMILPSolver::clear_problem( unsigned int what )
 void SCIPMILPSolver::load_problem( void )
 {
  MILPSolver::load_problem();
+
+ vars.clear();
+ cons.clear();
+
+ qobj_idx1.clear();
+ qobj_idx2.clear();
 
  SCIP_CALL_ABORT( SCIPfreeProb( scip ) );
  SCIP_CALL_ABORT( SCIPcreateProbBasic( scip , prob_name.c_str() ) );
