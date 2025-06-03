@@ -99,6 +99,16 @@ GRBMILPSolver::~GRBMILPSolver()
   GRBfreemodel( model );
 
  GRBfreeenv( env );
+
+ // Free auxiliary structures
+
+ // QP
+ grb_quad_var_aux.clear();
+ grb_quad_con_aux.clear();
+ grb_idx_aux_qvar.clear();
+
+ // Ranged constraints
+ map_rng_con_aux_var.clear();
  }
 
  /*--------------------------------------------------------------------------*/
@@ -134,6 +144,11 @@ void GRBMILPSolver::load_problem( void )
  MILPSolver::load_problem();
 
  int status = 0;
+
+ grb_quad_var_aux.clear();
+ grb_quad_con_aux.clear();
+ grb_idx_aux_qvar.clear();
+
  if( model ) {
   GRBfreemodel( model );
   model = nullptr;
