@@ -697,7 +697,9 @@ template< typename T >
                                     un_any_int< 2 >() );
 
  // Name of the group
- auto base = qb->get_s_const_name()[ set ];
+ auto base = (typeid(T*) == typeid(FRowConstraint*))
+                ? qb->get_s_const_name()[set]
+                : qb->get_s_var_name()[set];
 
  if( ma_dim == 2 ){
   // Use the 2D multi_array
