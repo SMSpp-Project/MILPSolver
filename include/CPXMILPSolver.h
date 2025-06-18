@@ -662,7 +662,7 @@ class CPXMILPSolver : public MILPSolver {
  int cpx_index_of_variable( const ColVariable * var ) const;
 
  // function to retrieve actual idx of dynamic variable considering auxiliary ones
- int cpx_index_of_dynamic_variable( const ColVariable * var ) const; 
+ int cpx_index_of_dynamic_variable( const ColVariable * var ) const;
 
  // function to retrieve actual idx of constraint. In CPLEX indices of linear and
  // quadratic constraint are disjoint, so we need to retrieve the actual index 

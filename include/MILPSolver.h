@@ -274,6 +274,61 @@ class MILPSolver : public CDASolver
 
  virtual void load_problem( void );
 
+/*--------------------------------------------------------------------------*/
+ /// methods to scan a single group of Constraints or Variables
+
+ /** Scans a "simple" static group of FRowConstraint or ColVariable.
+ *
+ * This function is called from load_problem() whenever a new group of
+ * FRowConstraint or ColVariable is encountered. The group should be contained
+ * in an "easy" structure (e.g. T *, std::vector< T* >).
+ *
+ * @param gr        Reference to the group being scanned.
+ * @param qb        The block from which the group originated.
+ * @param num_block Sequential number of the block in MILPSolver.
+ * @param set       Index of the constraint set within qb.
+ * @param counter   Current number of elements of type T that have been
+ *                  scanned.
+ * @param T         The element type of the group. Should be either 
+ *                  FRowConstraint or ColVariable, depending on the group 
+ *                  being scanned.
+ */
+ 
+ template< typename T >
+ void scan_st_group( const boost::any & gr , Block * qb , Index num_block ,
+                    Index set , Index & counter , un_any_type< T > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** Scans a "complex" static group of FRowConstraint or ColVariable.
+ *
+ * This function is called from load_problem() whenever a new group of
+ * FRowConstraint or ColVariable is encountered. The group should be contained
+ * in a more "complex" structure (e.g. multi_array< T* >, 
+ * multi_array< std::vector < T* > >).
+ *
+ * @param gr        Reference to the group being scanned.
+ * @param qb        The block from which the group originated.
+ * @param num_block Sequential number of the block in MILPSolver.
+ * @param set       Index of the constraint set within qb.
+ * @param counter   Current number of elements of type T that have been
+ *                  scanned.
+ * @param T         The element type of the group. Should be either 
+ *                  FRowConstraint or ColVariable, depending on the group 
+ *                  being scanned.
+ */
+ 
+ template< typename T >
+ void scan_multiarray_st_group( const boost::any & gr , Block * qb ,
+            Index num_block , Index set , Index & counter , un_any_type< T > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// common part of scan_st_group() and scan_multiarray_st_group()
+
+ template< typename T >
+ void scan_group( const boost::any & gr , Block * qb , Index num_block ,
+                  Index set , Index & row , un_any_type< T > );
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Getters for the vectors of the MILP problem.
@@ -702,7 +757,7 @@ class MILPSolver : public CDASolver
   *  - svar_to_idx, scon_to_idx, scon_to_idx : vectors of tuples 
   *    that store 1) the address of the first element of each group of static 
   *    variables and constraints, respectively, 2) the 
-  *    corresponding index in constraint matrix (column or row), and 3) 
+  *    corresponding index in constraint matrix (column or row) and 3) 
   *    the number of elements in the group.
   *    The vectors are kept sorted in ascending order by address.
   *
@@ -1106,9 +1161,7 @@ class MILPSolver : public CDASolver
   * @param con a reference to a FRowConstraint
   * @param n a counter that should be 0 when row is the first
   *            element of a vector of linear static FRowConstraints
-  * @param row a counter for constraints/rows
-  * @param is_q_row a bool vector stating for each row of the group if it is
-                    quadratic */
+  * @param row a counter for constraints/rows */
 
  void scan_static_constraint( const FRowConstraint & con , Index & n,
 			      Index & row );
@@ -1123,9 +1176,7 @@ class MILPSolver : public CDASolver
   * constraint is linear since the identical function zero is.
   *
   * @param con a reference to a FRowConstraint
-  * @param row a counter for constraints/rows
-  * @param is_q_row a bool vector stating if each row of the group is
-                    quadratic */
+  * @param row a counter for constraints/rows */
 
  void scan_dynamic_constraint( const FRowConstraint & con , Index & row );
 
@@ -1159,6 +1210,102 @@ class MILPSolver : public CDASolver
   * @param obj a FRealObjective */
 
  void scan_objective( const FRealObjective * obj );
+
+/*--------------------------------------------------------------------------*/
+/*--------------- AUXILIARY METHODS FOR MULTI-ARRAY GROUP  -----------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Multi-array methods
+ *
+ * These methods are used in load_problem() to read data from complex
+ * multi_array<> structures.
+ * Each method is templated with:
+ *  1) T - the type of elements in the group, expected to be either
+ *     ColVariable or FRowConstraint.
+ *  2) K - the number of dimensions of the multi_array.
+ *
+ * NOTE: Currently, only 2D or 3D arrays are supported.
+ * @{ */
+
+ /** Scans a multi_array structure and returns its number of dimensions.
+  *
+  * This method attempts to cast a boost::any element to a boost::multi_array.
+  * It should be used as a recursive method, as it will try to cast an 
+  * increasing number of dimensions until the cast succeeds.
+  * If the cast succeeds, it returns the number of dimensions of the array.
+  * A default maximum of K = 9 dimensions is used when attempting the cast.
+  * 
+  * @param any the reference to the multi_array
+  * @param T the basic type of the multi_array
+  * @param K the number of dimensions of the multi array 
+ */
+
+ template< typename T , unsigned short K >
+  int get_multi_array_dim( const boost::any & any ,
+                           un_any_type< T > , un_any_int< K > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ template< typename T >
+  int get_multi_array_dim( const boost::any & ,
+                          un_any_type< T > , un_any_int< 9 > ) {
+  return( -1 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** Scans a multi_array structure and returns its type.
+  *
+  * This method attempts to cast a boost::any element to a boost::multi_array
+  * with fixed number of dimensions K.
+  * If the cast succeeds, it returns the type of the array.
+  * In SMS++ currently two different types of multi_array are available:
+  *
+  * - boost::multi_array< T > -> type 0
+  * - boost::multi_array< std::vector < T > > -> type 1
+  * 
+  * @param any the reference to the multi_array
+  * @param T the basic type of the multi_array
+  * @param K the number of dimensions of the multi array 
+ */
+ template< typename T , unsigned short K >
+  int get_multi_array_type( 
+                         const boost::any & any ,
+                         un_any_type< T > , 
+                         un_any_int< K > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** These methods attempt to cast a multi_array with specific attributes.
+ * If the cast is successful, they return a pointer to the resulting 
+ * structure. 
+ * 
+ * @param any the reference to the multi_array
+ * @param T the basic type of the multi_array
+ * @param K the number of dimensions of the multi array */
+
+ // Cast to a 2D multi_array of type 0
+ template< typename T >
+ boost::multi_array< T , 2 > * get_multi_array0( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 2 > );
+
+ // Cast to a 2D multi_array of type 1
+ template< typename T >
+ boost::multi_array< std::vector< T >, 2 > * get_multi_array1( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 2 > );
+
+ // Cast to a 3D multi_array of type 0
+ template< typename T >
+ boost::multi_array< T , 3 > * get_multi_array0( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 3 > );
+
+ // Cast to a 3D multi_array of type 1
+ template< typename T >
+ boost::multi_array< std::vector< T >, 3 > * get_multi_array1( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 3 > );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
