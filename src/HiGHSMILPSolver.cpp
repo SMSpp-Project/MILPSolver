@@ -1125,8 +1125,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    int nnz_old_hessian = q_obj_val.size();
    int nnz_new_hessian = nnz_old_hessian;
 
-   for( auto v : *vars )
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+   for( auto v : *vars ){
+    if( auto idx = *(idxit++) ; idx < Inf< Index >() ){
      auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
      *(cidxit++) = cidx;
       
@@ -1144,48 +1144,71 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      // should be kept in upper triangular form. Thus, the diagonal term can be
      // found at the first position correponding to the coefficients related to
      // column cidx.
-     int var_coeff_begin = q_obj_begin[ cidx ];
-     auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit ); 
-     if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
-      // no quadratic coefficient was already set for the diagonal term and
-      // the quadratic coefficient is nonzero
-      ++nnz_new_hessian;
-      auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-      
-      // Update q_obj_begin for all the variables having a greater index
-      while( it_q_begin != q_obj_begin.end() ) {
-       ++( *it_q_begin );
-       ++it_q_begin;
-      }
-
-      // Insert new term in the other vectors
-      q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
-                     delta_q_coeff );
-      q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
-    }
-    else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
-    // there was already a value in the hessian diagonal for the variable cidx
-      if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
-       // the delta value is the opposite of the old one (i.e. we are removing
-       // the term from the hessian matrix)
-       --nnz_new_hessian;
-       auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-       // Update q_obj_begin
-       while( it_q_begin != q_obj_begin.end() ) {
-        --( *it_q_begin );
+     if( std::get< 1 >( *dcoeffit ) != 0 ){
+      if( q_obj_begin.empty() ){
+        // This could happen when we started with a LinearFunction on the objective,
+        // and now we are trying to add quadratic terms for already active variables.
+        q_obj_begin.resize( numcols , 0 );
+        q_obj_val.push_back( 2 * std::get< 1 >( *dcoeffit ) );
+        q_obj_ind.push_back( cidx );
+        ++nnz_new_hessian;
+        
+        // Update q_obj_begin for all the variables having a greater index
+        auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+        while( it_q_begin != q_obj_begin.end() ) {
+        ++( *it_q_begin );
         ++it_q_begin;
         }
-        q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
-        q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
       }
-      else{ // just update the array q_obj_val with the new value
-        q_obj_val[ var_coeff_begin ] += delta_q_coeff;
+      else{
+        int var_coeff_begin = q_obj_begin[ cidx ];
+        auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit ); 
+        if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
+          // no quadratic coefficient was already set for the diagonal term and
+          // the quadratic coefficient is nonzero
+          ++nnz_new_hessian;
+          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+          
+          // Update q_obj_begin for all the variables having a greater index
+          while( it_q_begin != q_obj_begin.end() ) {
+          ++( *it_q_begin );
+          ++it_q_begin;
+          }
+
+          // Insert new term in the other vectors
+          q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
+                        delta_q_coeff );
+          q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
+        }
+        else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
+        // there was already a value in the hessian diagonal for the variable cidx
+          if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
+          // the delta value is the opposite of the old one (i.e. we are removing
+          // the term from the hessian matrix)
+          --nnz_new_hessian;
+          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+          // Update q_obj_begin
+          while( it_q_begin != q_obj_begin.end() ) {
+            --( *it_q_begin );
+            ++it_q_begin;
+            }
+            q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
+            q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
+          }
+          else{ // just update the array q_obj_val with the new value
+            q_obj_val[ var_coeff_begin ] += delta_q_coeff;
+          }
+        }
       }
      }
-    dcoeffit++;
     }
+    dcoeffit++;
+   }
+
    // Update Hessian
-   int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
+   int status = 0;
+   if( !q_obj_begin.empty() )
+    status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
                       kHighsHessianFormatTriangular , q_obj_begin.data() ,
                       q_obj_ind.data() , q_obj_val.data()
                       );
@@ -1203,7 +1226,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    Highs_changeColsCostBySet( highs , cidx.size() , cidx.data() , nval.data() );
    return;
    }
-  else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
+  else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ){
    // we exploit the delta() vector of DQuadFunctionModSbst, giving the difference
    // between the new and the old value of both linear and quadratic coefficient,
    // to update the objective values without having to recompute them: since they are
@@ -1226,8 +1249,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    int nnz_old_hessian = q_obj_val.size();
    int nnz_new_hessian = nnz_old_hessian;
 
-   for( auto v : *vars )
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+   for( auto v : *vars ){
+    if( auto idx = *(idxit++) ; idx < Inf< Index >() ){
      auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
      *(cidxit++) = cidx;
       
@@ -1245,48 +1268,71 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      // should be kept in upper triangular form. Thus, the diagonal term can be
      // found at the first position correponding to the coefficients related to
      // column cidx.
-     int var_coeff_begin = q_obj_begin[ cidx ];
-     auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit );
-     if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
-      // no quadratic coefficient was already set for the diagonal term and
-      // the quadratic coefficient is nonzero
-      ++nnz_new_hessian;
-      auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-      
-      // Update q_obj_begin for all the variables having a greater index
-      while( it_q_begin != q_obj_begin.end() ) {
-       ++( *it_q_begin );
-       ++it_q_begin;
-      }
-
-      // Insert new term in the other vectors
-      q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
-                     delta_q_coeff );
-      q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
-    }
-    else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
-    // there was already a value in the hessian diagonal for the variable cidx
-      if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
-       // the delta value is the opposite of the old one (i.e. we are removing
-       // the term from the hessian matrix)
-       --nnz_new_hessian;
-       auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-       // Update q_obj_begin
-       while( it_q_begin != q_obj_begin.end() ) {
-        --( *it_q_begin );
+     if( std::get< 1 >( *dcoeffit ) != 0 ){
+      if( q_obj_begin.empty() ){
+        // This could happen when we started with a LinearFunction on the objective,
+        // and now we are trying to add quadratic terms for already active variables.
+        q_obj_begin.resize( numcols , 0 );
+        q_obj_val.push_back( 2 * std::get< 1 >( *dcoeffit ) );
+        q_obj_ind.push_back( cidx );
+        ++nnz_new_hessian;
+        
+        // Update q_obj_begin for all the variables having a greater index
+        auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+        while( it_q_begin != q_obj_begin.end() ) {
+        ++( *it_q_begin );
         ++it_q_begin;
         }
-        q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
-        q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
       }
-      else{ // just update the array q_obj_val with the new value
-        q_obj_val[ var_coeff_begin ] += delta_q_coeff;
+      else{
+        int var_coeff_begin = q_obj_begin[ cidx ];
+        auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit );
+        if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
+          // no quadratic coefficient was already set for the diagonal term and
+          // the quadratic coefficient is nonzero
+          ++nnz_new_hessian;
+          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+          
+          // Update q_obj_begin for all the variables having a greater index
+          while( it_q_begin != q_obj_begin.end() ) {
+          ++( *it_q_begin );
+          ++it_q_begin;
+          }
+
+          // Insert new term in the other vectors
+          q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
+                        delta_q_coeff );
+          q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
+        }
+        else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
+        // there was already a value in the hessian diagonal for the variable cidx
+          if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
+          // the delta value is the opposite of the old one (i.e. we are removing
+          // the term from the hessian matrix)
+          --nnz_new_hessian;
+          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+          // Update q_obj_begin
+          while( it_q_begin != q_obj_begin.end() ) {
+            --( *it_q_begin );
+            ++it_q_begin;
+            }
+            q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
+            q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
+          }
+          else{ // just update the array q_obj_val with the new value
+            q_obj_val[ var_coeff_begin ] += delta_q_coeff;
+          }
+        }
       }
      }
-    dcoeffit++;
     }
+    dcoeffit++;
+   }
+   
    // Update Hessian
-   int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
+   int status = 0;
+   if( !q_obj_begin.empty() )
+    status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
                       kHighsHessianFormatTriangular , q_obj_begin.data() ,
                       q_obj_ind.data() , q_obj_val.data()
                       );
