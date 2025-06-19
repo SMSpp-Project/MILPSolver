@@ -1545,6 +1545,10 @@ void MILPSolver::scan_dynamic_variable( const ColVariable & var ,
 
 void MILPSolver::scan_variable( const ColVariable & var , Index & col )
 {
+ // Check if the Variable is not empty
+ if( !var )
+  throw( std::invalid_argument( "The provided variable is empty" ) );
+
  auto bd = MILPSolver::get_problem_bounds( var );
  if( var.is_fixed() ) {
   lb[ col ] = std::max( bd[ 0 ] , var.get_value() );
@@ -1629,6 +1633,10 @@ void MILPSolver::scan_dynamic_constraint( const FRowConstraint & con ,
 
 void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 {
+ // Check if the Constraint is not empty
+ if( !con )
+  throw( std::invalid_argument( "The provided constraint is empty" ) );
+
  /* We have to check wheter we have quadratic constraints in the model or not.
   * If the model is QP, then matbeg, matcnt, ... store the matrix coefficients
   * grouped by rows. */
