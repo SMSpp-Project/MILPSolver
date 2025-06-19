@@ -380,6 +380,25 @@ int HiGHSMILPSolver::compute( bool changedvars )
  int m_status;
  m_status = Highs_getModelStatus( highs );
 
+ // If an LP is solved and then modified, the original optimal basis is used
+ // to provide a starting basis for the modified LP.
+ // Sometimes, HiGHS could produce an error when solving from the advanced 
+ // basis, returning a model status Unknown. In such cases, we can try to 
+ // re-solve the model from scratch.
+ if( m_status == kHighsModelStatusUnknown ){
+  Highs_clearSolver( highs );
+
+  // Call HiGHS to solve the problem
+  if( Highs_run( highs ) == -1 ) {
+   // An error happened during the call of HiGHS_run. Notice that this is not
+   // an error related to the model and so the model status could be incorrect.
+   std::cerr << "WARNING: An unmanaged error occurred during the execution of  " <<
+    "HiGHS_run" << std::endl;
+   }
+ 
+  m_status = Highs_getModelStatus( highs );
+  }
+  
  sol_status = decode_model_status( m_status );
 
  Return_status:
