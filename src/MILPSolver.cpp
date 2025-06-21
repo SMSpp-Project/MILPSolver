@@ -467,7 +467,7 @@ void MILPSolver::load_problem( void )
 
    // If the option single_bound is true, we have to check that maximum one
    // OneVarConstraint is associated with a single variable.
-   // Morevorer, the vector linking the variable with the associated bound, 
+   // Moreover, the vector linking the variable with the associated bound,
    // needs to be filled.
    if( single_bound ) {
     auto scan_bound = [ this ]( const ColVariable & v ) {
@@ -594,11 +594,11 @@ template< typename T >
  // Search for the group type
  if( gr.type() == typeid( T * ) ||
       gr.type() == typeid( std::vector< T > * ) ||
-      gr.type() == typeid( std::vector< std::vector< T > > * ) ){
+      gr.type() == typeid( std::vector< std::vector< T > > * ) ) {
   // "Simple" group
   scan_st_group( gr , qb , num_block , set , counter , un_any_type< T >() );
   }
- else{
+ else {
   // "Complex" group
   scan_multiarray_st_group( gr , qb , num_block , set , counter , 
     un_any_type< T >() );
@@ -615,10 +615,10 @@ template< typename T >
  Index elements = 0;  // counter for group elements
  Index start = counter;
 
- if( typeid( T * ) == typeid( FRowConstraint * ) ){
+ if( typeid( T * ) == typeid( FRowConstraint * ) ) {
   // Scanning a group of Constraints
   auto scan = [ this , & elements , & counter ]
-   ( const FRowConstraint & c ){
+   ( const FRowConstraint & c ) {
     scan_static_constraint( c , elements , counter );
   };
   un_any_const_static( gr , scan , un_any_type< FRowConstraint >() );
@@ -642,7 +642,7 @@ template< typename T >
   if( elements )
     std::get< 2 >( scon_to_idx.back() ) = elements;
  }
- else if( typeid( T * ) == typeid( ColVariable * ) ){
+ else if( typeid( T * ) == typeid( ColVariable * ) ) {
   // Scanning a group of Variables
   auto scan = [ this , & elements , & counter ]
    ( const ColVariable & c ) {
@@ -671,7 +671,7 @@ template< typename T >
 
   // If the option single_bound is true, we have to check that maximum one
   // OneVarConstraint is associated with a single variable.
-  // Morevorer, the vector linking the variable with the associated bound, 
+  // Moreover, the vector linking the variable with the associated bound,
   // needs to be filled.
   if( single_bound == true ) {
    auto scan_bound = [ this ]( const ColVariable & v ) {
@@ -701,7 +701,7 @@ template< typename T >
                 ? qb->get_s_const_name()[set]
                 : qb->get_s_var_name()[set];
 
- if( ma_dim == 2 ){
+ if( ma_dim == 2 ) {
   // Use the 2D multi_array
 
   // Get type of multi array. See MILPSolver.h:1256 for further details.
@@ -712,18 +712,18 @@ template< typename T >
   int idx_0 = 0;
   int idx_1 = 0;
 
-  if( type == 1 ){
+  if( type == 1 ) {
    // Multi arrays of type 1 (i.e. multi_array< std::vector < T * > >).
    // In this case elements are not stored in sequential cells. Thus, 
    // we have to "unpack" each std::vector and store them separately.
    auto ma = get_multi_array1( gr , un_any_type< T >() ,
                             un_any_int< 2 >() );
 
-   if( typeid( T * ) == typeid( FRowConstraint * ) ){
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
     // Constraint group
 
     // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[0] ; ++v ){
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
      Index elements = 0;  // counter for group elements
      Index start = counter;
 
@@ -759,19 +759,19 @@ template< typename T >
      // stores elements in row-major order. Therefore, we should increment
      // the column index first, and when it exceeds the number of columns,
      // reset it and increment the row index.
-     if( idx_1 < ma->shape()[1] - 1 )
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
       idx_1++;
-     else{
+     else {
       idx_1 = 0;
       idx_0++;
      }
     }
    }
-   else if( typeid( T * ) == typeid( ColVariable * ) ){
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
     // Variable group
 
     // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[0] ; ++v ){
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
      Index start = counter;
      Index elements = 0;  // counter for group elements
 
@@ -806,16 +806,16 @@ template< typename T >
      // stores elements in row-major order. Therefore, we should increment
      // the column index first, and when it exceeds the number of columns,
      // reset it and increment the row index.
-     if( idx_1 < ma->shape()[1] - 1 )
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
       idx_1++;
-     else{
+     else {
       idx_1 = 0;
       idx_0++;
      }
 
      // If the option single_bound is true, we have to check that maximum one
      // OneVarConstraint is associated with a single variable.
-     // Morevorer, the vector linking the variable with the associated bound, 
+     // Moreover, the vector linking the variable with the associated bound,
      // needs to be filled.
      if( single_bound == true ) {
       auto scan_bound = [ this ]( const ColVariable & c ) {
@@ -829,7 +829,7 @@ template< typename T >
    else
     throw std::runtime_error("Unsupported group type");
   }
-  else if( type == 0 ){
+  else if( type == 0 ) {
    // Multi arrays of type 0 (i.e. multi_array< T >) store
    // elements in sequential cells. Thus, we can store them
    // as usually done for std::vector< T > by only keeping track
@@ -839,11 +839,11 @@ template< typename T >
                               un_any_int< 2 >() );
    Index elements = 0;  // counter for group elements
 
-   if( typeid( T * ) == typeid( FRowConstraint * ) ){
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
     // Constraint group
 
     // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[0] ; ++v ){
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
      auto scan = [ this , & elements , & counter ]
       ( const FRowConstraint & c ) {
        scan_static_constraint( c , elements , counter );
@@ -869,9 +869,9 @@ template< typename T >
      // stores elements in row-major order. Therefore, we should increment
      // the column index first, and when it exceeds the number of columns,
      // reset it and increment the row index.
-     if( idx_1 < ma->shape()[1] - 1 )
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
       idx_1++;
-     else{
+     else {
       idx_1 = 0;
       idx_0++;
      }
@@ -881,11 +881,11 @@ template< typename T >
     if( elements )
      std::get< 2 >( scon_to_idx.back() ) = elements;
    }
-   else if( typeid( T * ) == typeid( ColVariable * ) ){
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
     // Variable group
 
     // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[0] ; ++v ){
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
      auto scan = [ this , & elements , & counter ]
       ( const ColVariable & c ) {
        scan_static_variable( c , elements , counter );
@@ -910,16 +910,16 @@ template< typename T >
      // stores elements in row-major order. Therefore, we should increment
      // the column index first, and when it exceeds the number of columns,
      // reset it and increment the row index.
-     if( idx_1 < ma->shape()[1] - 1 )
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
       idx_1++;
-     else{
+     else {
       idx_1 = 0;
       idx_0++;
      }
 
      // If the option single_bound is true, we have to check that maximum one
      // OneVarConstraint is associated with a single variable.
-     // Morevorer, the vector linking the variable with the associated bound, 
+     // Moreover, the vector linking the variable with the associated bound,
      // needs to be filled.
      if( single_bound == true ) {
       auto scan_bound = [ this ]( const ColVariable & c ) {
@@ -939,7 +939,7 @@ template< typename T >
   else
    throw std::runtime_error("Unsupported multi-array type");
  }
- else if( ma_dim == 3 ){
+ else if( ma_dim == 3 ) {
   // Use the 3D multi_array
 
   // Get type of multi array. See MILPSolver.h:1256 for further details.
@@ -951,18 +951,18 @@ template< typename T >
   int idx_1 = 0;
   int idx_2 = 0;
 
-  if( type == 1 ){
+  if( type == 1 ) {
    // Multi arrays of type 1 (i.e. multi_array< std::vector < T * > >).
    // In this case elements are not stored in sequential cells. Thus, 
    // we have to "unpack" each std::vector and store them separately.
    auto ma = get_multi_array1( gr , un_any_type< T >() ,
                             un_any_int< 3 >() );
 
-   if( typeid( T * ) == typeid( FRowConstraint * ) ){
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
     // Constraint group
 
     // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[0] ; ++v ){
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
      Index start = counter;
      Index elements = 0;  // counter for group elements
 
@@ -998,24 +998,24 @@ template< typename T >
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
-     if( idx_2 < ma->shape()[1] - 1 )
+     if( idx_2 < ma->shape()[ 1 ] - 1 )
       idx_2++; // Move third counter
-     else if( idx_1 < ma->shape()[1] - 1 ){
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
       idx_1++; // Move second counter
       idx_2 = 0; // Reset third counter
      }
-     else{
+     else {
       idx_0++; // Move first counter
       idx_1 = 0; // Reset second counter
       idx_2 = 0; // Reset third counter
      }
     }
    }
-   else if( typeid( T * ) == typeid( ColVariable * ) ){
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
     // Variable group
 
     // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[0] ; ++v ){
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
      Index start = counter;
      Index elements = 0;  // counter for group elements
 
@@ -1050,13 +1050,13 @@ template< typename T >
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
-     if( idx_2 < ma->shape()[1] - 1 )
+     if( idx_2 < ma->shape()[ 1 ] - 1 )
       idx_2++; // Move third counter
-     else if( idx_1 < ma->shape()[1] - 1 ){
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
       idx_1++; // Move second counter
       idx_2 = 0; // Reset third counter
      }
-     else{
+     else {
       idx_0++; // Move first counter
       idx_1 = 0; // Reset second counter
       idx_2 = 0; // Reset third counter
@@ -1064,7 +1064,7 @@ template< typename T >
 
      // If the option single_bound is true, we have to check that maximum one
      // OneVarConstraint is associated with a single variable.
-     // Morevorer, the vector linking the variable with the associated bound, 
+     // Moreover, the vector linking the variable with the associated bound,
      // needs to be filled.
      if( single_bound == true ) {
       auto scan_bound = [ this ]( const ColVariable & c ) {
@@ -1078,22 +1078,22 @@ template< typename T >
    else
     throw std::runtime_error("Unsupported group type");
   }
-  else if( type == 0 ){
-   // Multi arrays of type 0 (i.e. multi_array< T >) store
+  else if( type == 0 ) {
+   // Multi arrays of type 0 (i.e., multi_array< T >) store
    // elements in sequential cells. Thus, we can store them
    // as usually done for std::vector< T > by only keeping track
-   // of the first element and storing the number of non empty
+   // of the first element and storing the number of non-empty
    // cells in the structure.
    auto ma = get_multi_array0( gr , un_any_type< T >() ,
                               un_any_int< 3 >() );
 
    Index elements = 0;  // counter for group elements
 
-   if( typeid( T * ) == typeid( FRowConstraint * ) ){
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
     // Constraint group
 
     // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[0] ; ++v ){
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
      auto scan = [ this , & elements , & counter ]
       ( const FRowConstraint & c ) {
        scan_static_constraint( c , elements , counter );
@@ -1119,13 +1119,13 @@ template< typename T >
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
-     if( idx_2 < ma->shape()[2] - 1 )
+     if( idx_2 < ma->shape()[ 2 ] - 1 )
       idx_2++; // Move third counter
-     else if( idx_1 < ma->shape()[1] - 1 ){
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
       idx_1++; // Move second counter
       idx_2 = 0; // Reset third counter
      }
-     else{
+     else {
       idx_0++; // Move first counter
       idx_1 = 0; // Reset second counter
       idx_2 = 0; // Reset third counter
@@ -1136,11 +1136,11 @@ template< typename T >
     if( elements )
      std::get< 2 >( scon_to_idx.back() ) = elements;
    }
-   else if( typeid( T * ) == typeid( ColVariable * ) ){
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
     // Variable group
 
     // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[0] ; ++v ){
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
      auto scan = [ this , & elements , & counter ]
       ( const ColVariable & c ) {
        scan_static_variable( c , elements , counter );
@@ -1165,13 +1165,13 @@ template< typename T >
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
-     if( idx_2 < ma->shape()[2] - 1 )
+     if( idx_2 < ma->shape()[ 2 ] - 1 )
       idx_2++; // Move third counter
-     else if( idx_1 < ma->shape()[1] - 1 ){
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
       idx_1++; // Move second counter
       idx_2 = 0; // Reset third counter
      }
-     else{
+     else {
       idx_0++; // Move first counter
       idx_1 = 0; // Reset second counter
       idx_2 = 0; // Reset third counter
@@ -1179,7 +1179,7 @@ template< typename T >
 
      // If the option single_bound is true, we have to check that maximum one
      // OneVarConstraint is associated with a single variable.
-     // Morevorer, the vector linking the variable with the associated bound, 
+     // Moreover, the vector linking the variable with the associated bound,
      // needs to be filled.
      if( single_bound == true ) {
       auto scan_bound = [ this ]( const ColVariable & c ) {
@@ -1826,7 +1826,7 @@ void MILPSolver::scan_static_variable_bound( const ColVariable & var )
  // Otherwise, if a single OneVarConstraint exists, we have to fill the 
  // dictionary.
  if( active_bounds.size() == 1 )
-  svar_to_bound.push_back( active_bounds[0] );
+  svar_to_bound.push_back( active_bounds[ 0 ] );
  else
   svar_to_bound.push_back( nullptr );
  }
@@ -1849,7 +1849,7 @@ void MILPSolver::scan_dynamic_variable_bound( const ColVariable & var )
  // Otherwise, if a single OneVarConstraint exists, we have to fill the 
  // dictionary.
  if( active_bounds.size() == 1 )
-  dvar_to_bound.push_back( active_bounds[0] );
+  dvar_to_bound.push_back( active_bounds[ 0 ] );
  else
   dvar_to_bound.push_back( nullptr );
  }

@@ -385,7 +385,7 @@ int HiGHSMILPSolver::compute( bool changedvars )
  // Sometimes, HiGHS could produce an error when solving from the advanced 
  // basis, returning a model status Unknown. In such cases, we can try to 
  // re-solve the model from scratch.
- if( m_status == kHighsModelStatusUnknown ){
+ if( m_status == kHighsModelStatusUnknown ) {
   Highs_clearSolver( highs );
 
   // Call HiGHS to solve the problem
@@ -1022,9 +1022,9 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
      int vidx = index_of_variable( var );
-     *(cidxit++) = vidx;
+     *( cidxit++ ) = vidx;
       
      // Retrieve old coefficient
      double oldval;
@@ -1033,7 +1033,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
       &num_nz , NULL , NULL , NULL );
 
      // Update new coefficient
-     *(nvit++) = oldval + modl->delta()[ i ];
+     *( nvit++ ) = oldval + modl->delta()[ i ];
      }
    }
 
@@ -1071,9 +1071,9 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
      int vidx = index_of_variable( var );
-     *(cidxit++) = vidx;
+     *( cidxit++ ) = vidx;
       
      // Retrieve old coefficient
      double oldval;
@@ -1082,7 +1082,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
       &num_nz , NULL , NULL , NULL );
 
      // Update new coefficient
-     *(nvit++) = oldval + modl->delta()[ i ];
+     *( nvit++ ) = oldval + modl->delta()[ i ];
      }
    }
 
@@ -1144,10 +1144,10 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    int nnz_old_hessian = q_obj_val.size();
    int nnz_new_hessian = nnz_old_hessian;
 
-   for( auto v : *vars ){
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ){
+   for( auto v : *vars ) {
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
      auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
-     *(cidxit++) = cidx;
+     *( cidxit++ ) = cidx;
       
      // Retrieve old linear coefficient
      double oldlinval;
@@ -1155,7 +1155,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      Highs_getColsByRange( highs , cidx , cidx , &num_col, &oldlinval, NULL, NULL,
       &num_nz , NULL , NULL , NULL );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
+     *( nvit++ ) = oldlinval + std::get< 0 >( *dcoeffit );
 
      // Retrieve old quadratic coefficient.
      // Note: In HiGHS we store the Hessian matrix in sparse column form using 
@@ -1163,8 +1163,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      // should be kept in upper triangular form. Thus, the diagonal term can be
      // found at the first position correponding to the coefficients related to
      // column cidx.
-     if( std::get< 1 >( *dcoeffit ) != 0 ){
-      if( q_obj_begin.empty() ){
+     if( std::get< 1 >( *dcoeffit ) != 0 ) {
+      if( q_obj_begin.empty() ) {
         // This could happen when we started with a LinearFunction on the objective,
         // and now we are trying to add quadratic terms for already active variables.
         q_obj_begin.resize( numcols , 0 );
@@ -1245,7 +1245,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    Highs_changeColsCostBySet( highs , cidx.size() , cidx.data() , nval.data() );
    return;
    }
-  else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ){
+  else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
    // we exploit the delta() vector of DQuadFunctionModSbst, giving the difference
    // between the new and the old value of both linear and quadratic coefficient,
    // to update the objective values without having to recompute them: since they are
@@ -1268,10 +1268,10 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    int nnz_old_hessian = q_obj_val.size();
    int nnz_new_hessian = nnz_old_hessian;
 
-   for( auto v : *vars ){
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ){
+   for( auto v : *vars ) {
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
      auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
-     *(cidxit++) = cidx;
+     *( cidxit++ ) = cidx;
       
      // Retrieve old linear coefficient
      double oldlinval;
@@ -1279,16 +1279,16 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      Highs_getColsByRange( highs , cidx , cidx , &num_col, &oldlinval, NULL, NULL,
       &num_nz , NULL , NULL , NULL );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
+     *( nvit++ ) = oldlinval + std::get< 0 >( *dcoeffit );
 
      // Retrieve old quadratic coefficient.
      // Note: In HiGHS we store the Hessian matrix in sparse column form using 
      // the 3 vectors described in HiGHSMILPSolver.h. Moreover, the Hessian matrix
      // should be kept in upper triangular form. Thus, the diagonal term can be
-     // found at the first position correponding to the coefficients related to
+     // found at the first position corresponding to the coefficients related to
      // column cidx.
-     if( std::get< 1 >( *dcoeffit ) != 0 ){
-      if( q_obj_begin.empty() ){
+     if( std::get< 1 >( *dcoeffit ) != 0 ) {
+      if( q_obj_begin.empty() ) {
         // This could happen when we started with a LinearFunction on the objective,
         // and now we are trying to add quadratic terms for already active variables.
         q_obj_begin.resize( numcols , 0 );
@@ -1505,7 +1505,7 @@ void HiGHSMILPSolver::constraint_function_modification( const FunctionMod *mod )
  auto & cp = lf->get_v_var();
 
  for( auto v :  modl->vars() )
-  if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+  if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
    double value = cp[ idx ].second;
    int var_idx = index_of_variable( static_cast< const ColVariable * >( v ) );
    Highs_changeCoeff( highs, row , var_idx , value );
@@ -2235,8 +2235,8 @@ void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
   auto iit = rmatind.begin() + sz;
   auto vit = rmatval.begin() + sz;
   for( auto & el : lf->get_v_var() ) {
-   *(iit++) = index_of_variable( el.first );
-   *(vit++) = el.second;
+   *( iit++ ) = index_of_variable( el.first );
+   *( vit++ ) = el.second;
   }
 
   // get the bounds
