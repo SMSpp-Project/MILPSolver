@@ -59,7 +59,7 @@ set(SCIP_LIB_PATH_SUFFIXES lib)
 # ----- Find the path to SCIP ---------------------------------------------- #
 
 foreach (dir ${SCIP_DIRS})
-    file(GLOB SCIP_DIRS "${dir}/scip*" "${dir}/SCIPOptSuite*")
+    file(GLOB SCIP_DIRS "${dir}/scip*")
     if (NOT SCIP_ROOT IN_LIST SCIP_DIRS)
         message(STATUS "Specified SCIP: ${SCIP_ROOT} not found")
         list(SORT SCIP_DIRS)
@@ -92,7 +92,7 @@ else ()
     # Note that find_path() creates a cache entry
     find_path(SCIP_INCLUDE_DIR
               NAMES scip/scip.h
-              PATHS ${SCIP_DIR}
+              PATHS ${SCIP_DIR}/include
               DOC "SCIP include directory.")
 
     if (UNIX)
