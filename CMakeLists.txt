@@ -54,7 +54,7 @@ option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 
 # A lot of debug prints
-#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+#if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 #    add_compile_definitions(MILPSolver_DEBUG)
 #endif ()
 
