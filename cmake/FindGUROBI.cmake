@@ -216,8 +216,8 @@ endif ()
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(GUROBI_INCLUDE_DIR
-        GUROBI_LIBRARY
-        GUROBI_LIBRARY_DEBUG
-        GUROBI_VERSION)
+                 GUROBI_LIBRARY
+                 GUROBI_LIBRARY_DEBUG
+                 GUROBI_VERSION)
 
 # --------------------------------------------------------------------------- #
