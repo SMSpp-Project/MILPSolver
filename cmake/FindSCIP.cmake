@@ -57,8 +57,9 @@ endif ()
 set(SCIP_LIB_PATH_SUFFIXES lib)
 
 # ----- Find the path to SCIP ---------------------------------------------- #
+
 foreach (dir ${SCIP_DIRS})
-    file(GLOB SCIP_DIRS "${dir}/scip*")
+    file(GLOB SCIP_DIRS "${dir}/scip*" "${dir}/SCIPOptSuite*")
     if (NOT SCIP_ROOT IN_LIST SCIP_DIRS)
         message(STATUS "Specified SCIP: ${SCIP_ROOT} not found")
         list(SORT SCIP_DIRS)

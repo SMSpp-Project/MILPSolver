@@ -79,6 +79,8 @@ endforeach ()
 # https://cmake.org/cmake/help/latest/module/FindThreads.html
 find_package(Threads QUIET)
 
+find_package(ZLIB REQUIRED QUIET)
+
 # Check if already in cache
 if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG)
     set(HiGHS_FOUND TRUE)
@@ -169,7 +171,7 @@ endif ()
 # ----- Export the target --------------------------------------------------- #
 if (HiGHS_FOUND)
     set(HiGHS_INCLUDE_DIRS "${HiGHS_INCLUDE_DIR}" "${HiGHS_CONFIG_INCLUDE_DIR}")
-    set(HiGHS_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
+    set(HiGHS_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ZLIB::ZLIB)
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
     check_library_exists(m floor "" HAVE_LIBM)
