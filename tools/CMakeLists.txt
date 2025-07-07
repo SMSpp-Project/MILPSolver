@@ -36,24 +36,16 @@ if (MILPSolver_USE_CPLEX)
         target_compile_features(cpx_pars PRIVATE cxx_std_17)
         target_link_libraries(cpx_pars PRIVATE SMS++::SMS++ CPLEX::Cplex)
 
-        # Determine the output directory of the executable
-        if (MSVC)
-            set(CPX_PARS_EXE "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/cpx_pars")
-        else ()
-            set(CPX_PARS_EXE "${CMAKE_CURRENT_BINARY_DIR}/cpx_pars")
-        endif ()
-
         # Custom command to run cpx_pars in the tools directory
-        #add_custom_command(
-        #        TARGET cpx_pars
-        #        POST_BUILD
-        #        COMMAND ${CPX_PARS_EXE}
-        #        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        #        COMMENT "Running cpx_pars to generate necessary headers"
-        #        VERBATIM
-        #)
+        add_custom_command(
+                TARGET cpx_pars
+                POST_BUILD
+                COMMAND "$<TARGET_FILE:cpx_pars>"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                COMMENT "Running cpx_pars to generate necessary headers"
+                VERBATIM
+        )
 
-        # ----- Install instructions ---------------------------------------- #
         include(GNUInstallDirs)
         install(TARGETS cpx_pars
                 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -78,18 +70,11 @@ if (MILPSolver_USE_SCIP)
         target_compile_features(scip_pars PRIVATE cxx_std_17)
         target_link_libraries(scip_pars PRIVATE SMS++::SMS++ SCIP::SCIP)
 
-        # Determine the output directory of the executable
-        if (MSVC)
-            set(SCIP_PARS_EXE "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/scip_pars")
-        else ()
-            set(SCIP_PARS_EXE "${CMAKE_CURRENT_BINARY_DIR}/scip_pars")
-        endif ()
-
         # Custom command to run scip_pars in the tools directory
         add_custom_command(
                 TARGET scip_pars
                 POST_BUILD
-                COMMAND ${SCIP_PARS_EXE}
+                COMMAND "$<TARGET_FILE:scip_pars>"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running scip_pars to generate necessary headers"
                 VERBATIM
@@ -120,18 +105,11 @@ if (MILPSolver_USE_GUROBI)
         target_compile_features(grb_pars PRIVATE cxx_std_17)
         target_link_libraries(grb_pars PRIVATE SMS++::SMS++ GUROBI::Gurobi)
 
-        # Determine the output directory of the executable
-        if (MSVC)
-            set(GRB_PARS_EXE "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/grb_pars")
-        else ()
-            set(GRB_PARS_EXE "${CMAKE_CURRENT_BINARY_DIR}/grb_pars")
-        endif ()
-
         # Custom command to run grb_pars in the tools directory
         add_custom_command(
                 TARGET grb_pars
                 POST_BUILD
-                COMMAND ${GRB_PARS_EXE}
+                COMMAND "$<TARGET_FILE:grb_pars>"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running grb_pars to generate necessary headers"
                 VERBATIM
@@ -162,18 +140,11 @@ if (MILPSolver_USE_HiGHS)
         target_compile_features(highs_pars PRIVATE cxx_std_17)
         target_link_libraries(highs_pars PRIVATE SMS++::SMS++ HiGHS::HiGHS)
 
-        # Determine the output directory of the executable
-        if (MSVC)
-            set(HiGHS_PARS_EXE "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}/highs_pars")
-        else ()
-            set(HiGHS_PARS_EXE "${CMAKE_CURRENT_BINARY_DIR}/highs_pars")
-        endif ()
-
         # Custom command to run highs_pars in the tools directory
         add_custom_command(
                 TARGET highs_pars
                 POST_BUILD
-                COMMAND ${HiGHS_PARS_EXE}
+                COMMAND "$<TARGET_FILE:highs_pars>"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running highs_pars to generate necessary headers"
                 VERBATIM
