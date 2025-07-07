@@ -48,7 +48,7 @@ if (UNIX)
 elseif (WIN32)
     # Windows (usually C:)
     set(HiGHS_DIRS "C:")
-    set(HiGHS_LIB_PATH_SUFFIXES lib build/RELEASE/bin build/bin/Release)
+    set(HiGHS_LIB_PATH_SUFFIXES build/RELEASE/bin build/bin/Release)
     set(HiGHS_LIB_PATH_SUFFIXES_DEBUG build/DEBUG/bin build/bin/Debug)
 endif ()
 
