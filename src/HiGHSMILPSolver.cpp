@@ -1508,6 +1508,14 @@ void HiGHSMILPSolver::constraint_function_modification( const FunctionMod *mod )
   if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
    double value = cp[ idx ].second;
    int var_idx = index_of_variable( static_cast< const ColVariable * >( v ) );
+
+   // HiGHS automatically removes variables from a constraint if their 
+   // coefficient falls within the range (0, 1e-9], treating them as zero.
+   // To avoid losing these variables, we replace such small coefficients
+   // with the smallest positive value accepted by HiGHS.
+   if( value > 0 && value <= 1e-9 )
+    value = 2e-9;
+  
    Highs_changeCoeff( highs, row , var_idx , value );
    }
 
@@ -1912,6 +1920,14 @@ void HiGHSMILPSolver::constraint_fvars_modification(
     auto idx = lf->is_active( var );
     value = idx < nav ? lf->get_coefficient( idx ) : 0;
     }
+    
+   // HiGHS automatically removes variables from a constraint if their 
+   // coefficient falls within the range (0, 1e-9], treating them as zero.
+   // To avoid losing these variables, we replace such small coefficients
+   // with the smallest positive value accepted by HiGHS.
+   if( value > 0 && value <= 1e-9 )
+    value = 2e-9;
+
    Highs_changeCoeff( highs , cidx , vidx , value );
    }
   }
