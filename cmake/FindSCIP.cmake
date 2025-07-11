@@ -126,7 +126,7 @@ else ()
         set(SCIP_LIBRARY ${SCIP_LIB})
 
         # Debug library
-        find_win_SCIP_library(SCIP_LIB "${SCIP_LIB_PATH_SUFFIXES_DEBUG}")
+        find_win_SCIP_library(SCIP_LIB "${SCIP_LIB_PATH_SUFFIXES}")
         set(SCIP_LIBRARY_DEBUG ${SCIP_LIB})
     endif ()
 
