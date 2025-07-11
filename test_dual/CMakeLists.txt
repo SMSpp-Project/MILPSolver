@@ -8,7 +8,7 @@
 #    Note: this file tries to respect the principles of Modern CMake,         #
 #          keep it in mind when editing it.                                   #
 #                                                                             #
-#                              Enrico Calandrini                              #
+#                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #

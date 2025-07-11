@@ -96,7 +96,6 @@ else ()
     endif ()
 
     # ----- Find the GUROBI include directory ------------------------------- #
-    # Note that find_path() creates a cache entry
     find_path(GUROBI_INCLUDE_DIR
               NAMES gurobi_c.h
               PATHS ${GUROBI_DIR}/include
@@ -183,7 +182,7 @@ else ()
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
             GUROBI
-            REQUIRED_VARS GUROBI_LIBRARY GUROBI_LIBRARY_DEBUG GUROBI_INCLUDE_DIR
+            REQUIRED_VARS GUROBI_LIBRARY GUROBI_INCLUDE_DIR
             VERSION_VAR GUROBI_VERSION)
 endif ()
 

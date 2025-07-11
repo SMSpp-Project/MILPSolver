@@ -25,7 +25,6 @@
 #    a CMake configuration file on its own.                                   #
 #                                                                             #
 #                                Donato Meoli                                 #
-#                              Enrico Calandrini                              #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
@@ -86,56 +85,33 @@ if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG)
     set(HiGHS_FOUND TRUE)
 else ()
 
-    set(HiGHS_DIR ${HiGHS_ROOT})
-
     # ----- Find the HiGHS include directory -------------------------------- #
-    # Note that find_path() creates a cache entry
     find_path(HiGHS_INCLUDE_DIR
               NAMES Highs.h interfaces/highs_c_api.h
-              PATHS ${HiGHS_DIR}
+              PATHS ${HiGHS_ROOT}
               PATH_SUFFIXES include/highs src
               DOC "HiGHS include directory.")
 
     # ----- Find the HiGHS config include directory ------------------------- #
-    # Note that find_path() creates a cache entry
     find_path(HiGHS_CONFIG_INCLUDE_DIR
               NAMES HConfig.h
-              PATHS ${HiGHS_DIR}
+              PATHS ${HiGHS_ROOT}
               PATH_SUFFIXES include/highs build
               DOC "HiGHS config include directory.")
 
+    # ----- Find the HiGHS library ------------------------------------------ #
+    find_library(HiGHS_LIBRARY
+                 NAMES highs
+                 PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}
+                 DOC "HiGHS library.")
+
     if (UNIX)
-        # ----- Find the HiGHS library -------------------------------------- #
-        find_library(HiGHS_LIBRARY
-                     NAMES highs
-                     PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}
-                     DOC "HiGHS library.")
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY})
-    elseif (NOT HiGHS_LIBRARY)
-
-        # ----- Macro: find_win_HiGHS_library ------------------------------- #
-        # On Windows the version is appended to the library name which cannot be
-        # handled by find_library, so here a macro to search manually.
-        macro(find_win_HiGHS_library var path_suffixes)
-            foreach (s ${path_suffixes})
-                file(GLOB HiGHS_LIBRARY_CANDIDATES "${HiGHS_DIR}/${s}/highs*.lib")
-                if (HiGHS_LIBRARY_CANDIDATES)
-                    list(GET HiGHS_LIBRARY_CANDIDATES 0 ${var})
-                    break()
-                endif ()
-            endforeach ()
-            if (NOT ${var})
-                set(${var} NOTFOUND)
-            endif ()
-        endmacro ()
-
-        # Library
-        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES}")
-        set(HiGHS_LIBRARY ${HiGHS_LIB})
-
-        # Debug library
-        find_win_HiGHS_library(HiGHS_LIB "${HiGHS_LIB_PATH_SUFFIXES_DEBUG}")
-        set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIB})
+    elseif (WIN32)
+        find_library(HiGHS_LIBRARY_DEBUG
+                     NAMES highs
+                     PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES_DEBUG}
+                     DOC "HiGHS debug library.")
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
@@ -163,8 +139,7 @@ else ()
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
             HiGHS
-            REQUIRED_VARS HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG
-                          HiGHS_INCLUDE_DIR HiGHS_CONFIG_INCLUDE_DIR
+            REQUIRED_VARS HiGHS_LIBRARY HiGHS_INCLUDE_DIR HiGHS_CONFIG_INCLUDE_DIR
             VERSION_VAR HiGHS_VERSION)
 endif ()
 
@@ -196,8 +171,7 @@ endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-mark_as_advanced(HiGHS_INCLUDE_DIR
-                 HiGHS_CONFIG_INCLUDE_DIR
+mark_as_advanced(HiGHS_INCLUDE_DIR HiGHS_CONFIG_INCLUDE_DIR
                  HiGHS_LIBRARY
                  HiGHS_LIBRARY_DEBUG
                  HiGHS_VERSION)

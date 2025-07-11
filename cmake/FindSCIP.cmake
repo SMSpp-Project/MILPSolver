@@ -28,9 +28,6 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 #                                                                             #
-#                               Enrico Calandrini                             #
-#                         Dipartimento di Informatica                         #
-#                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
@@ -88,47 +85,18 @@ else ()
 
     set(SCIP_DIR ${SCIP_ROOT})
 
-    # ----- Find the SCIP include directory -------------------------------- #
-    # Note that find_path() creates a cache entry
+    # ----- Find the SCIP include directory --------------------------------- #
     find_path(SCIP_INCLUDE_DIR
               NAMES scip/scip.h
               PATHS ${SCIP_DIR}/include
               DOC "SCIP include directory.")
 
-    if (UNIX)
-        # ----- Find the SCIP library -------------------------------------- #
-        # Note that find_library() creates a cache entry
-        find_library(SCIP_LIBRARY
-                     NAMES scip
-                     PATH_SUFFIXES ${SCIP_LIB_PATH_SUFFIXES}
-                     DOC "SCIP library.")
-        set(SCIP_LIBRARY_DEBUG ${SCIP_LIBRARY})
-    elseif (NOT SCIP_LIBRARY)
-
-        # ----- Macro: find_win_SCIP_library ------------------------------- #
-        # On Windows the version is appended to the library name which cannot be
-        # handled by find_library, so here a macro to search manually.
-        macro(find_win_SCIP_library var path_suffixes)
-            foreach (s ${path_suffixes})
-                file(GLOB SCIP_LIBRARY_CANDIDATES "${SCIP_DIR}/${s}/libscip*.lib")
-                if (SCIP_LIBRARY_CANDIDATES)
-                    list(GET SCIP_LIBRARY_CANDIDATES 0 ${var})
-                    break()
-                endif ()
-            endforeach ()
-            if (NOT ${var})
-                set(${var} NOTFOUND)
-            endif ()
-        endmacro()
-
-        # Library
-        find_win_SCIP_library(SCIP_LIB "${SCIP_LIB_PATH_SUFFIXES}")
-        set(SCIP_LIBRARY ${SCIP_LIB})
-
-        # Debug library
-        find_win_SCIP_library(SCIP_LIB "${SCIP_LIB_PATH_SUFFIXES}")
-        set(SCIP_LIBRARY_DEBUG ${SCIP_LIB})
-    endif ()
+    # ----- Find the SCIP library ------------------------------------------- #
+    find_library(SCIP_LIBRARY
+                 NAMES scip
+                 PATH_SUFFIXES ${SCIP_LIB_PATH_SUFFIXES}
+                 DOC "SCIP library.")
+    set(SCIP_LIBRARY_DEBUG ${SCIP_LIBRARY})
 
     # ----- Parse the version ----------------------------------------------- #
     if (SCIP_INCLUDE_DIR)
@@ -155,7 +123,7 @@ else ()
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
             SCIP
-            REQUIRED_VARS SCIP_LIBRARY SCIP_LIBRARY_DEBUG SCIP_INCLUDE_DIR
+            REQUIRED_VARS SCIP_LIBRARY SCIP_INCLUDE_DIR
             VERSION_VAR SCIP_VERSION)
 endif ()
 
@@ -171,7 +139,6 @@ if (SCIP_FOUND)
     endif ()
 
     if (UNIX)
-        # Required under Unix since 12.8
         set(SCIP_LINK_LIBRARIES ${SCIP_LINK_LIBRARIES} dl)
     endif ()
 
