@@ -83,12 +83,10 @@ if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_LIBRARY_DEBUG)
     set(SCIP_FOUND TRUE)
 else ()
 
-    set(SCIP_DIR ${SCIP_ROOT})
-
     # ----- Find the SCIP include directory --------------------------------- #
     find_path(SCIP_INCLUDE_DIR
               NAMES scip/scip.h
-              PATHS ${SCIP_DIR}/include
+              PATHS ${SCIP_ROOT}/include
               DOC "SCIP include directory.")
 
     # ----- Find the SCIP library ------------------------------------------- #
