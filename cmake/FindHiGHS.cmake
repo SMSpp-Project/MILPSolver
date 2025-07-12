@@ -147,16 +147,16 @@ endif ()
 # ----- Export the target --------------------------------------------------- #
 if (HiGHS_FOUND)
     set(HiGHS_INCLUDE_DIRS "${HiGHS_INCLUDE_DIR}" "${HiGHS_CONFIG_INCLUDE_DIR}")
-    set(HiGHS_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ZLIB::ZLIB)
+    set(HiGHS_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ZLIB::ZLIB)
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
     check_library_exists(m floor "" HAVE_LIBM)
     if (HAVE_LIBM)
-        set(HiGHS_LINK_LIBRARIES ${HiGHS_LINK_LIBRARIES} m)
+        set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} m)
     endif ()
 
     if (UNIX)
-        set(HiGHS_LINK_LIBRARIES ${HiGHS_LINK_LIBRARIES} dl)
+        set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} dl)
     endif ()
 
     if (NOT TARGET HiGHS::HiGHS)
@@ -166,7 +166,7 @@ if (HiGHS_FOUND)
                 IMPORTED_LOCATION "${HiGHS_LIBRARY}"
                 IMPORTED_LOCATION_DEBUG "${HiGHS_LIBRARY_DEBUG}"
                 INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${HiGHS_LINK_LIBRARIES}")
+                INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
     endif ()
 endif ()
 

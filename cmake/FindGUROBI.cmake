@@ -77,7 +77,7 @@ endforeach ()
 find_package(Threads QUIET)
 
 # Check if already in cache
-if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_LIBRARY_DEBUG)
+if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY)
     set(GUROBI_FOUND TRUE)
 else ()
 
@@ -124,9 +124,6 @@ else ()
 
     set(GUROBI_LIBRARY ${GUROBI_LIB}
             CACHE FILEPATH "GUROBI library." FORCE)
-
-    set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY}
-            CACHE FILEPATH "GUROBI debug library." FORCE)
 
     # ----- Find the GUROBI license ----------------------------------------- #
     set(GUROBI_LICENSE_FOUND FALSE)
@@ -189,16 +186,16 @@ endif ()
 # ----- Export the target --------------------------------------------------- #
 if (GUROBI_FOUND)
     set(GUROBI_INCLUDE_DIRS "${GUROBI_INCLUDE_DIR}")
-    set(GUROBI_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
+    set(GUROBI_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
     check_library_exists(m floor "" HAVE_LIBM)
     if (HAVE_LIBM)
-        set(GUROBI_LINK_LIBRARIES ${GUROBI_LINK_LIBRARIES} m)
+        set(GUROBI_LIBRARIES ${GUROBI_LIBRARIES} m)
     endif ()
 
     if (UNIX)
-        set(GUROBI_LINK_LIBRARIES ${GUROBI_LINK_LIBRARIES} dl)
+        set(GUROBI_LIBRARIES ${GUROBI_LIBRARIES} dl)
     endif ()
 
     if (NOT TARGET GUROBI::Gurobi)
@@ -206,9 +203,8 @@ if (GUROBI_FOUND)
         set_target_properties(
                 GUROBI::Gurobi PROPERTIES
                 IMPORTED_LOCATION "${GUROBI_LIBRARY}"
-                IMPORTED_LOCATION_DEBUG "${GUROBI_LIBRARY_DEBUG}"
                 INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${GUROBI_LINK_LIBRARIES}")
+                INTERFACE_LINK_LIBRARIES "${GUROBI_LIBRARIES}")
     endif ()
 endif ()
 
@@ -216,7 +212,6 @@ endif ()
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(GUROBI_INCLUDE_DIR
                  GUROBI_LIBRARY
-                 GUROBI_LIBRARY_DEBUG
                  GUROBI_VERSION)
 
 # --------------------------------------------------------------------------- #
