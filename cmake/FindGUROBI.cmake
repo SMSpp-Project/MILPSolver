@@ -119,14 +119,14 @@ else ()
                      PATHS ${GUROBI_DIR}/lib
                      DOC "GUROBI library.")
     else ()
-        set(GUROBI_LIBRARY NOTFOUND)
+        set(GUROBI_LIBRARY GUROBI_LIBRARY-NOTFOUND)
     endif ()
 
-    # Library
-    set(GUROBI_LIBRARY ${GUROBI_LIB})
+    set(GUROBI_LIBRARY ${GUROBI_LIB}
+            CACHE FILEPATH "GUROBI library." FORCE)
 
-    # Debug library
-    set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY})
+    set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY}
+            CACHE FILEPATH "GUROBI debug library." FORCE)
 
     # ----- Find the GUROBI license ----------------------------------------- #
     set(GUROBI_LICENSE_FOUND FALSE)

@@ -94,7 +94,9 @@ else ()
                  NAMES scip
                  PATH_SUFFIXES ${SCIP_LIB_PATH_SUFFIXES}
                  DOC "SCIP library.")
-    set(SCIP_LIBRARY_DEBUG ${SCIP_LIBRARY})
+
+    set(SCIP_LIBRARY_DEBUG ${SCIP_LIBRARY}
+            CACHE FILEPATH "SCIP debug library." FORCE)
 
     # ----- Parse the version ----------------------------------------------- #
     if (SCIP_INCLUDE_DIR)

@@ -106,7 +106,8 @@ else ()
                  DOC "HiGHS library.")
 
     if (UNIX)
-        set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY})
+        set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
+                CACHE FILEPATH "HiGHS debug library." FORCE)
     elseif (WIN32)
         find_library(HiGHS_LIBRARY_DEBUG
                      NAMES highs
