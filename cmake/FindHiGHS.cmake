@@ -112,6 +112,7 @@ else ()
         find_library(HiGHS_LIBRARY_DEBUG
                      NAMES highs
                      PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES_DEBUG}
+                     NO_DEFAULT_PATH
                      DOC "HiGHS debug library.")
     endif ()
 
