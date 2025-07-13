@@ -47,7 +47,7 @@ if (UNIX)
 elseif (WIN32)
     # Windows (usually C:)
     set(HiGHS_DIRS "C:")
-    set(HiGHS_LIB_PATH_SUFFIXES lib build/RELEASE/bin build/bin/Release)
+    set(HiGHS_LIB_PATH_SUFFIXES build/RELEASE/bin build/bin/Release lib)
     set(HiGHS_LIB_PATH_SUFFIXES_DEBUG build/DEBUG/bin build/bin/Debug)
 endif ()
 
@@ -140,13 +140,13 @@ else ()
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
             HiGHS
-            REQUIRED_VARS HiGHS_LIBRARY HiGHS_INCLUDE_DIR HiGHS_CONFIG_INCLUDE_DIR
+            REQUIRED_VARS HiGHS_LIBRARY HiGHS_INCLUDE_DIR
             VERSION_VAR HiGHS_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
 if (HiGHS_FOUND)
-    set(HiGHS_INCLUDE_DIRS ${HiGHS_INCLUDE_DIR} ${HiGHS_CONFIG_INCLUDE_DIR})
+    set(HiGHS_INCLUDE_DIRS ${HiGHS_INCLUDE_DIR})
     set(HiGHS_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ZLIB::ZLIB)
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
@@ -172,7 +172,7 @@ endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-mark_as_advanced(HiGHS_INCLUDE_DIR HiGHS_CONFIG_INCLUDE_DIR
+mark_as_advanced(HiGHS_INCLUDE_DIR
                  HiGHS_LIBRARY
                  HiGHS_LIBRARY_DEBUG
                  HiGHS_VERSION)
