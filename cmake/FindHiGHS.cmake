@@ -81,7 +81,7 @@ find_package(Threads QUIET)
 find_package(ZLIB REQUIRED QUIET)
 
 # Check if already in cache
-if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG)
+if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG AND HIGHS_VERSION)
     set(HiGHS_FOUND TRUE)
 else ()
 
@@ -146,7 +146,7 @@ endif ()
 
 # ----- Export the target --------------------------------------------------- #
 if (HiGHS_FOUND)
-    set(HiGHS_INCLUDE_DIRS "${HiGHS_INCLUDE_DIR}" "${HiGHS_CONFIG_INCLUDE_DIR}")
+    set(HiGHS_INCLUDE_DIRS ${HiGHS_INCLUDE_DIR} ${HiGHS_CONFIG_INCLUDE_DIR})
     set(HiGHS_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ZLIB::ZLIB)
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html

@@ -77,7 +77,7 @@ endforeach ()
 find_package(Threads QUIET)
 
 # Check if already in cache
-if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY)
+if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_VERSION)
     set(GUROBI_FOUND TRUE)
 else ()
 
@@ -185,7 +185,7 @@ endif ()
 
 # ----- Export the target --------------------------------------------------- #
 if (GUROBI_FOUND)
-    set(GUROBI_INCLUDE_DIRS "${GUROBI_INCLUDE_DIR}")
+    set(GUROBI_INCLUDE_DIRS ${GUROBI_INCLUDE_DIR})
     set(GUROBI_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html

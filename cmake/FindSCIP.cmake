@@ -79,7 +79,7 @@ endforeach ()
 find_package(Threads QUIET)
 
 # Check if already in cache
-if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY)
+if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_VERSION)
     set(SCIP_FOUND TRUE)
 else ()
 
@@ -126,7 +126,7 @@ endif ()
 
 # ----- Export the target --------------------------------------------------- #
 if (SCIP_FOUND)
-    set(SCIP_INCLUDE_DIRS "${SCIP_INCLUDE_DIR}")
+    set(SCIP_INCLUDE_DIRS ${SCIP_INCLUDE_DIR})
     set(SCIP_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
