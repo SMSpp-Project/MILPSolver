@@ -114,6 +114,7 @@ else ()
                      NAMES highs
                      PATHS ${HiGHS_ROOT}
                      PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES_DEBUG}
+                     NO_DEFAULT_PATH
                      DOC "HiGHS debug library.")
     endif ()
 
