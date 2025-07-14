@@ -102,6 +102,7 @@ else ()
     # ----- Find the HiGHS library ------------------------------------------ #
     find_library(HiGHS_LIBRARY
                  NAMES highs
+                 PATHS ${HiGHS_ROOT}
                  PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}
                  DOC "HiGHS library.")
 
@@ -111,8 +112,8 @@ else ()
     elseif (WIN32)
         find_library(HiGHS_LIBRARY_DEBUG
                      NAMES highs
+                     PATHS ${HiGHS_ROOT}
                      PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES_DEBUG}
-                     NO_DEFAULT_PATH
                      DOC "HiGHS debug library.")
     endif ()
 
