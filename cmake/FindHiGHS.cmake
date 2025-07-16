@@ -92,13 +92,6 @@ else ()
               PATH_SUFFIXES include/highs src
               DOC "HiGHS include directory.")
 
-    # ----- Find the HiGHS config include directory ------------------------- #
-    find_path(HiGHS_CONFIG_INCLUDE_DIR
-              NAMES HConfig.h
-              PATHS ${HiGHS_ROOT}
-              PATH_SUFFIXES include/highs build
-              DOC "HiGHS config include directory.")
-
     # ----- Find the HiGHS library ------------------------------------------ #
     find_library(HiGHS_LIBRARY
                  NAMES highs
@@ -119,9 +112,9 @@ else ()
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
-    if (HiGHS_CONFIG_INCLUDE_DIR)
+    if (HiGHS_INCLUDE_DIR)
         file(STRINGS
-                "${HiGHS_CONFIG_INCLUDE_DIR}/HConfig.h"
+                "${HiGHS_INCLUDE_DIR}/HConfig.h"
                 _HiGHS_version_lines REGEX "#define HIGHS_VERSION_(MAJOR|MINOR|PATCH)")
 
         string(REGEX REPLACE ".*HIGHS_VERSION_MAJOR *\([0-9]*\).*" "\\1" _HiGHS_version_major "${_HiGHS_version_lines}")
