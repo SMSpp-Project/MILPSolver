@@ -11,7 +11,7 @@
 ##############################################################################
 
 # module name
-NAME = DynamicLP_test
+NAME = test_dynamic
 
 # basic directory
 DIR = .
@@ -85,7 +85,7 @@ MOBJ =  $(SMS++OBJ) $(MILPSOBJ)
 # libraries
 MLIB =  $(SMS++LIB) $(MILPSLIB)
 
-$(NAME): $(DIR)/test.o $(MOBJ)
+$(NAME): $(DIR)/test_dynamic.o $(MOBJ)
 	$(CC) -o $(DIR)/$(NAME) $^ $(MLIB) $(SW)
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
@@ -98,8 +98,8 @@ MH =    $(SMS++H) $(MILPSH)
 
 # compile command
 
-$(DIR)/test.o: $(DIR)/test.cpp $(MH)
-	$(CC) -c $(DIR)/test.cpp -o $@ $(MINC) $(SW)
+$(DIR)/test_dynamic.o: $(DIR)/test_dnamic.cpp $(MH)
+	$(CC) -c $(DIR)/test_dynamic.cpp -o $@ $(MINC) $(SW)
 
 # distclean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

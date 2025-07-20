@@ -3,10 +3,9 @@ tools/cpx_pars
 tools/grb_pars
 tools/scip_pars
 tools/highs_pars
-test_cuts/test
-test_dynamic/test
-test_dynamic/DynamicLP_test
-test_dual/dual_test
+test_cuts/test_cuts
+test_dynamic/test_dynamic
+test_dual/test_dual
 
 ### C/C++ template
 # Prerequisites
