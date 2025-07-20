@@ -98,7 +98,7 @@ MH =    $(SMS++H) $(MILPSH)
 
 # compile command
 
-$(DIR)/test_dynamic.o: $(DIR)/test_dnamic.cpp $(MH)
+$(DIR)/test_dynamic.o: $(DIR)/test_dynamic.cpp $(MH)
 	$(CC) -c $(DIR)/test_dynamic.cpp -o $@ $(MINC) $(SW)
 
 # distclean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
