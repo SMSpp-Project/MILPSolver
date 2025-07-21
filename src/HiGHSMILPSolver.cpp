@@ -2399,6 +2399,12 @@ void HiGHSMILPSolver::set_par( idx_type par , double value )
 
 void HiGHSMILPSolver::set_par( idx_type par , std::string && value )
 {
+ // set the solver log to a specific file
+ if( par == strLogFileName ) {
+  Highs_setStringOptionValue( highs , "log_file" , value.c_str() );
+  return;
+  }
+
  // HiGHS option
  if( ( par >= strFirstHiGHSPar ) && ( par < strLastAlgParHiGHS ) ) {
   std::string highs_opt = SMSpp_to_HiGHS_str_pars[ par - strFirstHiGHSPar ];

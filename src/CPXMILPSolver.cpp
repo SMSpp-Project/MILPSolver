@@ -2984,6 +2984,12 @@ void CPXMILPSolver::set_par( idx_type par , double value )
 
 void CPXMILPSolver::set_par( idx_type par , std::string && value )
 {
+ // set the solver log to a specific file
+ if( par == strLogFileName ) {
+  CPXsetlogfilename( env , value.c_str() , "a" );
+  return;
+ }
+
  // CPLEX parameters
  if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
@@ -3044,7 +3050,7 @@ void CPXMILPSolver::set_par( idx_type par ,
  // MILPSolver::set_par( par, std::move( value ) );
  }
 
-/*--------------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
 Solver::idx_type CPXMILPSolver::get_num_int_par( void ) const {
  return( MILPSolver::get_num_int_par()

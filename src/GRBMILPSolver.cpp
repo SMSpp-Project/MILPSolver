@@ -2987,6 +2987,12 @@ void GRBMILPSolver::set_par( idx_type par , double value )
 
 void GRBMILPSolver::set_par( idx_type par , std::string && value )
 {
+ // set the solver log to a specific file
+ if( par == strLogFileName ) {
+  GRBsetstrparam( env , GRB_STR_PAR_LOGFILE , value.c_str() );
+  return;
+  }
+
  // GUROBI parameters
  if( ( par >= strFirstGUROBIPar ) && ( par < strLastAlgParGRBS ) ) {
   std::string gurobi_par = SMSpp_to_GUROBI_str_pars[ par - strFirstGUROBIPar ];

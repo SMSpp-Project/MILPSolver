@@ -2058,6 +2058,12 @@ void SCIPMILPSolver::set_par( idx_type par , double value )
 
 void SCIPMILPSolver::set_par( idx_type par , std::string && value )
 {
+ // set the solver log to a specific file
+ if( par == strLogFileName ) {
+  SCIPsetMessagehdlrLogfile( scip , value.c_str() );
+  return;
+ }
+
  // SCIP parameters
  if( par >= strFirstSCIPPar && par < strLastAlgParSCPS ) {
   const std::string & scip_par =
