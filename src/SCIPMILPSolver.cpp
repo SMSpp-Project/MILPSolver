@@ -1017,6 +1017,12 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
   // Select correct quadratic function
   auto fqf = ( qf ) ? qf : dqf;
 
+  // Initialize structures that could be used if this is the first time
+  // we are adding quadratic coefficients to the objective function
+  std::vector< int > qidx_1;
+  std::vector< int > qidx_2;
+  std::vector< double > qcoeffs;
+
   if( auto modlr = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ) {
    // we exploit the delta() vector of DQuadFunctionModRngd, giving the difference
    // between the new and the old value of both linear and quadratic coefficient,
@@ -1042,55 +1048,75 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
       * and substitute the new coefficient in the vector. 
       * NOTE: the linear coefficient related to the auxiliary variable
       * is stored in last place of expression. */
-     auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+     double delta_qcoeff = std::get< 1 >( *dcoeffit );
+     if( obj_aux_con == nullptr ){
+      // We are adding for the first time quadratic coefficients in the objective
+      // function. All the strutures needs to be created for the first time.
 
-     // Check if v already had a quad coeff associated
-     bool found_qterm = false;
-     auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , vidx );
-     while( qidx1_it != qobj_idx1.end() ) {
-      auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
-      if( qobj_idx2[ pos ] == vidx ) {
-       // We actually found the coefficient associated to v*v
-       auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+      // Store all the nonzeros coefficients
+      if( delta_qcoeff != 0 ){
+       qidx_1.push_back( vidx );
+       qidx_2.push_back( vidx );
+       qcoeffs.push_back( - delta_qcoeff );
+      }
+     }
+     else{
+      auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+
+      // Check if v already had a quad coeff associated
+      bool found_qterm = false;
+      auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , vidx );
+      while( qidx1_it != qobj_idx1.end() ) {
+       auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+       if( qobj_idx2[ pos ] == vidx ) {
+        // We actually found the coefficient associated to v*v
+        auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
        
-       // Now we have to be careful wheater the coefficient is being set to 0.
-       // This is because SCIP does not allow to set a coefficient in objective
-       // to 0.
-       if( exprcoeffs[ pos ] == std::get< 1 >( *dcoeffit ) )
-        // Remove the term from the quadratic function (at the moment not 
-        // supported by SCIP ).
-        throw( std::logic_error(
+        // Now we have to be careful wheater the coefficient is being set to 0.
+        // This is because SCIP does not allow to set a coefficient in objective
+        // to 0.
+        if( exprcoeffs[ pos ] == delta_qcoeff )
+         // Remove the term from the quadratic function (at the moment not 
+         // supported by SCIP ).
+         throw( std::logic_error(
 		      "SCIP does not currently support the removal of quadratic terms "
           "from the objective function." ) );
+        else
+         exprcoeffs[ pos ] = exprcoeffs[ pos ] - delta_qcoeff;
+
+        found_qterm = true;
+        qidx1_it = qobj_idx1.end();
+        }
        else
-        exprcoeffs[ pos ] = exprcoeffs[ pos ] - std::get< 1 >( *dcoeffit );
+        qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , vidx );
+      }
 
-       found_qterm = true;
-       qidx1_it = qobj_idx1.end();
-       }
-      else
-       qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , vidx );
-     }
-
-     if( ( ! found_qterm ) && ( std::get< 1 >( *dcoeffit ) != 0 ) ) {
-      // v didn't have previously a quadratic coefficient associated
-      SCIP_EXPR * new_term;
-      std::vector< SCIP_VAR * > var_expr = { vars[ vidx ] };
-      std::vector< double > qcoeff_expr = { 1 };
-      SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
+      if( ( ! found_qterm ) && ( delta_qcoeff != 0 ) ) {
+       // v didn't have previously a quadratic coefficient associated
+       SCIP_EXPR * new_term;
+       std::vector< SCIP_VAR * > var_expr = { vars[ vidx ] };
+       std::vector< double > qcoeff_expr = { 1 };
+       SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
         1 , var_expr.data() , var_expr.data() , qcoeff_expr.data() ,
         nullptr , nullptr );
-      SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -std::get< 1 >( *dcoeffit ) );
-      SCIPreleaseExpr( scip , &new_term );
+       SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -delta_qcoeff );
+       SCIPreleaseExpr( scip , &new_term );
 
-      // Add it in the vectors of indices
-      qobj_idx1.push_back( vidx );
-      qobj_idx2.push_back( vidx );
+       // Add it in the vectors of indices
+       qobj_idx1.push_back( vidx );
+       qobj_idx2.push_back( vidx );
+      }
+      SCIPfreeExprQuadratic( scip , qexpr );
      }
-     SCIPfreeExprQuadratic( scip , qexpr );
 
      dcoeffit++;
     }
+   if( obj_aux_con == nullptr && !qidx_1.empty() )
+    // Create the new quadratic objective part using the stored coefficients
+    // NOTE: This is called only if no quadratic coefficient were already contained 
+    // in the objective function.
+    create_new_qobj( qidx_1 , qidx_2 , qcoeffs );
+
    return;
    }
   else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
@@ -1118,55 +1144,75 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
       * and substitute the new coefficient in the vector. 
       * NOTE: the linear coefficient related to the auxiliary variable
       * is stored in last place of expression. */
-     auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+     double delta_qcoeff = std::get< 1 >( *dcoeffit );
+     if( obj_aux_con == nullptr ){
+      // We are adding for the first time quadratic coefficients in the objective
+      // function. All the strutures needs to be created for the first time.
 
-     // Check if v already had a quad coeff associated
-     bool found_qterm = false;
-     auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , vidx );
-     while( qidx1_it != qobj_idx1.end() ) {
-      auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
-      if( qobj_idx2[ pos ] == vidx ) {
-       // We actually found the coefficient associated to v*v
-       auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+      // Store all the nonzeros coefficients
+      if( delta_qcoeff != 0 ){
+       qidx_1.push_back( vidx );
+       qidx_2.push_back( vidx );
+       qcoeffs.push_back( - delta_qcoeff );
+      }
+     }
+     else{
+      auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+
+      // Check if v already had a quad coeff associated
+      bool found_qterm = false;
+      auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , vidx );
+      while( qidx1_it != qobj_idx1.end() ) {
+       auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+       if( qobj_idx2[ pos ] == vidx ) {
+        // We actually found the coefficient associated to v*v
+        auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
        
-       // Now we have to be careful wheater the coefficient is being set to 0.
-       // This is because SCIP does not allow to set a coefficient in objective
-       // to 0.
-       if( exprcoeffs[ pos ] == std::get< 1 >( *dcoeffit ) )
-        // Remove the term from the quadratic function (at the moment not 
-        // supported by SCIP ).
-        throw( std::logic_error(
+        // Now we have to be careful wheater the coefficient is being set to 0.
+        // This is because SCIP does not allow to set a coefficient in objective
+        // to 0.
+        if( exprcoeffs[ pos ] == delta_qcoeff )
+         // Remove the term from the quadratic function (at the moment not 
+         // supported by SCIP ).
+         throw( std::logic_error(
 		      "SCIP does not currently support the removal of quadratic terms "
           "from the objective function." ) );
+        else
+         exprcoeffs[ pos ] = exprcoeffs[ pos ] - delta_qcoeff;
+
+        found_qterm = true;
+        qidx1_it = qobj_idx1.end();
+        }
        else
-        exprcoeffs[ pos ] = exprcoeffs[ pos ] - std::get< 1 >( *dcoeffit );
+        qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , vidx );
+      }
 
-       found_qterm = true;
-       qidx1_it = qobj_idx1.end();
-       }
-      else
-       qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , vidx );
-     }
-
-     if( ( ! found_qterm ) && ( std::get< 1 >( *dcoeffit ) != 0 ) ) {
-      // v didn't have previously a quadratic coefficient associated
-      SCIP_EXPR * new_term;
-      std::vector< SCIP_VAR * > var_expr = { vars[ vidx ] };
-      std::vector< double > qcoeff_expr = { 1 };
-      SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
+      if( ( ! found_qterm ) && ( delta_qcoeff != 0 ) ) {
+       // v didn't have previously a quadratic coefficient associated
+       SCIP_EXPR * new_term;
+       std::vector< SCIP_VAR * > var_expr = { vars[ vidx ] };
+       std::vector< double > qcoeff_expr = { 1 };
+       SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
         1 , var_expr.data() , var_expr.data() , qcoeff_expr.data() ,
         nullptr , nullptr );
-      SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -std::get< 1 >( *dcoeffit ) );
-      SCIPreleaseExpr( scip , &new_term );
+       SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -delta_qcoeff );
+       SCIPreleaseExpr( scip , &new_term );
 
-      // Add it in the vectors of indices
-      qobj_idx1.push_back( vidx );
-      qobj_idx2.push_back( vidx );
-     }
-     SCIPfreeExprQuadratic( scip , qexpr );
+       // Add it in the vectors of indices
+       qobj_idx1.push_back( vidx );
+       qobj_idx2.push_back( vidx );
+      }
+      SCIPfreeExprQuadratic( scip , qexpr );
+      }
 
      dcoeffit++;
     }
+   if( obj_aux_con == nullptr && !qidx_1.empty() )
+    // Create the new quadratic objective part using the stored coefficients
+    // NOTE: This is called only if no quadratic coefficient were already contained 
+    // in the objective function.
+    create_new_qobj( qidx_1 , qidx_2 , qcoeffs );
+
    return;
    }
   else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
@@ -1194,53 +1240,70 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
     * and substitute the new coefficient in the vector. 
     * NOTE: the +1 is needed to avoid the single linear coefficient 
     * corresponding to the auxiliary variable created. */
-   auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+   if( obj_aux_con == nullptr && delta_coeff != 0){
+    // We are adding for the first time a quadratic coefficient in the objective
+    // function. All the strutures needs to be created for the first time.
 
-   // Check if vars[ 0 ] * vars[ 1 ] already had a quad coeff associated
-   bool found_qterm = false;
-   auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , idx1 );
-   while( qidx1_it != qobj_idx1.end() ) {
-    auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
-    if( qobj_idx2[ pos ] == idx2 ) {
-     // We actually found the coefficient associated to vars[ 0 ] * vars[ 1 ]
-     auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
-     // Now we have to be careful wheater the coefficient is being set to 0.
-     // This is because SCIP does not allow to set a coefficient in objective
-     // to 0.
-     if( exprcoeffs[ pos ] == delta_coeff )
-      // Remove the term from the quadratic function (at the moment not 
-      // supported by SCIP ).
-      throw( std::logic_error(
+    // Store all the nonzeros coefficients
+    qidx_1.push_back( idx1 );
+    qidx_2.push_back( idx2 );
+    qcoeffs.push_back( - delta_coeff );
+    }
+   else{
+    auto qexpr = SCIPgetExprNonlinear( obj_aux_con );
+
+    // Check if vars[ 0 ] * vars[ 1 ] already had a quad coeff associated
+    bool found_qterm = false;
+    auto qidx1_it = find( qobj_idx1.begin() , qobj_idx1.end() , idx1 );
+    while( qidx1_it != qobj_idx1.end() ) {
+     auto pos = std::distance( qobj_idx1.begin() , qidx1_it );
+     if( qobj_idx2[ pos ] == idx2 ) {
+      // We actually found the coefficient associated to vars[ 0 ] * vars[ 1 ]
+      auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
+      // Now we have to be careful wheater the coefficient is being set to 0.
+      // This is because SCIP does not allow to set a coefficient in objective
+      // to 0.
+      if( exprcoeffs[ pos ] == delta_coeff )
+       // Remove the term from the quadratic function (at the moment not 
+       // supported by SCIP ).
+       throw( std::logic_error(
 		    "SCIP does not currently support the removal of quadratic terms "
         "from the objective function." ) );
+      else
+       exprcoeffs[ pos ] = exprcoeffs[ pos ] - delta_coeff;
+
+      found_qterm = true;
+      qidx1_it = qobj_idx1.end();
+      }
      else
-      exprcoeffs[ pos ] = exprcoeffs[ pos ] - delta_coeff;
+      qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , idx1 );
+    }
 
-     found_qterm = true;
-     qidx1_it = qobj_idx1.end();
-     }
-    else
-     qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , idx1 );
-   }
-
-   if( ! found_qterm ) {
-    // v didn't have previously a quadratic coefficient associated
-    SCIP_EXPR * new_term;
-    std::vector< SCIP_VAR * > var_expr1 = { vars[ idx1 ] };
-    std::vector< SCIP_VAR * > var_expr2 = { vars[ idx2 ] };
-    std::vector< double > qcoeff_expr = { 1 };
-    SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
+    if( ! found_qterm ) {
+     // v didn't have previously a quadratic coefficient associated
+     SCIP_EXPR * new_term;
+     std::vector< SCIP_VAR * > var_expr1 = { vars[ idx1 ] };
+     std::vector< SCIP_VAR * > var_expr2 = { vars[ idx2 ] };
+     std::vector< double > qcoeff_expr = { 1 };
+     SCIPcreateExprQuadratic( scip , &new_term , 0 , nullptr , nullptr ,
         1 , var_expr1.data() , var_expr2.data() , qcoeff_expr.data() ,
         nullptr , nullptr );
 
-    SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -delta_coeff );
-    SCIPreleaseExpr( scip , &new_term );
+     SCIPaddExprNonlinear( scip , obj_aux_con , new_term , -delta_coeff );
+     SCIPreleaseExpr( scip , &new_term );
 
-    // Add it in the vectors of indices
-    qobj_idx1.push_back( idx1 );
-    qobj_idx2.push_back( idx2 );
+     // Add it in the vectors of indices
+     qobj_idx1.push_back( idx1 );
+     qobj_idx2.push_back( idx2 );
+    }
+    SCIPfreeExprQuadratic( scip , qexpr );
    }
-   SCIPfreeExprQuadratic( scip , qexpr );
+   
+   if( obj_aux_con == nullptr && !qidx_1.empty() )
+    // Create the new quadratic objective part using the stored coefficients
+    // NOTE: This is called only if no quadratic coefficient were already contained 
+    // in the objective function.
+    create_new_qobj( qidx_1 , qidx_2 , qcoeffs );
   
    return;
   }
@@ -2738,6 +2801,76 @@ void SCIPMILPSolver::generate_qobj_matrix( std::vector< SCIP_VAR * > & qidx1 ,
   qobj_idx1.push_back( -1 );
   qobj_idx2.push_back( -1 );
   qcoeff.push_back( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::create_new_qobj( std::vector< int > & qidx1 , 
+                                      std::vector< int > & qidx2 , 
+                                      std::vector< double > & qcoeff ){
+ /* Nonlinear objective functions are not supported by SCIP and must be 
+  *  modeled as constraint function. Thus, a problem like min xQx is reformulated
+  *  into min z  s.t. z >= xQx. */
+ std::vector< SCIP_VAR * > qvar1( qidx1.size() );
+ std::vector< SCIP_VAR * > qvar2( qidx1.size() );
+
+ for( int i = 0 ; i < qidx1.size() ; ++i ){
+  qvar1.push_back( vars[ qidx1[ i ] ] );
+  qvar2.push_back( vars[ qidx2[ i ] ] );
+
+  // Fill also auxiliary vectors to perform future changes (only with indices)
+  qobj_idx1.push_back( qidx1[ i ] );
+  qobj_idx2.push_back( qidx2[ i ] );
+ }
+ 
+ // SCIP add the linear coefficient at the end, thus we add a -1 in the 
+ // indices vector to avoid it.
+ qobj_idx1.push_back( -1 );
+ qobj_idx2.push_back( -1 );
+
+  // Add auxiliary variable
+  SCIP_Real z_lb = - SCIPinfinity( scip );
+  SCIP_Real z_ub = SCIPinfinity( scip ) ;
+
+  SCIP_VARTYPE z_type = SCIP_VARTYPE_CONTINUOUS;
+
+  SCIP_VAR * z = nullptr;
+  SCIP_CALL_ABORT( SCIPcreateVarBasic( scip , & z , nullptr , 
+                                z_lb  , z_ub , 1 , z_type ) );
+  SCIP_CALL_ABORT( SCIPaddVar( scip , z ) );
+  obj_aux_var = z;
+  SCIP_CALL_ABORT( SCIPreleaseVar( scip , & z ) );
+
+  // Add auxiliary constraints z >= xQx
+  SCIP_Real con_lhs;
+  SCIP_Real con_rhs;
+  if( objsense == 1 ) {
+    con_lhs = 0;
+    con_rhs = SCIPinfinity( scip );
+  }
+  else{
+    con_rhs = 0;
+    con_lhs = -SCIPinfinity( scip );
+  }
+  SCIP_Real lincoef = 1;
+
+  SCIP_CONS * con = nullptr;
+  SCIP_VAR * linvar = obj_aux_var;
+  std::string name = "aux_qobj_con";
+
+  #if SCIP_VERSION < 800
+    SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip , & con , name.c_str() ,
+        1 , & linvar , & lincoef , qvar1.size() , qvar1.data() , qvar2.data() ,
+        qcoeffs.data() , con_lhs , con_rhs ) );
+  #else
+    SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip , & con ,
+        name.c_str() , 1 , & linvar , & lincoef , qvar1.size() , qvar1.data() ,
+        qvar2.data() , qcoeff.data() , con_lhs , con_rhs ) );
+  #endif
+
+  SCIP_CALL_ABORT( SCIPaddCons( scip , con ) );
+  obj_aux_con = con;
+  SCIP_CALL_ABORT( SCIPreleaseCons( scip , &con ) );
 }
 
 /*--------------------------------------------------------------------------*/
