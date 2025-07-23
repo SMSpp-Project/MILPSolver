@@ -1483,8 +1483,8 @@ int CPXMILPSolver::cpx_index_of_variable( const ColVariable * var ) const
   // We can use the cpx_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
   int count = 0;
-  while( ( cpx_idx_aux_qvar[ count ] < idx ) &&
-         ( count < cpx_idx_aux_qvar.size() ) ) {
+  while( ( count < cpx_idx_aux_qvar.size() ) &&
+          ( cpx_idx_aux_qvar[ count ] < idx ) ) {
     ++idx;
     ++count;
   }

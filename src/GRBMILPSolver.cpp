@@ -1350,11 +1350,11 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
   }
  else if( is_qcp && ( n_ranged_con == 0 ) ) {
   // Simply "jump" quadratic constraints auxiliary variables
-  // We can use the cpx_idx_aux_qvar vector, containing all the indices
+  // We can use the grb_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
   int count = 0;
-  while( ( grb_idx_aux_qvar[ count ] < idx ) &&
-         ( count < grb_idx_aux_qvar.size() ) ) {
+  while( ( count < grb_idx_aux_qvar.size() ) && 
+          ( grb_idx_aux_qvar[ count ] < idx ) ) {
     ++idx;
     ++count;
   }
