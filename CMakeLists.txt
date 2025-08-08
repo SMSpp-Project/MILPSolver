@@ -105,7 +105,6 @@ configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
 # be STATIC or SHARED, so no reason to do it now.
 if (BUILD_SHARED_LIBS AND MSVC)
     add_library(${modName} STATIC)
-    target_link_options(${modName} PRIVATE "/WHOLEARCHIVE" "/FORCE:MULTIPLE")
 else ()
     add_library(${modName})
 endif ()
