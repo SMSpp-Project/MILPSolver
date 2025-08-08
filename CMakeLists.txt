@@ -103,7 +103,12 @@ configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
 # ----- Library ------------------------------------------------------------- #
 # With the BUILD_SHARED_LIBS variable we can specify if the library will
 # be STATIC or SHARED, so no reason to do it now.
-add_library(${modName})
+if (BUILD_SHARED_LIBS AND MSVC)
+    add_library(${modName} STATIC)
+    target_link_options(${modName} PRIVATE "/WHOLEARCHIVE" "/FORCE:MULTIPLE")
+else ()
+    add_library(${modName})
+endif ()
 target_compile_features(${modName} PUBLIC cxx_std_17)
 
 # Ensure that the executables from /tools are run before adding the /include
