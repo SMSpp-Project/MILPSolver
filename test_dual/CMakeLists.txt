@@ -15,7 +15,7 @@
 # so we have to force the linking.
 if (BUILD_SHARED_LIBS)
     if (MSVC)
-        add_link_options("/WHOLEARCHIVE" "/FORCE:MULTIPLE")
+        add_link_options("/OPT:NOREF")
     elseif (UNIX AND (NOT APPLE))
         add_link_options("-Wl,--no-as-needed")
     endif ()
