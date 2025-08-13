@@ -7,6 +7,10 @@ test_cuts/test_cuts
 test_dynamic/test_dynamic
 test_dual/test_dual
 
+# Include files
+include/*_defs.h
+include/*_maps.h
+
 ### C/C++ template
 # Prerequisites
 *.d
