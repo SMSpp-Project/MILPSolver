@@ -39,7 +39,7 @@
 ##############################################################################
 
 # tools: build + run headers generators - - - - - - - - - - - - - - - - - - -
-TOOLSSDR := tools
+TOOLSSDR := ./$(MILPSSDR)/tools
 
 .PHONY: tools
 tools:
