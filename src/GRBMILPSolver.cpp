@@ -1820,12 +1820,14 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
      // Update new coefficient
      *(nvit++) = oldval + modl->delta()[ i ];
+
+     idx = vidx;
      }
    }
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
 
-   GRBupdatemodel( model );
+   //GRBupdatemodel( model );
    return;
    }
 
@@ -1874,10 +1876,10 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    c_v_coeff_pair * delta_coeff = & modlr->delta();
 
    std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
+   std::vector< int > cidxs( idxs.size() );
    auto nvit = nval.begin();
    auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
+   auto cidxit = cidxs.begin();
    auto dcoeffit = delta_coeff->begin();
 
    for( auto v : *vars )
@@ -1898,12 +1900,12 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
      dcoeffit++;
     }
    auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
+   cidxs.resize( nsz );
    nval.resize( nsz );
 
-   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data());
-
-   GRBupdatemodel( model );
+   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidxs.size() , cidxs.data() , nval.data());
+   
+   //GRBupdatemodel( model );
    return;
    }
   else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
@@ -2033,7 +2035,7 @@ void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
  std::vector< int > rows( nsz , row );
  GRBchgcoeffs( model , nsz , rows.data() , cidx.data() , nval.data() );
- GRBupdatemodel( model );
+ // GRBupdatemodel( model );
 
  // Fallback method - Reload all coefficients
  // --------------------------------------------------------------------------
