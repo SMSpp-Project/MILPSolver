@@ -109,22 +109,7 @@ target_compile_features(${modName} PUBLIC cxx_std_17)
 # Ensure that the executables from /tools are run before adding the /include
 # directory to generate the necessary *_defs.h and *_maps.h files of the correct
 # solver version installed on the system, if they are not already present
-# Add dependencies for tools executables
-#if (GENERATE_CPLEX_HEADERS)
-#    add_dependencies(${modName} cpx_pars)
-#endif ()
-
-if (GENERATE_SCIP_HEADERS)
-    add_dependencies(${modName} scip_pars)
-endif ()
-
-if (GENERATE_GUROBI_HEADERS)
-    add_dependencies(${modName} grb_pars)
-endif ()
-
-if (GENERATE_HIGHS_HEADERS)
-    add_dependencies(${modName} highs_pars)
-endif ()
+add_dependencies(${modName} generate_headers)
 
 # When adding source files with target_sources(), PRIVATE means that the files
 # should only be added to this library, whereas PUBLIC means they should be
