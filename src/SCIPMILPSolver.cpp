@@ -1445,7 +1445,7 @@ void SCIPMILPSolver::objective_fvars_modification(
   return;
  }
 
- if( auto qf = static_cast< const QuadFunction * >( f ) ) {
+ if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
 
   // Firstly check if we are simply removing variables
@@ -1492,7 +1492,7 @@ void SCIPMILPSolver::objective_fvars_modification(
   return;
   }
 
-  auto modq = static_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+  auto modq = dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );

@@ -1600,7 +1600,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
  }
 
- if( auto qf = static_cast< const QuadFunction * >( f ) ) {
+ if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
 
   // In HiGHS we can pass quadratic coefficients to the model only by providing
@@ -1659,7 +1659,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     return;
   }
 
-  auto modq = static_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+  auto modq = dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );

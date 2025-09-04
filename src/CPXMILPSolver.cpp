@@ -2213,13 +2213,13 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
  }
 
- if( auto qf = static_cast< const QuadFunction * >( f ) ) {
+ if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
   
   // Firstly check if we are simply removing variables
   if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
-      auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
+      auto var = dynamic_cast< const ColVariable * >( mod->vars()[ i ] );
 
       if( auto idx = cpx_index_of_variable( var ) ; idx < Inf< int >() ) {
         // Set diagonal coefficient to 0
@@ -2235,7 +2235,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     return;
   }
 
-  auto modq = static_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+  auto modq = dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
