@@ -40,9 +40,12 @@
 
 # tools: build + run headers generators - - - - - - - - - - - - - - - - - - -
 TOOLSSDR := ./$(MILPSSDR)/tools
+STAMP := $(TOOLSSDR)/.headers.stamp
 
 .PHONY: tools
-tools:
+tools: $(STAMP)
+
+$(STAMP):
 	@echo "[MILPSolver] building and running *_pars in $(TOOLSSDR)"
 	@set -e; \
 	$(MAKE) -C "$(TOOLSSDR)"; \
@@ -66,6 +69,7 @@ tools:
 	  fi; \
 	done
 	@echo "[MILPSolver] headers ready"
+	@touch "$(STAMP)"
 
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -92,6 +96,7 @@ clean::
 	rm -f $(MILPSSDR)/include/GRB*_defs.h $(MILPSSDR)/include/GRB*_maps.h
 	rm -f $(MILPSSDR)/include/SCIP*_defs.h $(MILPSSDR)/include/SCIP*_maps.h
 	rm -f $(MILPSSDR)/include/HiGHS*_defs.h $(MILPSSDR)/include/HiGHS*_maps.h
+	rm -f $(STAMP)
 
 # distclean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -103,11 +108,11 @@ distclean: clean
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
 
-$(MILPSSDR)/obj/MILPSolver.o: tools
-$(MILPSSDR)/obj/CPXMILPSolver.o: tools
-$(MILPSSDR)/obj/SCIPMILPSolver.o: tools
-$(MILPSSDR)/obj/GRBMILPSolver.o: tools
-$(MILPSSDR)/obj/HiGHSMILPSolver.o: tools
+$(MILPSSDR)/obj/MILPSolver.o:      | $(STAMP)
+$(MILPSSDR)/obj/CPXMILPSolver.o:   | $(STAMP)
+$(MILPSSDR)/obj/SCIPMILPSolver.o:  | $(STAMP)
+$(MILPSSDR)/obj/GRBMILPSolver.o:   | $(STAMP)
+$(MILPSSDR)/obj/HiGHSMILPSolver.o: | $(STAMP)
 
 $(MILPSSDR)/obj/MILPSolver.o: $(MILPSSDR)/src/MILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
