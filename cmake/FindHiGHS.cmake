@@ -93,19 +93,28 @@ else ()
               DOC "HiGHS include directory.")
 
     # ----- Find the HiGHS library ------------------------------------------ #
-    find_library(HiGHS_LIBRARY
-                 NAMES highs
-                 PATHS ${HiGHS_ROOT}
-                 PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}
-                 DOC "HiGHS library.")
-
     if (UNIX)
+        find_library(HiGHS_LIBRARY
+                NAMES highs
+                PATHS ${HiGHS_ROOT}
+                PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}
+                DOC "HiGHS library.")
+
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
                 CACHE FILEPATH "HiGHS debug library." FORCE)
     elseif (WIN32)
+        find_library(HiGHS_LIBRARY
+                NAMES highs
+                PATHS ${HiGHS_ROOT}
+                      ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
+                PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}
+                NO_DEFAULT_PATH
+                DOC "HiGHS library.")
+
         find_library(HiGHS_LIBRARY_DEBUG
                      NAMES highs
                      PATHS ${HiGHS_ROOT}
+                           ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/lib
                      PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES_DEBUG}
                      NO_DEFAULT_PATH
                      DOC "HiGHS debug library.")
