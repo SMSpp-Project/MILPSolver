@@ -168,6 +168,8 @@ class MILPSolver : public CDASolver
  enum str_par_type_MILP {
   strProblemName = strLastParCDAS ,  ///< problem name
   strOutputFile ,                    ///< output filename
+  strWarmStartSolution ,             ///< warm start solution filename
+  strWarmStartVariables ,            ///< warm start variables filename
   strLastAlgParMILP  ///< 1st allowed new string parameter for derived classes
   };
 
@@ -423,7 +425,81 @@ class MILPSolver : public CDASolver
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
- /** @name Methods that use the dictionaries
+ /** @name Informative methods about different aspect of the problem
+ *
+ * The following methods are used to provide useful information about the
+ * internal status of the problem (e.g. number of nodes explored ).
+ * These methods are not properly implemented in the base class MILPSolver
+ * as they should be overwritten in derived classes.
+ * @{ */
+
+ /// Returns the number of nodes explored so far.
+ [[nodiscard]] virtual int get_explored_nodes( void ) const {
+  throw( std::runtime_error( "Function get_explored_nodes is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /// Returns the estimated number of nodes to explore.
+ [[nodiscard]] virtual long get_left_nodes( void ) const {
+  throw( std::runtime_error( "Function get_left_nodes is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /// Returns a true value if a feasible solution is known, 
+ //  false otherwise.
+ [[nodiscard]] virtual bool has_feasible_sol( void ) {
+  throw( std::runtime_error( "Function has_feasible_sol is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /// Returns elapsed solver runtime (in second).
+ [[nodiscard]] virtual double get_runtime( void ) const {
+  throw( std::runtime_error( "Function get_runtime is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /// Returns a unique identifier for the node currently being explored  
+ //  in the branch-and-bound algorithm for a MIP problem.  
+ //  
+ /// NOTE: This method should only be called during the callback process  
+ //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and you need to identify the node from which it originates).  
+ [[nodiscard]] virtual long get_id_node( void ) const {
+  throw( std::runtime_error( "Function get_id_node is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+ virtual void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ){
+  
+    throw( std::runtime_error( "Function add_mip_starts is not supported "
+      "by the current *MILPSolver" ) );
+  
+    return;
+  }
+  
+/** @} ---------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Methods that use the dictionaries
   *
   * The following methods use the dictionaries to get the indices of the
   * Variables/Constraints from the pointers and viceversa.
@@ -567,6 +643,26 @@ class MILPSolver : public CDASolver
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// Returns the number of integer variables
  [[nodiscard]] int get_num_integer_vars( void ) const { return( int_vars ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+/** 
+ * Adds a new warm start to the solver. See Solver.h for further details.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.  */
+ //void add_warm_start( const Solution * sol ,
+  //                    const std::vector< AbstractPath > varpaths ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+/** 
+ * Adds a set of warm start to the solver. See Solver.h for further details.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.  */
+//void add_warm_start( const std::vector< Solution * > sols ,
+//                     const std::vector< AbstractPath > varpaths ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  #ifdef MILPSolver_DEBUG
@@ -977,6 +1073,52 @@ class MILPSolver : public CDASolver
  int static_vars{};        ///< Number of static variables
  int static_cons{};        ///< Number of static constraints
  int static_quadcons{};    ///< Number of static quadratic constraints
+
+ /** Warm start structures used by the solver.
+ *
+ * These fields store the initial solution data that can be provided to
+ * the solver. As described in Solver.h, each warm start is represented
+ * as a tuple: (Solution*, std::vector<AbstractPath>).
+ *
+ * Since multiple warm starts may be supplied, two vectors are maintained:
+ * - v_warmstart_sol: stores the Solution* instances
+ * - v_warmstart_vars: stores the AbstractPath vectors
+ *
+ * @note A single std::vector<AbstractPath> can be shared across multiple
+ * Solution * instances. To track this association, a std::vector<int> 
+ * — matching the length of v_warmstart_sol— is used to record which :AbstractPath
+ * vector is referenced by each Solution *.
+ *
+ * Currently, warm starts can be provided in two ways:
+ *
+ * 1. **Programmatically**, by storing the necessary data structures
+ *    directly in the Solver instance using the methods `add_warm_start()`
+ *    or `add_warm_starts()`.
+ *
+ * 2. **Via input files**, using two files of type `eWarmStartFile` and
+ *    `eSolutionFile`. The corresponding filenames can be set using the
+ *    string parameters:
+ *      - "strWarmStartVariables" — path to the file defining set of variables
+ *      for which we would like to provide a warm start.
+ *      - "strWarmStartSolution"  — path to the file containing the
+ *      warm start solution (i.e. initial values for the specified set of
+ *      variables).
+ *
+ *    If a filename follows the format "filename[idx]", only the indexed 
+ *    structure within the file will be used. 
+ *    (Behavior for unspecified indices or other formats is TBD.)
+ */
+
+ std::string warmstart_variables; // warm start variables filename
+ std::string warmstart_solution;  // warm start solution filename
+
+ //std::vector< std::vector< AbstractPath >> v_warmstart_vars;
+                                  // warm start variables
+ //std::vector< Solution * > v_warmstart_sol;               
+                                  // warm start solutions
+ 
+ //std::vector< int > v_warmstart_sol2vars; 
+                                  // corresponding variables for each solution
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------- PROTECTED METHODS ----------------------------*/

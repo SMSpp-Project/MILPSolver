@@ -2196,6 +2196,24 @@ int HiGHSMILPSolver::callback( const int callback_type,
 
 /*--------------------------------------------------------------------------*/
 
+void HiGHSMILPSolver::add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues )
+{
+ // Get number of starts
+ int nstarts = varidxs.size();
+
+ // HiGHS supports only one starting solution.
+ if( nstarts > 1 )
+  std::cout << "WARNING: HiGHS supports only one starting solution. "
+   "Only the first one will be used." << std::endl;
+
+ Highs_setSparseSolution( highs , varidxs.size() , varidxs[ 0 ].data() , 
+    varvalues[ 0 ].data() );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
   std::vector< int > & rmatbeg ,
   std::vector< int > & rmatind ,

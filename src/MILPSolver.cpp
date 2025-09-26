@@ -2912,6 +2912,14 @@ void MILPSolver::set_par( idx_type par , std::string && value )
   output_file = std::move( value );
   return;
   }
+ if( par == strWarmStartVariables ) {
+  warmstart_variables = std::move( value );
+  return;
+  }
+ if( par == strWarmStartSolution ) {
+  warmstart_solution = std::move( value );
+  return;
+  }
 
  CDASolver::set_par( par, std::move( value ) );
  }
@@ -2970,6 +2978,12 @@ const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const
  if( par == strOutputFile )
   return( vals[ 1 ] );
 
+ if( par == strWarmStartVariables )
+  return( vals[ 1 ] );
+
+ if( par == strWarmStartSolution )
+  return( vals[ 1 ] );
+
  return( CDASolver::get_dflt_str_par( par ) );
  }
 
@@ -3011,6 +3025,12 @@ const std::string & MILPSolver::get_str_par( idx_type par ) const
 
  if( par == strOutputFile )
   return( output_file );
+
+ if( par == strWarmStartVariables )
+  return( warmstart_variables );
+
+ if( par == strWarmStartSolution )
+  return( warmstart_solution );
 
  return( CDASolver::get_str_par( par ) );
  }
@@ -3087,6 +3107,12 @@ Solver::idx_type MILPSolver::str_par_str2idx( const std::string & name ) const
  if( name == "strOutputFile" )
   return( strOutputFile );
 
+ if( name == "strWarmStartVariables" )
+  return( strWarmStartVariables );
+
+ if( name == "strWarmStartSolution" )
+  return( strWarmStartSolution );
+
  return( CDASolver::str_par_str2idx( name ) );
  }
 
@@ -3095,12 +3121,20 @@ Solver::idx_type MILPSolver::str_par_str2idx( const std::string & name ) const
 const std::string & MILPSolver::str_par_idx2str( idx_type idx ) const
 {
  static const std::vector< std::string > pars = { "strProblemName" ,
-                                                  "strOutputFile" };
+                                                  "strOutputFile" ,
+                                                  "strWarmStartVariables" ,
+                                                  "strWarmStartSolution" };
  if( idx == strProblemName )
   return( pars[ 0 ] );
 
  if( idx == strOutputFile )
   return( pars[ 1 ] );
+
+ if( idx == strWarmStartVariables )
+  return( pars[ 2 ] );
+
+ if( idx == strWarmStartSolution )
+  return( pars[ 3 ] );
 
  return( CDASolver::str_par_idx2str( idx ) );
  }
