@@ -217,6 +217,39 @@ class GRBMILPSolver : public MILPSolver {
  /// loads the problem into Gurobi
  void load_problem( void ) override;
 
+ /// returns the number of nodes used to solve a MIP
+ [[nodiscard]] int get_explored_nodes( void ) const override;
+
+ /// returns the estimated number of nodes left
+ [[nodiscard]] long get_left_nodes( void ) const override;
+
+ /// Returns a true value if a feasible solution is known, 
+ //  false otherwise.
+ [[nodiscard]] bool has_feasible_sol( void ) override;
+
+ /// Returns elapsed solver runtime (in second).
+ [[nodiscard]] double get_runtime( void ) const override;
+
+ /// Returns a unique identifier for the node currently being explored  
+ //  in the branch-and-bound algorithm for a MIP problem.  
+ //  
+ /// NOTE: This method should only be called during the callback process  
+ //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and you need to identify the node from which it originates).  
+ [[nodiscard]] long get_id_node( void ) const override;
+
+/** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ) override;
+
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
@@ -492,6 +525,12 @@ class GRBMILPSolver : public MILPSolver {
   * model that the Solver is solving. */
 
  int callback( GRBmodel *model , void *cbdata , int where );
+
+ /// returns the current best solution for the problem when the callback is set.
+ OFValue get_bestsol_callback( void );
+
+ /// returns the current best bound for the problem when the callback is set
+ OFValue get_bestbound_callback( void );
  
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
@@ -631,6 +670,10 @@ class GRBMILPSolver : public MILPSolver {
  /// the "Configuration DB" istself
  std::vector< Configuration * > v_ConfigDB;
 
+  /** pointer used to keep track of the current data and status of the callback */
+ void * current_cbdata;
+ int current_cbwhere;
+
  /// the mutex to ensure that Gurobi threads do not overstep in the callback
  /** Since Gurobi is multi-threaded, lock()-ing the Block with the f_id of
   * GRBMILPSolver is not enough to prevent concurrent access to it. This is
@@ -690,8 +733,10 @@ class GRBMILPSolver : public MILPSolver {
  // last static ranged constraint added
  int last_static_rng_con;
 
- // function to retrieve actual idx of variable considering auxiliary ones
+ // functions to retrieve actual idx of variable considering auxiliary ones
  int grb_index_of_variable( const ColVariable * var ) const;
+
+ int grb_index_of_variable( const int old_idx ) const;
 
  // function to retrieve actual idx of dynamic variable considering auxiliary ones
  int grb_index_of_dynamic_variable( const ColVariable * var ) const; 

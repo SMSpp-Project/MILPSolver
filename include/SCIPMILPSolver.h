@@ -250,17 +250,29 @@ class SCIPMILPSolver : public MILPSolver
 			  std::vector< double > & rhs , 
 			  std::vector< double > & lhs );
 
-  /* From within the class SCIPMILPSolver_Conhdlr it is not possible to set
-   * some protected field of the class useful to avoid collision between threads 
-   * when performing separation. Thus, the two following public functions allows 
-   * us to obtain this results from external class. */
+ /* From within the class SCIPMILPSolver_Conhdlr it is not possible to set
+  * some protected field of the class useful to avoid collision between threads 
+  * when performing separation. Thus, the two following public functions allows 
+  * us to obtain this results from external class. */
   
-  void set_f_cb_mutex( void );
+ void set_f_cb_mutex( void );
 
-  void unset_f_cb_mutex( void );
+ void unset_f_cb_mutex( void );
 
-  /// get the actual SCIP var used
-  std::vector< SCIP_VAR * > get_SCIP_var( void );
+ /// get the actual SCIP var used
+ std::vector< SCIP_VAR * > get_SCIP_var( void );
+
+  /** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+ void add_mip_starts( 
+   std::vector< std::vector<int> > varidxs, 
+   std::vector< std::vector<double> > varvalues ) override;
 
   #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
