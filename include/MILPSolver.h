@@ -479,6 +479,23 @@ class MILPSolver : public CDASolver
   return( 0 );
   }
 
+ /** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+ virtual void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ){
+  
+    throw( std::runtime_error( "Function add_mip_starts is not supported "
+      "by the current *MILPSolver" ) );
+  
+    return;
+  }
   
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -634,8 +651,8 @@ class MILPSolver : public CDASolver
  * 
  * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
  * to infer values for the unspecified variables.  */
- void add_warm_start( const Solution * sol ,
-                      const std::vector< AbstractPath > varpaths ) override;
+ //void add_warm_start( const Solution * sol ,
+  //                    const std::vector< AbstractPath > varpaths ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
@@ -644,8 +661,8 @@ class MILPSolver : public CDASolver
  * 
  * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
  * to infer values for the unspecified variables.  */
-void add_warm_start( const std::vector< Solution * > sols ,
-                     const std::vector< AbstractPath > varpaths ) override;
+//void add_warm_start( const std::vector< Solution * > sols ,
+//                     const std::vector< AbstractPath > varpaths ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  #ifdef MILPSolver_DEBUG
@@ -1095,12 +1112,12 @@ void add_warm_start( const std::vector< Solution * > sols ,
  std::string warmstart_variables; // warm start variables filename
  std::string warmstart_solution;  // warm start solution filename
 
- std::vector< std::vector< AbstractPath >> v_warmstart_vars;
+ //std::vector< std::vector< AbstractPath >> v_warmstart_vars;
                                   // warm start variables
- std::vector< Solution * > v_warmstart_sol;               
+ //std::vector< Solution * > v_warmstart_sol;               
                                   // warm start solutions
  
- std::vector< int > v_warmstart_sol2vars; 
+ //std::vector< int > v_warmstart_sol2vars; 
                                   // corresponding variables for each solution
 
 /** @} ---------------------------------------------------------------------*/

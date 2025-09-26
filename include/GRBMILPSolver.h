@@ -230,6 +230,14 @@ class GRBMILPSolver : public MILPSolver {
  /// Returns elapsed solver runtime (in second).
  [[nodiscard]] double get_runtime( void ) const override;
 
+ /// Returns a unique identifier for the node currently being explored  
+ //  in the branch-and-bound algorithm for a MIP problem.  
+ //  
+ /// NOTE: This method should only be called during the callback process  
+ //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and you need to identify the node from which it originates).  
+ [[nodiscard]] long get_id_node( void ) const override;
+
 /** 
  * Adds multiple MIP starts to a MIP problem. This function allows the solver 
  * to receive multiple sets of starting values by providing vectors of variable 

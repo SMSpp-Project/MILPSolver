@@ -3094,6 +3094,14 @@ double GRBMILPSolver::get_runtime( void ) const
 
 /*--------------------------------------------------------------------------*/
 
+long GRBMILPSolver::get_id_node( void ) const
+{
+  // Here we simply use the number of explored nodes as a unique identifier 
+  return( get_explored_nodes() );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void GRBMILPSolver::add_mip_starts( 
   std::vector< std::vector<int> > varidxs, 
   std::vector< std::vector<double> > varvalues )
