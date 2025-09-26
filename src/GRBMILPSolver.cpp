@@ -99,6 +99,16 @@ GRBMILPSolver::~GRBMILPSolver()
   GRBfreemodel( model );
 
  GRBfreeenv( env );
+
+ // Free auxiliary structures
+
+ // QP
+ grb_quad_var_aux.clear();
+ grb_quad_con_aux.clear();
+ grb_idx_aux_qvar.clear();
+
+ // Ranged constraints
+ map_rng_con_aux_var.clear();
  }
 
  /*--------------------------------------------------------------------------*/
@@ -134,6 +144,13 @@ void GRBMILPSolver::load_problem( void )
  MILPSolver::load_problem();
 
  int status = 0;
+
+ grb_quad_var_aux.clear();
+ grb_quad_con_aux.clear();
+ grb_idx_aux_qvar.clear();
+
+ map_rng_con_aux_var.clear();
+
  if( model ) {
   GRBfreemodel( model );
   model = nullptr;
@@ -192,7 +209,7 @@ void GRBMILPSolver::load_problem( void )
 
   // creating a vector containg only non-zero coefficients for quadratic terms and corresponding indices
   for( int i = 0 ; i < numcols ; ++i ) {
-	 if( double_q_obj[n_qp] != 0 ) {
+	 if( double_q_obj[ n_qp ] != 0 ) {
 	  n_qp = n_qp + 1;
 	  qp_indices.push_back( i );
 	 }
@@ -215,7 +232,7 @@ void GRBMILPSolver::load_problem( void )
  }
 
  // Now we can add all the constraints
- if( !is_qcp ) {
+ if( ! is_qcp ) {
   // LP configuration. In MILPSolver the coefficient matrix is stored by columns. IN Gurobi we need
   // to transpose it by rows
 
@@ -250,7 +267,7 @@ void GRBMILPSolver::load_problem( void )
   // filling matind_t and matval_t
   for( int i = 0 ; i < matind.size() ; ++i ) {
     int row = matind[ i ];
-    while( z != numcols - 1 && i == matbeg[ z + 1 ] ) // we stepped to the next column
+    while( ( z != numcols - 1 ) && ( i == matbeg[ z + 1 ] ) ) // we stepped to the next column
       ++z;
     int pos = matbeg_t[ row ] + inserted_el_row[ row ]; // where we have to insert the new value
     ++inserted_el_row[ row ];
@@ -395,7 +412,7 @@ void GRBMILPSolver::load_problem( void )
       // Retrieve linear part of the constraint
       int nzcnt = matcnt[ i ];
 
-      if( nzcnt == 0 ){
+      if( nzcnt == 0 ) {
         // Case where q is null
         
         // Prepare coefficients for quadratic part
@@ -421,7 +438,7 @@ void GRBMILPSolver::load_problem( void )
         rmatval.reserve( nzcnt );
 
         // get the coefficients to fill the matrix
-        for( int j = 0 ; j < nzcnt ; j++ ){
+        for( int j = 0 ; j < nzcnt ; j++ ) {
           rmatind.push_back( matind[ start + j ] );
           rmatval.push_back( matval[ start + j ] );
         }
@@ -778,7 +795,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       int convexity;
       GRBgetintparam( env , GRB_INT_PAR_NONCONVEX , &convexity );
 
-      if( ( int_vars == 0 || relax_int_vars ) && convexity == 0 )
+      if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) )
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
       else
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &lower_bound );
@@ -921,7 +938,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
      int convexity;
      GRBgetintparam( env , GRB_INT_PAR_NONCONVEX , &convexity );
 
-     if( ( int_vars == 0 || relax_int_vars ) && convexity == 0 )
+     if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) )
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &upper_bound );
       else
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &upper_bound );
@@ -996,7 +1013,7 @@ void GRBMILPSolver::get_var_solution( Configuration * solc )
  else{
   int aux_counter = 0;
   for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
+    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
       x[ j - aux_counter ] = x_grb[ j ];
     else
       ++aux_counter;
@@ -1032,7 +1049,7 @@ bool GRBMILPSolver::has_var_direction( void )
  int infunbd_info = 0;
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
 
- if( ( m_status != GRB_UNBOUNDED ) || !infunbd_info ) {
+ if( ( m_status != GRB_UNBOUNDED ) || ( ! infunbd_info ) ) {
   if( verbosity )
     DEBUG_LOG( "In order to ask for the unbounded direction of"
                 "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
@@ -1059,7 +1076,7 @@ void GRBMILPSolver::get_var_direction( Configuration * dirc )
  else{
   int aux_counter = 0;
   for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
+    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
       x[ j - aux_counter ] = x_grb[ j ];
     else
       ++aux_counter;
@@ -1096,7 +1113,7 @@ bool GRBMILPSolver::has_dual_solution( void )
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
 
  if( ( m_status == GRB_INFEASIBLE || m_status == GRB_INF_OR_UNBD || 
-        m_status == GRB_UNBOUNDED ) && !infunbd_info ) {
+        m_status == GRB_UNBOUNDED ) && ( ! infunbd_info ) ) {
   if( verbosity )
     DEBUG_LOG( "In order to ask for the dual solution of"
                       "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
@@ -1104,10 +1121,10 @@ bool GRBMILPSolver::has_dual_solution( void )
   return( false );
  }
 
- if( numquadrows > 0 ){
+ if( numquadrows > 0 ) {
   int qcp_dual;
   GRBgetintparam( env , GRB_INT_PAR_QCPDUAL , & qcp_dual );
-  if( !qcp_dual ){
+  if( ! qcp_dual ) {
     if( verbosity )
       DEBUG_LOG( "In order to retrieve dual values for QCP models  "
             "the attribute QCPDUAL must be set to 1" << std::endl);
@@ -1121,7 +1138,7 @@ bool GRBMILPSolver::has_dual_solution( void )
  // properly setting all the parameters.
  std::vector< double > small_pi( 1 , 0 );
  if( int status = GRBgetdblattrarray( model , GRB_DBL_ATTR_PI , 0 , 
-                    1 , small_pi.data() ) ){
+                    1 , small_pi.data() ) ) {
   if( verbosity )
       DEBUG_LOG( "Query of dual values with attributes GRB_PI " 
         "returned status " + std::to_string( status ) << std::endl);
@@ -1166,10 +1183,10 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
 
 
  /* Retrieve dual value for initial variables (avoid auxiliary) */
- if( n_ranged_con == 0 && grb_idx_aux_qvar.size() == 0 ) 
+ if( ( n_ranged_con == 0 ) && ( grb_idx_aux_qvar.size() == 0 ) )
   // there are neither ranged constraint or auxiliary variables for quadratic constraint
   dj = dj_grb;
- else if( grb_idx_aux_qvar.size() == 0 ){
+ else if( grb_idx_aux_qvar.size() == 0 ) {
   // there are no auxiliary variables for quadratic constraint (jump only ranged one)
   int rng_counter = 0;
   for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
@@ -1179,7 +1196,7 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
       ++rng_counter;
    }
   }
- else if( n_ranged_con == 0 ){
+ else if( n_ranged_con == 0 ) {
   // there are no ranged constraint (jump auxiliary variables for quadratic constraint)
   int q_counter = 0;
   for( int j = 0 ; j < numcols + grb_idx_aux_qvar.size() ; ++j ) {
@@ -1205,7 +1222,7 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
 
  /* Retrieve dual values for initial constraints (also quadratic) */
  int count_pi = 0;
- if( numquadrows == 0 ){
+ if( numquadrows == 0 ) {
   // Simple linear model
   pi = pi_grb;
  }
@@ -1215,20 +1232,20 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
     throw( std::runtime_error( "Unable to get quadratic dual values querying "
             " the attribute GRB_QCPI" ) );
   
-  for( int i = 0 ; i < numrows ; ++i ){
-    if( q_part[ i ].empty() ){
+  for( int i = 0 ; i < numrows ; ++i ) {
+    if( q_part[ i ].empty() ) {
       // Simple Linear Constraint
-      pi[ i ] = pi_grb[count_pi];
+      pi[ i ] = pi_grb[ count_pi ];
       count_pi++;
     }
     else{
       // Quadratic Constraint
 
       // Evaluate dual for quadratic constraint
-      int idx_q_con  = grb_quad_con_aux[i];
+      int idx_q_con  = grb_quad_con_aux[ i ];
       pi[ i ] = pi_quad[ idx_q_con ];
 
-      if( grb_quad_var_aux[i] != -1 ){
+      if( grb_quad_var_aux[ i ] != -1 ) {
         // Linear part available, simply skip the retrieved dual value
         count_pi++;
       }
@@ -1261,7 +1278,7 @@ bool GRBMILPSolver::has_dual_direction( void )
 
  int infunbd_info;
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , & infunbd_info );
- if( !infunbd_info ) {
+ if( ! infunbd_info ) {
   DEBUG_LOG( "In order to ask for the farkas proof of the model, the "
     "parameter GRB_INT_PAR_INFUNBDINFO should be set to 1" << std::endl );
   return( false );
@@ -1304,7 +1321,7 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  else{
   int aux_counter = 0;
   for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[aux_counter].second ) // column j is not an auxiliary variable
+    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
       dj[ j - aux_counter ] = dj_grb[ j ];
     else
       ++aux_counter;
@@ -1361,12 +1378,13 @@ int GRBMILPSolver::grb_index_of_variable( int old_idx ) const
       ++new_idx;
     }
   }
- else if( is_qcp && n_ranged_con == 0 ) {
+ else if( is_qcp && ( n_ranged_con == 0 ) ) {
   // Simply "jump" quadratic constraints auxiliary variables
-  // We can use the cpx_idx_aux_qvar vector, containing all the indices
+  // We can use the grb_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
   int count = 0;
-  while( grb_idx_aux_qvar[ count ] < new_idx && count < grb_idx_aux_qvar.size() ){
+  while( ( count < grb_idx_aux_qvar.size() ) && 
+          ( grb_idx_aux_qvar[ count ] < new_idx ) ) {
     ++new_idx;
     ++count;
    }
@@ -1410,19 +1428,21 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
  int n_ranged_con = map_rng_con_aux_var.size();
  bool is_qcp = ( numquadrows > 0 );
  
- if( !is_qcp && n_ranged_con != 0 ) {
+ if( ( ! is_qcp ) && ( n_ranged_con != 0 ) ) {
   int tmp_count = last_static_rng_con + 1;
-    while( idx >= map_rng_con_aux_var[ tmp_count ].second  && tmp_count < n_ranged_con ) {
+    while( ( idx >= map_rng_con_aux_var[ tmp_count ].second ) &&
+           ( tmp_count < n_ranged_con ) ) {
       ++tmp_count;
       ++idx;
     }
   }
- else if( is_qcp && n_ranged_con == 0 ) {
+ else if( is_qcp && ( n_ranged_con == 0 ) ) {
   // Simply "jump" quadratic constraints auxiliary variables
   // We can use the cpx_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
   int count = 0;
-  while( grb_idx_aux_qvar[ count ] < idx && count < grb_idx_aux_qvar.size() ){
+  while( ( grb_idx_aux_qvar[ count ] < idx ) &&
+         ( count < grb_idx_aux_qvar.size() ) ) {
     ++idx;
     ++count;
   }
@@ -1437,7 +1457,8 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
 
   while( update_idx ) {
 
-    if( tmp_count < n_ranged_con && idx >= map_rng_con_aux_var[ tmp_count ].second ) {
+    if( ( tmp_count < n_ranged_con ) &&
+        ( idx >= map_rng_con_aux_var[ tmp_count ].second ) ) {
       ++tmp_count;
       ++idx;
       it = lower_bound( last_it , grb_quad_var_aux.end() , idx + 1 );
@@ -1465,13 +1486,13 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
 
  bool is_qcp = ( numquadrows > 0 );
 
- if( !is_qcp ){
+ if( ! is_qcp ) {
   // Simple Linear Problem
   return( idx );
  }
  else{
   // Check if we are actually asking the index of a linear constraint
-  if( !q_part[ idx].empty() )
+  if( ! q_part[ idx].empty() )
     throw( std::runtime_error( "Tried to retrieve index of quadratic constraint "
       "with grb_index_of_linear_constraint() method." ) );
 
@@ -1481,17 +1502,17 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
   // only quadratic constraint without a linear part, i.e. for which an 
   // auxiliary variable has not been built.
   auto new_idx = idx;
-  for( int j = 0 ; j < idx ; j++ ){
-    if( !q_part[ j ].empty() && grb_quad_var_aux[ j ] == -1 ){
+  for( int j = 0 ; j < idx ; j++ ) {
+    if( ( ! q_part[ j ].empty() ) && ( grb_quad_var_aux[ j ] == -1 ) ) {
       // Quadratic constraint without linear part
       new_idx--;
     }
    }
-  return new_idx;
+  return( new_idx );
   }
  }
 
- /*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -1828,12 +1849,14 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
      // Update new coefficient
      *(nvit++) = oldval + modl->delta()[ i ];
+
+     idx = vidx;
      }
    }
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
 
-   GRBupdatemodel( model );
+   //GRBupdatemodel( model );
    return;
    }
 
@@ -1861,7 +1884,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
   auto qf = dynamic_cast< const QuadFunction * >( f );
   auto dqf = dynamic_cast< const DQuadFunction * >( f );
-  if( ( !qf ) && ( !dqf ) )
+  if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
 		       "unexpected *C05FunctionMod* from Linear Objective" ) );
 
@@ -1882,10 +1905,10 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    c_v_coeff_pair * delta_coeff = & modlr->delta();
 
    std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
+   std::vector< int > cidxs( idxs.size() );
    auto nvit = nval.begin();
    auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
+   auto cidxit = cidxs.begin();
    auto dcoeffit = delta_coeff->begin();
 
    for( auto v : *vars )
@@ -1906,12 +1929,12 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
      dcoeffit++;
     }
    auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
+   cidxs.resize( nsz );
    nval.resize( nsz );
 
-   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data());
-
-   GRBupdatemodel( model );
+   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidxs.size() , cidxs.data() , nval.data());
+   
+   //GRBupdatemodel( model );
    return;
    }
   else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
@@ -2041,7 +2064,7 @@ void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
  std::vector< int > rows( nsz , row );
  GRBchgcoeffs( model , nsz , rows.data() , cidx.data() , nval.data() );
- GRBupdatemodel( model );
+ // GRBupdatemodel( model );
 
  // Fallback method - Reload all coefficients
  // --------------------------------------------------------------------------
@@ -2123,7 +2146,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
    return;
  }
 
- if( auto qf = static_cast< const QuadFunction * >( f ) ) {
+ if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
 
   // In Gurobi to change quadratic coefficients we need to retrieve all the old coeff.,
@@ -2141,7 +2164,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     throw( std::runtime_error( "Error while querying quadratic coefficients with GRBgetq" ) );
   
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -2178,8 +2201,8 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     return;
   }
 
-  auto modq = static_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  auto modq = dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -2226,7 +2249,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     throw( std::runtime_error( "Error while querying quadratic coefficients with GRBgetq" ) );
 
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -2262,7 +2285,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -3289,6 +3312,12 @@ void GRBMILPSolver::set_par( idx_type par , double value )
 
 void GRBMILPSolver::set_par( idx_type par , std::string && value )
 {
+ // set the solver log to a specific file
+ if( par == strLogFileName ) {
+  GRBsetstrparam( env , GRB_STR_PAR_LOGFILE , value.c_str() );
+  return;
+  }
+
  // GUROBI parameters
  if( ( par >= strFirstGUROBIPar ) && ( par < strLastAlgParGRBS ) ) {
   std::string gurobi_par = SMSpp_to_GUROBI_str_pars[ par - strFirstGUROBIPar ];
@@ -3935,7 +3964,7 @@ void GRBMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
   qidx2.resize( qmat.size() );
   qcoeff.resize( qmat.size() );
   int k_term = 0;
-  for ( auto entry : qmat ){
+  for ( auto entry : qmat ) {
     auto idx = entry.first; // couple of indices
     qidx1[ k_term ] = idx.first;
     qidx2[ k_term ] = idx.second;

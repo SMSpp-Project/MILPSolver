@@ -38,6 +38,39 @@
 #                                                                            #
 ##############################################################################
 
+# tools: build + run headers generators - - - - - - - - - - - - - - - - - - -
+TOOLSSDR := ./$(MILPSSDR)/tools
+STAMP := $(TOOLSSDR)/.headers.stamp
+
+.PHONY: tools
+tools: $(STAMP)
+
+$(STAMP):
+	@echo "[MILPSolver] building and running *_pars in $(TOOLSSDR)"
+	@set -e; \
+	$(MAKE) -C "$(TOOLSSDR)"; \
+	cd "$(TOOLSSDR)"; \
+	for gen in $$(find . -maxdepth 1 -type f -perm -111 -name "*_pars"); do \
+	  base=$${gen#./}; \
+	  case "$$base" in \
+	    cpx_pars)   p=CPX ;; \
+	    grb_pars)   p=GRB ;; \
+	    scip_pars)  p=SCIP ;; \
+	    highs_pars) p=HiGHS ;; \
+	    *)          p= ;; \
+	  esac; \
+	  if [ -n "$$p" ] && \
+	     find ../include -maxdepth 1 -name "$${p}*_defs.h" -print -quit | grep -q . && \
+	     find ../include -maxdepth 1 -name "$${p}*_maps.h" -print -quit | grep -q . ; then \
+	    echo " -> $$base (skip: headers already present)"; \
+	  else \
+	    echo " -> $$base"; \
+	    "./$$base"; \
+	  fi; \
+	done
+	@echo "[MILPSolver] headers ready"
+	@touch "$(STAMP)"
+
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
@@ -54,12 +87,32 @@ MILPSH = $(MILPSSDR)/include/MILPSolver.h \
 	$(MILPSSDR)/include/SCIPMILPSolver.h \
 	$(MILPSSDR)/include/HiGHSMILPSolver.h
 
-# clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
+	$(MAKE) -C "$(TOOLSSDR)" clean
 	rm -f $(MILPSOBJ) $(MILPSSDR)/*~
+	rm -f $(MILPSSDR)/include/CPX*_defs.h $(MILPSSDR)/include/CPX*_maps.h
+	rm -f $(MILPSSDR)/include/GRB*_defs.h $(MILPSSDR)/include/GRB*_maps.h
+	rm -f $(MILPSSDR)/include/SCIP*_defs.h $(MILPSSDR)/include/SCIP*_maps.h
+	rm -f $(MILPSSDR)/include/HiGHS*_defs.h $(MILPSSDR)/include/HiGHS*_maps.h
+	rm -f $(STAMP)
+
+# distclean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+distclean: clean
+
+# phony targets - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+.PHONY: tools clean distclean
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
+
+$(MILPSSDR)/obj/MILPSolver.o:      | $(STAMP)
+$(MILPSSDR)/obj/CPXMILPSolver.o:   | $(STAMP)
+$(MILPSSDR)/obj/SCIPMILPSolver.o:  | $(STAMP)
+$(MILPSSDR)/obj/GRBMILPSolver.o:   | $(STAMP)
+$(MILPSSDR)/obj/HiGHSMILPSolver.o: | $(STAMP)
 
 $(MILPSSDR)/obj/MILPSolver.o: $(MILPSSDR)/src/MILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
@@ -88,6 +141,6 @@ $(MILPSSDR)/obj/HiGHSMILPSolver.o: $(MILPSSDR)/src/HiGHSMILPSolver.cpp \
 	$(MILPSSDR)/include/HiGHSMILPSolver.h \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/HiGHSMILPSolver.cpp -o $@ \
-	$(MILPSINC)-I$(MILPSSDR)/include $(SMS++INC) $(libHiGHSINC) $(SW)
+	-I$(MILPSSDR)/include $(SMS++INC) $(libHiGHSINC) $(SW)
 
 ########################## End of makefile ###################################

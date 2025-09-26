@@ -77,7 +77,7 @@ endforeach ()
 find_package(Threads QUIET)
 
 # Check if already in cache
-if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_LIBRARY_DEBUG)
+if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_VERSION)
     set(GUROBI_FOUND TRUE)
 else ()
 
@@ -96,7 +96,6 @@ else ()
     endif ()
 
     # ----- Find the GUROBI include directory ------------------------------- #
-    # Note that find_path() creates a cache entry
     find_path(GUROBI_INCLUDE_DIR
               NAMES gurobi_c.h
               PATHS ${GUROBI_DIR}/include
@@ -120,14 +119,11 @@ else ()
                      PATHS ${GUROBI_DIR}/lib
                      DOC "GUROBI library.")
     else ()
-        set(GUROBI_LIBRARY NOTFOUND)
+        set(GUROBI_LIBRARY GUROBI_LIBRARY-NOTFOUND)
     endif ()
 
-    # Library
-    set(GUROBI_LIBRARY ${GUROBI_LIB})
-
-    # Debug library
-    set(GUROBI_LIBRARY_DEBUG ${GUROBI_LIBRARY})
+    set(GUROBI_LIBRARY ${GUROBI_LIB}
+            CACHE FILEPATH "GUROBI library." FORCE)
 
     # ----- Find the GUROBI license ----------------------------------------- #
     set(GUROBI_LICENSE_FOUND FALSE)
@@ -183,23 +179,23 @@ else ()
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
             GUROBI
-            REQUIRED_VARS GUROBI_LIBRARY GUROBI_LIBRARY_DEBUG GUROBI_INCLUDE_DIR
+            REQUIRED_VARS GUROBI_LIBRARY GUROBI_INCLUDE_DIR
             VERSION_VAR GUROBI_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
 if (GUROBI_FOUND)
-    set(GUROBI_INCLUDE_DIRS "${GUROBI_INCLUDE_DIR}")
-    set(GUROBI_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
+    set(GUROBI_INCLUDE_DIRS ${GUROBI_INCLUDE_DIR})
+    set(GUROBI_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
     check_library_exists(m floor "" HAVE_LIBM)
     if (HAVE_LIBM)
-        set(GUROBI_LINK_LIBRARIES ${GUROBI_LINK_LIBRARIES} m)
+        set(GUROBI_LIBRARIES ${GUROBI_LIBRARIES} m)
     endif ()
 
     if (UNIX)
-        set(GUROBI_LINK_LIBRARIES ${GUROBI_LINK_LIBRARIES} dl)
+        set(GUROBI_LIBRARIES ${GUROBI_LIBRARIES} dl)
     endif ()
 
     if (NOT TARGET GUROBI::Gurobi)
@@ -207,17 +203,15 @@ if (GUROBI_FOUND)
         set_target_properties(
                 GUROBI::Gurobi PROPERTIES
                 IMPORTED_LOCATION "${GUROBI_LIBRARY}"
-                IMPORTED_LOCATION_DEBUG "${GUROBI_LIBRARY_DEBUG}"
                 INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${GUROBI_LINK_LIBRARIES}")
+                INTERFACE_LINK_LIBRARIES "${GUROBI_LIBRARIES}")
     endif ()
 endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(GUROBI_INCLUDE_DIR
-        GUROBI_LIBRARY
-        GUROBI_LIBRARY_DEBUG
-        GUROBI_VERSION)
+                 GUROBI_LIBRARY
+                 GUROBI_VERSION)
 
 # --------------------------------------------------------------------------- #

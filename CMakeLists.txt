@@ -11,14 +11,11 @@
 #                                                                             #
 #        $ cmake --build <build-path> --target install                        #
 #                                                                             #
-#    Note: this file tries to respect the principles of Modern CMake,         #
-#          keep it in mind when editing it.                                   #
-#                                                                             #
 #                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.16)
 cmake_policy(VERSION 3.15)
 project(MILPSolver
         VERSION 0.7.1
@@ -54,7 +51,7 @@ option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 
 # A lot of debug prints
-#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+#if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 #    add_compile_definitions(MILPSolver_DEBUG)
 #endif ()
 
@@ -112,22 +109,7 @@ target_compile_features(${modName} PUBLIC cxx_std_17)
 # Ensure that the executables from /tools are run before adding the /include
 # directory to generate the necessary *_defs.h and *_maps.h files of the correct
 # solver version installed on the system, if they are not already present
-# Add dependencies for tools executables
-if (GENERATE_CPLEX_HEADERS)
-    add_dependencies(${modName} cpx_pars)
-endif ()
-
-if (GENERATE_SCIP_HEADERS)
-    add_dependencies(${modName} scip_pars)
-endif ()
-
-if (GENERATE_GUROBI_HEADERS)
-    add_dependencies(${modName} grb_pars)
-endif ()
-
-if (GENERATE_HIGHS_HEADERS)
-    add_dependencies(${modName} highs_pars)
-endif ()
+add_dependencies(${modName} generate_headers)
 
 # When adding source files with target_sources(), PRIVATE means that the files
 # should only be added to this library, whereas PUBLIC means they should be
@@ -161,28 +143,24 @@ target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
 
 if (MILPSolver_USE_CPLEX)
     message(STATUS "MILPSolver: CPLEX found, configuring CPXMILPSolver")
-    target_include_directories(${modName} PUBLIC ${CPLEX_INCLUDE_DIRS})
     target_sources(${modName} PRIVATE src/CPXMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC CPLEX::Cplex)
 endif ()
 
 if (MILPSolver_USE_SCIP)
     message(STATUS "MILPSolver: SCIP found, configuring SCIPMILPSolver")
-    target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
     target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC SCIP::SCIP)
 endif ()
 
 if (MILPSolver_USE_GUROBI)
     message(STATUS "MILPSolver: GUROBI found, configuring GRBMILPSolver")
-    target_include_directories(${modName} PUBLIC ${GUROBI_INCLUDE_DIRS})
     target_sources(${modName} PRIVATE src/GRBMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC GUROBI::Gurobi)
 endif ()
 
 if (MILPSolver_USE_HiGHS)
     message(STATUS "MILPSolver: HiGHS found, configuring HiGHSMILPSolver")
-    target_include_directories(${modName} PUBLIC ${HiGHS_INCLUDE_DIRS})
     target_sources(${modName} PRIVATE src/HiGHSMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC HiGHS::HiGHS)
 endif ()
@@ -193,6 +171,7 @@ add_library(${modNamespace}::${modName} ALIAS ${modName})
 
 # ----- Subdirectories ------------------------------------------------------ #
 if (BUILD_TESTING)
+    add_subdirectory(test_cuts)
     add_subdirectory(test_dual)
     add_subdirectory(test_dynamic)
 endif ()
@@ -207,8 +186,9 @@ include(GNUInstallDirs)
 # Install the library
 install(TARGETS ${modName}
         EXPORT ${modName}Targets
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} # .dll
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} # .so .dylib
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}) # .lib
 
 # Install the headers
 install(FILES

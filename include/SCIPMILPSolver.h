@@ -641,9 +641,15 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
            Index row );
 
 /** Create the structures used to provide the quadratic objective matrix
- *  to SCIP. */
+ *  to SCIP (during the load() method ). */
  void generate_qobj_matrix( std::vector< SCIP_VAR * > & qidx1 ,
 			  std::vector< SCIP_VAR * > & qidx2 ,
+			  std::vector< double > & qcoeff );
+
+/** Create the structures used to provide the quadratic objective matrix
+ *  to SCIP (following some modifications). */
+ void create_new_qobj( std::vector< int > & qidx1 ,
+			  std::vector< int > & qidx2 ,
 			  std::vector< double > & qcoeff );
 
  SMSpp_insert_in_factory_h;

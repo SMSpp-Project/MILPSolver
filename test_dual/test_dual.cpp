@@ -120,7 +120,7 @@ void test_lower( Objective::of_type sense , const bool frow_constraint ) {
 
  // Solve and check solution
 
- Solver * solver = (lp->get_registered_solvers()).front();
+ Solver * solver = ( lp->get_registered_solvers() ).front();
 
  auto CDASp = dynamic_cast< CDASolver * >( solver );
  
@@ -208,7 +208,7 @@ void test_upper( Objective::of_type sense , const bool frow_constraint ) {
 
  // Solve and check solution
 
- Solver * solver = (lp->get_registered_solvers()).front();
+ Solver * solver = ( lp->get_registered_solvers() ).front();
  
  auto CDASp = dynamic_cast< CDASolver * >( solver );
  
@@ -290,7 +290,7 @@ void test_equality( Objective::of_type sense , const bool frow_constraint ) {
 
  // Solve and check solution
 
- Solver * solver = (lp->get_registered_solvers()).front();
+ Solver * solver = ( lp->get_registered_solvers() ).front();
  
  auto CDASp = dynamic_cast< CDASolver * >( solver );
  

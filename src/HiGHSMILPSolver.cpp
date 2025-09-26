@@ -90,6 +90,11 @@ HiGHSMILPSolver::~HiGHSMILPSolver()
   delete el;
 
  Highs_destroy(highs);
+
+ // Free auxiliary structures
+ q_obj_begin.clear();
+ q_obj_ind.clear();
+ q_obj_val.clear();
  }
 
  /*--------------------------------------------------------------------------*/
@@ -120,6 +125,10 @@ void HiGHSMILPSolver::clear_problem( unsigned int what )
 void HiGHSMILPSolver::load_problem( void )
 {
  MILPSolver::load_problem();
+
+ q_obj_begin.clear();
+ q_obj_ind.clear();
+ q_obj_val.clear();
 
  int model_status = Highs_getModelStatus( highs );
  if( model_status == kHighsModelStatusModelEmpty )
@@ -235,9 +244,9 @@ void HiGHSMILPSolver::load_problem( void )
   * to prepare three different vector:
   * - q_obj_begin: An array of length [ numcols ] containing the starting index
   *   of each column in `index`;
-  * - q_obj_ind: An array of length [num_nz_q] with indices of hessian matrix 
+  * - q_obj_ind: An array of length [ num_nz_q ] with indices of hessian matrix
   *   entries 
-  * - q_obj_val: An array of length [num_nz_q] with values of hessian matrix 
+  * - q_obj_val: An array of length [ num_nz_q ] with values of hessian matrix
   *   entries. */
 
   // Call specific function to generate the structures required
@@ -321,8 +330,8 @@ int HiGHSMILPSolver::compute( bool changedvars )
   throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
 
  // HiGHS doesn't actually support MIQP problem
- if( int_vars > 0 && q_obj_val.size() > 0 )
-  if( relax_int_vars == false ) // we are not relaxing int variables
+ if( ( int_vars > 0 ) && ( q_obj_val.size() > 0 ) )
+  if( ! relax_int_vars ) // we are not relaxing int variables
     throw( std::runtime_error( 
   "HiGHS cannot solve QP models where some of the variables must take integer values" ) );
 
@@ -371,6 +380,25 @@ int HiGHSMILPSolver::compute( bool changedvars )
  int m_status;
  m_status = Highs_getModelStatus( highs );
 
+ // If an LP is solved and then modified, the original optimal basis is used
+ // to provide a starting basis for the modified LP.
+ // Sometimes, HiGHS could produce an error when solving from the advanced 
+ // basis, returning a model status Unknown. In such cases, we can try to 
+ // re-solve the model from scratch.
+ if( m_status == kHighsModelStatusUnknown ) {
+  Highs_clearSolver( highs );
+
+  // Call HiGHS to solve the problem
+  if( Highs_run( highs ) == -1 ) {
+   // An error happened during the call of HiGHS_run. Notice that this is not
+   // an error related to the model and so the model status could be incorrect.
+   std::cerr << "WARNING: An unmanaged error occurred during the execution of  " <<
+    "HiGHS_run" << std::endl;
+   }
+ 
+  m_status = Highs_getModelStatus( highs );
+  }
+  
  sol_status = decode_model_status( m_status );
 
  Return_status:
@@ -994,9 +1022,9 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
      int vidx = index_of_variable( var );
-     *(cidxit++) = vidx;
+     *( cidxit++ ) = vidx;
       
      // Retrieve old coefficient
      double oldval;
@@ -1005,7 +1033,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
       &num_nz , NULL , NULL , NULL );
 
      // Update new coefficient
-     *(nvit++) = oldval + modl->delta()[ i ];
+     *( nvit++ ) = oldval + modl->delta()[ i ];
      }
    }
 
@@ -1043,9 +1071,9 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
      int vidx = index_of_variable( var );
-     *(cidxit++) = vidx;
+     *( cidxit++ ) = vidx;
       
      // Retrieve old coefficient
      double oldval;
@@ -1054,7 +1082,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
       &num_nz , NULL , NULL , NULL );
 
      // Update new coefficient
-     *(nvit++) = oldval + modl->delta()[ i ];
+     *( nvit++ ) = oldval + modl->delta()[ i ];
      }
    }
 
@@ -1086,7 +1114,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
 
   auto qf = dynamic_cast< const QuadFunction * >( f );
   auto dqf = dynamic_cast< const DQuadFunction * >( f );
-  if( ( !qf ) && ( !dqf ) )
+  if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
 		       "unexpected *C05FunctionMod* from Linear Objective" ) );
 
@@ -1116,10 +1144,10 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    int nnz_old_hessian = q_obj_val.size();
    int nnz_new_hessian = nnz_old_hessian;
 
-   for( auto v : *vars )
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+   for( auto v : *vars ) {
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
      auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
-     *(cidxit++) = cidx;
+     *( cidxit++ ) = cidx;
       
      // Retrieve old linear coefficient
      double oldlinval;
@@ -1127,7 +1155,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      Highs_getColsByRange( highs , cidx , cidx , &num_col, &oldlinval, NULL, NULL,
       &num_nz , NULL , NULL , NULL );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
+     *( nvit++ ) = oldlinval + std::get< 0 >( *dcoeffit );
 
      // Retrieve old quadratic coefficient.
      // Note: In HiGHS we store the Hessian matrix in sparse column form using 
@@ -1135,48 +1163,71 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      // should be kept in upper triangular form. Thus, the diagonal term can be
      // found at the first position correponding to the coefficients related to
      // column cidx.
-     int var_coeff_begin = q_obj_begin[ cidx ];
-     auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit ); 
-     if( q_obj_ind[ var_coeff_begin ] != cidx && delta_q_coeff != 0) {
-      // no quadratic coefficient was already set for the diagonal term and
-      // the quadratic coefficient is nonzero
-      ++nnz_new_hessian;
-      auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-      
-      // Update q_obj_begin for all the variables having a greater index
-      while( it_q_begin != q_obj_begin.end() ) {
-       ++( *it_q_begin );
-       ++it_q_begin;
-      }
-
-      // Insert new term in the other vectors
-      q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
-                     delta_q_coeff );
-      q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
-    }
-    else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
-    // there was already a value in the hessian diagonal for the variable cidx
-      if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
-       // the delta value is the opposite of the old one (i.e. we are removing
-       // the term from the hessian matrix)
-       --nnz_new_hessian;
-       auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-       // Update q_obj_begin
-       while( it_q_begin != q_obj_begin.end() ) {
-        --( *it_q_begin );
+     if( std::get< 1 >( *dcoeffit ) != 0 ) {
+      if( q_obj_begin.empty() ) {
+        // This could happen when we started with a LinearFunction on the objective,
+        // and now we are trying to add quadratic terms for already active variables.
+        q_obj_begin.resize( numcols , 0 );
+        q_obj_val.push_back( 2 * std::get< 1 >( *dcoeffit ) );
+        q_obj_ind.push_back( cidx );
+        ++nnz_new_hessian;
+        
+        // Update q_obj_begin for all the variables having a greater index
+        auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+        while( it_q_begin != q_obj_begin.end() ) {
+        ++( *it_q_begin );
         ++it_q_begin;
         }
-        q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
-        q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
       }
-      else{ // just update the array q_obj_val with the new value
-        q_obj_val[ var_coeff_begin ] += delta_q_coeff;
+      else{
+        int var_coeff_begin = q_obj_begin[ cidx ];
+        auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit ); 
+        if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
+          // no quadratic coefficient was already set for the diagonal term and
+          // the quadratic coefficient is nonzero
+          ++nnz_new_hessian;
+          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+          
+          // Update q_obj_begin for all the variables having a greater index
+          while( it_q_begin != q_obj_begin.end() ) {
+          ++( *it_q_begin );
+          ++it_q_begin;
+          }
+
+          // Insert new term in the other vectors
+          q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
+                        delta_q_coeff );
+          q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
+        }
+        else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
+        // there was already a value in the hessian diagonal for the variable cidx
+          if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
+          // the delta value is the opposite of the old one (i.e. we are removing
+          // the term from the hessian matrix)
+          --nnz_new_hessian;
+          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+          // Update q_obj_begin
+          while( it_q_begin != q_obj_begin.end() ) {
+            --( *it_q_begin );
+            ++it_q_begin;
+            }
+            q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
+            q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
+          }
+          else{ // just update the array q_obj_val with the new value
+            q_obj_val[ var_coeff_begin ] += delta_q_coeff;
+          }
+        }
       }
      }
-    dcoeffit++;
     }
+    dcoeffit++;
+   }
+
    // Update Hessian
-   int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
+   int status = 0;
+   if( !q_obj_begin.empty() )
+    status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
                       kHighsHessianFormatTriangular , q_obj_begin.data() ,
                       q_obj_ind.data() , q_obj_val.data()
                       );
@@ -1217,10 +1268,10 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    int nnz_old_hessian = q_obj_val.size();
    int nnz_new_hessian = nnz_old_hessian;
 
-   for( auto v : *vars )
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+   for( auto v : *vars ) {
+    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
      auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
-     *(cidxit++) = cidx;
+     *( cidxit++ ) = cidx;
       
      // Retrieve old linear coefficient
      double oldlinval;
@@ -1228,56 +1279,79 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      Highs_getColsByRange( highs , cidx , cidx , &num_col, &oldlinval, NULL, NULL,
       &num_nz , NULL , NULL , NULL );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
+     *( nvit++ ) = oldlinval + std::get< 0 >( *dcoeffit );
 
      // Retrieve old quadratic coefficient.
      // Note: In HiGHS we store the Hessian matrix in sparse column form using 
      // the 3 vectors described in HiGHSMILPSolver.h. Moreover, the Hessian matrix
      // should be kept in upper triangular form. Thus, the diagonal term can be
-     // found at the first position correponding to the coefficients related to
+     // found at the first position corresponding to the coefficients related to
      // column cidx.
-     int var_coeff_begin = q_obj_begin[ cidx ];
-     auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit );
-     if( q_obj_ind[ var_coeff_begin ] != cidx && delta_q_coeff != 0) {
-      // no quadratic coefficient was already set for the diagonal term and
-      // the quadratic coefficient is nonzero
-      ++nnz_new_hessian;
-      auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-      
-      // Update q_obj_begin for all the variables having a greater index
-      while( it_q_begin != q_obj_begin.end() ) {
-       ++( *it_q_begin );
-       ++it_q_begin;
-      }
-
-      // Insert new term in the other vectors
-      q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
-                     delta_q_coeff );
-      q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
-    }
-    else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
-    // there was already a value in the hessian diagonal for the variable cidx
-      if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
-       // the delta value is the opposite of the old one (i.e. we are removing
-       // the term from the hessian matrix)
-       --nnz_new_hessian;
-       auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-       // Update q_obj_begin
-       while( it_q_begin != q_obj_begin.end() ) {
-        --( *it_q_begin );
+     if( std::get< 1 >( *dcoeffit ) != 0 ) {
+      if( q_obj_begin.empty() ) {
+        // This could happen when we started with a LinearFunction on the objective,
+        // and now we are trying to add quadratic terms for already active variables.
+        q_obj_begin.resize( numcols , 0 );
+        q_obj_val.push_back( 2 * std::get< 1 >( *dcoeffit ) );
+        q_obj_ind.push_back( cidx );
+        ++nnz_new_hessian;
+        
+        // Update q_obj_begin for all the variables having a greater index
+        auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+        while( it_q_begin != q_obj_begin.end() ) {
+        ++( *it_q_begin );
         ++it_q_begin;
         }
-        q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
-        q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
       }
-      else{ // just update the array q_obj_val with the new value
-        q_obj_val[ var_coeff_begin ] += delta_q_coeff;
+      else{
+        int var_coeff_begin = q_obj_begin[ cidx ];
+        auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit );
+        if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
+          // no quadratic coefficient was already set for the diagonal term and
+          // the quadratic coefficient is nonzero
+          ++nnz_new_hessian;
+          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+          
+          // Update q_obj_begin for all the variables having a greater index
+          while( it_q_begin != q_obj_begin.end() ) {
+          ++( *it_q_begin );
+          ++it_q_begin;
+          }
+
+          // Insert new term in the other vectors
+          q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
+                        delta_q_coeff );
+          q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
+        }
+        else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
+        // there was already a value in the hessian diagonal for the variable cidx
+          if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
+          // the delta value is the opposite of the old one (i.e. we are removing
+          // the term from the hessian matrix)
+          --nnz_new_hessian;
+          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
+          // Update q_obj_begin
+          while( it_q_begin != q_obj_begin.end() ) {
+            --( *it_q_begin );
+            ++it_q_begin;
+            }
+            q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
+            q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
+          }
+          else{ // just update the array q_obj_val with the new value
+            q_obj_val[ var_coeff_begin ] += delta_q_coeff;
+          }
+        }
       }
      }
-    dcoeffit++;
     }
+    dcoeffit++;
+   }
+   
    // Update Hessian
-   int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
+   int status = 0;
+   if( !q_obj_begin.empty() )
+    status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
                       kHighsHessianFormatTriangular , q_obj_begin.data() ,
                       q_obj_ind.data() , q_obj_val.data()
                       );
@@ -1330,7 +1404,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
                                  q_obj_ind.begin() + var1_coeff_end , 
                                  idx2 );
 
-   if( qobj_indit == q_obj_ind.begin() + var1_coeff_end && delta_coeff != 0) {
+   if( ( qobj_indit == q_obj_ind.begin() + var1_coeff_end ) &&
+       ( delta_coeff != 0 ) ) {
     // no quadratic coefficient was already set for the term and
     // the quadratic coefficient is nonzero
     ++nnz_new_hessian;
@@ -1430,9 +1505,17 @@ void HiGHSMILPSolver::constraint_function_modification( const FunctionMod *mod )
  auto & cp = lf->get_v_var();
 
  for( auto v :  modl->vars() )
-  if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
+  if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
    double value = cp[ idx ].second;
    int var_idx = index_of_variable( static_cast< const ColVariable * >( v ) );
+
+   // HiGHS automatically removes variables from a constraint if their 
+   // coefficient falls within the range (0, 1e-9], treating them as zero.
+   // To avoid losing these variables, we replace such small coefficients
+   // with the smallest positive value accepted by HiGHS.
+   if( value > 0 && value <= 1e-9 )
+    value = 2e-9;
+  
    Highs_changeCoeff( highs, row , var_idx , value );
    }
 
@@ -1517,7 +1600,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
  }
 
- if( auto qf = static_cast< const QuadFunction * >( f ) ) {
+ if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
 
   // In HiGHS we can pass quadratic coefficients to the model only by providing
@@ -1527,7 +1610,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   int nnz_new_hessian = nnz_old_hessian;
   
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -1576,8 +1659,8 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     return;
   }
 
-  auto modq = static_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  auto modq = dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -1660,7 +1743,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   int nnz_new_hessian = nnz_old_hessian;
 
   // Firstly check if we are simply removing variables
-  if( !mod->added() ) {
+  if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
       auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
@@ -1708,7 +1791,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
-  if( !modq )
+  if( ! modq )
     // This should never happen
     throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
 
@@ -1837,6 +1920,14 @@ void HiGHSMILPSolver::constraint_fvars_modification(
     auto idx = lf->is_active( var );
     value = idx < nav ? lf->get_coefficient( idx ) : 0;
     }
+    
+   // HiGHS automatically removes variables from a constraint if their 
+   // coefficient falls within the range (0, 1e-9], treating them as zero.
+   // To avoid losing these variables, we replace such small coefficients
+   // with the smallest positive value accepted by HiGHS.
+   if( value > 0 && value <= 1e-9 )
+    value = 2e-9;
+
    Highs_changeCoeff( highs , cidx , vidx , value );
    }
   }
@@ -2035,7 +2126,7 @@ int HiGHSMILPSolver::callback( const int callback_type,
     if( bndv <= - 1e+75 )
      bndv = - Inf< double >();
 
-    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) ){
+    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) ) {
      // Here we should terminate the optimization process but HiGHS currently
      // does not provide such method
      }
@@ -2048,7 +2139,7 @@ int HiGHSMILPSolver::callback( const int callback_type,
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
 
-    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ){
+    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ) {
       data_in->user_interrupt = 1; // Force interruption of Solver
       }
     }
@@ -2178,8 +2269,8 @@ void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
   auto iit = rmatind.begin() + sz;
   auto vit = rmatval.begin() + sz;
   for( auto & el : lf->get_v_var() ) {
-   *(iit++) = index_of_variable( el.first );
-   *(vit++) = el.second;
+   *( iit++ ) = index_of_variable( el.first );
+   *( vit++ ) = el.second;
   }
 
   // get the bounds
@@ -2326,6 +2417,12 @@ void HiGHSMILPSolver::set_par( idx_type par , double value )
 
 void HiGHSMILPSolver::set_par( idx_type par , std::string && value )
 {
+ // set the solver log to a specific file
+ if( par == strLogFileName ) {
+  Highs_setStringOptionValue( highs , "log_file" , value.c_str() );
+  return;
+  }
+
  // HiGHS option
  if( ( par >= strFirstHiGHSPar ) && ( par < strLastAlgParHiGHS ) ) {
   std::string highs_opt = SMSpp_to_HiGHS_str_pars[ par - strFirstHiGHSPar ];
@@ -2464,7 +2561,7 @@ double HiGHSMILPSolver::get_dflt_dbl_par( idx_type par ) const
  std::string highs_opt = highs_dbl_par_map( par );
  if( highs_opt.size() > 0 ) {
   if( highs_opt == "NoPar" )
-    return 0;
+    return( 0 );
   else{
     double value, default_value;
     Highs_getDoubleOptionValues( highs , highs_opt.data() , & value, NULL ,

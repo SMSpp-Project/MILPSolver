@@ -2,7 +2,7 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of test (for MILPSolver)                                       #
+#   makefile of test_cuts (for MILPSolver)                                   #
 #                                                                            #
 #                              Antonio Frangioni                             #
 #                          Dipartimento di Informatica                       #
@@ -85,7 +85,7 @@ MOBJ =  $(MILPSOBJ) $(SMS++OBJ)
 # libraries
 MLIB =  $(SMS++LIB) $(MILPSLIB)
 
-$(DIR)/$(NAME): $(MOBJ) $(DIR)/test.o
+$(DIR)/$(NAME): $(MOBJ) $(DIR)/test_cuts.o
 	$(CC) -o $(DIR)/$(NAME) $^ $(MLIB) $(SW)
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
@@ -98,8 +98,8 @@ MH =    $(SMS++H) $(MILPSH)
 
 # compile command
 
-$(DIR)/test.o: $(DIR)/test.cpp $(MH)
-	$(CC) -c $(DIR)/test.cpp -o $@ $(MINC) $(SW)
+$(DIR)/test_cuts.o: $(DIR)/test_cuts.cpp $(MH)
+	$(CC) -c $(DIR)/test_cuts.cpp -o $@ $(MINC) $(SW)
 
 # distclean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

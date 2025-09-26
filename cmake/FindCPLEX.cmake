@@ -134,28 +134,29 @@ endforeach ()
 find_package(Threads QUIET)
 
 # Check if already in cache
-if (CPLEX_INCLUDE_DIR AND CPLEX_LIBRARY AND CPLEX_LIBRARY_DEBUG)
+if (CPLEX_INCLUDE_DIR AND CPLEX_LIBRARY AND CPLEX_LIBRARY_DEBUG AND CPLEX_VERSION)
     set(CPLEX_FOUND TRUE)
 else ()
 
     set(CPLEX_DIR ${CPLEX_ROOT}/cplex)
 
     # ----- Find the CPLEX include directory -------------------------------- #
-    # Note that find_path() creates a cache entry
     find_path(CPLEX_INCLUDE_DIR
               NAMES ilcplex/cplex.h
               PATHS ${CPLEX_DIR}/include
               DOC "CPLEX include directory.")
 
+    # ----- Find the CPLEX library ------------------------------------------ #
     if (UNIX)
-        # ----- Find the CPLEX library -------------------------------------- #
         find_library(CPLEX_LIBRARY
                      NAMES cplex
                      PATHS ${CPLEX_DIR}
                      PATH_SUFFIXES ${CPLEX_LIB_PATH_SUFFIXES}
                      DOC "CPLEX library.")
-        set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIBRARY})
-    elseif (NOT CPLEX_LIBRARY)
+
+        set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIBRARY}
+                CACHE FILEPATH "CPLEX library." FORCE)
+    elseif (WIN32)
 
         # ----- Macro: find_win_cplex_library ------------------------------- #
         # On Windows the version is appended to the library name which cannot be
@@ -169,17 +170,17 @@ else ()
                 endif ()
             endforeach ()
             if (NOT ${var})
-                set(${var} NOTFOUND)
+                set(${var} "${var}-NOTFOUND")
             endif ()
         endmacro ()
 
-        # Library
-        find_win_cplex_library(CPLEX_LIB "${CPLEX_LIB_PATH_SUFFIXES}")
-        set(CPLEX_LIBRARY ${CPLEX_LIB})
+        find_win_cplex_library(CPLEX_LIB ${CPLEX_LIB_PATH_SUFFIXES})
+        set(CPLEX_LIBRARY ${CPLEX_LIB}
+                CACHE FILEPATH "CPLEX library." FORCE)
 
-        # Debug library
-        find_win_cplex_library(CPLEX_LIB "${CPLEX_LIB_PATH_SUFFIXES_DEBUG}")
-        set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIB})
+        find_win_cplex_library(CPLEX_LIB ${CPLEX_LIB_PATH_SUFFIXES_DEBUG})
+        set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIB}
+                CACHE FILEPATH "CPLEX debug library." FORCE)
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
@@ -207,23 +208,23 @@ else ()
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
             CPLEX
-            REQUIRED_VARS CPLEX_LIBRARY CPLEX_LIBRARY_DEBUG CPLEX_INCLUDE_DIR
+            REQUIRED_VARS CPLEX_LIBRARY CPLEX_INCLUDE_DIR
             VERSION_VAR CPLEX_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
 if (CPLEX_FOUND)
-    set(CPLEX_INCLUDE_DIRS "${CPLEX_INCLUDE_DIR}")
-    set(CPLEX_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
+    set(CPLEX_INCLUDE_DIRS ${CPLEX_INCLUDE_DIR})
+    set(CPLEX_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
     check_library_exists(m floor "" HAVE_LIBM)
     if (HAVE_LIBM)
-        set(CPLEX_LINK_LIBRARIES ${CPLEX_LINK_LIBRARIES} m)
+        set(CPLEX_LIBRARIES ${CPLEX_LIBRARIES} m)
     endif ()
 
     if (UNIX)
-        set(CPLEX_LINK_LIBRARIES ${CPLEX_LINK_LIBRARIES} dl)
+        set(CPLEX_LIBRARIES ${CPLEX_LIBRARIES} dl)
     endif ()
 
     if (NOT TARGET CPLEX::Cplex)
@@ -233,7 +234,7 @@ if (CPLEX_FOUND)
                 IMPORTED_LOCATION "${CPLEX_LIBRARY}"
                 IMPORTED_LOCATION_DEBUG "${CPLEX_LIBRARY_DEBUG}"
                 INTERFACE_INCLUDE_DIRECTORIES "${CPLEX_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${CPLEX_LINK_LIBRARIES}")
+                INTERFACE_LINK_LIBRARIES "${CPLEX_LIBRARIES}")
     endif ()
 endif ()
 

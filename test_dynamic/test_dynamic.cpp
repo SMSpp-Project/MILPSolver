@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------*/
-/*-------------------------- File test.cpp ---------------------------------*/
+/*---------------------- File test_dynamic.cpp -----------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
  * Main for testing Linear Programs
@@ -627,10 +627,10 @@ static void ChangeFRow( AbstractBlock & AB , const Subset & sbst ,
       std::pair< double , double > bounds = Generate_lhs_rhs( p );
       lhs = bounds.first;
       rhs = bounds.second;
-      if( control_rep == true ){
+      if( control_rep ) {
         if( lhs == -INF )
          lhs = 0;
-        else if( rhs == INF ){
+        else if( rhs == INF ) {
          rhs = 1;
         }
        }
@@ -690,10 +690,10 @@ static void ChangeFRow( AbstractBlock & AB , Range rng ,
         std::pair< double , double > bounds = Generate_lhs_rhs( p );
         lhs = bounds.first;
         rhs = bounds.second;
-        if( control_rep == true ){
+        if( control_rep ) {
           if( lhs == -INF )
           lhs = 0;
-          else if( rhs == INF ){
+          else if( rhs == INF ) {
           rhs = 1;    
           }
         }
@@ -766,7 +766,7 @@ bool allEqual( std::vector< double > const & v )
 bool allTrue( std::vector< bool > const & v )
 {
  return( std::all_of( v.begin() , v.end() ,
-		      []( bool i ) { return( i == true ); } ) );
+		      []( bool i ) { return( i ); } ) );
  }
 
 bool allInfeasible( std::vector< int > const & v )
@@ -826,7 +826,7 @@ static bool SolveAll( void )
   #if( LOG_LEVEL >= 1 )
    for( int j = 0 ; j < num_slvr ; ++j ) {
     cout << "Solver" << j <<  " = ";
-    if( hsLP[ j ] ){
+    if( hsLP[ j ] ) {
      cout << foLP[ j ] << " -- ";
      }
     else
@@ -1297,7 +1297,7 @@ int main( int argc , char **argv )
    for( ; LPxd_it != LPxd->end() ; )
     SetFRow( *(LPxd_it++) );
 
-   if( ! LPbnd->empty() ){
+   if( ! LPbnd->empty() ) {
     #if HAVE_CONSTRAINTS == 1
      LPBlock->add_dynamic_constraints(
 	   *(LPBlock->get_dynamic_constraint< FRowConstraint >( "xbnd" )) , *LPbnd );
@@ -1485,5 +1485,5 @@ int main( int argc , char **argv )
  }  // end( main )
 
 /*--------------------------------------------------------------------------*/
-/*------------------------ End File test.cpp -------------------------------*/
+/*-------------------- End File test_dynamic.cpp ---------------------------*/
 /*--------------------------------------------------------------------------*/
