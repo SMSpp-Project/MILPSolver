@@ -219,6 +219,39 @@ class CPXMILPSolver : public MILPSolver {
  /// loads the problem into CPLEX
  void load_problem( void ) override;
 
+ /// returns the number of nodes used to solve a MIP
+ [[nodiscard]] int get_explored_nodes( void ) const override;
+
+ /// returns the estimated number of nodes left
+ [[nodiscard]] long get_left_nodes( void ) const override;
+
+ /// Returns a true value if a feasible solution is known, 
+ //  false otherwise.
+ [[nodiscard]] bool has_feasible_sol( void ) override;
+
+ /// Returns elapsed solver runtime (in second).
+ [[nodiscard]] double get_runtime( void ) const override;
+
+ /// Returns a unique identifier for the node currently being explored  
+ //  in the branch-and-bound algorithm for a MIP problem.  
+ //  
+ /// NOTE: This method should only be called during the callback process  
+ //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and you need to identify the node from which it originates).  
+ [[nodiscard]] long get_id_node( void ) const override;
+
+/** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+ void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ) override;
+
  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
@@ -622,6 +655,15 @@ class CPXMILPSolver : public MILPSolver {
 
  /// the "Configuration DB" istself
  std::vector< Configuration * > v_ConfigDB;
+
+ /** pointer used to keep track of the current context of the callback */
+ CPXCALLBACKCONTEXTptr current_Cntx;
+
+ /** an integer value specifying the context in which the callback is invoked. */
+ CPXLONG current_Cntx_id;
+
+ /** double storing the timestamp when optimization begins. */
+ double starting_time;
 
  /// the mutex to ensure that CPLEX threads do not overstep in the callback
  /** Since CPLEX is multi-threaded, lock()-ing the Block with the f_id of

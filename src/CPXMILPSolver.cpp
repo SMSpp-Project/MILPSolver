@@ -538,6 +538,7 @@ int CPXMILPSolver::compute( bool changedvars )
   }
 
  // the actual call to CPLEX- - - - - - - - - - - - - - - - - - - - - - - - -
+ CPXgettime( env , & starting_time ); // store initial timestamp
 
  if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
 
@@ -560,6 +561,8 @@ int CPXMILPSolver::compute( bool changedvars )
    if( f_callback_set ) {    // the callback was set
     CPXcallbacksetfunc( env , lp , 0 , nullptr , nullptr );  // un-set it
     f_callback_set = false;
+    current_Cntx = nullptr;
+    current_Cntx_id = 0;
     }
 
   if( int status = CPXmipopt( env , lp ) ) {  // error
@@ -1068,7 +1071,6 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
-    case( kUnEval ): // Sometimes it could be asked also during the computation
      switch( probtype ) {
       case( CPXPROB_MILP ):
       case( CPXPROB_MIQP ):
@@ -1084,6 +1086,24 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
        lower_bound += constant_value;
       }
      break;
+    
+    case( kUnEval ): 
+    /* It is possible that during the execution of a callback we would like
+     * to retrieve the bounds of the solution. */
+     if( f_callback_set ){
+      // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & lower_bound );
+
+        lower_bound += constant_value;
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+     }
+     else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "bounds of the problem during the optimization." ) );
 
     default:
      // If Cplex does not state that an optimal solution has been found
@@ -1102,7 +1122,6 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
-    case( kUnEval ): // Sometimes it could be asked also during the computation
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -1114,6 +1133,24 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
      CPXgetobjval( env , lp , & lower_bound );
      lower_bound += constant_value;
      break;
+
+    case( kUnEval ): 
+    /* It is possible that during the execution of a callback we would like
+     * to retrieve the bounds of the solution. */
+     if( f_callback_set ){
+      // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & lower_bound );
+
+        lower_bound += constant_value;
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+     }
+     else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "bounds of the problem during the optimization." ) );
 
     default:
      // Same as above
@@ -1145,7 +1182,6 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
-    case( kUnEval ): // Sometimes it could be asked also during the computation
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -1157,6 +1193,24 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
      CPXgetobjval( env , lp , & upper_bound );
      upper_bound += constant_value;
      break;
+
+    case( kUnEval ):
+    /* It is possible that during the execution of a callback we would like
+     * to retrieve the bounds of the solution. */
+     if( f_callback_set ){
+      // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & upper_bound );
+
+        upper_bound += constant_value;
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+     }
+     else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "bounds of the problem during the optimization." ) );
 
     default:
      // If Cplex does not state that an optimal solution has been found
@@ -1176,7 +1230,6 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
-    case( kUnEval ): // Sometimes it could be asked also during the computation
      switch( probtype ) {
       case( CPXPROB_MILP ):
       case( CPXPROB_MIQP ):
@@ -1192,6 +1245,24 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
        upper_bound += constant_value;
       }
      break;
+
+    case( kUnEval ):
+    /* It is possible that during the execution of a callback we would like
+     * to retrieve the bounds of the solution. */
+     if( f_callback_set ){
+      // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & upper_bound );
+
+        upper_bound += constant_value;
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+     }
+     else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "bounds of the problem during the optimization." ) );
 
     default:
      // Same as above
@@ -1459,13 +1530,6 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
 void CPXMILPSolver::write_lp( const std::string & filename )
 {
  CPXwriteprob( env , lp , filename.c_str() , "LP" );
- }
-
-/*--------------------------------------------------------------------------*/
-
-int CPXMILPSolver::get_nodes( void ) const
-{
- return( CPXgetnodecnt( env , lp ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2625,7 +2689,10 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
 {
  // main switch: depending on contextid - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+ // save current context and id in CPXMILPSolver
+ current_Cntx = context; // save current context in CPXMILPSolver
+ current_Cntx_id = contextid;
+ 
  switch( contextid ) {
   case( CPX_CALLBACKCONTEXT_LOCAL_PROGRESS ):
   case( CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS ): {
@@ -2786,6 +2853,232 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  return( 0 );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+ int CPXMILPSolver::get_nodes( void ) const
+{
+ return( CPXgetnodecnt( env , lp ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::get_explored_nodes( void ) const
+{
+ int n_nodes = 0;
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kInfeasible ):
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+    n_nodes = get_nodes();
+    break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_NODECOUNT , & n_nodes );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+    }
+    else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "number of explored nodes during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve process information" ) );
+  }
+ 
+ return( n_nodes );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+long CPXMILPSolver::get_left_nodes( void ) const
+{
+ CPXLONG n_nodes = 0;
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kInfeasible ):
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+    n_nodes = CPXgetnodeleftcnt( env, lp );
+    break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_Cntx != nullptr ){
+        CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODESLEFT , & n_nodes );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+    }
+    else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "number of nodes to explore during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve process information" ) );
+  }
+ 
+ return( n_nodes );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool CPXMILPSolver::has_feasible_sol( void )
+{
+ bool feasible_sol = 0;
+
+ switch( sol_status ) {
+  case( kUnbounded ):  
+  case( kOK ):
+  case( kStopIter ):
+  case( kStopTime ):
+    feasible_sol = is_var_feasible();
+    break;
+  
+  case( kUnEval ): 
+  /* It is possible that during the execution of a callback we would like
+   * to retrieve the number of nodes explored so far. */
+    if( f_callback_set ){
+    // The callback is set
+      if( current_Cntx != nullptr ){
+        int feasible;
+        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_FEASIBLE , & feasible );
+        feasible_sol = bool( feasible );
+        break;
+      }
+      else
+        throw( std::runtime_error( "Could not determine current context of callback function" ) );
+    }
+    else
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "feasibility of the problem during the optimization." ) );
+
+  default:
+    // This should never happen
+    throw( std::runtime_error( "sol_status must be set in order to retrieve process information" ) );
+  }
+ 
+ return( feasible_sol );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+double CPXMILPSolver::get_runtime( void ) const
+{
+ double runtime = 0;
+ double current_time;
+
+ CPXgettime( env , & current_time );
+ runtime = current_time - starting_time;
+ 
+ return( runtime );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+long CPXMILPSolver::get_id_node( void ) const
+{
+  CPXLONG id_node = -1;
+
+  switch( sol_status ) {
+   case( kUnEval ): 
+   /* This method can be called only during the execution of the callback. */
+     if( f_callback_set ){
+     // The callback is set
+      switch( current_Cntx_id ){
+       case( CPX_CALLBACKCONTEXT_RELAXATION ) :
+       case( CPX_CALLBACKCONTEXT_BRANCHING ) :
+       case( CPX_CALLBACKCONTEXT_CANDIDATE ) :
+        if( current_Cntx != nullptr ){
+         CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODEUID , & id_node );
+         break;
+         }
+        else
+         throw( std::runtime_error( "Could not determine current context of callback function" ) );
+       
+       default:
+        // If the callback is invoked in a situation where there is no current node, 
+        // then the query produces an error.
+        throw( std::runtime_error( "Could not query current node from CPX_CONTEXT " + current_Cntx_id ) );
+      }
+     }
+     else
+       throw( std::runtime_error( "The callback must be set in order to retrieve "
+         "current node in branch and bound algorithm." ) );
+ 
+   default:
+     // This should never happen
+     throw( std::runtime_error( "sol_status must be set in order to retrieve process information" ) );
+   }
+  
+  return( id_node );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues )
+{
+ // Get number of starts
+ int nstarts = varidxs.size();
+
+ // Prepare CPLEX structures
+ int nzcnt = 0;
+ std::vector< int > beg( nzcnt, 0); // where the values of a mip start begin
+ std::vector< int > idxs;
+ std::vector< double > val;
+
+ // Loop over each MIP start
+ for ( int i = 0; i < nstarts; ++i ) {
+  // Update beg vector
+  beg[ i ] = nzcnt;
+
+  // Add all nonzeros of current mip start
+  nzcnt += varidxs[ i ].size();
+  val.insert( val.end(), varvalues[ i ].begin(), varvalues[ i ].end() );
+
+  // We have to keep attention to skip auxiliary variables (only for QP)
+  if( numquadrows = 0 ){
+   //Simply copy provided indices
+   idxs.insert( idxs.end(), varidxs[ i ].begin(), varidxs[ i ].end() );
+  }
+  else{
+   int count = 0;
+   for( int idx : varidxs[ i ] ) {
+    // Iterate over each index and skip auxiliary indices
+    while( count < cpx_idx_aux_qvar.size() && idx >= cpx_idx_aux_qvar[count] )
+     count++;
+    
+    // Add correct index
+    idxs.push_back( idx + count );
+    }
+   }
+
+  // Call specific CPLEX function
+  if( CPXaddmipstarts( env , lp , nstarts , nzcnt , beg.data() , 
+              idxs.data() , val.data() , NULL , NULL ) )
+   throw( std::runtime_error( "Unable to get add specific MIP starts" ) );
+  }
  }
 
 /*--------------------------------------------------------------------------*/
