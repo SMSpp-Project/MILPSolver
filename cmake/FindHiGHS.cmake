@@ -156,13 +156,17 @@ if (HiGHS_FOUND)
     endif ()
 
     if (NOT TARGET HiGHS::HiGHS)
-        add_library(HiGHS::HiGHS STATIC IMPORTED)
+        add_library(HiGHS::HiGHS UNKNOWN IMPORTED)
         set_target_properties(
                 HiGHS::HiGHS PROPERTIES
                 IMPORTED_LOCATION "${HiGHS_LIBRARY}"
                 IMPORTED_LOCATION_DEBUG "${HiGHS_LIBRARY_DEBUG}"
                 INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
                 INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
+        if (APPLE)
+            set_property(TARGET HiGHS::HiGHS APPEND PROPERTY
+                    INTERFACE_LINK_OPTIONS "-Wl,-rpath,$<TARGET_FILE_DIR:HiGHS::HiGHS>")
+        endif ()
     endif ()
 endif ()
 

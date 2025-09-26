@@ -33,10 +33,6 @@ if (MILPSolver_USE_CPLEX)
     target_compile_features(cpx_pars PRIVATE cxx_std_17)
     target_link_libraries(cpx_pars PRIVATE SMS++::SMS++ CPLEX::Cplex)
 
-    set_target_properties(cpx_pars PROPERTIES
-            BUILD_RPATH "$<TARGET_FILE_DIR:CPLEX::Cplex>;$<TARGET_FILE_DIR:SMS++::SMS++>"
-    )
-
     add_custom_command(
             OUTPUT ${CPLEX_DEFS_FILE} ${CPLEX_MAPS_FILE}
             COMMAND "$<TARGET_FILE:cpx_pars>"
@@ -67,10 +63,6 @@ if (MILPSolver_USE_SCIP)
     add_executable(scip_pars scip_pars.cpp)
     target_compile_features(scip_pars PRIVATE cxx_std_17)
     target_link_libraries(scip_pars PRIVATE SMS++::SMS++ SCIP::SCIP)
-
-    set_target_properties(scip_pars PROPERTIES
-            BUILD_RPATH "$<TARGET_FILE_DIR:SCIP::SCIP>;$<TARGET_FILE_DIR:SMS++::SMS++>"
-    )
 
     add_custom_command(
             OUTPUT ${SCIP_DEFS_FILE} ${SCIP_MAPS_FILE}
@@ -103,10 +95,6 @@ if (MILPSolver_USE_GUROBI)
     target_compile_features(grb_pars PRIVATE cxx_std_17)
     target_link_libraries(grb_pars PRIVATE SMS++::SMS++ GUROBI::Gurobi)
 
-    set_target_properties(grb_pars PROPERTIES
-            BUILD_RPATH "$<TARGET_FILE_DIR:GUROBI::Gurobi>;$<TARGET_FILE_DIR:SMS++::SMS++>"
-    )
-
     add_custom_command(
             OUTPUT ${GUROBI_DEFS_FILE} ${GUROBI_MAPS_FILE}
             COMMAND $<TARGET_FILE:grb_pars>
@@ -137,10 +125,6 @@ if (MILPSolver_USE_HiGHS)
     add_executable(highs_pars highs_pars.cpp)
     target_compile_features(highs_pars PRIVATE cxx_std_17)
     target_link_libraries(highs_pars PRIVATE SMS++::SMS++ HiGHS::HiGHS)
-
-    set_target_properties(highs_pars PROPERTIES
-            BUILD_RPATH "$<TARGET_FILE_DIR:HiGHS::HiGHS>;$<TARGET_FILE_DIR:SMS++::SMS++>"
-    )
 
     add_custom_command(
             OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
