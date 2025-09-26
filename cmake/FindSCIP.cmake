@@ -78,6 +78,8 @@ endforeach ()
 # https://cmake.org/cmake/help/latest/module/FindThreads.html
 find_package(Threads QUIET)
 
+find_package(TBB QUIET)
+
 # Check if already in cache
 if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_VERSION)
     set(SCIP_FOUND TRUE)
@@ -129,6 +131,10 @@ if (SCIP_FOUND)
     set(SCIP_INCLUDE_DIRS ${SCIP_INCLUDE_DIR})
     set(SCIP_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
+    if (TARGET TBB::tbb)
+        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
+    endif ()
+
     # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
     check_library_exists(m floor "" HAVE_LIBM)
     if (HAVE_LIBM)
@@ -140,12 +146,16 @@ if (SCIP_FOUND)
     endif ()
 
     if (NOT TARGET SCIP::SCIP)
-        add_library(SCIP::SCIP STATIC IMPORTED)
+        add_library(SCIP::SCIP UNKNOWN IMPORTED)
         set_target_properties(
                 SCIP::SCIP PROPERTIES
                 IMPORTED_LOCATION "${SCIP_LIBRARY}"
                 INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIRS}"
                 INTERFACE_LINK_LIBRARIES "${SCIP_LIBRARIES}")
+        if (APPLE)
+            set_property(TARGET SCIP::SCIP APPEND PROPERTY
+                    INTERFACE_LINK_OPTIONS "-Wl,-rpath,$<TARGET_FILE_DIR:SCIP::SCIP>")
+        endif ()
     endif ()
 endif ()
 

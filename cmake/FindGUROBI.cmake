@@ -199,7 +199,7 @@ if (GUROBI_FOUND)
     endif ()
 
     if (NOT TARGET GUROBI::Gurobi)
-        add_library(GUROBI::Gurobi STATIC IMPORTED)
+        add_library(GUROBI::Gurobi UNKNOWN IMPORTED)
         set_target_properties(
                 GUROBI::Gurobi PROPERTIES
                 IMPORTED_LOCATION "${GUROBI_LIBRARY}"
