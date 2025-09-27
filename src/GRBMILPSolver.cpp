@@ -2951,14 +2951,16 @@ int GRBMILPSolver::get_explored_nodes( void ) const
             //throw( std::runtime_error( "Could not access current best objective "
             //"from callback status " + std::to_string(current_cbwhere) ) );
         }
+      }
+      else
+        throw( std::runtime_error( "Could not determine current callback data in "
+          "GRBMILPSolver::get_explored_nodes()" ) );
     }
     else
-      throw( std::runtime_error( "Could not determine current callback data in "
-        "GRBMILPSolver::get_explored_nodes()" ) );
-    }
-  else
-    throw( std::runtime_error( "The callback must be set in order to retrieve "
-      "number of explored nodes during the optimization." ) );
+      throw( std::runtime_error( "The callback must be set in order to retrieve "
+        "number of explored nodes during the optimization." ) );
+  
+    break; // case( kUnEval )
 
   default:
     // This should never happen

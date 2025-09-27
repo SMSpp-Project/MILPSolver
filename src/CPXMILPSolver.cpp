@@ -3024,6 +3024,8 @@ long CPXMILPSolver::get_id_node( void ) const
      else
        throw( std::runtime_error( "The callback must be set in order to retrieve "
          "current node in branch and bound algorithm." ) );
+
+    break; // case( kUnEval )
  
    default:
      // This should never happen
