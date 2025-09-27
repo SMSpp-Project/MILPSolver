@@ -96,7 +96,6 @@ clean::
 	rm -f $(MILPSSDR)/include/GRB*_defs.h $(MILPSSDR)/include/GRB*_maps.h
 	rm -f $(MILPSSDR)/include/SCIP*_defs.h $(MILPSSDR)/include/SCIP*_maps.h
 	rm -f $(MILPSSDR)/include/HiGHS*_defs.h $(MILPSSDR)/include/HiGHS*_maps.h
-	rm -f $(STAMP)
 
 # distclean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

@@ -1090,9 +1090,9 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     case( kUnEval ): 
     /* It is possible that during the execution of a callback we would like
      * to retrieve the bounds of the solution. */
-     if( f_callback_set ){
+     if( f_callback_set ) {
       // The callback is set
-      if( current_Cntx != nullptr ){
+      if( current_Cntx != nullptr ) {
         CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & lower_bound );
 
         lower_bound += constant_value;
@@ -1137,9 +1137,9 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     case( kUnEval ): 
     /* It is possible that during the execution of a callback we would like
      * to retrieve the bounds of the solution. */
-     if( f_callback_set ){
+     if( f_callback_set ) {
       // The callback is set
-      if( current_Cntx != nullptr ){
+      if( current_Cntx != nullptr ) {
         CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & lower_bound );
 
         lower_bound += constant_value;
@@ -1197,9 +1197,9 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     case( kUnEval ):
     /* It is possible that during the execution of a callback we would like
      * to retrieve the bounds of the solution. */
-     if( f_callback_set ){
+     if( f_callback_set ) {
       // The callback is set
-      if( current_Cntx != nullptr ){
+      if( current_Cntx != nullptr ) {
         CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & upper_bound );
 
         upper_bound += constant_value;
@@ -1249,9 +1249,9 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     case( kUnEval ):
     /* It is possible that during the execution of a callback we would like
      * to retrieve the bounds of the solution. */
-     if( f_callback_set ){
+     if( f_callback_set ) {
       // The callback is set
-      if( current_Cntx != nullptr ){
+      if( current_Cntx != nullptr ) {
         CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & upper_bound );
 
         upper_bound += constant_value;
@@ -2880,9 +2880,9 @@ int CPXMILPSolver::get_explored_nodes( void ) const
   case( kUnEval ): 
   /* It is possible that during the execution of a callback we would like
    * to retrieve the number of nodes explored so far. */
-    if( f_callback_set ){
+    if( f_callback_set ) {
     // The callback is set
-      if( current_Cntx != nullptr ){
+      if( current_Cntx != nullptr ) {
         CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_NODECOUNT , & n_nodes );
         break;
       }
@@ -2919,9 +2919,9 @@ long CPXMILPSolver::get_left_nodes( void ) const
   case( kUnEval ): 
   /* It is possible that during the execution of a callback we would like
    * to retrieve the number of nodes explored so far. */
-    if( f_callback_set ){
+    if( f_callback_set ) {
     // The callback is set
-      if( current_Cntx != nullptr ){
+      if( current_Cntx != nullptr ) {
         CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODESLEFT , & n_nodes );
         break;
       }
@@ -2957,9 +2957,9 @@ bool CPXMILPSolver::has_feasible_sol( void )
   case( kUnEval ): 
   /* It is possible that during the execution of a callback we would like
    * to retrieve the number of nodes explored so far. */
-    if( f_callback_set ){
+    if( f_callback_set ) {
     // The callback is set
-      if( current_Cntx != nullptr ){
+      if( current_Cntx != nullptr ) {
         int feasible;
         CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_FEASIBLE , & feasible );
         feasible_sol = bool( feasible );
@@ -3002,23 +3002,26 @@ long CPXMILPSolver::get_id_node( void ) const
   switch( sol_status ) {
    case( kUnEval ): 
    /* This method can be called only during the execution of the callback. */
-     if( f_callback_set ){
+     if( f_callback_set ) {
      // The callback is set
-      switch( current_Cntx_id ){
+      switch( current_Cntx_id ) {
        case( CPX_CALLBACKCONTEXT_RELAXATION ) :
        case( CPX_CALLBACKCONTEXT_BRANCHING ) :
        case( CPX_CALLBACKCONTEXT_CANDIDATE ) :
-        if( current_Cntx != nullptr ){
+        if( current_Cntx != nullptr ) {
          CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODEUID , & id_node );
          break;
          }
         else
-         throw( std::runtime_error( "Could not determine current context of callback function" ) );
+         throw( std::runtime_error( "Could not determine current context of "
+                                    "callback function" ) );
        
        default:
         // If the callback is invoked in a situation where there is no current node, 
         // then the query produces an error.
-        throw( std::runtime_error( "Could not query current node from CPX_CONTEXT " + current_Cntx_id ) );
+        throw( std::runtime_error(
+         "Could not query current node from CPX_CONTEXT "
+         + std::to_string( current_Cntx_id ) ) );
       }
      }
      else
@@ -3027,7 +3030,8 @@ long CPXMILPSolver::get_id_node( void ) const
  
    default:
      // This should never happen
-     throw( std::runtime_error( "sol_status must be set in order to retrieve process information" ) );
+     throw( std::runtime_error( "sol_status must be set in order to retrieve"
+                                "process information" ) );
    }
   
   return( id_node );
@@ -3058,7 +3062,7 @@ void CPXMILPSolver::add_mip_starts(
   val.insert( val.end(), varvalues[ i ].begin(), varvalues[ i ].end() );
 
   // We have to keep attention to skip auxiliary variables (only for QP)
-  if( numquadrows = 0 ){
+  if( numquadrows == 0 ) {
    //Simply copy provided indices
    idxs.insert( idxs.end(), varidxs[ i ].begin(), varidxs[ i ].end() );
   }
