@@ -94,6 +94,7 @@ if (MILPSolver_USE_HiGHS)
     endif ()
 endif ()
 
+# ----- Subdirectories ------------------------------------------------------ #
 add_subdirectory(tools)
 
 # ----- Configuration header ------------------------------------------------ #
