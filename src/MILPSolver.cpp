@@ -682,7 +682,7 @@ template< typename T >
   }
  }
  else
-  throw std::runtime_error("Unsupported group type");
+  throw( std::runtime_error( "Unsupported group type" ) );
 } // end( MILPSolver::scan_st_group )
 
 /*--------------------------------------------------------------------------*/
@@ -827,7 +827,7 @@ template< typename T >
     }
    }
    else
-    throw std::runtime_error("Unsupported group type");
+    throw( std::runtime_error( "Unsupported group type" ) );
   }
   else if( type == 0 ) {
    // Multi arrays of type 0 (i.e. multi_array< T >) store
@@ -934,10 +934,10 @@ template< typename T >
      std::get< 2 >( svar_to_idx.back() ) = elements;
    }
    else
-    throw std::runtime_error("Unsupported group type");
+    throw( std::runtime_error( "Unsupported group type" ) );
   }
   else
-   throw std::runtime_error("Unsupported multi-array type");
+   throw( std::runtime_error( "Unsupported multi-array type" ) );
  }
  else if( ma_dim == 3 ) {
   // Use the 3D multi_array
@@ -1076,7 +1076,7 @@ template< typename T >
     }
    }
    else
-    throw std::runtime_error("Unsupported group type");
+    throw( std::runtime_error( "Unsupported group type" ) );
   }
   else if( type == 0 ) {
    // Multi arrays of type 0 (i.e., multi_array< T >) store
@@ -1195,10 +1195,10 @@ template< typename T >
      std::get< 2 >( svar_to_idx.back() ) = elements;
    }
    else
-    throw std::runtime_error("Unsupported group type");
+    throw( std::runtime_error( "Unsupported group type" ) );
   }
   else
-   throw std::runtime_error("Unsupported multi-array type");
+   throw( std::runtime_error( "Unsupported multi-array type" ) );
  }
  else
     // Handle invalid or unsupported ma_dim 
