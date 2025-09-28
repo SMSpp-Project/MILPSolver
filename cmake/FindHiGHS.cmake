@@ -128,10 +128,6 @@ if (HiGHS_FOUND)
                 IMPORTED_LOCATION_DEBUG "${HiGHS_LIBRARY_DEBUG}"
                 INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
                 INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
-        if (APPLE)
-            set_property(TARGET HiGHS::HiGHS APPEND PROPERTY
-                    INTERFACE_LINK_OPTIONS "-Wl,-rpath,$<TARGET_FILE_DIR:HiGHS::HiGHS>")
-        endif ()
     endif ()
 endif ()
 

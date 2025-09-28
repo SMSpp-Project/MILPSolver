@@ -152,10 +152,6 @@ if (SCIP_FOUND)
                 IMPORTED_LOCATION "${SCIP_LIBRARY}"
                 INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIRS}"
                 INTERFACE_LINK_LIBRARIES "${SCIP_LIBRARIES}")
-        if (APPLE)
-            set_property(TARGET SCIP::SCIP APPEND PROPERTY
-                    INTERFACE_LINK_OPTIONS "-Wl,-rpath,$<TARGET_FILE_DIR:SCIP::SCIP>")
-        endif ()
     endif ()
 endif ()
 

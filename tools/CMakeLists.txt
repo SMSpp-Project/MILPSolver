@@ -66,7 +66,9 @@ if (MILPSolver_USE_SCIP)
 
     add_custom_command(
             OUTPUT ${SCIP_DEFS_FILE} ${SCIP_MAPS_FILE}
-            COMMAND "$<TARGET_FILE:scip_pars>"
+            COMMAND ${CMAKE_COMMAND} -E env
+            DYLD_LIBRARY_PATH=$<TARGET_FILE_DIR:SCIP::SCIP>:$<TARGET_FILE_DIR:SMS++::SMS++>:$ENV{DYLD_LIBRARY_PATH}
+            "$<TARGET_FILE:scip_pars>"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
             DEPENDS scip_pars
             COMMENT "Running scip_pars to generate necessary headers"
