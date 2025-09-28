@@ -3220,7 +3220,7 @@ SCIPMILPSolver_Conhdlr::SCIPMILPSolver_Conhdlr( SCIP* scip,
       if( enforce || SCIPisCutEfficacious( scip , sol , row ) ) {
          SCIP_Bool infeasible;
          SCIP_CALL( SCIPaddRow( scip , row , FALSE , &infeasible) );
-         if ( infeasible )
+         if( infeasible )
             *result = SCIP_CUTOFF;
          else
             *result = SCIP_SEPARATED;
