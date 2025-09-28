@@ -45,7 +45,8 @@ else ()
     # ----- Find the HiGHS include directory -------------------------------- #
     find_path(HiGHS_INCLUDE_DIR
               NAMES Highs.h interfaces/highs_c_api.h
-              PATHS ${HiGHS_ROOT}/include/highs
+              PATHS ${HiGHS_ROOT}
+              PATH_SUFFIXES include/highs src
               DOC "HiGHS include directory.")
 
     # ----- Find the HiGHS library ------------------------------------------ #
