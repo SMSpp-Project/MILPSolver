@@ -1366,7 +1366,7 @@ int GRBMILPSolver::grb_index_of_variable( int old_idx ) const
 
  bool is_qcp = ( numquadrows > 0 );
 
- if( !is_qcp && n_ranged_con == 0 ){
+ if( !is_qcp && n_ranged_con == 0 ) {
   // Nothing to do
   return( new_idx );
  }
@@ -2831,13 +2831,13 @@ int GRBMILPSolver::callback( GRBmodel *model,
 
 /*--------------------------------------------------------------------------*/
 
-Solver::OFValue GRBMILPSolver::get_bestsol_callback( void ){
+Solver::OFValue GRBMILPSolver::get_bestsol_callback( void ) {
   OFValue best_sol = 0;
 
-  if( f_callback_set ){
+  if( f_callback_set ) {
     // The callback is set
-    if( current_cbdata != nullptr ){
-      switch( current_cbwhere ){
+    if( current_cbdata != nullptr ) {
+      switch( current_cbwhere ) {
         // Call the right function based on the current status of callback
         case( GRB_CB_SIMPLEX ): 
           GRBcbget( current_cbdata , current_cbwhere , GRB_CB_SPX_OBJVAL , & best_sol );
@@ -2870,13 +2870,13 @@ Solver::OFValue GRBMILPSolver::get_bestsol_callback( void ){
 
 /*--------------------------------------------------------------------------*/
 
-Solver::OFValue GRBMILPSolver::get_bestbound_callback( void ){
+Solver::OFValue GRBMILPSolver::get_bestbound_callback( void ) {
   OFValue best_bnd = 0;
 
-  if( f_callback_set ){
+  if( f_callback_set ) {
     // The callback is set
-    if( current_cbdata != nullptr ){
-      switch( current_cbwhere ){
+    if( current_cbdata != nullptr ) {
+      switch( current_cbwhere ) {
         // Call the right function based on the current status of callback
         case( GRB_CB_MIP ): 
           GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIP_OBJBND , & best_bnd );
@@ -2931,10 +2931,10 @@ int GRBMILPSolver::get_explored_nodes( void ) const
   case( kUnEval ): 
   /* It is possible that during the execution of a callback we would like
    * to retrieve the number of nodes explored so far. */
-    if( f_callback_set ){
+    if( f_callback_set ) {
     // The callback is set
-      if( current_cbdata != nullptr ){
-        switch( current_cbwhere ){
+      if( current_cbdata != nullptr ) {
+        switch( current_cbwhere ) {
           // Call the right function based on the current status of callback
           case( GRB_CB_MIP ): 
             GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIP_NODCNT , & n_nodes );
@@ -2988,10 +2988,10 @@ long GRBMILPSolver::get_left_nodes( void ) const
   case( kUnEval ): 
   /* It is possible that during the execution of a callback we would like
    * to retrieve the number of nodes explored so far. */
-    if( f_callback_set ){
+    if( f_callback_set ) {
     // The callback is set
-      if( current_cbdata != nullptr ){
-        switch( current_cbwhere ){
+      if( current_cbdata != nullptr ) {
+        switch( current_cbwhere ) {
           // Call the right function based on the current status of callback
           case( GRB_CB_MIP ): 
             GRBcbget( current_cbdata , current_cbwhere , GRB_CB_MIP_NODLFT , & n_nodes );
@@ -3038,10 +3038,10 @@ bool GRBMILPSolver::has_feasible_sol( void )
   case( kUnEval ): 
   /* It is possible that during the execution of a callback we would like
    * to retrieve the number of nodes explored so far. */
-    if( f_callback_set ){
+    if( f_callback_set ) {
     // The callback is set
-      if( current_cbdata != nullptr ){
-        switch( current_cbwhere ){
+      if( current_cbdata != nullptr ) {
+        switch( current_cbwhere ) {
           // Call the right function based on the current status of callback
           case( GRB_CB_SIMPLEX ):
             double priminf; // Retrieve primal infeasibility
@@ -3120,7 +3120,7 @@ void GRBMILPSolver::add_mip_starts(
   GRBsetintparam( env , GRB_INT_PAR_STARTNUMBER , i );
 
   // Loop over each provided value
-  for( int j = 0; j < varidxs[ i ].size(); ++j ){
+  for( int j = 0; j < varidxs[ i ].size(); ++j ) {
     // Retrieve correct index of variable
     int new_idx = grb_index_of_variable( varidxs[ i ][ j ] );
 

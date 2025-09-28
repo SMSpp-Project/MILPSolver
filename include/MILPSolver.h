@@ -488,15 +488,15 @@ class MILPSolver : public CDASolver
  * to infer values for the unspecified variables.
  */
  virtual void add_mip_starts( 
-  std::vector< std::vector<int> > varidxs, 
-  std::vector< std::vector<double> > varvalues ){
-  
+  std::vector< std::vector< int > > varidxs ,
+  std::vector< std::vector< double > > varvalues ) {
+
     throw( std::runtime_error( "Function add_mip_starts is not supported "
       "by the current *MILPSolver" ) );
-  
+
     return;
   }
-  
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods that use the dictionaries

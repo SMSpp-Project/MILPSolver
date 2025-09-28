@@ -1049,12 +1049,12 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
       * NOTE: the linear coefficient related to the auxiliary variable
       * is stored in last place of expression. */
      double delta_qcoeff = std::get< 1 >( *dcoeffit );
-     if( obj_aux_con == nullptr ){
+     if( obj_aux_con == nullptr ) {
       // We are adding for the first time quadratic coefficients in the objective
       // function. All the strutures needs to be created for the first time.
 
       // Store all the nonzeros coefficients
-      if( delta_qcoeff != 0 ){
+      if( delta_qcoeff != 0 ) {
        qidx_1.push_back( vidx );
        qidx_2.push_back( vidx );
        qcoeffs.push_back( - delta_qcoeff );
@@ -1145,12 +1145,12 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
       * NOTE: the linear coefficient related to the auxiliary variable
       * is stored in last place of expression. */
      double delta_qcoeff = std::get< 1 >( *dcoeffit );
-     if( obj_aux_con == nullptr ){
+     if( obj_aux_con == nullptr ) {
       // We are adding for the first time quadratic coefficients in the objective
       // function. All the strutures needs to be created for the first time.
 
       // Store all the nonzeros coefficients
-      if( delta_qcoeff != 0 ){
+      if( delta_qcoeff != 0 ) {
        qidx_1.push_back( vidx );
        qidx_2.push_back( vidx );
        qcoeffs.push_back( - delta_qcoeff );
@@ -1932,7 +1932,7 @@ void SCIPMILPSolver::add_mip_starts(
   SCIP_CALL_ABORT( SCIPcreatePartialSol( scip , &newsol , nullptr ) );
 
   // Loop over each provided value
-  for( int j = 0; j < varidxs[ i ].size(); ++j ){
+  for( int j = 0; j < varidxs[ i ].size(); ++j ) {
     // Set the value in the partial solution
     int idx = varidxs[ i ][ j ];
     SCIP_CALL_ABORT( SCIPsetSolVal( scip ,	newsol , vars[ idx ] , 
@@ -2836,14 +2836,14 @@ void SCIPMILPSolver::generate_qobj_matrix( std::vector< SCIP_VAR * > & qidx1 ,
 
 void SCIPMILPSolver::create_new_qobj( std::vector< int > & qidx1 , 
                                       std::vector< int > & qidx2 , 
-                                      std::vector< double > & qcoeff ){
+                                      std::vector< double > & qcoeff ) {
  /* Nonlinear objective functions are not supported by SCIP and must be 
   *  modeled as constraint function. Thus, a problem like min xQx is reformulated
   *  into min z  s.t. z >= xQx. */
  std::vector< SCIP_VAR * > qvar1( qidx1.size() );
  std::vector< SCIP_VAR * > qvar2( qidx1.size() );
 
- for( int i = 0 ; i < qidx1.size() ; ++i ){
+ for( int i = 0 ; i < qidx1.size() ; ++i ) {
   qvar1.push_back( vars[ qidx1[ i ] ] );
   qvar2.push_back( vars[ qidx2[ i ] ] );
 
