@@ -92,14 +92,15 @@ MILPSH = $(MILPSSDR)/include/MILPSolver.h \
 clean::
 	$(MAKE) -C "$(TOOLSSDR)" clean
 	rm -f $(MILPSOBJ) $(MILPSSDR)/*~
-	rm -f $(MILPSSDR)/include/CPX*_defs.h $(MILPSSDR)/include/CPX*_maps.h
-	rm -f $(MILPSSDR)/include/GRB*_defs.h $(MILPSSDR)/include/GRB*_maps.h
-	rm -f $(MILPSSDR)/include/SCIP*_defs.h $(MILPSSDR)/include/SCIP*_maps.h
-	rm -f $(MILPSSDR)/include/HiGHS*_defs.h $(MILPSSDR)/include/HiGHS*_maps.h
 
 # distclean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 distclean: clean
+	rm -f $(MILPSSDR)/include/CPX*_defs.h $(MILPSSDR)/include/CPX*_maps.h
+	rm -f $(MILPSSDR)/include/GRB*_defs.h $(MILPSSDR)/include/GRB*_maps.h
+	rm -f $(MILPSSDR)/include/SCIP*_defs.h $(MILPSSDR)/include/SCIP*_maps.h
+	rm -f $(MILPSSDR)/include/HiGHS*_defs.h $(MILPSSDR)/include/HiGHS*_maps.h
+	rm -f $(STAMP)
 
 # phony targets - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
