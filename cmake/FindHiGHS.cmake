@@ -30,49 +30,6 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
-# ----- Find HiGHS directories and lib suffixes ----------------------------- #
-# Based on the OS generate:
-# - a list of possible HiGHS directories
-# - a list of possible lib suffixes to find the library
-
-if (UNIX)
-    if (APPLE)
-        # macOS (usually /Library)
-        set(HiGHS_DIRS /Library)
-    else ()
-        # Other Unix-based systems (usually /opt)
-        set(HiGHS_DIRS /opt)
-    endif ()
-    set(HiGHS_LIB_PATH_SUFFIXES lib)
-elseif (WIN32)
-    # Windows (usually C:)
-    set(HiGHS_DIRS "C:")
-    set(HiGHS_LIB_PATH_SUFFIXES build/RELEASE/bin build/bin/Release lib)
-    set(HiGHS_LIB_PATH_SUFFIXES_DEBUG build/DEBUG/bin build/bin/Debug)
-endif ()
-
-# ----- Find the path to HiGHS ---------------------------------------------- #
-
-foreach (dir ${HiGHS_DIRS})
-    file(GLOB HiGHS_DIRS "${dir}/HiGHS")
-    if (NOT HiGHS_ROOT IN_LIST HiGHS_DIRS)
-        if (NOT "${HiGHS_ROOT}" STREQUAL "")
-            message(STATUS "Specified HiGHS: ${HiGHS_ROOT} not found")
-        endif ()
-        list(SORT HiGHS_DIRS)
-        list(REVERSE HiGHS_DIRS)
-        if (HiGHS_DIRS)
-            list(GET HiGHS_DIRS 0 HiGHS_ROOT)
-            message(STATUS "Using HiGHS: ${HiGHS_ROOT}")
-            break()
-        else ()
-            set(HiGHS_ROOT HiGHS_ROOT-NOTFOUND)
-        endif ()
-    else ()
-        break()
-    endif ()
-endforeach ()
-
 # ----- Requirements -------------------------------------------------------- #
 # This sets the variable CMAKE_THREAD_LIBS_INIT, see:
 # https://cmake.org/cmake/help/latest/module/FindThreads.html
@@ -88,16 +45,14 @@ else ()
     # ----- Find the HiGHS include directory -------------------------------- #
     find_path(HiGHS_INCLUDE_DIR
               NAMES Highs.h interfaces/highs_c_api.h
-              PATHS ${HiGHS_ROOT}
-              PATH_SUFFIXES include/highs src
+              PATHS ${HiGHS_ROOT}/include/highs
               DOC "HiGHS include directory.")
 
     # ----- Find the HiGHS library ------------------------------------------ #
     if (UNIX)
         find_library(HiGHS_LIBRARY
                 NAMES highs
-                PATHS ${HiGHS_ROOT}
-                PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}
+                PATHS ${HiGHS_ROOT}/lib
                 DOC "HiGHS library.")
 
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
@@ -105,17 +60,17 @@ else ()
     elseif (WIN32)
         find_library(HiGHS_LIBRARY
                 NAMES highs
-                PATHS ${HiGHS_ROOT}
+                PATHS ${HiGHS_ROOT}/lib
                       ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
-                PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES}
+                      $ENV{LIBRARY_LIB}
                 NO_DEFAULT_PATH
                 DOC "HiGHS library.")
 
         find_library(HiGHS_LIBRARY_DEBUG
                      NAMES highs
-                     PATHS ${HiGHS_ROOT}
+                     PATHS ${HiGHS_ROOT}/debug/lib
+                           ${HiGHS_ROOT}/build/lib/Debug
                            ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/lib
-                     PATH_SUFFIXES ${HiGHS_LIB_PATH_SUFFIXES_DEBUG}
                      NO_DEFAULT_PATH
                      DOC "HiGHS debug library.")
     endif ()
