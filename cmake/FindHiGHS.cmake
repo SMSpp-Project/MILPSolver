@@ -110,16 +110,6 @@ if (HiGHS_FOUND)
     set(HiGHS_INCLUDE_DIRS ${HiGHS_INCLUDE_DIR})
     set(HiGHS_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ZLIB::ZLIB)
 
-    # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
-    check_library_exists(m floor "" HAVE_LIBM)
-    if (HAVE_LIBM)
-        set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} m)
-    endif ()
-
-    if (UNIX)
-        set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} dl)
-    endif ()
-
     if (NOT TARGET HiGHS::HiGHS)
         add_library(HiGHS::HiGHS UNKNOWN IMPORTED)
         set_target_properties(

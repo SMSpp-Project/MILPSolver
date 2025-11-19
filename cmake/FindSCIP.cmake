@@ -135,16 +135,6 @@ if (SCIP_FOUND)
         set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
     endif ()
 
-    # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
-    check_library_exists(m floor "" HAVE_LIBM)
-    if (HAVE_LIBM)
-        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} m)
-    endif ()
-
-    if (UNIX)
-        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} dl)
-    endif ()
-
     if (NOT TARGET SCIP::SCIP)
         add_library(SCIP::SCIP UNKNOWN IMPORTED)
         set_target_properties(
