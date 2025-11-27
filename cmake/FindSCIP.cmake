@@ -135,6 +135,10 @@ if (SCIP_FOUND)
         set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
     endif ()
 
+    if (UNIX)
+        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} dl)
+    endif ()
+
     if (NOT TARGET SCIP::SCIP)
         add_library(SCIP::SCIP UNKNOWN IMPORTED)
         set_target_properties(

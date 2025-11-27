@@ -188,6 +188,10 @@ if (GUROBI_FOUND)
     set(GUROBI_INCLUDE_DIRS ${GUROBI_INCLUDE_DIR})
     set(GUROBI_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
+    if (UNIX)
+        set(GUROBI_LIBRARIES ${GUROBI_LIBRARIES} dl)
+    endif ()
+
     if (NOT TARGET GUROBI::Gurobi)
         add_library(GUROBI::Gurobi UNKNOWN IMPORTED)
         set_target_properties(

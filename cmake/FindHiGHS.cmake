@@ -110,6 +110,10 @@ if (HiGHS_FOUND)
     set(HiGHS_INCLUDE_DIRS ${HiGHS_INCLUDE_DIR})
     set(HiGHS_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ZLIB::ZLIB)
 
+    if (UNIX)
+        set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} dl)
+    endif ()
+
     if (NOT TARGET HiGHS::HiGHS)
         add_library(HiGHS::HiGHS UNKNOWN IMPORTED)
         set_target_properties(
