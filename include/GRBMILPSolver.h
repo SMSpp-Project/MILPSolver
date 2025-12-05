@@ -5,7 +5,7 @@
  * Header file for the GRBMILPSolver class.
  *
  * GRBMILPSolver implements a general purpose solver that is able to tackle a
- * MILP problem expressed by a Block using Gurobi Optimizer. Only supports
+ * MI-QCQP problem expressed by a Block using Gurobi Optimizer. Only supports
  * Gurobi versions >= 10.0.1.
  *
  * \author Antonio Frangioni \n

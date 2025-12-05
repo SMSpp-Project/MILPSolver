@@ -17,6 +17,10 @@
  * for costs, bounds and lhs/rhs of constraints" representation of the
  * problem. 
  *
+ * \author Enrico Calandrini \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
@@ -25,7 +29,8 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
+ *                   Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/

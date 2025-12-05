@@ -4,19 +4,20 @@
 /** @file
  * Header file for the HiGHSMILPSolver class.
  *
- * HiGHSMILPSolver implements a general purpose solver that is able to tackle a
- * MILP problem expressed by a Block using HiGHS Optimizer. At the moment, 
- * HiGHS is not able to solve MIQP problem. Supports HiGHS versions >= 1.5.3.
- *
- * \author Antonio Frangioni \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
+ * HiGHSMILPSolver implements a general purpose solver that is able to
+ * tackle a MILP problem expressed by a Block using HiGHS Optimizer. At
+ * the moment, HiGHS is not able to solve MIQP problem. Supports HiGHS
+ * versions >= 1.5.3.
  *
  * \author Enrico Calandrini \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Enrico Calandrini
+ * \author Antonio Frangioni \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; Enrico Calandrini, Antonio Frangioni
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/

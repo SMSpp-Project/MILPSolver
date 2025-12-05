@@ -5,7 +5,12 @@
  * Header file for the CPXMILPSolver class.
  *
  * CPXMILPSolver implements a general purpose solver that is able to tackle a
- * MILP problem expressed by a Block using IBM CLPEX.
+ * MI-QCQP problem (the objective can be nonconvex but all quadratic
+ * constraints must be convex) expressed by a Block using IBM CLPEX.
+ *
+ * \author Enrico Calandrini \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
@@ -15,7 +20,8 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
+ *                   Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/

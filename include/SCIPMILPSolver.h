@@ -5,8 +5,12 @@
  * Header file for the SCIPMILPSolver class.
  *
  * SCIPMILPSolver derives from MILPSolver and it uses the facilities
- * provided by the base class to implements a general purpose MILP solver
- * using calls to the ZIB SCIP API.
+ * provided by the base class to implements a general purpose MI-QCQP
+ * solver using calls to the ZIB SCIP API.
+ *
+ * \author Enrico Calandrini \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
@@ -15,12 +19,9 @@
  * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
- * \author Enrico Calandrini \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
  *
- * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
+ *                   Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/

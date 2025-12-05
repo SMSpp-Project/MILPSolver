@@ -3,6 +3,10 @@
 /*--------------------------------------------------------------------------*/
 /** @file
  * Implementation of the SCIPMILPSolver class.
+ * 
+ * \author Enrico Calandrini \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
@@ -11,12 +15,9 @@
  * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
- * \author Enrico Calandrini \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
  *
- * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
+ *                      Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/

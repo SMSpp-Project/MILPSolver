@@ -34,9 +34,6 @@ endif
 ifeq ($(UNAME_S),Darwin)
     include $(SMS++SDR)/../extlib/makefile-default-paths-macos
 endif
-ifeq ($(UNAME_S),Windows)
-    include $(SMS++SDR)/../extlib/makefile-default-paths-win
-endif
 
 # non-default paths
 # optionally (note the "-" in front) include a makefile that defines all the
