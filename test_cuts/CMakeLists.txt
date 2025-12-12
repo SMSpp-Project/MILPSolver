@@ -1,32 +1,35 @@
 # --------------------------------------------------------------------------- #
-#    CMake file for MILPSolver/test_dynamic                                   #
+#    CMake file for MILPSolver/test_cuts                                      #
 #                                                                             #
-#    Note: this file tries to respect the principles of Modern CMake,         #
-#          keep it in mind when editing it.                                   #
-#                                                                             #
-#                              Antonio Frangioni                              #
+#                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 
-if (TARGET SMS++::MILPSolver)
-    add_executable(test_cuts test.cpp)
-
-    target_link_libraries(test_cuts PRIVATE
-                            SMS++::MILPSolver)
-
-    # This version replicates the batch file in CMake.
-    # This method was preferred because it allows to keep track
-    # of the single tests via the CTest application and also
-    # avoids copying all the auxiliary files.
-
-    foreach (size 10 50)
-          foreach (seed RANGE 0 19)
-                add_test(NAME "test_cuts/[${seed},${size},3]"
-                         COMMAND test_cuts ${seed} ${size} 3
-                         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-          endforeach ()
-    endforeach ()
+# Since we are using the block factory, objects from linked libraries
+# may wrongly appear unused, and by default the linker does not include them,
+# so we have to force the linking.
+if (BUILD_SHARED_LIBS)
+    if (MSVC)
+        add_link_options("/OPT:NOREF")
+    elseif (UNIX AND (NOT APPLE))
+        add_link_options("-Wl,--no-as-needed")
+    endif ()
+else ()
+    if (MSVC)
+        add_link_options("/WHOLEARCHIVE" "/FORCE:MULTIPLE")
+    else () # Unix
+        if (APPLE)
+            add_link_options("-Wl,-all_load")
+        else ()
+            add_link_options("-Wl,--whole-archive,--allow-multiple-definition")
+        endif ()
+    endif ()
 endif ()
+
+# ----- MILPSolver_test_cuts ------------------------------------------------ #
+add_executable(test_cuts test_cuts.cpp)
+target_link_libraries(test_cuts PRIVATE
+                      SMS++::MILPSolver)
 
 # --------------------------------------------------------------------------- #

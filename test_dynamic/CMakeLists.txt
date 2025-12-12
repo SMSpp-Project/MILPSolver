@@ -1,36 +1,35 @@
 # --------------------------------------------------------------------------- #
 #    CMake file for MILPSolver/test_dynamic                                   #
 #                                                                             #
-#    Note: this file tries to respect the principles of Modern CMake,         #
-#          keep it in mind when editing it.                                   #
-#                                                                             #
-#                              Enrico Calandrini                              #
+#                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 
-if (TARGET SMS++::MILPSolver)
-    add_executable(DynamicLP_test test.cpp)
-
-    target_link_libraries(DynamicLP_test PRIVATE
-                            SMS++::MILPSolver)
-
-    # This version replicates the batch file in CMake.
-    # This method was preferred because it allows to keep track
-    # of the single tests via the CTest application and also
-    # avoids copying all the auxiliary files.
-
-    foreach(what 31 63 127)
-        foreach (size 2 10 50)
-            foreach (dens 3 1.1)
-                foreach (seed RANGE 0 19)
-                    add_test(NAME "DynamicLP_test/[${seed},${what},${size},${dens}]"
-                            COMMAND DynamicLP_test ${seed} ${what} ${size} ${dens}
-                            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-                endforeach ()
-            endforeach ()
-        endforeach ()
-    endforeach()
+# Since we are using the block factory, objects from linked libraries
+# may wrongly appear unused, and by default the linker does not include them,
+# so we have to force the linking.
+if (BUILD_SHARED_LIBS)
+    if (MSVC)
+        add_link_options("/OPT:NOREF")
+    elseif (UNIX AND (NOT APPLE))
+        add_link_options("-Wl,--no-as-needed")
+    endif ()
+else ()
+    if (MSVC)
+        add_link_options("/WHOLEARCHIVE" "/FORCE:MULTIPLE")
+    else () # Unix
+        if (APPLE)
+            add_link_options("-Wl,-all_load")
+        else ()
+            add_link_options("-Wl,--whole-archive,--allow-multiple-definition")
+        endif ()
+    endif ()
 endif ()
+
+# ----- MILPSolver_test_dynamic --------------------------------------------- #
+add_executable(test_dynamic test_dynamic.cpp)
+target_link_libraries(test_dynamic PRIVATE
+                      SMS++::MILPSolver)
 
 # --------------------------------------------------------------------------- #

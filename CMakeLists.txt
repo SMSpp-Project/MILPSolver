@@ -11,18 +11,14 @@
 #                                                                             #
 #        $ cmake --build <build-path> --target install                        #
 #                                                                             #
-#    Note: this file tries to respect the principles of Modern CMake,         #
-#          keep it in mind when editing it.                                   #
-#                                                                             #
-#                              Niccolo' Iardella                              #
 #                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.19)
-cmake_policy(VERSION 3.12)
+cmake_minimum_required(VERSION 3.16)
+cmake_policy(VERSION 3.15)
 project(MILPSolver
-        VERSION 0.7.1
+        VERSION 0.8.0
         DESCRIPTION "SMS++ MILPSolver module"
         HOMEPAGE_URL https://gitlab.com/smspp/milpsolver
         LANGUAGES C CXX)
@@ -55,16 +51,9 @@ option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 
 # A lot of debug prints
-#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-#    add_compile_definitions(MILPSOLVER_DEBUG)
+#if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+#    add_compile_definitions(MILPSolver_DEBUG)
 #endif ()
-
-# ----- Policies ----------------------------------------------------------- #
-# Introduced in 3.19 to handle arbitrary characters in test names
-# See: https://cmake.org/cmake/help/latest/policy/CMP0110.html
-if (POLICY CMP0110)
-    cmake_policy(SET CMP0110 NEW)
-endif ()
 
 # ----- Requirements -------------------------------------------------------- #
 # If it's not being called by the umbrella, we need to
@@ -105,6 +94,9 @@ if (MILPSolver_USE_HiGHS)
     endif ()
 endif ()
 
+# ----- Subdirectories ------------------------------------------------------ #
+add_subdirectory(tools)
+
 # ----- Configuration header ------------------------------------------------ #
 # This will generate a *Config.h header in the build directory.
 configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
@@ -114,6 +106,11 @@ configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
 # be STATIC or SHARED, so no reason to do it now.
 add_library(${modName})
 target_compile_features(${modName} PUBLIC cxx_std_17)
+
+# Ensure that the executables from /tools are run before adding the /include
+# directory to generate the necessary *_defs.h and *_maps.h files of the correct
+# solver version installed on the system, if they are not already present
+add_dependencies(${modName} generate_headers)
 
 # When adding source files with target_sources(), PRIVATE means that the files
 # should only be added to this library, whereas PUBLIC means they should be
@@ -147,28 +144,24 @@ target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
 
 if (MILPSolver_USE_CPLEX)
     message(STATUS "MILPSolver: CPLEX found, configuring CPXMILPSolver")
-    target_include_directories(${modName} PUBLIC ${CPLEX_INCLUDE_DIRS}) 
     target_sources(${modName} PRIVATE src/CPXMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC CPLEX::Cplex)
 endif ()
 
 if (MILPSolver_USE_SCIP)
     message(STATUS "MILPSolver: SCIP found, configuring SCIPMILPSolver")
-    target_include_directories(${modName} PRIVATE ${SCIP_INCLUDE_DIRS})
     target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC SCIP::SCIP)
 endif ()
 
 if (MILPSolver_USE_GUROBI)
     message(STATUS "MILPSolver: GUROBI found, configuring GRBMILPSolver")
-    target_include_directories(${modName} PUBLIC ${GUROBI_INCLUDE_DIRS}) 
     target_sources(${modName} PRIVATE src/GRBMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC GUROBI::Gurobi)
 endif ()
 
 if (MILPSolver_USE_HiGHS)
     message(STATUS "MILPSolver: HiGHS found, configuring HiGHSMILPSolver")
-    target_include_directories(${modName} PUBLIC ${HiGHS_INCLUDE_DIRS}) 
     target_sources(${modName} PRIVATE src/HiGHSMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC HiGHS::HiGHS)
 endif ()
@@ -178,9 +171,8 @@ endif ()
 add_library(${modNamespace}::${modName} ALIAS ${modName})
 
 # ----- Subdirectories ------------------------------------------------------ #
-#add_subdirectory(tools)
-
 if (BUILD_TESTING)
+    add_subdirectory(test_cuts)
     add_subdirectory(test_dual)
     add_subdirectory(test_dynamic)
 endif ()
@@ -195,8 +187,9 @@ include(GNUInstallDirs)
 # Install the library
 install(TARGETS ${modName}
         EXPORT ${modName}Targets
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} # .dll
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} # .so .dylib
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}) # .lib
 
 # Install the headers
 install(FILES
@@ -204,25 +197,25 @@ install(FILES
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace})
 
 if (MILPSolver_USE_CPLEX)
-    install(DIRECTORY include
+    install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "CPX*")
 endif ()
 
 if (MILPSolver_USE_SCIP)
-    install(DIRECTORY include
+    install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "SCIP*")
 endif ()
 
 if (MILPSolver_USE_GUROBI)
-    install(DIRECTORY include
+    install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "GRB*")
 endif ()
 
 if (MILPSolver_USE_HiGHS)
-    install(DIRECTORY include
+    install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "HiGHS*")
 endif ()
@@ -286,7 +279,7 @@ endif ()
 # Using this with the umbrella project is too messy.
 if (NOT hasParent)
     set(CPACK_PACKAGE_VENDOR "SMS++ Team")
-    set(CPACK_PACKAGE_CONTACT "Niccolo' Iardella")
+    set(CPACK_PACKAGE_CONTACT "Donato Meoli")
     set(CPACK_PACKAGE_DESCRIPTION_SUMMARY ${PROJECT_DESCRIPTION})
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_LIST_DIR}/LICENSE")
     set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_LIST_DIR}/README.md")

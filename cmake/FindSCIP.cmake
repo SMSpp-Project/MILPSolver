@@ -28,9 +28,6 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 #                                                                             #
-#                               Enrico Calandrini                             #
-#                         Dipartimento di Informatica                         #
-#                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
@@ -47,7 +44,7 @@ if (UNIX)
         # Other Unix-based systems (usually /opt)
         set(SCIP_DIRS /opt)
     endif ()
-else ()
+elseif (WIN32)
     # Windows (usually C:/Program Files)
     set(SCIP_DIRS "C:/Program Files")
     if (ARCH STREQUAL "x86")
@@ -57,6 +54,7 @@ endif ()
 set(SCIP_LIB_PATH_SUFFIXES lib)
 
 # ----- Find the path to SCIP ---------------------------------------------- #
+
 foreach (dir ${SCIP_DIRS})
     file(GLOB SCIP_DIRS "${dir}/scip*")
     if (NOT SCIP_ROOT IN_LIST SCIP_DIRS)
@@ -80,54 +78,24 @@ endforeach ()
 # https://cmake.org/cmake/help/latest/module/FindThreads.html
 find_package(Threads QUIET)
 
+find_package(TBB QUIET)
+
 # Check if already in cache
-if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_LIBRARY_DEBUG)
+if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_VERSION)
     set(SCIP_FOUND TRUE)
 else ()
 
-    set(SCIP_DIR ${SCIP_ROOT})
-
-    # ----- Find the SCIP include directory -------------------------------- #
-    # Note that find_path() creates a cache entry
+    # ----- Find the SCIP include directory --------------------------------- #
     find_path(SCIP_INCLUDE_DIR
               NAMES scip/scip.h
-              PATHS ${SCIP_DIR}
+              PATHS ${SCIP_ROOT}/include
               DOC "SCIP include directory.")
 
-    if (UNIX)
-        # ----- Find the SCIP library -------------------------------------- #
-        # Note that find_library() creates a cache entry
-        find_library(SCIP_LIBRARY
-                     NAMES scip
-                     PATH_SUFFIXES ${SCIP_LIB_PATH_SUFFIXES}
-                     DOC "SCIP library.")
-        set(SCIP_LIBRARY_DEBUG ${SCIP_LIBRARY})
-    elseif (NOT SCIP_LIBRARY)
-
-        # ----- Macro: find_win_SCIP_library ------------------------------- #
-        # On Windows the version is appended to the library name which cannot be
-        # handled by find_library, so here a macro to search manually.
-        macro(find_win_SCIP_library var path_suffixes)
-            foreach (s ${path_suffixes})
-                file(GLOB SCIP_LIBRARY_CANDIDATES "${SCIP_DIR}/${s}/libscip*.lib")
-                if (SCIP_LIBRARY_CANDIDATES)
-                    list(GET SCIP_LIBRARY_CANDIDATES 0 ${var})
-                    break()
-                endif ()
-            endforeach ()
-            if (NOT ${var})
-                set(${var} NOTFOUND)
-            endif ()
-        endmacro()
-
-        # Library
-        find_win_SCIP_library(SCIP_LIB "${SCIP_LIB_PATH_SUFFIXES}")
-        set(SCIP_LIBRARY ${SCIP_LIB})
-
-        # Debug library
-        find_win_SCIP_library(SCIP_LIB "${SCIP_LIB_PATH_SUFFIXES_DEBUG}")
-        set(SCIP_LIBRARY_DEBUG ${SCIP_LIB})
-    endif ()
+    # ----- Find the SCIP library ------------------------------------------- #
+    find_library(SCIP_LIBRARY
+                 NAMES scip
+                 PATH_SUFFIXES ${SCIP_LIB_PATH_SUFFIXES}
+                 DOC "SCIP library.")
 
     # ----- Parse the version ----------------------------------------------- #
     if (SCIP_INCLUDE_DIR)
@@ -154,34 +122,30 @@ else ()
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
             SCIP
-            REQUIRED_VARS SCIP_LIBRARY SCIP_LIBRARY_DEBUG SCIP_INCLUDE_DIR
+            REQUIRED_VARS SCIP_LIBRARY SCIP_INCLUDE_DIR
             VERSION_VAR SCIP_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
 if (SCIP_FOUND)
-    set(SCIP_INCLUDE_DIRS "${SCIP_INCLUDE_DIR}")
-    set(SCIP_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
+    set(SCIP_INCLUDE_DIRS ${SCIP_INCLUDE_DIR})
+    set(SCIP_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
-    # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
-    check_library_exists(m floor "" HAVE_LIBM)
-    if (HAVE_LIBM)
-        set(SCIP_LINK_LIBRARIES ${SCIP_LINK_LIBRARIES} m)
+    if (TARGET TBB::tbb)
+        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
     endif ()
 
     if (UNIX)
-        # Required under Unix since 12.8
-        set(SCIP_LINK_LIBRARIES ${SCIP_LINK_LIBRARIES} dl)
+        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} dl)
     endif ()
 
     if (NOT TARGET SCIP::SCIP)
-        add_library(SCIP::SCIP STATIC IMPORTED)
+        add_library(SCIP::SCIP UNKNOWN IMPORTED)
         set_target_properties(
                 SCIP::SCIP PROPERTIES
                 IMPORTED_LOCATION "${SCIP_LIBRARY}"
-                IMPORTED_LOCATION_DEBUG "${SCIP_LIBRARY_DEBUG}"
-                INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIR}"
-                INTERFACE_LINK_LIBRARIES "${SCIP_LINK_LIBRARIES}")
+                INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIRS}"
+                INTERFACE_LINK_LIBRARIES "${SCIP_LIBRARIES}")
     endif ()
 endif ()
 
@@ -189,7 +153,6 @@ endif ()
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(SCIP_INCLUDE_DIR
                  SCIP_LIBRARY
-                 SCIP_LIBRARY_DEBUG
                  SCIP_VERSION)
 
 # --------------------------------------------------------------------------- #

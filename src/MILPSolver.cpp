@@ -21,12 +21,13 @@
 /*--------------------------------------------------------------------------*/
 /*------------------------------- MACROS -----------------------------------*/
 /*--------------------------------------------------------------------------*/
-/* If the macro MILPSOLVER_DEBUG is externally defined, then some costly
+/* If the macro MILPSolver_DEBUG is externally defined, then some costly
  * checks on the data structures of MILPSolver are performed and debug
  * information printed. Also, the method check_status() is defined and
  * used to check the whole set of data structures. */
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
+ #include <queue>
  #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
 #else
  #define DEBUG_LOG( stuff )
@@ -36,11 +37,7 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include <queue>
-
 #include <LinearFunction.h>
-
-#include <DQuadFunction.h>
 
 #include "MILPSolver.h"
 
@@ -140,7 +137,12 @@ void MILPSolver::load_problem( void )
  numcols = 0;
  static_vars = 0;
  static_cons = 0;
+ static_quadcons = 0;
  Index nzelements = 0;
+ Index nst_linrow = 0;
+ Index nst_quadrow = 0;
+ Index ndy_linrow = 0;
+ Index ndy_quadrow = 0;
 
  // locking the Block
  bool owned = f_Block->is_owned_by( f_id );
@@ -179,134 +181,100 @@ void MILPSolver::load_problem( void )
   DEBUG_LOG( "Processing Block " << num_block << " [" << qb << "]"
 	     << std::endl );
   DEBUG_LOG( *qb << std::endl );
- 
+
+  // Static constraints
   for( const auto & i : qb->get_static_constraints() ) {
-   // Singles
-   if( un_any_thing_0( FRowConstraint , i ,
-                       {
-                        ++numrows;
-                        ++static_cons;
-                        ++static_con_grps;
-                        }
-		       ) )
+   auto count = un_any_thing_count_static( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    numrows += count;
+    static_cons += count;
+    ++static_con_grps;
+    continue;
+    }
+
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   // note that the second argument of the macro is empty
+   if( un_any_thing_OneVarConstraint_static( i , ) )
     continue;
 
-   // Vectors
-   if( un_any_thing_1( FRowConstraint , i ,
-                       {
-                        numrows += var.size();
-                        static_cons += var.size();
-                        ++static_con_grps;
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays
-   if( un_any_thing_K( FRowConstraint, i,
-                       {
-                        numrows += var.num_elements();
-                        static_cons += var.num_elements();
-                        ++static_con_grps;
-                        }
-		       ) )
-    continue;
+   throw( std::invalid_argument( "MILPSolver: static constraint is neither "
+				 "FRowConstraint nor OneVarConstraint" ) );
    }
 
+  // Dynamic constraints
   for( const auto & i : qb->get_dynamic_constraints() ) {
-   // Single lists
-   if( un_any_thing_0( std::list< FRowConstraint > , i ,
-                       { numrows += var.size(); } ) )
+   auto count = un_any_thing_count_dynamic( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    numrows += count;
+    continue;
+    }
+
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   // note that the second argument of the macro is empty
+   if( un_any_thing_OneVarConstraint_dynamic( i , ) )
     continue;
 
-   // Vectors of lists
-   if( un_any_thing_1( std::list< FRowConstraint > , i ,
-                       {
-                        for( auto & el: var )
-                         numrows += el.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays of lists
-   if( un_any_thing_K( std::list< FRowConstraint > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         numrows += it->size();
-		        }
-		       ) )
-    continue;
+   throw( std::invalid_argument( "MILPSolver: dynamic constraint is neither "
+				 "FRowConstraint nor OneVarConstraint" ) );
    }
+
+  auto counter_static_lin_quad_row = [ this , & nst_linrow, & nst_quadrow ]
+                              ( FRowConstraint & cons ) {
+   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+    ++nst_linrow;
+   else
+    if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+     ++nst_quadrow;
+    else
+     if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+      ++nst_quadrow;
+   };
+
+  auto counter_dynamic_lin_quad_row = [ this , & ndy_linrow, & ndy_quadrow ]
+                              ( FRowConstraint & cons ) {
+   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+    ++ndy_linrow;
+   else
+    if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+     ++ndy_quadrow;
+    else
+     if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+      ++ndy_quadrow;
+   };
+
+  for( const auto & i : qb->get_static_constraints() )
+   un_any_const_static( i , counter_static_lin_quad_row ,
+			un_any_type< FRowConstraint >() );
+
+  for( const auto & i : qb->get_dynamic_constraints() )
+   un_any_const_dynamic( i , counter_dynamic_lin_quad_row , 
+			 un_any_type< FRowConstraint >() );
+
+  // Fill number of quadratic rows
+  numquadrows = nst_quadrow + ndy_quadrow;
+  static_quadcons = nst_quadrow;
 
   for( const auto & i : qb->get_static_variables() ) {
-   // Singles
-   if( un_any_thing_0( ColVariable , i ,
-                       {
-                        ++numcols;
-                        ++static_vars;
-                        ++static_var_grps;
-                        }
-		       ) )
-    continue;
-
-   // Vectors
-   if( un_any_thing_1( ColVariable , i ,
-                       {
-                        numcols += var.size();
-                        static_vars += var.size();
-                        ++static_var_grps;
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays
-   if( un_any_thing_K( ColVariable , i ,
-                       {
-                        numcols += var.num_elements();
-                        static_vars += var.num_elements();
-                        ++static_var_grps;
-                        }
-		       ) )
-    continue;
-
-   // if none of the above this is not a ColVariable
-   throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   auto count = un_any_thing_count_static( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   numcols += count;
+   static_vars += count;
+   ++static_var_grps;
    }
 
   for( const auto & i : qb->get_dynamic_variables() ) {
-   // Single lists
-   if( un_any_thing_0( std::list< ColVariable > , i ,
-                       { numcols += var.size(); } ) )
-    continue;
-
-   // Vectors of lists
-   if( un_any_thing_1( std::list< ColVariable > , i ,
-                       {
-                        for( auto & el : var )
-                         numcols += el.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays of lists
-   if( un_any_thing_K( std::list< ColVariable > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         numcols += it->size();
-                        }
-		       ) )
-    continue;
-
-   // if none of the above this is not a ColVariable
-   throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   auto count = un_any_thing_count_dynamic( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   numcols += count;
    }
 
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
    for( auto * i : var.active_stuff() )
     if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
-     if( is_mine( row->get_Block() ) )
-      ++nzelements;
+      if( is_mine( row->get_Block() ) )
+       ++nzelements;
    };
 
   for( const auto & i : qb->get_static_variables() )
@@ -329,10 +297,21 @@ void MILPSolver::load_problem( void )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  // The +1 is needed by generic interface
- matbeg.resize( numcols + 1, 0 );
- matbeg[ numcols ] = nzelements;
 
- matcnt.resize( numcols, 0 );
+ // If no quadratic constraints are in the model, then the coefficient matrix
+ // is grouped by columns. Otherwise, it is grouped by rows.
+ if( numquadrows == 0 ) {
+  matbeg.resize( numcols + 1, 0 );
+  matbeg[ numcols ] = nzelements;
+  matcnt.resize( numcols, 0 );
+  }
+ else {
+  matbeg.resize( numrows + 1, 0 );
+  matbeg[ numrows ] = nzelements;
+  matcnt.resize( numrows , 0 );
+  q_part.resize( numrows );
+  }
+
  matind.resize( nzelements, 0 );
  matval.resize( nzelements, 0 );
  rhs.resize( numrows, 0 );
@@ -364,44 +343,39 @@ void MILPSolver::load_problem( void )
  dcon_to_idx.reserve( numrows - static_cons );
  idx_to_dcon.reserve( numrows - static_cons );
 
+ // Acccount also for link between variables and bound
+ if( single_bound ) {
+  svar_to_bound.clear();
+  dvar_to_bound.clear();
+  svar_to_bound.reserve( static_vars );
+  dvar_to_bound.reserve( numcols - static_vars );
+  }
+
+ /* Now we have to check wheter there are any quadratic constraints. 
+  * If this is the case, then matbeg, matcnt, ... will represent the 
+  * coefficient matrix by rows. Thus, we will firstly scan the variables
+  * and after the constraints. Otherwise, if no quadratic costraints 
+  * are in the model, the coefficient matrix will be grouped by column,
+  * and so we will firstly scan the constraint and after the variables. */
+
+ if( numquadrows == 0 ) {
  // scan the static constraints - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  num_block = 0;
+ // quad_row = nst_linrow + ndy_linrow;
+ // quadratic rows starts after linear ones
  for( auto qb : v_BFS ) {
   Index set = 0;  // counter for the constraint groups
 
   for( const auto & i : qb->get_static_constraints() ) {
-   Index elements = 0;  // counter for group elements
-   Index start = row;
+    // Call specific function to scan the new group of Constraints
+    scan_group( i , qb , num_block, set, row, un_any_type< FRowConstraint >() );
 
-   auto scan = [ this , & elements , & row ]( const FRowConstraint & c ) {
-    scan_static_constraint( c , elements , row );
-    };
-   un_any_const_static( i , scan , un_any_type< FRowConstraint >() );
-
-   //  write names
-   auto base = qb->get_s_const_name()[ set ];
-   Index end = row - start;
-   for( Index n = 0 ; n < end ; ++n ) {
-    std::string name;
-    if( base.empty() )
-     name = "cs_" + std::to_string( num_block )
-          + "_" + std::to_string( set ) + "_" + std::to_string( n );
-    else
-     name = base + "_" + std::to_string( num_block )
-          + "_" + std::to_string( n );
-
-    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] ,
-				   name.c_str() );
-    }
-   set++;
-   if( elements )
-    std::get< 2 >( scon_to_idx.back() ) = elements;
+    set++;
    }
   num_block++;
   }
-
  std::sort( scon_to_idx.begin() , scon_to_idx.end() );
 
  // scan the dynamic constraints- - - - - - - - - - - - - - - - - - - - - - -
@@ -413,18 +387,18 @@ void MILPSolver::load_problem( void )
 
   for( const auto & i : qb->get_dynamic_constraints() ) {
    Index start = row;
-   auto scan = [ this , & row ]( const FRowConstraint & c ) {
-    scan_dynamic_constraint( c , row );
-    };
+
+   auto scan = [ this , & row ]
+    ( const FRowConstraint & c ) { scan_dynamic_constraint( c , row ); };
    un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
 
-   // write names
+   //  write names
    auto base = qb->get_d_const_name()[ set ];
    Index end = row - start;
    for( Index n = 0 ; n < end ; ++n ) {
     std::string name;
     if( base.empty() )
-     name = "cd_" + std::to_string( num_block )
+     name = "cs_" + std::to_string( num_block )
           + "_" + std::to_string( set ) + "_" + std::to_string( n );
     else
      name = base + "_" + std::to_string( num_block )
@@ -440,6 +414,8 @@ void MILPSolver::load_problem( void )
 
  std::sort( dcon_to_idx.begin() , dcon_to_idx.end() );
 
+ } // end if( numquadrows == 0 )
+
  // scan the static variables - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -448,31 +424,10 @@ void MILPSolver::load_problem( void )
   Index set = 0;   // counter for the variable groups
 
   for( const auto & i : qb->get_static_variables() ) {
-   Index elements = 0;  // counter for group elements
-   Index start = col;
-   auto scan = [ this , & elements , & col ]( const ColVariable & v ) {
-    scan_static_variable( v , elements , col );
-    };
-   un_any_const_static( i , scan , un_any_type< ColVariable >() );
+   // Call specific function to scan the new group of Constraints
+   scan_group( i , qb , num_block, set, col , un_any_type< ColVariable >() );
 
-   // write names
-   auto base = qb->get_s_var_name()[ set ];
-   Index end = col - start;
-   for( Index n = 0 ; n < end ; ++n ) {
-    std::string name;
-    if( base.empty() )
-     name = "xs_" + std::to_string( num_block )
-          + "_" + std::to_string( set ) + "_" + std::to_string( n );
-    else
-     name = base + "_" + std::to_string( num_block )
-          + "_" + std::to_string( n );
-
-    colname[ start + n ] = strcpy( new char[ name.length() + 1 ] ,
-				   name.c_str() );
-    }
    set++;
-   if( elements )
-    std::get< 2 >( svar_to_idx.back() ) = elements;
    }
   num_block++;
   }
@@ -509,11 +464,80 @@ void MILPSolver::load_problem( void )
 				   name.c_str() );
     }
    set++;
+
+   // If the option single_bound is true, we have to check that maximum one
+   // OneVarConstraint is associated with a single variable.
+   // Moreover, the vector linking the variable with the associated bound,
+   // needs to be filled.
+   if( single_bound ) {
+    auto scan_bound = [ this ]( const ColVariable & v ) {
+      scan_dynamic_variable_bound( v );
+    };
+    
+    un_any_const_dynamic( i , scan_bound , un_any_type< ColVariable >() );
+    }
   }
   num_block++;
   }
 
  std::sort( dvar_to_idx.begin() , dvar_to_idx.end() );
+
+ if( numquadrows != 0 ) {
+  // scan the static constraints - - - - - - - - - - - - - - - - - - - - - - -
+  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+  num_block = 0;
+  //quad_row = nst_linrow + ndy_linrow; // quadratic rows starts after linear ones
+  for( auto qb : v_BFS ) {
+   Index set = 0;  // counter for the constraint groups
+
+   for( const auto & i : qb->get_static_constraints() ) {
+    // Call specific function to scan the new group of Constraints
+    scan_group( i , qb , num_block, set, row, un_any_type< FRowConstraint >() );
+
+    set++;
+   }
+  num_block++;
+  }
+ std::sort( scon_to_idx.begin() , scon_to_idx.end() );
+
+ // scan the dynamic constraints- - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ num_block = 0;
+ for( auto qb : v_BFS ) {
+  int set = 0; // Counter for the constraint groups
+
+  for( const auto & i : qb->get_dynamic_constraints() ) {
+   Index start = row;
+
+   auto scan = [ this , & row ]
+      ( const FRowConstraint & c ) {
+        scan_dynamic_constraint( c , row );
+    };
+   un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
+
+   //  write names
+   auto base = qb->get_d_const_name()[ set ];
+   Index end = row - start;
+   for( Index n = 0 ; n < end ; ++n ) {
+    std::string name;
+    if( base.empty() )
+     name = "cs_" + std::to_string( num_block )
+          + "_" + std::to_string( set ) + "_" + std::to_string( n );
+    else
+     name = base + "_" + std::to_string( num_block )
+          + "_" + std::to_string( n );
+
+    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+    }
+   set++;
+   }
+  num_block++;
+  }
+
+ std::sort( dcon_to_idx.begin() , dcon_to_idx.end() );
+ } // end if( numquadrows != 0)
 
  // scan the objective- - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -559,6 +583,628 @@ void MILPSolver::load_problem( void )
   objsense = 1;    // take one pick (minimization)
 
  }  // end( MILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T >
+ void MILPSolver::scan_group( const boost::any & gr , Block * qb ,
+                              Index num_block , Index set ,
+                              Index & counter , un_any_type< T > )
+{
+ // Search for the group type
+ if( gr.type() == typeid( T * ) ||
+      gr.type() == typeid( std::vector< T > * ) ||
+      gr.type() == typeid( std::vector< std::vector< T > > * ) ) {
+  // "Simple" group
+  scan_st_group( gr , qb , num_block , set , counter , un_any_type< T >() );
+  }
+ else {
+  // "Complex" group
+  scan_multiarray_st_group( gr , qb , num_block , set , counter , 
+    un_any_type< T >() );
+  }
+ } // end( MILPSolver::scan_group )
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T >
+ void MILPSolver::scan_st_group( const boost::any & gr , Block * qb , 
+                                Index num_block , Index set , Index & counter , 
+                                un_any_type< T > )
+{
+ Index elements = 0;  // counter for group elements
+ Index start = counter;
+
+ if( typeid( T * ) == typeid( FRowConstraint * ) ) {
+  // Scanning a group of Constraints
+  auto scan = [ this , & elements , & counter ]
+   ( const FRowConstraint & c ) {
+    scan_static_constraint( c , elements , counter );
+  };
+  un_any_const_static( gr , scan , un_any_type< FRowConstraint >() );
+
+  //  write names
+  auto base = qb->get_s_const_name()[ set ];
+  Index end = counter - start;
+  for( Index n = 0 ; n < end ; ++n ) {
+   std::string name;
+   if( base.empty() )
+    name = "cs_" + std::to_string( num_block )
+      + "_" + std::to_string( set ) + "_" + std::to_string( n );
+   else
+    name = base + "_" + std::to_string( num_block )
+      + "_" + std::to_string( n );
+
+    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+  }
+
+  // Add number of elements of the group
+  if( elements )
+    std::get< 2 >( scon_to_idx.back() ) = elements;
+ }
+ else if( typeid( T * ) == typeid( ColVariable * ) ) {
+  // Scanning a group of Variables
+  auto scan = [ this , & elements , & counter ]
+   ( const ColVariable & c ) {
+    scan_static_variable( c , elements , counter );
+  };
+  un_any_const_static( gr , scan , un_any_type< ColVariable >() );
+
+  //  write names
+  auto base = qb->get_s_var_name()[ set ];
+  Index end = counter - start;
+  for( Index n = 0 ; n < end ; ++n ) {
+   std::string name;
+   if( base.empty() )
+    name = "xs_" + std::to_string( num_block )
+     + "_" + std::to_string( set ) + "_" + std::to_string( n );
+   else
+    name = base + "_" + std::to_string( num_block )
+     + "_" + std::to_string( n );
+
+   colname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+  }
+
+  // Add number of elements of the group
+  if( elements )
+   std::get< 2 >( svar_to_idx.back() ) = elements;
+
+  // If the option single_bound is true, we have to check that maximum one
+  // OneVarConstraint is associated with a single variable.
+  // Moreover, the vector linking the variable with the associated bound,
+  // needs to be filled.
+  if( single_bound == true ) {
+   auto scan_bound = [ this ]( const ColVariable & v ) {
+    scan_static_variable_bound( v );
+   };
+    
+   un_any_const_static( gr , scan_bound , un_any_type< ColVariable >() );
+  }
+ }
+ else
+  throw( std::runtime_error( "Unsupported group type" ) );
+} // end( MILPSolver::scan_st_group )
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T >
+ void MILPSolver::scan_multiarray_st_group( const boost::any & gr ,
+            Block * qb , Index num_block , Index set , 
+            Index & counter , un_any_type< T > )
+{
+ // Get multi array number of dimension
+ int ma_dim = get_multi_array_dim( gr , un_any_type< T >() , 
+                                    un_any_int< 2 >() );
+
+ // Name of the group
+ auto base = (typeid(T*) == typeid(FRowConstraint*))
+                ? qb->get_s_const_name()[set]
+                : qb->get_s_var_name()[set];
+
+ if( ma_dim == 2 ) {
+  // Use the 2D multi_array
+
+  // Get type of multi array. See MILPSolver.h:1256 for further details.
+  int type = get_multi_array_type( gr , un_any_type< T >() ,
+                                  un_any_int< 2 >() );
+
+  // Indices of the 2 dimensions
+  int idx_0 = 0;
+  int idx_1 = 0;
+
+  if( type == 1 ) {
+   // Multi arrays of type 1 (i.e. multi_array< std::vector < T * > >).
+   // In this case elements are not stored in sequential cells. Thus, 
+   // we have to "unpack" each std::vector and store them separately.
+   auto ma = get_multi_array1( gr , un_any_type< T >() ,
+                            un_any_int< 2 >() );
+
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
+    // Constraint group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     Index elements = 0;  // counter for group elements
+     Index start = counter;
+
+     auto scan = [ this , & elements , & counter ]
+      ( const FRowConstraint & c ) {
+        scan_static_constraint( c , elements , counter );
+     };
+     // Scan a single group
+     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
+
+     //  write names
+     Index end = counter - start;
+     for( Index n = 0 ; n < end ; ++n ) {
+      std::string name;
+      if( base.empty() )
+       name = "cs_" + std::to_string( num_block )
+        + "_" + std::to_string( set ) + "_" 
+        + std::to_string( idx_0 ) + "_" 
+        + std::to_string( idx_1 ) + "_" + std::to_string( n );
+      else
+       name = base + "_" + std::to_string( num_block ) + "_"
+        + std::to_string( idx_0 ) + "_" 
+        + std::to_string( idx_1 ) + "_" + std::to_string( n );
+
+     rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+     }
+
+     // Add number of elements of the group
+     if( elements )
+      std::get< 2 >( scon_to_idx.back() ) = elements;
+
+     // The linearization produced by ma->data() for the 2D multi_array
+     // stores elements in row-major order. Therefore, we should increment
+     // the column index first, and when it exceeds the number of columns,
+     // reset it and increment the row index.
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
+      idx_1++;
+     else {
+      idx_1 = 0;
+      idx_0++;
+     }
+    }
+   }
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
+    // Variable group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     Index start = counter;
+     Index elements = 0;  // counter for group elements
+
+     auto scan = [ this , & elements , & counter ]
+      ( const ColVariable & c ) {
+       scan_static_variable( c , elements , counter );
+     };
+     un_any_const_static( v , scan , un_any_type< ColVariable >() );
+
+     //  write names
+     Index end = counter - start;
+     for( Index n = 0 ; n < end ; ++n ) {
+      std::string name;
+      if( base.empty() )
+       name = "xs_" + std::to_string( num_block )
+        + "_" + std::to_string( set ) + "_" 
+        + std::to_string( idx_0 ) + "_" 
+        + std::to_string( idx_1 ) + "_" + std::to_string( n );
+      else
+       name = base + "_" + std::to_string( num_block ) + "_"
+        + std::to_string( idx_0 ) + "_" 
+        + std::to_string( idx_1 ) + "_" + std::to_string( n );
+
+      colname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+     }
+      
+     // Add number of elements of the group
+     if( elements )
+      std::get< 2 >( svar_to_idx.back() ) = elements;
+
+     // The linearization produced by ma->data() for the 2D multi_array
+     // stores elements in row-major order. Therefore, we should increment
+     // the column index first, and when it exceeds the number of columns,
+     // reset it and increment the row index.
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
+      idx_1++;
+     else {
+      idx_1 = 0;
+      idx_0++;
+     }
+
+     // If the option single_bound is true, we have to check that maximum one
+     // OneVarConstraint is associated with a single variable.
+     // Moreover, the vector linking the variable with the associated bound,
+     // needs to be filled.
+     if( single_bound == true ) {
+      auto scan_bound = [ this ]( const ColVariable & c ) {
+       scan_static_variable_bound( c );
+      };
+    
+     un_any_const_static( v , scan_bound , un_any_type< ColVariable >() );
+     }
+    }
+   }
+   else
+    throw( std::runtime_error( "Unsupported group type" ) );
+  }
+  else if( type == 0 ) {
+   // Multi arrays of type 0 (i.e. multi_array< T >) store
+   // elements in sequential cells. Thus, we can store them
+   // as usually done for std::vector< T > by only keeping track
+   // of the first element and storing the number of non empty
+   // cells in the structure.
+   auto ma = get_multi_array0( gr , un_any_type< T >() ,
+                              un_any_int< 2 >() );
+   Index elements = 0;  // counter for group elements
+
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
+    // Constraint group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     auto scan = [ this , & elements , & counter ]
+      ( const FRowConstraint & c ) {
+       scan_static_constraint( c , elements , counter );
+     };
+     // Scan a single group
+     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
+
+     //  write names
+     std::string name;
+     if( base.empty() )
+      name = "cs_" + std::to_string( num_block )
+       + "_" + std::to_string( set ) + "_" 
+       + std::to_string( idx_0 ) + "_" 
+       + std::to_string( idx_1 );
+     else
+      name = base + "_" + std::to_string( num_block ) + "_"
+       + std::to_string( idx_0 ) + "_" 
+       + std::to_string( idx_1 );
+
+     rowname[ counter - 1 ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+
+     // The linearization produced by ma->data() for the 2D multi_array
+     // stores elements in row-major order. Therefore, we should increment
+     // the column index first, and when it exceeds the number of columns,
+     // reset it and increment the row index.
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
+      idx_1++;
+     else {
+      idx_1 = 0;
+      idx_0++;
+     }
+    }
+    
+    // Add number of elements of the group
+    if( elements )
+     std::get< 2 >( scon_to_idx.back() ) = elements;
+   }
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
+    // Variable group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     auto scan = [ this , & elements , & counter ]
+      ( const ColVariable & c ) {
+       scan_static_variable( c , elements , counter );
+     };
+     un_any_const_static( v , scan , un_any_type< ColVariable >() );
+
+     //  write names
+     std::string name;
+     if( base.empty() )
+      name = "xs_" + std::to_string( num_block )
+       + "_" + std::to_string( set ) + "_" 
+       + std::to_string( idx_0 ) + "_" 
+       + std::to_string( idx_1 );
+     else
+      name = base + "_" + std::to_string( num_block ) + "_"
+       + std::to_string( idx_0 ) + "_" 
+       + std::to_string( idx_1 );
+
+     colname[ counter - 1 ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+
+     // The linearization produced by ma->data() for the 2D multi_array
+     // stores elements in row-major order. Therefore, we should increment
+     // the column index first, and when it exceeds the number of columns,
+     // reset it and increment the row index.
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
+      idx_1++;
+     else {
+      idx_1 = 0;
+      idx_0++;
+     }
+
+     // If the option single_bound is true, we have to check that maximum one
+     // OneVarConstraint is associated with a single variable.
+     // Moreover, the vector linking the variable with the associated bound,
+     // needs to be filled.
+     if( single_bound == true ) {
+      auto scan_bound = [ this ]( const ColVariable & c ) {
+       scan_static_variable_bound( c );
+      };
+      un_any_const_static( v , scan_bound , un_any_type< ColVariable >() );
+     }
+    }
+
+    // Add number of elements of the group
+    if( elements )
+     std::get< 2 >( svar_to_idx.back() ) = elements;
+   }
+   else
+    throw( std::runtime_error( "Unsupported group type" ) );
+  }
+  else
+   throw( std::runtime_error( "Unsupported multi-array type" ) );
+ }
+ else if( ma_dim == 3 ) {
+  // Use the 3D multi_array
+
+  // Get type of multi array. See MILPSolver.h:1256 for further details.
+  int type = get_multi_array_type( gr , un_any_type< T >() ,
+                un_any_int< 3 >() );
+
+  // Indices of the 3 dimensions
+  int idx_0 = 0;
+  int idx_1 = 0;
+  int idx_2 = 0;
+
+  if( type == 1 ) {
+   // Multi arrays of type 1 (i.e. multi_array< std::vector < T * > >).
+   // In this case elements are not stored in sequential cells. Thus, 
+   // we have to "unpack" each std::vector and store them separately.
+   auto ma = get_multi_array1( gr , un_any_type< T >() ,
+                            un_any_int< 3 >() );
+
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
+    // Constraint group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     Index start = counter;
+     Index elements = 0;  // counter for group elements
+
+     auto scan = [ this , & elements , & counter ]
+      ( const FRowConstraint & c ) {
+       scan_static_constraint( c , elements , counter );
+     };
+     // Scan a single group
+     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
+
+     //  write names
+     Index end = counter - start;
+     for( Index n = 0 ; n < end ; ++n ) {
+      std::string name;
+      if( base.empty() )
+       name = "cs_" + std::to_string( num_block )
+        + "_" + std::to_string( set ) + "_" 
+        + std::to_string( idx_0 ) + "_" 
+        + std::to_string( idx_1 ) + "_" 
+        + std::to_string( idx_2 ) + "_" + std::to_string( n );
+      else
+       name = base + "_" + std::to_string( num_block ) + "_"
+        + std::to_string( idx_0 ) + "_" 
+        + std::to_string( idx_1 ) + "_" 
+        + std::to_string( idx_2 ) + "_" + std::to_string( n );
+
+      rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+     }
+
+     // Add number of elements of the group
+     if( elements )
+      std::get< 2 >( scon_to_idx.back() ) = elements;
+
+     // The linearization produced by ma->data() for the 3D multi_array
+     // stores elements in row-major order.
+     if( idx_2 < ma->shape()[ 1 ] - 1 )
+      idx_2++; // Move third counter
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+      idx_1++; // Move second counter
+      idx_2 = 0; // Reset third counter
+     }
+     else {
+      idx_0++; // Move first counter
+      idx_1 = 0; // Reset second counter
+      idx_2 = 0; // Reset third counter
+     }
+    }
+   }
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
+    // Variable group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     Index start = counter;
+     Index elements = 0;  // counter for group elements
+
+     auto scan = [ this , & elements , & counter ]
+      ( const ColVariable & c ) {
+       scan_static_variable( c , elements , counter );
+     };
+     un_any_const_static( v , scan , un_any_type< ColVariable >() );
+
+     //  write names
+     Index end = counter - start;
+     for( Index n = 0 ; n < end ; ++n ) {
+      std::string name;
+      if( base.empty() )
+       name = "xs_" + std::to_string( num_block )
+        + "_" + std::to_string( set ) + "_" 
+        + std::to_string( idx_0 ) + "_" 
+        + std::to_string( idx_1 ) + "_" 
+        + std::to_string( idx_2 ) + "_" + std::to_string( n );
+      else
+       name = base + "_" + std::to_string( num_block ) + "_"
+        + std::to_string( idx_0 ) + "_" 
+        + std::to_string( idx_1 ) + "_" 
+        + std::to_string( idx_2 ) + "_" + std::to_string( n );
+
+      colname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+     }
+
+     // Add number of elements of the group
+     if( elements )
+      std::get< 2 >( svar_to_idx.back() ) = elements;
+
+     // The linearization produced by ma->data() for the 3D multi_array
+     // stores elements in row-major order.
+     if( idx_2 < ma->shape()[ 1 ] - 1 )
+      idx_2++; // Move third counter
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+      idx_1++; // Move second counter
+      idx_2 = 0; // Reset third counter
+     }
+     else {
+      idx_0++; // Move first counter
+      idx_1 = 0; // Reset second counter
+      idx_2 = 0; // Reset third counter
+     }
+
+     // If the option single_bound is true, we have to check that maximum one
+     // OneVarConstraint is associated with a single variable.
+     // Moreover, the vector linking the variable with the associated bound,
+     // needs to be filled.
+     if( single_bound == true ) {
+      auto scan_bound = [ this ]( const ColVariable & c ) {
+       scan_static_variable_bound( c );
+      };
+        
+      un_any_const_static( v , scan_bound , un_any_type< ColVariable >() );
+     }
+    }
+   }
+   else
+    throw( std::runtime_error( "Unsupported group type" ) );
+  }
+  else if( type == 0 ) {
+   // Multi arrays of type 0 (i.e., multi_array< T >) store
+   // elements in sequential cells. Thus, we can store them
+   // as usually done for std::vector< T > by only keeping track
+   // of the first element and storing the number of non-empty
+   // cells in the structure.
+   auto ma = get_multi_array0( gr , un_any_type< T >() ,
+                              un_any_int< 3 >() );
+
+   Index elements = 0;  // counter for group elements
+
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
+    // Constraint group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     auto scan = [ this , & elements , & counter ]
+      ( const FRowConstraint & c ) {
+       scan_static_constraint( c , elements , counter );
+      };
+     // Scan a single group
+     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
+
+     //  write names
+     std::string name;
+     if( base.empty() )
+      name = "cs_" + std::to_string( num_block )
+       + "_" + std::to_string( set ) + "_" 
+       + std::to_string( idx_0 ) + "_" 
+       + std::to_string( idx_1 ) + "_" 
+       + std::to_string( idx_2 );
+     else
+      name = base + "_" + std::to_string( num_block ) + "_"
+       + std::to_string( idx_0 ) + "_" 
+       + std::to_string( idx_1 ) + "_" 
+       + std::to_string( idx_2 );
+
+     rowname[ counter - 1 ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+
+     // The linearization produced by ma->data() for the 3D multi_array
+     // stores elements in row-major order.
+     if( idx_2 < ma->shape()[ 2 ] - 1 )
+      idx_2++; // Move third counter
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+      idx_1++; // Move second counter
+      idx_2 = 0; // Reset third counter
+     }
+     else {
+      idx_0++; // Move first counter
+      idx_1 = 0; // Reset second counter
+      idx_2 = 0; // Reset third counter
+     }
+    }
+    
+    // Add number of elements of the group
+    if( elements )
+     std::get< 2 >( scon_to_idx.back() ) = elements;
+   }
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
+    // Variable group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     auto scan = [ this , & elements , & counter ]
+      ( const ColVariable & c ) {
+       scan_static_variable( c , elements , counter );
+     };
+     un_any_const_static( v , scan , un_any_type< ColVariable >() );
+
+     //  write names
+     std::string name;
+     if( base.empty() )
+      name = "xs_" + std::to_string( num_block )
+       + "_" + std::to_string( set ) + "_" 
+       + std::to_string( idx_0 ) + "_" 
+       + std::to_string( idx_1 ) + "_" 
+       + std::to_string( idx_2 );
+     else
+      name = base + "_" + std::to_string( num_block ) + "_"
+       + std::to_string( idx_0 ) + "_" 
+       + std::to_string( idx_1 ) + "_" 
+       + std::to_string( idx_2 );
+
+     colname[ counter - 1 ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+
+     // The linearization produced by ma->data() for the 3D multi_array
+     // stores elements in row-major order.
+     if( idx_2 < ma->shape()[ 2 ] - 1 )
+      idx_2++; // Move third counter
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+      idx_1++; // Move second counter
+      idx_2 = 0; // Reset third counter
+     }
+     else {
+      idx_0++; // Move first counter
+      idx_1 = 0; // Reset second counter
+      idx_2 = 0; // Reset third counter
+     }
+
+     // If the option single_bound is true, we have to check that maximum one
+     // OneVarConstraint is associated with a single variable.
+     // Moreover, the vector linking the variable with the associated bound,
+     // needs to be filled.
+     if( single_bound == true ) {
+      auto scan_bound = [ this ]( const ColVariable & c ) {
+       scan_static_variable_bound( c );
+      };
+    
+      un_any_const_static( v , scan_bound , un_any_type< ColVariable >() );
+     }
+    }
+    
+    // Add number of elements of the group
+    if( elements )
+     std::get< 2 >( svar_to_idx.back() ) = elements;
+   }
+   else
+    throw( std::runtime_error( "Unsupported group type" ) );
+  }
+  else
+   throw( std::runtime_error( "Unsupported multi-array type" ) );
+ }
+ else
+    // Handle invalid or unsupported ma_dim 
+    return; 
+
+} // end( MILPSolver::scan_multiarray_st_group )
 
 /*--------------------------------------------------------------------------*/
 
@@ -612,8 +1258,8 @@ std::vector< FRowConstraint * > MILPSolver::get_active_constraints(
  std::vector< FRowConstraint * > active_constraints;
  for( auto * i : var.active_stuff() )
   if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
-   if( is_mine( row->get_Block() ) )
-    active_constraints.push_back( row );
+    if( is_mine( row->get_Block() ) )
+     active_constraints.push_back( row );
  
  return( active_constraints );
  }
@@ -621,12 +1267,35 @@ std::vector< FRowConstraint * > MILPSolver::get_active_constraints(
 /*--------------------------------------------------------------------------*/
 
 std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
-					      const ColVariable & var ) const
+					      const ColVariable & var , bool first_scan ) const
 {
  std::vector< OneVarConstraint * > active_bounds;
- for( auto * i : var.active_stuff() )
-  if( auto row = dynamic_cast< OneVarConstraint * >( i ) )
-   active_bounds.push_back( row );
+ 
+ /* If the option intSingleBound is activated, then each constraint can have 
+ *  just a single OneVarConstraint associated, which is stored in the vectors
+ *  svar_to_bound and dvar_to_bound. 
+ *  We also check if we are calling this function from the load_problem: in
+ *  this case (i.e. first_scan = true) we still have to fill the dictionaries.
+ */
+ if( single_bound && ( ! first_scan ) ) {
+  int idx = index_of_variable( &var ); // get variable index
+
+  if( idx < static_vars ) { // the variable is static
+   if( svar_to_bound[ idx ] != nullptr )
+    active_bounds.push_back( 
+      const_cast< OneVarConstraint * >( svar_to_bound[ idx ] ) );
+   }
+  else { // the variable is dynamic
+   if( dvar_to_bound[ idx - static_vars ] != nullptr )
+    active_bounds.push_back( 
+     const_cast< OneVarConstraint * >( dvar_to_bound[ idx - static_vars ] ) );
+   }
+  }
+ else { // The option is not activated, scan all active stuff
+  for( auto * i : var.active_stuff() )
+   if( auto row = dynamic_cast< OneVarConstraint * >( i ) )
+    active_bounds.push_back( row );
+  }
 
  return( active_bounds );
  }
@@ -648,7 +1317,7 @@ int MILPSolver::index_of_static_variable( const ColVariable * var ) const
  if( svar_to_idx.empty() )
   return( Inf< int >() );
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( svar_to_idx.begin() , svar_to_idx.end() ) );
  #endif
  auto it = upper_bound( svar_to_idx.begin() , svar_to_idx.end(),
@@ -679,7 +1348,7 @@ int MILPSolver::index_of_static_variable( const ColVariable * var ) const
 
 int MILPSolver::index_of_dynamic_variable( const ColVariable * var ) const
 {
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( dvar_to_idx.begin() , dvar_to_idx.end() ) );
  #endif
  auto it = lower_bound( dvar_to_idx.begin() , dvar_to_idx.end(),
@@ -709,11 +1378,11 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) const
  if( scon_to_idx.empty() )
   return( Inf< int >() );
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( scon_to_idx.begin(), scon_to_idx.end() ) );
  #endif
  auto it = upper_bound( scon_to_idx.begin() , scon_to_idx.end() ,
-                        std::make_tuple( con , 0 , 0 ) ,
+                        std::make_tuple( con , 0 , 0 , false ) ,
                         [ & ]( auto & p1 , auto & p2 ) {
                          return( std::get< 0 >( p1 ) < std::get< 0 >( p2 ) );
                         } );
@@ -740,7 +1409,7 @@ int MILPSolver::index_of_static_constraint( const FRowConstraint * con ) const
 
 int MILPSolver::index_of_dynamic_constraint( const FRowConstraint * con )
  const {
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( dcon_to_idx.begin() , dcon_to_idx.end() ) );
  #endif
  auto it = lower_bound( dcon_to_idx.begin() , dcon_to_idx.end() ,
@@ -772,7 +1441,7 @@ const ColVariable * MILPSolver::static_variable_with_index( int i ) const
  if( idx_to_svar.empty() )
   return( nullptr );
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( idx_to_svar.begin(), idx_to_svar.end() ) );
  #endif
  auto it = upper_bound( idx_to_svar.begin(), idx_to_svar.end(),
@@ -818,7 +1487,7 @@ const FRowConstraint * MILPSolver::static_constraint_with_index( int i )
  if( idx_to_scon.empty() )
   return( nullptr );
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   assert( std::is_sorted( idx_to_scon.begin() , idx_to_scon.end() ) );
  #endif
  auto it = upper_bound( idx_to_scon.begin() , idx_to_scon.end() ,
@@ -876,6 +1545,10 @@ void MILPSolver::scan_dynamic_variable( const ColVariable & var ,
 
 void MILPSolver::scan_variable( const ColVariable & var , Index & col )
 {
+ // Check if the Variable is not empty
+ if( var.get_Block() == nullptr )
+  throw( std::invalid_argument( "The provided variable is empty" ) );
+
  auto bd = MILPSolver::get_problem_bounds( var );
  if( var.is_fixed() ) {
   lb[ col ] = std::max( bd[ 0 ] , var.get_value() );
@@ -896,32 +1569,39 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
  else
   xctype[ col ] = 'C';  // Continuous
 
+ // Get linear active constraints
  auto active_constraints = get_active_constraints( var );
  int nz_elements = active_constraints.size();
- matcnt[ col ] = nz_elements;
 
- if( col == 0 )
-  matbeg[ col ] = 0;
- else
-  matbeg[ col ] = matbeg[ col - 1 ] + matcnt[ col - 1 ];
+ /* We have to check wheter we have quadratic constraints in the model or not.
+  * If the model is LP, then matbeg, matcnt, ... store the matrix coefficients
+  * grouped by column. */
+ if( numquadrows == 0 ) {
+  matcnt[ col ] = nz_elements;
 
- for( int j = 0 ; j < nz_elements ; ++j ) {
-  auto * con = active_constraints[ j ];
-  auto * f = static_cast< const LinearFunction * >( con->get_function() );
-  auto it = std::find_if( f->get_v_var().begin() , f->get_v_var().end() ,
+  if( col == 0 )
+   matbeg[ col ] = 0;
+  else
+   matbeg[ col ] = matbeg[ col - 1 ] + matcnt[ col - 1 ];
+
+  for( int j = 0 ; j < nz_elements ; ++j ) {
+   auto * con = active_constraints[ j ];
+   auto * f = static_cast< const LinearFunction * >( con->get_function() );
+   auto it = std::find_if( f->get_v_var().begin() , f->get_v_var().end() ,
                           [ & ]( LinearFunction::coeff_pair pair ) {
                            return( pair.first == &var );
                            } );
 
-  if( it != f->get_v_var().end() ) {
-   matval[ matbeg[ col ] + j ] = it->second;
-   matind[ matbeg[ col ] + j ] = index_of_constraint( con );
-   }
-  else
-   // This should never happen since we are looping on the active contraints
-   throw( std::invalid_argument(
-	"This ColVariable is not active in the examined FRowConstraint" ) );
+   if( it != f->get_v_var().end() ) {
+    matval[ matbeg[ col ] + j ] = it->second;
+    matind[ matbeg[ col ] + j ] = index_of_constraint( con );
+    }
+   else
+    // This should never happen since we are looping on the active contraints
+    throw( std::invalid_argument(
+	   "This ColVariable is not active in the examined FRowConstraint" ) );
   }
+ }
  ++col;
  }
 
@@ -945,16 +1625,149 @@ void MILPSolver::scan_dynamic_constraint( const FRowConstraint & con ,
 {
  dcon_to_idx.emplace_back( & con , row );
  idx_to_dcon.emplace_back( & con );
+
  scan_constraint( con , row );
  }
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row )
+void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 {
- if( auto f = con.get_function() )
-  if( ! dynamic_cast< const LinearFunction * >( f ) )
-   throw( std::invalid_argument( "The Constraint is not linear" ) );
+ // Check if the Constraint is not empty
+ if( con.get_Block() == nullptr )
+  throw( std::invalid_argument( "The provided constraint is empty" ) );
+
+ /* We have to check wheter we have quadratic constraints in the model or not.
+  * If the model is QP, then matbeg, matcnt, ... store the matrix coefficients
+  * grouped by rows. */
+ if( numquadrows != 0 ) {
+  if( auto f = con.get_function() ) {
+    
+    if( row == 0 )
+      matbeg[ row ] = 0;
+    else
+      matbeg[ row ] = matbeg[ row - 1 ] + matcnt[ row - 1 ];
+
+    if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+      matcnt[ row ] = lf->get_v_var().size();
+      int j = 0;
+
+      for( auto el : lf->get_v_var() ) {
+        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto idx_v = index_of_variable( v ); 
+
+        matval[ matbeg[ row ] + j ] = std::get< 1 >( el );;
+        matind[ matbeg[ row ] + j ] = idx_v;
+
+        j++;
+      }
+    }
+    else if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
+      int nnz = 0;
+
+      /* The quadratic part of the constraint will be represented as an
+       * Eigen::SparseMatrix, as already done in QuadFunction. However, we
+       * need to translate the local indices stored in a specific QuadFunction
+       * into the global one of the model. */
+
+      // Retrieve sparse quadratic matrix
+      auto local_qmatrix = qf->get_matrix();
+      std::map< mat_indices , float > global_qmatrix;
+      //Qmat global_qmatrix;
+      //global_qmatrix.reserve(5);
+      //std::vector<Eigen::Triplet<Coefficient>> vv_nd( local_qmatrix.nonZeros() );
+
+      // Create map from local indices to global ones
+      std::vector< int > map_local_to_global( qf->get_num_active_var() );
+      int num_var = 0;
+
+      for( auto el : qf->get_v_var() ) {
+        // Fill linear part of the constraint
+        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto idx_v = index_of_variable( v );
+        map_local_to_global[ num_var ] = idx_v;
+
+        // If the linear coefficient is nonzero
+        if( std::get< 1 >( el ) != 0 ) {
+          matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
+          matind[ matbeg[ row ] + nnz ] = idx_v;
+          nnz++;
+        }
+
+        // Note: the quadratic matrix does not contain the diagonal elements.
+        // Thus, if there are nonzeros, we have to insert them.
+        double q_coeff = std::get< 2 >( el );
+        if( q_coeff != 0 ) {
+          global_qmatrix[ { idx_v , idx_v } ] = q_coeff;
+          //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
+          //vv_nd.push_back( term ); 
+        }
+        ++num_var;
+      }
+      matcnt[ row ] = nnz;
+
+      // Now update local quadratic matrix into global one
+      int k_term = 0;
+      for (int k=0; k < local_qmatrix.outerSize(); ++k) {
+        for( Qmat::InnerIterator it( local_qmatrix , k ) ; it ; ++it ) {
+          int glob_idx1 = map_local_to_global[ it.row() ];
+          int glob_idx2 = map_local_to_global[ it.col() ];
+          global_qmatrix[ { glob_idx1 , glob_idx2 } ] = it.value();
+          //Eigen::Triplet< Coefficient > term( glob_idx1 , glob_idx2 , it.value() );
+          //vv_nd[ k_term ] = term;
+          ++k_term;
+        }
+      }
+
+      //global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
+      //global_qmatrix.makeCompressed();
+
+      q_part[ row ] = global_qmatrix;
+    }
+    else if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ) {
+      int nnz = 0;
+
+      /* The quadratic part of the constraint will be represented as an
+       * Eigen::SparseMatrix, as already done in QuadFunction. However, we
+       * need to translate the local indices stored in a specific DQuadFunction
+       * into the global one of the model. */
+
+      // In this case we can simply insert the non-zero diagonal element
+      std::map< mat_indices , float > global_qmatrix;
+      //Qmat global_qmatrix;
+      //std::vector<Eigen::Triplet<Coefficient>> vv_nd;
+
+      for( auto el : dqf->get_v_var() ) {
+        // Fill linear part of the constraint
+        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto idx_v = index_of_variable( v );
+
+        // If the linear coefficient is nonzero
+        if( std::get< 1 >( el ) != 0 ) {
+          matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
+          matind[ matbeg[ row ] + nnz ] = idx_v;
+          nnz++;
+        }
+
+        // Check if the diagonal quadratic coefficient is nonzero
+        double q_coeff = std::get< 2 >( el );
+        if( q_coeff != 0 ) {
+          global_qmatrix[ { idx_v , idx_v } ] = q_coeff;
+          //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
+          //vv_nd.push_back( term ); 
+        }
+      }
+      matcnt[ row ] = nnz;
+
+      //global_qmatrix.setFromTriplets( vv_nd.begin(), vv_nd.end() );
+      //global_qmatrix.makeCompressed();
+
+      q_part[ row ] = global_qmatrix;
+    }
+    else
+      throw( std::invalid_argument( "Unexpected constraint type" ) );
+   }
+  }
 
  /* We need to define the sense of the constraint.
   * In SMS++ FRowConstraints are defined as:
@@ -992,8 +1805,53 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row )
     rhs[ row ] = con_lhs;
     rngval[ row ] = con_rhs - con_lhs;
     }
+  ++row;
+ }
 
- ++row;
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::scan_static_variable_bound( const ColVariable & var )
+{
+ // Get vector of bounds
+ auto active_bounds = get_active_bounds( var , true );
+
+ // This function should be called only if the parameter single_bound is
+ // set to true. Thus, we have to check that maximum a single OneVarConstraint
+ // is contained in the vector.
+ if( active_bounds.size() > 1 )
+   throw( std::logic_error( "Only a single OneVarConstraint can be associated "
+                            "to a variable when the option intSingleBound is "
+                            "set to 1" ) );
+
+ // Otherwise, if a single OneVarConstraint exists, we have to fill the 
+ // dictionary.
+ if( active_bounds.size() == 1 )
+  svar_to_bound.push_back( active_bounds[ 0 ] );
+ else
+  svar_to_bound.push_back( nullptr );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::scan_dynamic_variable_bound( const ColVariable & var )
+{
+ // Get vector of bounds
+ auto active_bounds = get_active_bounds( var );
+
+ // This function should be called only if the parameter single_bound is
+ // set to true. Thus, we have to check that maximum a single OneVarConstraint
+ // is contained in the vector.
+ if( active_bounds.size() > 1 )
+   throw( std::logic_error( "Only a single OneVarConstraint can be associated "
+                            "to a variable when the option intSingleBound is "
+                            "set to 1" ) );
+
+ // Otherwise, if a single OneVarConstraint exists, we have to fill the 
+ // dictionary.
+ if( active_bounds.size() == 1 )
+  dvar_to_bound.push_back( active_bounds[ 0 ] );
+ else
+  dvar_to_bound.push_back( nullptr );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1004,26 +1862,160 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 
  constant_value += obj->get_constant_term();
 
+ // important note: a ColVariable may appear in multiple FRealObjective, this
+ // meaning that all the corresponding terms will be present in the final
+ // objective summed together (the Objective of a Block is the sum of its own
+ // Objective plus the Objective of all its sub-Block, recursively); this is
+ // why the "+=" below, each time a new linear or quadratic coefficient is
+ // found it has to be *added* to ones already there (initialised to 0, hence
+ // if the ColVariable appears only once this is equivalent to the fact that
+ // the final coefficients are the ones found there)
+
  if( auto * lf = dynamic_cast< const LinearFunction * >(
 						 obj->get_function() ) ) {
+  /* Linear objective function */
   for( auto el : lf->get_v_var() )
-   objective[ index_of_variable( el.first ) ] = el.second;
+   objective[ index_of_variable( el.first ) ] += el.second;
+
+  return;
+  }
+
+ if( auto * qf = dynamic_cast< const QuadFunction * >(
+						 obj->get_function() ) ) {
+  /* Non separable Quadratic objective function */
+
+  // Firstly, fill the linear and diagonal part of the 
+  // quadratic function.
+  for( auto el : qf->get_v_var() ) {
+   auto k = index_of_variable( std::get< 0 >( el ) );
+   objective[ k ] += std::get< 1 >( el );
+   q_objective[ k ] += std::get< 2 >( el );
+   }
+
+  // Now get sparse matrix related to the off diagonal terms 
+  v_off_diag_term nd_terms; // vector of tuples in the form (Idx,Idx,value)
+  qf->get_v_nd_var( nd_terms );
+  numnnzq = nd_terms.size();
+
+  // Quadratic vectors allocation - - - - - - - - - -- - - - - - - - - - - -
+  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ndq_objective.resize( numnnzq, 0 );
+  ndq_rowind.resize( numnnzq, 0 );
+  ndq_colind.resize( numnnzq, 0 );
+
+  for( int i = 0 ; i < numnnzq ; ++i  ) {
+   auto el_nd = nd_terms[ i ];
+
+   // Start from local idx and retrieve global index
+   auto * v1 = qf->get_active_var( std::get< 0 >( el_nd ) );
+   auto * v2 = qf->get_active_var( std::get< 1 >( el_nd ) );
+
+   int global_idx1 = index_of_variable( dynamic_cast< ColVariable * >( v1 ) );
+   int global_idx2 = index_of_variable( dynamic_cast< ColVariable * >( v2 ) );
+
+   ndq_rowind[ i ] = global_idx1;
+   ndq_colind[ i ] = global_idx2;
+   ndq_objective[ i ] = std::get< 2 >( el_nd );
+   }
 
   return;
   }
 
  if( auto * qf = dynamic_cast< const DQuadFunction * >(
 						 obj->get_function() ) ) {
+  /* Separable Quadratic objective function */
   for( auto el : qf->get_v_var() ) {
    auto k = index_of_variable( std::get< 0 >( el ) );
-   objective[ k ] = std::get< 1 >( el );
-   q_objective[ k ] = std::get< 2 >( el );
+   objective[ k ] += std::get< 1 >( el );
+   q_objective[ k ] += std::get< 2 >( el );
    }
 
   return;
   }
 
  throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T , unsigned short K >
+ int MILPSolver::get_multi_array_dim( 
+                        const boost::any & any ,
+                        un_any_type< T > , 
+                        un_any_int< K > )
+{
+ if( any.type() == typeid( boost::multi_array< T , K > * ) ||
+    any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
+  return K;
+ else
+  return( get_multi_array_dim( any , un_any_type< T >() ,
+                              un_any_int< K + 1 >() ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T , unsigned short K >
+ int MILPSolver::get_multi_array_type( 
+                         const boost::any & any ,
+                         un_any_type< T > , 
+                         un_any_int< K > )
+{
+ if( any.type() == typeid( boost::multi_array< T , K > * ) )
+  return 0;
+ else if( any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
+  return 1;
+ else
+  return( -1 );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T >
+ boost::multi_array< T , 2 > * MILPSolver::get_multi_array0( 
+                           const boost::any & any,
+                           un_any_type< T > , 
+                           un_any_int< 2 > )
+{
+ auto & var = * boost::any_cast< boost::multi_array< T , 2 > * >( any );
+  return &var;
+ }
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T >
+ boost::multi_array< std::vector< T >, 2 > * MILPSolver::get_multi_array1( 
+                          const boost::any & any,
+                          un_any_type< T > , 
+                          un_any_int< 2 > )
+{
+ auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 2 > * >
+    ( any );
+ return &var;
+ }
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T >
+ boost::multi_array< T , 3 > * MILPSolver::get_multi_array0( 
+                           const boost::any & any,
+                           un_any_type< T > , 
+                           un_any_int< 3 > )
+{
+ auto & var = * boost::any_cast< boost::multi_array< T , 3 > * >( any );
+  return &var;
+ }
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T >
+ boost::multi_array< std::vector< T >, 3 > * MILPSolver::get_multi_array1( 
+                          const boost::any & any,
+                          un_any_type< T > , 
+                          un_any_int< 3 > )
+{
+ auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 3 > * >
+    ( any );
+ return &var;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1072,7 +2064,7 @@ void MILPSolver::process_modifications( void )
   else                      // no more Modification to process
    break;                   // all done
 
- #ifdef MILPSOLVER_DEBUG
+ #ifdef MILPSolver_DEBUG
   check_status();
  #endif
 
@@ -1299,7 +2291,19 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
 
  auto * f = mod->function();
 
+ // important note: a ColVariable may appear in multiple FRealObjective, this
+ // meaning that all the corresponding terms will be present in the final
+ // objective summed together (the Objective of a Block is the sum of its own
+ // Objective plus the Objective of all its sub-Block, recursively); this has
+ // to be properly taken into account
+
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // we exploit the delta() vector of C05FunctionModLin, giving the difference
+ // between the new and the old value of the linear coefficient, to update
+ // the objective[] values without having to recompute them: since they are
+ // (potentially) a sum of terms, recomputing them would require fetching
+ // back all the terms, while the delta() can just be applied to the sum
+
  if( auto * modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
   if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
@@ -1425,9 +2429,9 @@ void MILPSolver::objective_fvars_modification( const FunctionModVars * mod )
  auto * f = mod->function();
 
  // Check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd *>( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd *>( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst *>( mod ) ) )
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
 			 "This type of FunctionModVars is not handled" ) );
 
@@ -1487,9 +2491,9 @@ void MILPSolver::constraint_fvars_modification( const FunctionModVars * mod )
   return;
 
  // Check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd *>( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd *>( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst *>( mod ) ) )
+ if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
 			 "This type of FunctionModVars is not handled" ) );
 
@@ -1543,7 +2547,7 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
 
  // all that has remained to do is to deal with OneVarConstraint
  // we deal with this using the base class BlockModAD, which is *not*
- // template, so as to be able to deal with all derived classes from
+ // template, to be able to deal with all derived classes from
  // OneVarConstraint at once
  if( auto tmod = dynamic_cast< const BlockModAD * >( mod ) ) {
   if( mod->is_variable() )
@@ -1656,6 +2660,11 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
    q_objective.push_back( 0 );
   }
 
+ /* If the check on SingleBound is active, scan the 
+ *  OneVarConstraint associated with the variable */
+ if( single_bound )
+  scan_dynamic_variable_bound( *var );
+
  // update the matrix, if any
  if( matval.empty() )
   return;
@@ -1698,6 +2707,30 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
  auto bd = MILPSolver::get_problem_bounds( *var );
  lb[ idx ] = bd[ 0 ];
  ub[ idx ] = bd[ 1 ];
+
+ /* If the check on SingleBound is active, it is important to check that 
+ *  no other OneVarConstraint are already associated with the variable.
+ *  If this is the case, then add the new bound to the dictionary. */
+ if( single_bound ) {
+  if( idx < static_vars ) { // the variable is static
+   if( svar_to_bound[ idx ] != nullptr ) // There was already a bound set
+     throw( std::logic_error( "Only a single OneVarConstraint can be associated"
+                              " to a variable when the option intSingleBound is"
+                              " set to 1" ) );
+
+   else // No OneVarConstraint was previously associated with the variable.
+    svar_to_bound[ idx ] = con; // Update the dictionary
+   }
+  else { // the variable is dynamic
+   if( dvar_to_bound[ idx - static_vars ] != nullptr ) // There was already a bound set
+     throw( std::logic_error( "Only a single OneVarConstraint can be associated"
+                              " to a variable when the option intSingleBound is"
+                              " set to 1" ) );
+
+   else // No OneVarConstraint was previously associated with the variable.
+    dvar_to_bound[ idx - static_vars ] = con; // Update the dictionary
+   }
+  }
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1717,7 +2750,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  if( ( it1 != dcon_to_idx.end() ) && ( it1->first == con ) ) {
   index = it1->second;
   dcon_to_idx.erase( it1 );
-  idx_to_dcon.erase( idx_to_dcon.begin() + index - static_cons );
+  idx_to_dcon.erase( idx_to_dcon.begin() + ( index - static_cons ) );
   }
  else
   throw( std::runtime_error( "Dynamic constraint not found" ) );
@@ -1762,7 +2795,9 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
  if( ( it1 != dvar_to_idx.end() ) && ( it1->first == var ) ) {
   index = it1->second;
   dvar_to_idx.erase( it1 );
-  idx_to_dvar.erase( idx_to_dvar.begin() + index - static_vars );
+  idx_to_dvar.erase( idx_to_dvar.begin() + ( index - static_vars ) );
+  if( single_bound )
+    dvar_to_bound.erase( dvar_to_bound.begin() + ( index - static_vars ) );
   }
  else
   throw( std::runtime_error( "Dynamic variable not found" ) );
@@ -1809,7 +2844,7 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  if( lb.empty() )
   return;
 
- // note: this only works because remove_dynamic_constraint[s]() do *not*
+ // note: this only works because remove_dynamic_constraint[ s ]() do *not*
  //       clear the removed OneVarConstraint, and therefore we can easily
  //       reconstruct which ColVariable it was about
  auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
@@ -1823,6 +2858,16 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  auto bd = get_problem_bounds( * var );
  lb[ idx ] = bd[ 0 ];
  ub[ idx ] = bd[ 1 ];
+
+ /* If the check on SingleBound is active, we have to remove the pointer to 
+ *  the OneVarConstraint from the svar_to_bound or svar_to_bound dictionaries. 
+ */
+ if( single_bound ) {
+  if( idx < static_vars ) // the variable is static
+   svar_to_bound[ idx ] = nullptr;
+  else // the variable is dynamic
+   dvar_to_bound[ idx - static_vars ] = nullptr;
+  }
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1831,6 +2876,10 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 
 void MILPSolver::set_par( idx_type par , int value )
 {
+ if( par == intThrowReducedCostException ) {
+  throw_reduced_cost_exception = bool( value );
+  return;
+  }
  if( par == intUseCustomNames ) {
   use_custom_names = bool( value );
   return;
@@ -1839,18 +2888,19 @@ void MILPSolver::set_par( idx_type par , int value )
   relax_int_vars = bool( value );
   return;
   }
+ if( par == intSingleBound ) {
+  single_bound = bool( value );
+  return;
+ }
+ if( par == intConsModification ) {
+  cons_modification = bool( value );
+  return;
+ }
 
  CDASolver::set_par( par, value );
  }
 
-/*----------------------------------------------------------------------------
-
-void MILPSolver::set_par( idx_type par , double value )
-{
- CDASolver::set_par( par, value );
- }
-
-----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 void MILPSolver::set_par( idx_type par , std::string && value )
 {
@@ -1860,6 +2910,14 @@ void MILPSolver::set_par( idx_type par , std::string && value )
   }
  if( par == strOutputFile ) {
   output_file = std::move( value );
+  return;
+  }
+ if( par == strWarmStartVariables ) {
+  warmstart_variables = std::move( value );
+  return;
+  }
+ if( par == strWarmStartSolution ) {
+  warmstart_solution = std::move( value );
   return;
   }
 
@@ -1884,11 +2942,20 @@ ThinComputeInterface::idx_type MILPSolver::get_num_str_par( void ) const {
 
 int MILPSolver::get_dflt_int_par( idx_type par ) const
 {
+ if( par == intThrowReducedCostException )
+  return( 1 );
+
  if( par == intUseCustomNames )
   return( 1 );
 
  if( par == intRelaxIntVars )
   return( 0 );
+
+ if( par == intSingleBound )
+  return( 0 );
+
+ if( par == intConsModification )
+  return( 1 );
 
  return( CDASolver::get_dflt_int_par( par ) );
  }
@@ -1911,6 +2978,12 @@ const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const
  if( par == strOutputFile )
   return( vals[ 1 ] );
 
+ if( par == strWarmStartVariables )
+  return( vals[ 1 ] );
+
+ if( par == strWarmStartSolution )
+  return( vals[ 1 ] );
+
  return( CDASolver::get_dflt_str_par( par ) );
  }
 
@@ -1918,11 +2991,20 @@ const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const
 
 int MILPSolver::get_int_par( idx_type par ) const
 {
+ if( par == intThrowReducedCostException )
+  return( throw_reduced_cost_exception );
+
  if( par == intUseCustomNames )
   return( use_custom_names );
 
  if( par == intRelaxIntVars )
   return( relax_int_vars );
+ 
+ if( par == intSingleBound )
+  return( single_bound );
+
+ if( par == intConsModification )
+  return( cons_modification );
 
  return( CDASolver::get_int_par( par ) );
  }
@@ -1944,6 +3026,12 @@ const std::string & MILPSolver::get_str_par( idx_type par ) const
  if( par == strOutputFile )
   return( output_file );
 
+ if( par == strWarmStartVariables )
+  return( warmstart_variables );
+
+ if( par == strWarmStartSolution )
+  return( warmstart_solution );
+
  return( CDASolver::get_str_par( par ) );
  }
 
@@ -1951,11 +3039,20 @@ const std::string & MILPSolver::get_str_par( idx_type par ) const
 
 Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
 {
+ if( name == "intThrowReducedCostException" )
+  return( intThrowReducedCostException );
+
  if( name == "intUseCustomNames" )
   return( intUseCustomNames );
 
  if( name == "intRelaxIntVars" )
   return( intRelaxIntVars );
+
+ if( name == "intSingleBound" )
+  return( intSingleBound );
+
+ if( name == "intConsModification" )
+  return( intConsModification );
 
  return( CDASolver::int_par_str2idx( name ) );
  }
@@ -1964,13 +3061,25 @@ Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
 
 const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::vector< std::string > pars = { "intUseCustomNames",
-                                                  "intRelaxIntVars" };
- if( idx == intUseCustomNames )
+ static const std::vector< std::string > pars = { "intThrowReducedCostException",
+                                                  "intUseCustomNames",
+                                                  "intRelaxIntVars" ,
+                                                  "intSingleBound" ,
+                                                  "intConsModification" };
+ if( idx == intThrowReducedCostException )
   return( pars[ 0 ] );
 
- if( idx == intRelaxIntVars )
+ if( idx == intUseCustomNames )
   return( pars[ 1 ] );
+
+ if( idx == intRelaxIntVars )
+  return( pars[ 2 ] );
+
+ if( idx == intSingleBound )
+  return( pars[ 3 ] );
+
+ if( idx == intConsModification )
+  return( pars[ 4 ] );
 
  return( CDASolver::int_par_idx2str( idx ) );
  }
@@ -1998,6 +3107,12 @@ Solver::idx_type MILPSolver::str_par_str2idx( const std::string & name ) const
  if( name == "strOutputFile" )
   return( strOutputFile );
 
+ if( name == "strWarmStartVariables" )
+  return( strWarmStartVariables );
+
+ if( name == "strWarmStartSolution" )
+  return( strWarmStartSolution );
+
  return( CDASolver::str_par_str2idx( name ) );
  }
 
@@ -2006,12 +3121,20 @@ Solver::idx_type MILPSolver::str_par_str2idx( const std::string & name ) const
 const std::string & MILPSolver::str_par_idx2str( idx_type idx ) const
 {
  static const std::vector< std::string > pars = { "strProblemName" ,
-                                                  "strOutputFile" };
+                                                  "strOutputFile" ,
+                                                  "strWarmStartVariables" ,
+                                                  "strWarmStartSolution" };
  if( idx == strProblemName )
   return( pars[ 0 ] );
 
  if( idx == strOutputFile )
   return( pars[ 1 ] );
+
+ if( idx == strWarmStartVariables )
+  return( pars[ 2 ] );
+
+ if( idx == strWarmStartSolution )
+  return( pars[ 3 ] );
 
  return( CDASolver::str_par_idx2str( idx ) );
  }
@@ -2051,7 +3174,7 @@ std::string log_vector( const std::vector< char > & v , int limit ) {
 
 /*--------------------------------------------------------------------------*/
 
-#ifdef MILPSOLVER_DEBUG
+#ifdef MILPSolver_DEBUG
 
 void MILPSolver::check_status( void )
 {
@@ -2077,130 +3200,63 @@ void MILPSolver::check_status( void )
   Block * q_Block = Q.front();
   Q.pop();
 
-  for( auto * i : q_Block->get_nested_Blocks() ) {
+  for( auto * i : q_Block->get_nested_Blocks() )
    Q.push( i );
-  }
 
   for( const auto & i : q_Block->get_static_constraints() ) {
-   // Singles
-   if( un_any_thing_0( FRowConstraint , i ,
-                       {
-                        ++scg;
-                        ++c;
-                        ++sc;
-                        }
-		       ) )
-    continue;
-
-   // Vectors
-   if( un_any_thing_1( FRowConstraint , i ,
-                       {
-                        ++scg;
-                        c += var.size();
-                        sc += var.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays
-   if( un_any_thing_K( FRowConstraint, i,
-                       {
-                        ++scg;
-                        c += var.num_elements();
-                        sc += var.num_elements();
-                        }
-		       ) )
+   auto count = un_any_thing_count_static( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    ++scg;
+    c += count;
+    sc += count;
     continue;
    }
+
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_static( i , [](){}() ) )
+    continue;
+
+   throw( std::invalid_argument(
+    "MILPSolver: static Constraint is not a valid "
+    "FRowConstraint nor OneVarConstraint" ) );
+  }
 
   for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   // Single lists
-   if( un_any_thing_0( std::list< FRowConstraint > , i ,
-                       { c += var.size();  } ) )
-    continue;
-
-   // Vectors of lists
-   if( un_any_thing_1( std::list< FRowConstraint >, i,
-                       {
-                        for( auto & el: var )
-                         c += el.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays of lists
-   if( un_any_thing_K( std::list< FRowConstraint > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         c += it->size();
-                        }
-		       ) )
+   auto count = un_any_thing_count_dynamic( FRowConstraint , i );
+   if( count != Inf< std::size_t >() ) {
+    c += count;
     continue;
    }
+
+   // if it's not FRowConstraint, accept any known OneVarConstraint silently
+   if( un_any_thing_OneVarConstraint_dynamic( i , [](){}() ) )
+    continue;
+
+   throw( std::invalid_argument(
+    "MILPSolver: dynamic Constraint is not a valid "
+    "FRowConstraint nor OneVarConstraint" ) );
+  }
 
   dc = c - sc;
 
   for( const auto & i : q_Block->get_static_variables() ) {
-   // Singles
-   if( un_any_thing_0( ColVariable , i ,
-                       {
-                        ++svg;
-                        ++v;
-                        ++sv;
-                        }
-		       ) )
-    continue;
-
-   // Vectors
-   if( un_any_thing_1( ColVariable , i ,
-                       {
-                        ++svg;
-                        v += var.size();
-                        sv += var.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays
-   if( un_any_thing_K( ColVariable , i ,
-                       {
-                        ++svg;
-                        v += var.num_elements();
-                        sv += var.num_elements();
-                        }
-		       ) )
-    continue;
-   }
+   auto count = un_any_thing_count_static( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   ++svg;
+   v += count;
+   sv += count;
+  }
 
   for( const auto & i : q_Block->get_dynamic_variables() ) {
-   // Single lists
-   if( un_any_thing_0( std::list< ColVariable > , i ,
-                       { v += var.size(); } ) )
-    continue;
-
-   // Vectors of lists
-   if( un_any_thing_1( std::list< ColVariable > , i ,
-                       {
-                        for( auto & el: var )
-                         v += el.size();
-                        }
-		       ) )
-    continue;
-
-   // Multiarrays of lists
-   if( un_any_thing_K( std::list< ColVariable > , i ,
-                       {
-                        auto it = var.data();
-                        for( auto i = var.num_elements() ; i-- ; ++it )
-                         v += it->size();
-                        }
-		       ) )
-    continue;
-   }
+   auto count = un_any_thing_count_dynamic( ColVariable , i );
+   if( count == Inf< std::size_t >() )
+    throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
+   v += count;
+  }
 
   dv = v - sv;
-  }
+ }
 
  // Unlock the Block
  if( ! owned )
@@ -2227,8 +3283,8 @@ void MILPSolver::check_status( void )
  for( auto & i: idx_to_svar ) {
   auto j = std::find_if( svar_to_idx.begin(), svar_to_idx.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 1 >( pair ) == i.first &&
-                                  std::get< 0 >( pair ) == i.second );
+                          return( ( std::get< 1 >( pair ) == i.first ) &&
+                                  ( std::get< 0 >( pair ) == i.second ) );
                          } );
   if( j == svar_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
@@ -2240,8 +3296,8 @@ void MILPSolver::check_status( void )
  for( auto & i: svar_to_idx ) {
   auto j = std::find_if( idx_to_svar.begin(), idx_to_svar.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 0 >( i ) == pair.second &&
-                                  std::get< 1 >( i ) == pair.first );
+                          return( ( std::get< 0 >( i ) == pair.second ) &&
+                                  ( std::get< 1 >( i ) == pair.first ) );
                          } );
   if( j == idx_to_svar.end() ) {
    DEBUG_LOG( ", " << std::get< 1 >( i ) <<
@@ -2301,8 +3357,8 @@ void MILPSolver::check_status( void )
  for( auto & i: idx_to_scon ) {
   auto j = std::find_if( scon_to_idx.begin(), scon_to_idx.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 1 >( pair ) == i.first &&
-                                  std::get< 0 >( pair ) == i.second );
+                          return( ( std::get< 1 >( pair ) == i.first ) &&
+                                  ( std::get< 0 >( pair ) == i.second ) );
                          } );
   if( j == scon_to_idx.end() ) {
    DEBUG_LOG( "Element [" << i.first << ", " << i.second
@@ -2314,8 +3370,8 @@ void MILPSolver::check_status( void )
  for( auto & i: scon_to_idx ) {
   auto j = std::find_if( idx_to_scon.begin(), idx_to_scon.end(),
                          [ & ]( auto & pair ) {
-                          return( std::get< 0 >( i ) == pair.second &&
-                                  std::get< 1 >( i ) == pair.first );
+                          return( ( std::get< 0 >( i ) == pair.second ) &&
+                                  ( std::get< 1 >( i ) == pair.first ) );
                          } );
   if( j == idx_to_scon.end() ) {
    DEBUG_LOG( ", " << std::get< 1 >( i )
@@ -2376,7 +3432,179 @@ void MILPSolver::check_status( void )
 
  }
 
-#endif // MILPSOLVER_DEBUG
+#endif // MILPSolver_DEBUG
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::write_var_solution( const std::vector< double > & x )
+{
+ if( x.empty() )  // actually no solution passed
+  return;         // silently return
+
+ if( x.size() < get_numcols() )
+  throw( std::invalid_argument( "write_var_solution: x too short" ) );
+
+ int col = 0;
+ int dcol = static_vars;
+
+ auto set = [ & x , & col ]( ColVariable & v ) {
+  v.set_value( x[ col++ ] );
+  };
+
+ auto setd = [ & x , & dcol ]( ColVariable & v ) {
+  v.set_value( x[ dcol++ ] );
+  };
+
+ for( auto qb : v_BFS ) {
+  for( const auto & vi : qb->get_static_variables() )
+   un_any_const_static( vi , set , un_any_type< ColVariable >() );
+
+  for( const auto & vi : qb->get_dynamic_variables() )
+   un_any_const_dynamic( vi , setd , un_any_type< ColVariable >() );
+  }
+ }  // end( MILPSolver::write_var_solution )
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
+				      const std::vector< double > & rc )
+{
+ // handle dual variables, if any- - - - - - - - - - - - - - - - - - - - - -
+ if( ! pi.empty() ) {  // there actually is a dual solution
+
+  if( pi.size() < get_numrows() )
+   throw( std::invalid_argument( "write_dual_solution: pi too short" ) );
+
+  // NOTE: this only supports pi written for linear constraints!
+  // TODO: extend pi to quadratic constraints
+  int row = 0;
+  int row_dynamic = static_cons;
+
+  auto set = [ & pi , & row ]( FRowConstraint & c ) {
+    if( dynamic_cast< LinearFunction * >( c.get_function() ) )
+      c.set_dual( - pi[ row++ ] );
+    else
+      // Skip quadratic rows
+      row++;
+   };
+
+  auto set_dynamic = [ & pi , & row_dynamic ]( FRowConstraint & c ) {
+    if( dynamic_cast< LinearFunction * >( c.get_function() ) )
+      c.set_dual( - pi[ row_dynamic++ ] );
+    else
+      // Skip quadratic rows
+      row_dynamic++;
+   };
+
+  for( auto qb : v_BFS ) {
+   for( const auto & ci : qb->get_static_constraints() )
+    un_any_const_static( ci , set , un_any_type< FRowConstraint >() );
+
+   for( const auto & ci : qb->get_dynamic_constraints() )
+    un_any_const_dynamic( ci, set_dynamic, un_any_type< FRowConstraint >() );
+   }
+  }  // end( ! p.empty() )
+
+ // handle reduced costs, if any - - - - - - - - - - - - - - - - - - - - - -
+ if( rc.empty() )  // actually no reduced costs passed
+  return;         // all done
+
+ if( rc.size() < get_numcols() )
+  throw( std::invalid_argument( "write_dual_solution: rc too short" ) );
+
+ int col = 0;
+
+ auto set_bound = [ this , & rc , & col ]( ColVariable & var ) {
+  auto active_bounds = get_active_bounds( var );
+
+  // bounds that will have the dual value set.
+  OneVarConstraint * lhs_con = nullptr;
+  OneVarConstraint * rhs_con = nullptr;
+
+  auto var_lb = var.get_lb();
+  auto var_ub = var.get_ub();
+
+  const auto var_is_fixed = var.is_fixed();
+  if( var_is_fixed ) {
+   /* The Variable is fixed. There should be at least one OneVarConstraint
+    * (for this Variable) whose lower and upper bounds are equal to the value
+    * of this Variable. If such OneVarConstraint exists, the reduced cost of
+    * this Variable will be dual of that OneVarConstraint. If there is no such
+    * OneVarConstraint, the reduced cost of this variable will be lost. */
+   var_lb = var.get_value();
+   var_ub = var.get_value(); //REMOVE
+
+   for( auto b : active_bounds ) {
+    b->set_dual( 0 );
+    if( ( b->get_lhs() == var_lb ) && ( b->get_rhs() == var_lb ) ) {
+     lhs_con = b;
+     rhs_con = b;
+     }
+    }
+
+   assert( lhs_con == rhs_con );
+   }
+  else {  // a non-fixed Variable
+   for( auto b: active_bounds ) {
+    b->set_dual( 0 );
+ 
+    if( b->get_lhs() >= var_lb ) {
+     var_lb = b->get_lhs();
+     lhs_con = b;
+     }
+
+    if( b->get_rhs() <= var_ub ) {
+     var_ub = b->get_rhs();
+     rhs_con = b;
+     }
+    }
+   }
+
+  if( lhs_con && ( rc[ col ] >= 0 ) )
+   lhs_con->set_dual( - rc[ col ] );
+  else
+   if( rhs_con && ( rc[ col ] <= 0 ) )
+    rhs_con->set_dual( - rc[ col ] );
+   else
+    if( lhs_con || rhs_con )
+     throw( std::logic_error(
+	       "MILPSolver::write_dual_solution: invalid dual value" ) );
+
+  if( throw_reduced_cost_exception ) {
+    if( var_is_fixed && ( ! lhs_con ) && ( var_lb != 0 ) ) {
+     // the Variable is fixed, but it has no associated OneVarConstraint
+     // with both bounds equal to the value of the Variable
+
+     throw( std::logic_error(
+      "MILPSolver::write_dual_solution: variable with index " +
+      std::to_string( col ) + " is fixed to " +
+      std::to_string( var.get_value() ) + ", but it has no OneVarConstraint" +
+      "with both bounds equal to the value of this variable." ) );
+     }
+    else
+     if( ( ! var_is_fixed ) && ( ! lhs_con ) && ( ! rhs_con ) ) {
+      // the Variable is not fixed, and it has no associated OneVarConstraint
+      // an exception is thrown if it has a finite nonzero bound
+      if( ( ( var_lb != 0 ) && ( std::abs( var_lb ) < Inf< double >() ) ) ||
+	  ( ( var_ub != 0 ) && ( std::abs( var_ub ) < Inf< double >() ) ) )
+       throw( std::logic_error(
+                "MILPSolver::get_dual_solution: variable with index " +
+		 std::to_string( col ) + " has no OneVarConstraint." ) );
+      }
+    }
+
+   col += 1;  // update variable counter
+   };
+
+ for( auto qb : v_BFS ) {
+  // write all static variables first
+  for( const auto & vi : qb->get_static_variables() )
+   un_any_const_static( vi , set_bound , un_any_type< ColVariable >() );
+  // write all dynamic variables
+  for( const auto & vi : qb->get_dynamic_variables() )
+   un_any_const_dynamic( vi , set_bound , un_any_type< ColVariable >() );
+  }
+ }  // end( MILPSolver::write_dual_solution )
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- End File MILPSolver.cpp --------------------------*/

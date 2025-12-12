@@ -24,7 +24,6 @@
 #    This find module is provided because CPLEX does not provide              #
 #    a CMake configuration file on its own.                                   #
 #                                                                             #
-#                              Niccolo' Iardella                              #
 #                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
@@ -50,7 +49,7 @@ if (UNIX)
                 lib/${ARCH}_sles10_4.1/static_pic
                 lib/${ARCH}_linux/static_pic)
     endif ()
-else ()
+elseif (WIN32)
     # Windows (usually C:/Program Files/IBM/ILOG, or C:/IBM/ILOG)
     set(CPLEX_ILOG_DIRS "C:/Program Files/IBM/ILOG")
     set(CPLEX_ILOG_DIRS "C:/IBM/ILOG" ${CPLEX_ILOG_DIRS})
@@ -135,28 +134,29 @@ endforeach ()
 find_package(Threads QUIET)
 
 # Check if already in cache
-if (CPLEX_INCLUDE_DIR AND CPLEX_LIBRARY AND CPLEX_LIBRARY_DEBUG)
+if (CPLEX_INCLUDE_DIR AND CPLEX_LIBRARY AND CPLEX_LIBRARY_DEBUG AND CPLEX_VERSION)
     set(CPLEX_FOUND TRUE)
 else ()
 
     set(CPLEX_DIR ${CPLEX_ROOT}/cplex)
 
     # ----- Find the CPLEX include directory -------------------------------- #
-    # Note that find_path() creates a cache entry
     find_path(CPLEX_INCLUDE_DIR
               NAMES ilcplex/cplex.h
               PATHS ${CPLEX_DIR}/include
               DOC "CPLEX include directory.")
 
+    # ----- Find the CPLEX library ------------------------------------------ #
     if (UNIX)
-        # ----- Find the CPLEX library -------------------------------------- #
         find_library(CPLEX_LIBRARY
                      NAMES cplex
                      PATHS ${CPLEX_DIR}
                      PATH_SUFFIXES ${CPLEX_LIB_PATH_SUFFIXES}
                      DOC "CPLEX library.")
-        set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIBRARY})
-    elseif (NOT CPLEX_LIBRARY)
+
+        set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIBRARY}
+                CACHE FILEPATH "CPLEX library." FORCE)
+    elseif (WIN32)
 
         # ----- Macro: find_win_cplex_library ------------------------------- #
         # On Windows the version is appended to the library name which cannot be
@@ -170,17 +170,17 @@ else ()
                 endif ()
             endforeach ()
             if (NOT ${var})
-                set(${var} NOTFOUND)
+                set(${var} "${var}-NOTFOUND")
             endif ()
         endmacro ()
 
-        # Library
-        find_win_cplex_library(CPLEX_LIB "${CPLEX_LIB_PATH_SUFFIXES}")
-        set(CPLEX_LIBRARY ${CPLEX_LIB})
+        find_win_cplex_library(CPLEX_LIB ${CPLEX_LIB_PATH_SUFFIXES})
+        set(CPLEX_LIBRARY ${CPLEX_LIB}
+                CACHE FILEPATH "CPLEX library." FORCE)
 
-        # Debug library
-        find_win_cplex_library(CPLEX_LIB "${CPLEX_LIB_PATH_SUFFIXES_DEBUG}")
-        set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIB})
+        find_win_cplex_library(CPLEX_LIB ${CPLEX_LIB_PATH_SUFFIXES_DEBUG})
+        set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIB}
+                CACHE FILEPATH "CPLEX debug library." FORCE)
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
@@ -189,14 +189,14 @@ else ()
                 "${CPLEX_INCLUDE_DIR}/ilcplex/cpxconst.h"
                 _cplex_version_lines REGEX "#define CPX_VERSION_(VERSION|RELEASE|MODIFICATION)")
 
-        string(REGEX REPLACE ".*CPX_VERSION_VERSION *\([0-9]*\).*" "\\1" _cplex_version_major "${_cplex_version_lines}")
-        string(REGEX REPLACE ".*CPX_VERSION_RELEASE *\([0-9]*\).*" "\\1" _cplex_version_minor "${_cplex_version_lines}")
+        string(REGEX REPLACE ".*CPX_VERSION_VERSION *\([0-9]*\).*" "\\1" _cplex_version_version "${_cplex_version_lines}")
+        string(REGEX REPLACE ".*CPX_VERSION_RELEASE *\([0-9]*\).*" "\\1" _cplex_version_release "${_cplex_version_lines}")
         string(REGEX REPLACE ".*CPX_VERSION_MODIFICATION *\([0-9]*\).*" "\\1" _cplex_version_modification "${_cplex_version_lines}")
 
-        set(CPLEX_VERSION "${_cplex_version_major}.${_cplex_version_minor}.${_cplex_version_modification}")
+        set(CPLEX_VERSION "${_cplex_version_version}.${_cplex_version_release}.${_cplex_version_modification}")
         unset(_cplex_version_lines)
-        unset(_cplex_version_major)
-        unset(_cplex_version_minor)
+        unset(_cplex_version_version)
+        unset(_cplex_version_release)
         unset(_cplex_version_modification)
     endif ()
 
@@ -208,33 +208,27 @@ else ()
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     find_package_handle_standard_args(
             CPLEX
-            REQUIRED_VARS CPLEX_LIBRARY CPLEX_LIBRARY_DEBUG CPLEX_INCLUDE_DIR
+            REQUIRED_VARS CPLEX_LIBRARY CPLEX_INCLUDE_DIR
             VERSION_VAR CPLEX_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
 if (CPLEX_FOUND)
-    set(CPLEX_INCLUDE_DIRS "${CPLEX_INCLUDE_DIR}")
-    set(CPLEX_LINK_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
-
-    # See: https://cmake.org/cmake/help/latest/module/CheckLibraryExists.html
-    check_library_exists(m floor "" HAVE_LIBM)
-    if (HAVE_LIBM)
-        set(CPLEX_LINK_LIBRARIES ${CPLEX_LINK_LIBRARIES} m)
-    endif ()
+    set(CPLEX_INCLUDE_DIRS ${CPLEX_INCLUDE_DIR})
+    set(CPLEX_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
     if (UNIX)
-        set(CPLEX_LINK_LIBRARIES ${CPLEX_LINK_LIBRARIES} dl)
+        set(CPLEX_LIBRARIES ${CPLEX_LIBRARIES} dl)
     endif ()
 
     if (NOT TARGET CPLEX::Cplex)
-        add_library(CPLEX::Cplex STATIC IMPORTED)
+        add_library(CPLEX::Cplex UNKNOWN IMPORTED)
         set_target_properties(
                 CPLEX::Cplex PROPERTIES
                 IMPORTED_LOCATION "${CPLEX_LIBRARY}"
                 IMPORTED_LOCATION_DEBUG "${CPLEX_LIBRARY_DEBUG}"
                 INTERFACE_INCLUDE_DIRECTORIES "${CPLEX_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${CPLEX_LINK_LIBRARIES}")
+                INTERFACE_LINK_LIBRARIES "${CPLEX_LIBRARIES}")
     endif ()
 endif ()
 

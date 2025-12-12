@@ -1,28 +1,39 @@
 # MILPSolver
 
 A generic MILP Solver meta-interface for SMS++, with modules for interfacing
-with some actual solvers.
+with some actual solvers. Supports `LinearFunction`, `DQuadFunction` (diagonal
+quadratic) and `QuadFunction` (general quadratic, both the last cases not
+necessariy convex) both in the `FRealObjective` and in the `FRowConstraint`,
+so it is actually an interface for MI-QCQP in its full generality.
 
 The `MILPSolver` base class (deriving from `CDASolver` for the case when the
-MILP is actually an LP and therefore dual solutions are available) provides
-a "meta" interface between any SMS++ `Block` whose abstract representation is
-a Mixed-Integer Linear Program (all `Variable` need be `ColVariable`, all
-`Objective` need be a `FRealObjective` whose inner `Function` is a
-`LinearFunction`, the `Constraint` need all be either `FRowConstraint` whose
-inner `Function` is a `LinearFunction` or `OneVarConstraint`). In fact, the
-class is slightly extended to Mixed-Integer Quadratic Program with separable
-objective  (the `Function` inside the `FRealObjective` can also be a
-`DQuadFunction`). However, `MILPSolver` only reads the abstract representation
-and prepares data structures representing the classic (sparse) coefficient
-matrix + accompanying vectors (objective, LHS, RHS, LB, UB) with the idea that
-derived classes will then use it to interface with actual solvers. Indeed,
-`MILPSolver` also provides a handy system for dealing with the `Modification`
-coming from the `Block`, where it handles the changes in the internal data
-structures with a call to a number of protected virtual functions that
-derived classes can redefine in order to "communicate" the changes to the
-underlying actual MILP solvers. Yet, `MILPSolver` can also be used directly
-(it is not pure virtual) in case one just wants to read the coefficient matrix
-representation of a `Block`.
+MILP is actually an LP/QP/QCQP and therefore dual solutions are available)
+provides a "meta" interface between any SMS++ `Block` whose abstract
+representation is a Mixed-Integer Quadratically-Constrained Quadratic Program,
+i.e.:
+
+- all `Variable` need be `ColVariable`
+
+- all `Objective` need be a `FRealObjective`
+
+- the `Constraint` need all be either `FRowConstraint` or `OneVarConstraint`
+
+- all inner `Function` in the `FRealObjective` and `FRowConstraint` are
+  `LinearFunction` or `DQuadFunction` (diagonal quadratic) or `QuadFunction`
+  (general quadratic, both the last cases not necessariy convex)
+
+However, `MILPSolver` only reads the abstract representation and prepares
+data structures representing the classic (sparse) coefficient matrix of
+a MILP and the accompanying vectors (objective, LHS, RHS, LB, UB), plus
+the other data structures for representing quadratic `Objective` /
+`Constraint`, with the idea that derived classes will then use it to
+interface with actual solvers. Indeed, `MILPSolver` also provides a handy
+system for dealing with the `Modification` coming from the `Block`, where it
+handles the changes in the internal data structures with a call to a number
+of protected virtual functions that derived classes can redefine in order to
+"communicate" the changes to the underlying actual MILP solvers. Yet,
+`MILPSolver` can also be used directly (it is not pure virtual) in case one
+just wants to read the coefficient matrix representation of a `Block`.
 
 Currently available derived classes are:
 
@@ -41,6 +52,14 @@ Currently available derived classes are:
 - `HiGHSMILPSolver`, providing the interface with the open-source
   [HiGHS](https://highs.dev)
 
+Basically all current versions of the underlying solvers should be supported
+due to a mechanism that automatically generate *\_defs.h and *\_maps.h files
+for the version found in the system either when installing with cmake or when
+compiling with make (see below for details). However, older versions may fail
+due to changes in the interface. Should this happen, just upgrade to newer
+versions.
+
+
 ## Getting started
 
 These instructions will let you build MILPSolver on your system.
@@ -51,24 +70,21 @@ These instructions will let you build MILPSolver on your system.
 
 - for `CPXMILPSolver` you will need
   [IBM ILOG CPLEX](https://www.ibm.com/products/ilog-cplex-optimization-studio)
-  (currently supported versions: 12.8, 12.10, 20.10, 22.01)
 
 - for `SCIPMILPSolver` you will need
-  [SCIP](https://www.scipopt.org) (currently supported versions: 7.0.0, 7.0.1,
-  7.0.2, 7.0.3, 8.0.0, 8.0.3, , 8.1.0)
+  [SCIP](https://www.scipopt.org)
 
 - for `GRBMILPSolver` you will need
   [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
-  (currently supported versions: 10.0.1, 10.0.2)
 
-- for `HiGHSMILPSolver` you will need
-  [HiGHS](https://highs.dev) (currently supported versions: 1.5.3)
+- for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev)
 
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
 available as a (sparse) coefficient matrix + accompanying vectors (objective,
-LHS, RHS, LB, UB).
+LHS, RHS, LB, UB) + other data structures for representing quadratic
+`Objective` / `Constraint`.
 
 ### Build and install with CMake
 
@@ -78,7 +94,7 @@ Configure and build the library with:
 mkdir build
 cd build
 cmake ..
-make
+cmake --build .
 ```
 
 The library has the same configuration options of
@@ -95,7 +111,7 @@ Moreover, you can use the following configuration options:
 Optionally, install the library in the system with:
 
 ```sh
-sudo make install
+cmake --install .
 ```
 
 ### Usage with CMake
@@ -150,15 +166,14 @@ for further details.
 
 `CPXMILPSolver` , `SCIPMILPSolver` , `GRBMILPSolver` and `HiGHSMILPSolver` 
 support, respectively, CPLEX , SCIP , GUROBI and HiGHS parameter names in 
-the `Configuration` files. To do so, they need header files that depend on 
-the versions of CPLEX , SCIP , GUROBI and HiGHS currently installed on the
-system; such headers can be generated with the `cpx_pars` , `scip_pars` ,
-`grb_pars` and `high_pars` executables in the [tools](tools) folder.
-
-> **Note:**
-> We provide header files for the versions we already support, so you will
-> need these tools only if you have an unsupported version of either CPLEX ,
-> SCIP , GUROBI or HiGHS.
+the `Configuration` files. To do so, they need header files *\_defs.h and
+*\_maps.h that depend on  the versions of CPLEX , SCIP , GUROBI and HiGHS
+currently installed on the system. Such headers can be generated with the
+`cpx_pars` , `scip_pars` , `grb_pars` and `high_pars` executables in the
+[tools](tools) folder. This is done automatically by cmake / make, so you
+should not bother about it. However, if you change the version of the
+underlying solver you may want to delete the corresponding *\_defs.h and
+*\_maps.h header files so that they are rebuilt for the new one.
 
 
 ## Testers
@@ -194,13 +209,13 @@ conduct, and the process for submitting merge requests to us.
 
 ### Current Lead Authors
 
-- **Antonio Frangioni**  
-  Dipartimento di Informatica  
-  Università di Pisa
-
 - **Enrico Calandrini**  
   Dipartimento di Informatica  
   Universita' di Pisa
+
+- **Antonio Frangioni**  
+  Dipartimento di Informatica  
+  Università di Pisa
 
 ### Contributors
 
@@ -231,8 +246,10 @@ details about the non-warranty attached to this code are available in the
 license description file.
 
 The authors are not affiliated, associated, authorized, endorsed by, or in
-any way officially connected with IBM or Gurobi, or any of its subsidiaries
-or its affiliates. The names IBM, ILOG, CPLEX and Gurobi as well as related
+any way officially connected with IBM or Gurobi, or any of their subsidiaries
+or affiliates. The names IBM, ILOG, CPLEX and Gurobi as well as related
 names, marks, emblems and images are registered trademarks of their
-respective owners.
+respective owners. The authors also do not claim any affiliation with the
+open-source projects developing SCIP and HiHGS: any fault in the code
+interfacing SMS++ with those is all and enturely ours.
 

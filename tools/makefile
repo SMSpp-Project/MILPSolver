@@ -5,7 +5,6 @@
 #   makefile of cpx_pars / scip_pars / grb_pars / highs_pars                 #
 #                                                                            #
 #                              Antonio Frangioni                             #
-#                              Enrico Calandrini                             #
 #                          Dipartimento di Informatica                       #
 #                              Universita' di Pisa                           #
 #                                                                            #
@@ -35,9 +34,6 @@ endif
 ifeq ($(UNAME_S),Darwin)
     include $(SMS++SDR)/../extlib/makefile-default-paths-macos
 endif
-ifeq ($(UNAME_S),Windows)
-    include $(SMS++SDR)/../extlib/makefile-default-paths-win
-endif
 
 # non-default paths
 # optionally (note the "-" in front) include a makefile that defines all the
@@ -46,13 +42,28 @@ endif
 # non-standard locations.
 -include $(SMS++SDR)/../extlib/makefile-paths
 
+# common flags
+COMMON_SW = -std=c++17
+
 # debug switches
-#SW = -g -glldb -fno-inline -std=c++17 -ferror-limit=1
+SW_DEBUG = -g -glldb -fno-inline
 # production switches
-SW = -O3 -std=c++17 -DNDEBUG
+SW_RELEASE = -O3 -DNDEBUG
 
 # compiler
 CC = clang++
+
+# default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+default: release
+
+# debug target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+debug: SW = $(COMMON_SW) $(SW_DEBUG)
+
+# release target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+release: SW = $(COMMON_SW) $(SW_RELEASE)
 
 # include the makefiles of the individual *_pars- - - - - - - - - - - - - - -
 # if you are not interested in some of them, just comment them away here
@@ -74,11 +85,29 @@ NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS)
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-default: $(NAME)
+#default: release
 
-# clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# debug target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#debug: SW = $(SW_DEBUG)
+debug: $(NAME)
+
+# release target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#release: SW = $(SW_RELEASE)
+release: $(NAME)
+
+# clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
 	rm -f $(DIR)/*.o $(DIR)/*~ $(NAME)
+
+# distclean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+distclean: clean
+
+# phony targets - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+.PHONY: debug release clean distclean
 
 ############################ End of makefile #################################

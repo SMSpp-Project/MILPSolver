@@ -5,8 +5,12 @@
  * Header file for the SCIPMILPSolver class.
  *
  * SCIPMILPSolver derives from MILPSolver and it uses the facilities
- * provided by the base class to implements a general purpose MILP solver
- * using calls to the ZIB SCIP API.
+ * provided by the base class to implements a general purpose MI-QCQP
+ * solver using calls to the ZIB SCIP API.
+ *
+ * \author Enrico Calandrini \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
@@ -15,12 +19,9 @@
  * \author Niccolo' Iardella \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
- * \author Enrico Calandrini \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
  *
- * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
+ *                   Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -42,7 +43,7 @@
 // Include the proper SCIP parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( SCIP, SCIP_VERSION ), _defs.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( SCIP , SCIP_VERSION_MAJOR ) , SCIP_VERSION_MINOR ) , SCIP_VERSION_PATCH ) , _defs.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -91,9 +92,10 @@ class SCIPMILPSolver : public MILPSolver
 
  /// Types of integer parameters
  enum int_par_type_SCPS {
-  /// throws exception if there is inconsistency when storing a reduced cost
-  intThrowReducedCostException = intLastAlgParMILP ,
-  intCutSepPar ,  ///< parameter for deciding if/when cut separation is done
+  ///< parameter for deciding if/when cut separation is done
+  intCutSepPar = intLastAlgParMILP ,
+  // parameter used to tell SCIP if it needs to compute dual values
+  intComputeDuals ,
   /// First SCIP int/long parameter
   intFirstSCIPPar ,
   /// First allowed new int parameter for derived classes
@@ -187,6 +189,12 @@ class SCIPMILPSolver : public MILPSolver
   * long as there are columns (no checks performed). */
  void get_var_solution( const std::vector< double > & x );
 
+  /// tells whether an unbounded direction is available
+  bool has_var_direction( void ) override;
+
+  /// writes the current unbounded direction in the Block
+  void get_var_direction( Configuration * dirc = nullptr ) override;
+
  /// tells whether a dual solution is available
  bool has_dual_solution( void ) override;
 
@@ -194,6 +202,10 @@ class SCIPMILPSolver : public MILPSolver
  bool is_dual_feasible( void ) override;
 
  /// writes the current dual solution in the Block
+ /* NOTE: SCIP sometimes performs a presolve that does not allow to
+  * retrieve dual information. If this problem is found a
+  * possible solution is to set the parameter presolving/maxrounds
+  * to 0. */
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
  /// tells whether a dual unbounded direction is available
@@ -239,19 +251,31 @@ class SCIPMILPSolver : public MILPSolver
 			  std::vector< double > & rhs , 
 			  std::vector< double > & lhs );
 
-  /* From within the class SCIPMILPSolver_Conhdlr it is not possible to set
-   * some protected field of the class useful to avoid collision between threads 
-   * when performing separation. Thus, the two following public functions allows 
-   * us to obtain this results from external class. */
+ /* From within the class SCIPMILPSolver_Conhdlr it is not possible to set
+  * some protected field of the class useful to avoid collision between threads 
+  * when performing separation. Thus, the two following public functions allows 
+  * us to obtain this results from external class. */
   
-  void set_f_cb_mutex( void );
+ void set_f_cb_mutex( void );
 
-  void unset_f_cb_mutex( void );
+ void unset_f_cb_mutex( void );
 
-  /// get the actual SCIP var used
-  std::vector< SCIP_VAR * > get_SCIP_var( void );
+ /// get the actual SCIP var used
+ std::vector< SCIP_VAR * > get_SCIP_var( void );
 
-  #ifdef MILPSOLVER_DEBUG
+  /** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+ void add_mip_starts( 
+   std::vector< std::vector<int> > varidxs, 
+   std::vector< std::vector<double> > varvalues ) override;
+
+  #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
    void check_status( void ) override;
   #endif
@@ -276,26 +300,6 @@ class SCIPMILPSolver : public MILPSolver
  /** Set the vector-of-int parameters specific of SCIPMILPSolver (note that
   * SCIP itself does not have any):
   * 
-  * - intThrowReducedCostException [0]: it indicates whether an exception must
-  *                                     be thrown if there is an inconsistency
-  *   when a reduced cost is being stored during a call to get_dual_solution()
-  *   or get_dual_direction(). The reduced cost of a Variable is stored in at
-  *   most one OneVarConstraint on that Variable. It may happen that a
-  *   Variable has no OneVarConstraint, in which case its reduced cost will
-  *   not be stored and will be lost. Usually, the reduced cost of a Variable
-  *   is of interest if the Variable has a finite nonzero lower or upper
-  *   bound. In this case, if a OneVariableConstraint for that Variable is not
-  *   found, an exception is thrown. More specifically, there are two cases in
-  *   which an exception is thrown:
-  *
-  *   1) The Variable is fixed to a finite nonzero value and there is no
-  *      OneVarConstraint on that Variable whose lower and upper bounds are
-  *      both equal to the value of that Variable.
-  *
-  *   2) The Variable is not fixed, it has a finite nonzero lower or upper
-  *      bound and there is no OneVarConstraint on that Variable whose lower
-  *      or upper bound match the bounds of the Variable.
-  *
   * - vintCutSepCfgInd [empty]: sets the Configuration for the various user
   *                             cuts / lazy constraints separations (see
   *   intCutSepPar) in terms of their indices in the "Configuration DataBase"
@@ -460,14 +464,15 @@ class SCIPMILPSolver : public MILPSolver
 
  bool f_callback_set;  // true if the callback has been set
 
-  /** This variable indicates whether an exception must be thrown if there is
-  * an inconsistency when a reduced cost is being stored during a call to
-  * get_dual_solution() or get_dual_direction(). */
- bool throw_reduced_cost_exception;
-
  /** bitwise-encoded parameter for deciding if and when separation of user
   * cuts and lazy constraints is performed */
  unsigned char CutSepPar;
+
+  /** integer parameter used to understand if SCIP needs to compute dual
+   *  values. In this case, all the other algorithms that run before SCIP
+   *  calls the LP solver, i.e., presolving, propagation, and heuristics
+   *  should be disabled.  */
+ int ComputeDuals;
 
  /** vector containing the indices of the Configuration for the various
   * user cuts / lazy constraints separations in the "Configuration DB" */
@@ -489,10 +494,24 @@ class SCIPMILPSolver : public MILPSolver
  std::vector< SCIP_VAR * > vars;   ///< SCIP variables
  std::vector< SCIP_CONS * > cons;  ///< SCIP constraints
 
+ /* Nonlinear objective functions are not supported by SCIP and must be 
+  * modeled as constraint function. Thus, a problem like min xQx is reformulated
+  * into min z  s.t. z >= xQx.
+  * To map these new structures with the original model, we keep track 
+  * of the generated auxiliary constraint and variable. 
+  *
+  * NOTE: to modify a quadratic coefficient, in SCIP it is sufficient to 
+  * access the vector of coefficients returned by SCIPgetCoefsExprSum() 
+  * and change the element in the right position. Thus, we also keep track
+  * of the order in which the coefficients have been inserted using 
+  * vectors obj_idx1 and obj_idx2. */
+
  /// SCIP auxiliary variables for QPs
- std::vector< SCIP_VAR * > aux_vars;
+ SCIP_VAR * obj_aux_var;
  /// SCIP auxiliary constraints for QPs
- std::vector< SCIP_CONS * > aux_cons;
+ SCIP_CONS * obj_aux_con;
+ std::vector< int > qobj_idx1;
+ std::vector< int > qobj_idx2;
 
  double UpCutOff;  ///< externally set upper cutoff to terminate
  double LwCutOff;  ///< externally set lower cutoff to terminate
@@ -608,6 +627,31 @@ class SCIPMILPSolver : public MILPSolver
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+/** Create the structures used to provide the quadratic matrix for the
+ * constraint of index row to SCIP. */
+ void generate_qcon_matrix( std::vector< SCIP_VAR * > & qidx1 ,
+			  std::vector< SCIP_VAR * > & qidx2 ,
+			  std::vector< double > & qcoeff ,
+           Index row );
+
+/** Create the structures used to provide the linear part of a quadratic 
+ * constraint of index row to SCIP. */
+void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
+			  std::vector< double > & lcoeff ,
+           Index row );
+
+/** Create the structures used to provide the quadratic objective matrix
+ *  to SCIP (during the load() method ). */
+ void generate_qobj_matrix( std::vector< SCIP_VAR * > & qidx1 ,
+			  std::vector< SCIP_VAR * > & qidx2 ,
+			  std::vector< double > & qcoeff );
+
+/** Create the structures used to provide the quadratic objective matrix
+ *  to SCIP (following some modifications). */
+ void create_new_qobj( std::vector< int > & qidx1 ,
+			  std::vector< int > & qidx2 ,
+			  std::vector< double > & qcoeff );
 
  SMSpp_insert_in_factory_h;
 

@@ -5,7 +5,7 @@
  * Header file for the GRBMILPSolver class.
  *
  * GRBMILPSolver implements a general purpose solver that is able to tackle a
- * MILP problem expressed by a Block using Gurobi Optimizer. Only supports
+ * MI-QCQP problem expressed by a Block using Gurobi Optimizer. Only supports
  * Gurobi versions >= 10.0.1.
  *
  * \author Antonio Frangioni \n
@@ -37,7 +37,7 @@
 // Include the proper Gurobi parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( GRB , GRB_VERSION_MAJOR) , GRB_VERSION_MINOR ) , GRB_VERSION_TECHNICAL ) , _defs.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( GRB , GRB_VERSION_MAJOR ) , GRB_VERSION_MINOR ) , GRB_VERSION_TECHNICAL ) , _defs.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -93,9 +93,8 @@ class GRBMILPSolver : public MILPSolver {
 
  /// enum for integer parameters
  enum int_par_type_GRBS {
-  /// throws exception if there is inconsistency when storing a reduced cost
-  intThrowReducedCostException = intLastAlgParMILP ,
-  intCutSepPar ,  ///< parameter for deciding if/when cut separation is done
+  ///< parameter for deciding if/when cut separation is done
+  intCutSepPar = intLastAlgParMILP ,
   intFirstGUROBIPar ,  ///< first Gurobi int/long parameter
   /// first allowed new int parameter for derived classes
   intLastAlgParGRBS = intFirstGUROBIPar + GRB_NUM_INT_PARS
@@ -185,6 +184,12 @@ class GRBMILPSolver : public MILPSolver {
   * long as there are columns (no checks performed). */
  void get_var_solution( const std::vector< double > & x );
 
+ /// tells whether an unbounded direction is available
+ bool has_var_direction( void ) override;
+
+ /// writes the current unbounded direction in the Block
+ void get_var_direction( Configuration * dirc = nullptr ) override;
+
  /// tells whether a dual solution is available
  bool has_dual_solution( void ) override;
 
@@ -212,7 +217,40 @@ class GRBMILPSolver : public MILPSolver {
  /// loads the problem into Gurobi
  void load_problem( void ) override;
 
- #ifdef MILPSOLVER_DEBUG
+ /// returns the number of nodes used to solve a MIP
+ [[nodiscard]] int get_explored_nodes( void ) const override;
+
+ /// returns the estimated number of nodes left
+ [[nodiscard]] long get_left_nodes( void ) const override;
+
+ /// Returns a true value if a feasible solution is known, 
+ //  false otherwise.
+ [[nodiscard]] bool has_feasible_sol( void ) override;
+
+ /// Returns elapsed solver runtime (in second).
+ [[nodiscard]] double get_runtime( void ) const override;
+
+ /// Returns a unique identifier for the node currently being explored  
+ //  in the branch-and-bound algorithm for a MIP problem.  
+ //  
+ /// NOTE: This method should only be called during the callback process  
+ //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and you need to identify the node from which it originates).  
+ [[nodiscard]] long get_id_node( void ) const override;
+
+/** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ) override;
+
+ #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
  #endif
@@ -487,6 +525,12 @@ class GRBMILPSolver : public MILPSolver {
   * model that the Solver is solving. */
 
  int callback( GRBmodel *model , void *cbdata , int where );
+
+ /// returns the current best solution for the problem when the callback is set.
+ OFValue get_bestsol_callback( void );
+
+ /// returns the current best bound for the problem when the callback is set
+ OFValue get_bestbound_callback( void );
  
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
@@ -611,11 +655,6 @@ class GRBMILPSolver : public MILPSolver {
 
  bool f_callback_set;  // true if the callback has been set
 
- /** This variable indicates whether an exception must be thrown if there is
-  * an inconsistency when a reduced cost is being stored during a call to
-  * get_dual_solution() or get_dual_direction(). */
- bool throw_reduced_cost_exception;
-
  /** bitwise-encoded parameter for deciding if and when separation of user
   * cuts and lazy constraints is performed */
  unsigned char CutSepPar;
@@ -630,6 +669,10 @@ class GRBMILPSolver : public MILPSolver {
 
  /// the "Configuration DB" istself
  std::vector< Configuration * > v_ConfigDB;
+
+  /** pointer used to keep track of the current data and status of the callback */
+ void * current_cbdata;
+ int current_cbwhere;
 
  /// the mutex to ensure that Gurobi threads do not overstep in the callback
  /** Since Gurobi is multi-threaded, lock()-ing the Block with the f_id of
@@ -663,14 +706,45 @@ class GRBMILPSolver : public MILPSolver {
  // the vector of pair ( ranged constraint - axiliary variable )
  std::vector<std::pair < int , int >> map_rng_con_aux_var;
 
+ /* In GRBMILPSolver we handle quadratic constraints like 
+  * q x + x^T Q x <= q_0 by considering different scenarios:
+  *
+  *  - if q is null, then we simply add the constraint x^T Q x <= q_0
+  *
+  *  - otherwise, we build two separate constraint: q x + v <= q_0 
+  *    and v >= x^T Q x, with v being an auxiliary variable. This is 
+  *    because GUROBI does not allow to directly modify quadratic 
+  *    constraints. Thus, we will need to store for each quadratic constraint 
+  *    the GUROBI index of relative auxiliary variable and constraint being 
+  *    built. To achieve this goal we will use two auxiliary vectors 
+  *    grb_quad_var_aux and grb_quad_con_aux, with length equal to the 
+  *    number of rows and value -1 for linear constraint. In the vector
+  *    grb_idx_aux_qvar we will simply keep track of the indices of 
+  *    auxiliary variables built for this pourpose.
+  *
+  * NOTE: The set of indices of quadratic and linear rows are disjoint. 
+  * For this reason, if the n-th constraint is quadratic, we will store 
+  * in grb_quad_con_aux[n] the index of the quadratic constraint in the
+  * relative set. */
+  std::vector< int > grb_quad_var_aux;
+  std::vector< int > grb_quad_con_aux;
+  std::vector< int > grb_idx_aux_qvar; // Need to be sorted
+
  // last static ranged constraint added
  int last_static_rng_con;
 
- // function to retrieve actual idx of variable considering auxiliary ones
+ // functions to retrieve actual idx of variable considering auxiliary ones
  int grb_index_of_variable( const ColVariable * var ) const;
+
+ int grb_index_of_variable( const int old_idx ) const;
 
  // function to retrieve actual idx of dynamic variable considering auxiliary ones
  int grb_index_of_dynamic_variable( const ColVariable * var ) const; 
+
+ // function to retrieve actual idx of constraint. In GUROBI indices of linear and
+ // quadratic constraint are disjoint, so we need to retrieve the actual index 
+ // based on the type of constraint.
+ int grb_index_of_linear_constraint( const FRowConstraint * con ) const;
  
  /** @name Handling of Gurobi parameters
   *
@@ -728,6 +802,14 @@ class GRBMILPSolver : public MILPSolver {
 
  // get the right Configuration for ci = 0, 1, 2
  Configuration * get_cfg( Index ci ) const;
+
+ /** Create the structures used to provide the quadratic matrix for the
+ * constraint of index row to Gurobi. */
+ void generate_qcon_matrix( std::vector< int > & qidx1 ,
+			  std::vector< int > & qidx2 ,
+			  std::vector< double > & qcoeff ,
+        Index row ,
+        bool lin_null );
 
 /*--------------------------------------------------------------------------*/
 

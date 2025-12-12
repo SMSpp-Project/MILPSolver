@@ -4,19 +4,20 @@
 /** @file
  * Header file for the HiGHSMILPSolver class.
  *
- * HiGHSMILPSolver implements a general purpose solver that is able to tackle a
- * MILP problem expressed by a Block using HiGHS Optimizer. At the moment, 
- * HiGHS is not able to solve MIQP problem. Supports HiGHS versions >= 1.5.3.
- *
- * \author Antonio Frangioni \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
+ * HiGHSMILPSolver implements a general purpose solver that is able to
+ * tackle a MILP problem expressed by a Block using HiGHS Optimizer. At
+ * the moment, HiGHS is not able to solve MIQP problem. Supports HiGHS
+ * versions >= 1.5.3.
  *
  * \author Enrico Calandrini \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Enrico Calandrini
+ * \author Antonio Frangioni \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; Enrico Calandrini, Antonio Frangioni
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -93,9 +94,8 @@ class HiGHSMILPSolver : public MILPSolver {
 
  /// enum for integer parameters (options in HiGHS)
  enum int_par_type_HiGHS {
-  /// throws exception if there is inconsistency when storing a reduced cost
-  intThrowReducedCostException = intLastAlgParMILP ,
-  intCutSepPar ,  ///< parameter for deciding if/when cut separation is done
+  ///< parameter for deciding if/when cut separation is done
+  intCutSepPar = intLastAlgParMILP ,
   intFirstHiGHSPar ,  ///< first HiGHS int/bool parameter
   /// first allowed new int parameter for derived classes
   intLastAlgParHiGHS = intFirstHiGHSPar + HiGHS_NUM_INT_PARS
@@ -185,6 +185,12 @@ class HiGHSMILPSolver : public MILPSolver {
   * long as there are columns (no checks performed). */
  void get_var_solution( const std::vector< double > & x );
 
+ /// tells whether an unbounded direction is available
+ bool has_var_direction( void ) override;
+
+ /// writes the current unbounded direction in the Block
+ void get_var_direction( Configuration * dirc = nullptr ) override;
+
  /// tells whether a dual solution is available
  bool has_dual_solution( void ) override;
 
@@ -212,7 +218,19 @@ class HiGHSMILPSolver : public MILPSolver {
  /// loads the problem into HiGHS
  void load_problem( void ) override;
 
- #ifdef MILPSOLVER_DEBUG
+ /** 
+ * Adds a single MIP starts to a MIP problem. This function allows the solver 
+ * to receive a single set of starting values by providing vectors of variable 
+ * indices and corresponding values.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ) override;
+
+ #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
  #endif
@@ -227,26 +245,6 @@ class HiGHSMILPSolver : public MILPSolver {
  /** Set the "int" parameters specific of HiGHSMILPSolver, together with the
   * parameters of MILPSolver that HiGHSMILPSolver actually "listens to" and all
   * parameters supported by HiGHS:
-  *
-  * - intThrowReducedCostException [0]: it indicates whether an exception must
-  *                                     be thrown if there is an inconsistency
-  *   when a reduced cost is being stored during a call to get_dual_solution()
-  *   or get_dual_direction(). The reduced cost of a Variable is stored in at
-  *   most one OneVarConstraint on that Variable. It may happen that a
-  *   Variable has no OneVarConstraint, in which case its reduced cost will
-  *   not be stored and will be lost. Usually, the reduced cost of a Variable
-  *   is of interest if the Variable has a finite nonzero lower or upper
-  *   bound. In this case, if a OneVariableConstraint for that Variable is not
-  *   found, an exception is thrown. More specifically, there are two cases in
-  *   which an exception is thrown:
-  *
-  *   1) The Variable is fixed to a finite nonzero value and there is no
-  *      OneVarConstraint on that Variable whose lower and upper bounds are
-  *      both equal to the value of that Variable.
-  *
-  *   2) The Variable is not fixed, it has a finite nonzero lower or upper
-  *      bound and there is no OneVarConstraint on that Variable whose lower
-  *      or upper bound match the bounds of the Variable.
   *
   * - intCutSepPar [0]: coded bit-wise, indicate if and when separation of
   *                     either user cuts or lazy constraints is performed:
@@ -465,28 +463,19 @@ class HiGHSMILPSolver : public MILPSolver {
  double lw_cut_off( void ) const { return( LwCutOff ); }
 
 /*--------------------------------------------------------------------------*/
- /// callback implemented as a method of the class ????????
- /** The implementation of Gurobi "generic" callback, which is used to check
+ /// callback implemented as a method of the class 
+ /** The implementation of HiGHS "generic" callback, which is used to check
   * for having reached prescribed upper/lower bounds and for user cuts / lazy
   * constraint separation, just calls this method.
   *
-  * IMPORTANT NOTE: Gurobi has a different stance than SMS++ on dynamic
-  *                 Constraint, in the sense that those that are added inside
-  * a callback are not permanently added to the formulation and may be
-  * discarded whole. In contrast, for SMS++ dynamic Constraint are
-  * first-class citizens of the formulation. To reconcile this two different
-  * viewpoints,
-  *
-  *     THE Modification ADDING DYNAMIC Constraint ARE *NOT* REMOVED FROM
-  *     THE QUEUE OF ACTIVE Modification
-  *
-  * As a result, when Gurobi terminates and gets re-solved (if ever), the
-  * dynamic Constraint will be properly added to the formulation. This is
-  * consistent with the view that Modification happening when the Solver is
-  * running must not *necessarily* be immediately acted upon by changing the
-  * model that the Solver is solving. */
+  * IMPORTANT NOTE: At the moment (HiGHS version 1.10) HiGHS developers are
+  * still working on enabling user cuts and/or lazy constraints. Thus,
+  * this version of the callback simply supports basic checks as upper/lower 
+  * bounds. */
 
- //int callback( GRBmodel *model , void *cbdata , int where );
+ int callback( const int callback_type,
+    const HighsCallbackDataOut* data_out,
+    HighsCallbackDataIn* data_in );
  
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
@@ -610,11 +599,6 @@ class HiGHSMILPSolver : public MILPSolver {
 
  bool f_callback_set;  // true if the callback has been set
 
- /** This variable indicates whether an exception must be thrown if there is
-  * an inconsistency when a reduced cost is being stored during a call to
-  * get_dual_solution() or get_dual_direction(). */
- bool throw_reduced_cost_exception;
-
  /** bitwise-encoded parameter for deciding if and when separation of user
   * cuts and lazy constraints is performed */
  unsigned char CutSepPar;
@@ -691,10 +675,6 @@ class HiGHSMILPSolver : public MILPSolver {
   * HiGHS status returned by Highs_getModelStatus() in case of a LP/QP. */
  static int decode_model_status( int status );
 
- /** Returns the SMS++ status corresponding to the given
-  * HiGHS error returned by Highs_run(). */
- static int decode_highs_error( int error );
-
  /** Reloads a constraint.
   * To be used as fallback method for constraint FunctionMods. */
  // void reload_constraint( const LinearFunction * lf );
@@ -708,6 +688,10 @@ class HiGHSMILPSolver : public MILPSolver {
 
  // get the right Configuration for ci = 0, 1, 2
  Configuration * get_cfg( Index ci ) const;
+
+ /** Create the structures used to provide the quadratic objective matrix 
+  * to HiGHS with the function Highs_passHessian(). */
+ void generate_qobj_hessian( void );
 
 /*--------------------------------------------------------------------------*/
 

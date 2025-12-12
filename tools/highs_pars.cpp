@@ -35,7 +35,7 @@
 
 /*--------------------------------------------------------------------------*/
 
-bool verbose = true;          ///< If the tool should be verbose
+bool verbose = false;          ///< If the tool should be verbose
 // std::filesystem::path path{};
 std::string path{};           ///< Path for output files
 std::string exe{};            ///< Name of the executable file

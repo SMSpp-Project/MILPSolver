@@ -5,7 +5,12 @@
  * Header file for the CPXMILPSolver class.
  *
  * CPXMILPSolver implements a general purpose solver that is able to tackle a
- * MILP problem expressed by a Block using IBM CLPEX.
+ * MI-QCQP problem (the objective can be nonconvex but all quadratic
+ * constraints must be convex) expressed by a Block using IBM CLPEX.
+ *
+ * \author Enrico Calandrini \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
@@ -15,7 +20,8 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
+ *                   Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -92,9 +98,8 @@ class CPXMILPSolver : public MILPSolver {
 
  /// enum for integer parameters
  enum int_par_type_CPXS {
-  /// throws exception if there is inconsistency when storing a reduced cost
-  intThrowReducedCostException = intLastAlgParMILP ,
-  intCutSepPar ,  ///< parameter for deciding if/when cut separation is done
+  ///< parameter for deciding if/when cut separation is done
+  intCutSepPar = intLastAlgParMILP ,
   intFirstCPLEXPar ,  ///< first CPLEX int/long parameter
   /// first allowed new int parameter for derived classes
   intLastAlgParCPXS = intFirstCPLEXPar + CPX_NUM_INT_PARS
@@ -187,6 +192,12 @@ class CPXMILPSolver : public MILPSolver {
   * long as there are columns (no checks performed). */
  void get_var_solution( const std::vector< double > & x );
 
+ /// tells whether an unbounded direction is available
+ bool has_var_direction( void ) override;
+
+ /// writes the current unbounded direction in the Block
+ void get_var_direction( Configuration * dirc = nullptr ) override;
+
  /// tells whether a dual solution is available
  bool has_dual_solution( void ) override;
 
@@ -214,7 +225,40 @@ class CPXMILPSolver : public MILPSolver {
  /// loads the problem into CPLEX
  void load_problem( void ) override;
 
- #ifdef MILPSOLVER_DEBUG
+ /// returns the number of nodes used to solve a MIP
+ [[nodiscard]] int get_explored_nodes( void ) const override;
+
+ /// returns the estimated number of nodes left
+ [[nodiscard]] long get_left_nodes( void ) const override;
+
+ /// Returns a true value if a feasible solution is known, 
+ //  false otherwise.
+ [[nodiscard]] bool has_feasible_sol( void ) override;
+
+ /// Returns elapsed solver runtime (in second).
+ [[nodiscard]] double get_runtime( void ) const override;
+
+ /// Returns a unique identifier for the node currently being explored  
+ //  in the branch-and-bound algorithm for a MIP problem.  
+ //  
+ /// NOTE: This method should only be called during the callback process  
+ //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and you need to identify the node from which it originates).  
+ [[nodiscard]] long get_id_node( void ) const override;
+
+/** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+ void add_mip_starts( 
+  std::vector< std::vector<int> > varidxs, 
+  std::vector< std::vector<double> > varvalues ) override;
+
+ #ifdef MILPSolver_DEBUG
   /// check the dictionaries for inconsistencies
   void check_status( void ) override;
  #endif
@@ -229,26 +273,6 @@ class CPXMILPSolver : public MILPSolver {
  /** Set the "int" parameters specific of CPXMILPSolver, together with the
   * parameters of MILPSolver that CPXMILPSolver actually "listens to" and all
   * parameters supported by Cplex:
-  *
-  * - intThrowReducedCostException [0]: it indicates whether an exception must
-  *                                     be thrown if there is an inconsistency
-  *   when a reduced cost is being stored during a call to get_dual_solution()
-  *   or get_dual_direction(). The reduced cost of a Variable is stored in at
-  *   most one OneVarConstraint on that Variable. It may happen that a
-  *   Variable has no OneVarConstraint, in which case its reduced cost will
-  *   not be stored and will be lost. Usually, the reduced cost of a Variable
-  *   is of interest if the Variable has a finite nonzero lower or upper
-  *   bound. In this case, if a OneVariableConstraint for that Variable is not
-  *   found, an exception is thrown. More specifically, there are two cases in
-  *   which an exception is thrown:
-  *
-  *   1) The Variable is fixed to a finite nonzero value and there is no
-  *      OneVarConstraint on that Variable whose lower and upper bounds are
-  *      both equal to the value of that Variable.
-  *
-  *   2) The Variable is not fixed, it has a finite nonzero lower or upper
-  *      bound and there is no OneVarConstraint on that Variable whose lower
-  *      or upper bound match the bounds of the Variable.
   *
   * - intCutSepPar [0]: coded bit-wise, indicate if and when separation of
   *                     either user cuts or lazy constraints is performed:
@@ -623,11 +647,6 @@ class CPXMILPSolver : public MILPSolver {
 
  bool f_callback_set;  // true if the callback has been set
 
- /** This variable indicates whether an exception must be thrown if there is
-  * an inconsistency when a reduced cost is being stored during a call to
-  * get_dual_solution() or get_dual_direction(). */
- bool throw_reduced_cost_exception;
-
  /** bitwise-encoded parameter for deciding if and when separation of user
   * cuts and lazy constraints is performed */
  unsigned char CutSepPar;
@@ -643,6 +662,15 @@ class CPXMILPSolver : public MILPSolver {
  /// the "Configuration DB" istself
  std::vector< Configuration * > v_ConfigDB;
 
+ /** pointer used to keep track of the current context of the callback */
+ CPXCALLBACKCONTEXTptr current_Cntx;
+
+ /** an integer value specifying the context in which the callback is invoked. */
+ CPXLONG current_Cntx_id;
+
+ /** double storing the timestamp when optimization begins. */
+ double starting_time;
+
  /// the mutex to ensure that CPLEX threads do not overstep in the callback
  /** Since CPLEX is multi-threaded, lock()-ing the Block with the f_id of
   * CPXMILPSolver is not enough to prevent concurrent access to it. This is
@@ -653,6 +681,41 @@ class CPXMILPSolver : public MILPSolver {
   * Block. Thus, CPXMILPSolver will use this mutex to ensure mutual exclusion
   * of the CPLEX threads for the critical sections of the callback(). */
  std::mutex f_callback_mutex;
+
+ /* In CPXMILPSolver we handle quadratic constraints like 
+  * q x + x^T Q x <= q_0 by considering different scenarios:
+  *
+  *  - if q is null, then we simply add the constraint x^T Q x <= q_0
+  *
+  *  - otherwise, we build two separate constraint: q x + v <= q_0 
+  *    and v >= x^T Q x, with v being an auxiliary variable. This is 
+  *    because CPLEX does not allow to directly modify quadratic 
+  *    constraints. Thus, we will need to store for each quadratic constraint 
+  *    the CPLEX index of relative auxiliary variable and constraint being 
+  *    built. To achieve this goal we will use two auxiliary vectors 
+  *    cpx_quad_var_aux and cpx_quad_con_aux, with length equal to the 
+  *    number of rows and value -1 for linear constraint. In the vector
+  *    cpx_idx_aux_qvar we will simply keep track of the indices of 
+  *    auxiliary variables built for this pourpose.
+  *
+  * NOTE: The set of indices of quadratic and linear rows are disjoint. 
+  * For this reason, if the n-th constraint is quadratic, we will store 
+  * in cpx_quad_con_aux[n] the index of the quadratic constraint in the
+  * relative set. */
+  std::vector< int > cpx_quad_var_aux;
+  std::vector< int > cpx_quad_con_aux;
+  std::vector< int > cpx_idx_aux_qvar; // Need to be sorted
+
+ // function to retrieve actual idx of variable considering auxiliary ones
+ int cpx_index_of_variable( const ColVariable * var ) const;
+
+ // function to retrieve actual idx of dynamic variable considering auxiliary ones
+ int cpx_index_of_dynamic_variable( const ColVariable * var ) const;
+
+ // function to retrieve actual idx of constraint. In CPLEX indices of linear and
+ // quadratic constraint are disjoint, so we need to retrieve the actual index 
+ // based on the type of constraint.
+ int cpx_index_of_linear_constraint( const FRowConstraint * con ) const;
  
  /** @name Handling of CPLEX parameters
   *
@@ -714,6 +777,26 @@ class CPXMILPSolver : public MILPSolver {
 
  // get the right Configuration for ci = 0, 1, 2
  Configuration * get_cfg( Index ci ) const;
+
+ /** Create the structures used to provide the quadratic objective matrix 
+  * to CPLEX with the function CPXcopyquad(). */
+ void generate_qobj_matrix( std::vector< int > & qmatbeg ,
+			  std::vector< int > & qmatcnt ,
+			  std::vector< int > & qmatind ,
+			  std::vector< double > & qmatval );
+
+ /** Create the structures used to provide the quadratic matrix for the
+ * constraint of index row to CPLEX. */
+ void generate_qcon_matrix( std::vector< int > & qidx1 ,
+			  std::vector< int > & qidx2 ,
+			  std::vector< double > & qcoeff ,
+        Index row ,
+        bool lin_null );
+
+ /** Evaluate the gradient of a specific quadratic constraint 
+  * in the optimum find by CPLEX. */
+ double evaluate_dual_qcon( Index row ,
+        std::vector< double > x_sol );
 
 /*--------------------------------------------------------------------------*/
 

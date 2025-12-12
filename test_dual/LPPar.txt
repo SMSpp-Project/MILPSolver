@@ -2,15 +2,9 @@
 # - - - - - - - - - - - - - LPPar.txt - - - - - - - - - - - - - - - - - - - -
 #
 # A txt description of a BlockSolverConfig for a LPBlock having
-# one attached *MILPSolvers, choosen from:  
-# 
-#  - CPXMILPSolver
+# one attached :MILPSolver
 #
-#  - GRBMILPSolver
-#
-#  - SCIPMILPSolver
-#
-#  - HiGHSMILPSolver
+#   Antonio Frangioni
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -21,13 +15,11 @@ BlockSolverConfig     # exact type of the Configuration object
 1  # the BlockSolverConfig is a "differential" one: values are being set
 
 1  # number of (the names of) Solver in this BlockSolverConfig
-
 # now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
-
-CPXMILPSolver 			# name of Solver
-#SCIPMILPSolver 		# name of Solver
-#GRBMILPSolver 		# name of Solver
-#HiGHSMILPSolver     # name of Solver
+CPXMILPSolver    # name of Solver
+#GRBMILPSolver   # name of Solver
+#SCIPMILPSolver  # name of Solver
+#HiGHSMILPSolver # name of Solver
 
 1  # number of ComputeConfig in this BlockSolverConfig
 
@@ -39,33 +31,45 @@ ComputeConfig # exact type of the ComputeConfig object
 1  # f_diff == 0 ==> all non-provided parameters are set to the default value
    # f_diff == 1 ==> all non-provided parameters are not changed
 
-2  # number of integer parameters
+3  # number of integer parameters
+
 # now all the integer parameters
 intLogVerb 0
+intSingleBound 1
 intThrowReducedCostException 1
+
+## All specific CPLEX parameter (uncomment based on Solver)
 #CPXPARAM_Preprocessing_Presolve  0
-#CPXPARAM_Preprocessing_QCPDuals 2 # e.g. CPX_QCPDUALS_FORCE
+#CPXPARAM_Preprocessing_QCPDuals  2 # e.g., CPX_QCPDUALS_FORCE
 
 2  # number of double parameters
+
 # now all the double parameters
 dblRelAcc		1e-08
-CPXPARAM_MIP_Tolerances_Integrality	1e-07	# Cplex parameter (uncomment based on solver)
-#mip_feasibility_tolerance     1e-07 # HiGHS option (uncomment based on solver)
+
+## All specific CPLEX parameter (uncomment based on Solver)
+CPXPARAM_MIP_Tolerances_Integrality	1e-07
+
+## All specific HiGHS parameter (uncomment based on Solver)
+#mip_feasibility_tolerance     1e-07
 
 0  # number of string parameters
-# now all the double parameters
+
+# now all the string parameters
 #strOutputFile	bk.lp
-# [none]
 
 0  # number of vector-of-int parameters
+
 # now all the vector-of-int parameters
 # [none]
 
 0  # number of vector-of-double parameters
+
 # now all the vector-of-double parameters
 # [none]
 
 0  # number of vector-of-string parameters
+
 # now all the vector-of-string parameters
 # [none]
 

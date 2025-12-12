@@ -17,6 +17,10 @@
  * for costs, bounds and lhs/rhs of constraints" representation of the
  * problem. 
  *
+ * \author Enrico Calandrini \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
@@ -25,7 +29,8 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
+ *                   Niccolo' Iardella
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -49,6 +54,8 @@
 #include <FRowConstraint.h>
 
 #include <OneVarConstraint.h>
+
+#include <QuadFunction.h>
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -145,9 +152,14 @@ class MILPSolver : public CDASolver
 
  /// enum for int parameters
  enum int_par_type_MILP {
-  intUseCustomNames = intLastParCDAS , ///< use custom names for rows/columns
+  /// throws exception if there is inconsistency when storing a reduced cost
+  intThrowReducedCostException = intLastParCDAS ,
+  intUseCustomNames , ///< use custom names for rows/columns
   /// Relax [M]ILP by removing integrality constraints for integer variables
-  intRelaxIntVars ,
+  intRelaxIntVars , 
+  intSingleBound , // Force that at maximum one OneVarConstraint can be 
+                   // associated to a single variable
+  intConsModification , // Enable/Disable constraint modifications
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
@@ -161,6 +173,8 @@ class MILPSolver : public CDASolver
  enum str_par_type_MILP {
   strProblemName = strLastParCDAS ,  ///< problem name
   strOutputFile ,                    ///< output filename
+  strWarmStartSolution ,             ///< warm start solution filename
+  strWarmStartVariables ,            ///< warm start variables filename
   strLastAlgParMILP  ///< 1st allowed new string parameter for derived classes
   };
 
@@ -184,13 +198,18 @@ class MILPSolver : public CDASolver
 
  using Index = Block::Index;  // "import" Index from Block
 
+ using v_off_diag_term = QuadFunction::v_off_diag_term; 
+                              // "import" v_off_diag_term from QuadFunction
+ using Qmat = QuadFunction::Qmat; // "import" Qmat from QuadFunction
+ using Coefficient = QuadFunction::Coefficient;
+
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Constructor and destructor
  * @{ */
 
- MILPSolver( void ) : CDASolver() {}
+ MILPSolver( void ) : CDASolver() , throw_reduced_cost_exception( 0 ) {}
 
 /*--------------------------------------------------------------------------*/
 
@@ -262,6 +281,61 @@ class MILPSolver : public CDASolver
 
  virtual void load_problem( void );
 
+/*--------------------------------------------------------------------------*/
+ /// methods to scan a single group of Constraints or Variables
+
+ /** Scans a "simple" static group of FRowConstraint or ColVariable.
+ *
+ * This function is called from load_problem() whenever a new group of
+ * FRowConstraint or ColVariable is encountered. The group should be contained
+ * in an "easy" structure (e.g. T *, std::vector< T* >).
+ *
+ * @param gr        Reference to the group being scanned.
+ * @param qb        The block from which the group originated.
+ * @param num_block Sequential number of the block in MILPSolver.
+ * @param set       Index of the constraint set within qb.
+ * @param counter   Current number of elements of type T that have been
+ *                  scanned.
+ * @param T         The element type of the group. Should be either 
+ *                  FRowConstraint or ColVariable, depending on the group 
+ *                  being scanned.
+ */
+ 
+ template< typename T >
+ void scan_st_group( const boost::any & gr , Block * qb , Index num_block ,
+                    Index set , Index & counter , un_any_type< T > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** Scans a "complex" static group of FRowConstraint or ColVariable.
+ *
+ * This function is called from load_problem() whenever a new group of
+ * FRowConstraint or ColVariable is encountered. The group should be contained
+ * in a more "complex" structure (e.g. multi_array< T* >, 
+ * multi_array< std::vector < T* > >).
+ *
+ * @param gr        Reference to the group being scanned.
+ * @param qb        The block from which the group originated.
+ * @param num_block Sequential number of the block in MILPSolver.
+ * @param set       Index of the constraint set within qb.
+ * @param counter   Current number of elements of type T that have been
+ *                  scanned.
+ * @param T         The element type of the group. Should be either 
+ *                  FRowConstraint or ColVariable, depending on the group 
+ *                  being scanned.
+ */
+ 
+ template< typename T >
+ void scan_multiarray_st_group( const boost::any & gr , Block * qb ,
+            Index num_block , Index set , Index & counter , un_any_type< T > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// common part of scan_st_group() and scan_multiarray_st_group()
+
+ template< typename T >
+ void scan_group( const boost::any & gr , Block * qb , Index num_block ,
+                  Index set , Index & row , un_any_type< T > );
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Getters for the vectors of the MILP problem.
@@ -274,6 +348,9 @@ class MILPSolver : public CDASolver
 
  /// returns the number of constraints/rows
  [[nodiscard]] int get_numrows( void ) const { return( numrows ); }
+
+  /// returns the number of quadratic constraints/rows
+ [[nodiscard]] int get_numquadrows( void ) const { return( numquadrows ); }
 
  /// returns the number of non-zero elements
  [[nodiscard]] int get_nzelements( void ) const { return( matval.size() ); }
@@ -353,7 +430,81 @@ class MILPSolver : public CDASolver
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
- /** @name Methods that use the dictionaries
+ /** @name Informative methods about different aspect of the problem
+ *
+ * The following methods are used to provide useful information about the
+ * internal status of the problem (e.g. number of nodes explored ).
+ * These methods are not properly implemented in the base class MILPSolver
+ * as they should be overwritten in derived classes.
+ * @{ */
+
+ /// Returns the number of nodes explored so far.
+ [[nodiscard]] virtual int get_explored_nodes( void ) const {
+  throw( std::runtime_error( "Function get_explored_nodes is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /// Returns the estimated number of nodes to explore.
+ [[nodiscard]] virtual long get_left_nodes( void ) const {
+  throw( std::runtime_error( "Function get_left_nodes is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /// Returns a true value if a feasible solution is known, 
+ //  false otherwise.
+ [[nodiscard]] virtual bool has_feasible_sol( void ) {
+  throw( std::runtime_error( "Function has_feasible_sol is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /// Returns elapsed solver runtime (in second).
+ [[nodiscard]] virtual double get_runtime( void ) const {
+  throw( std::runtime_error( "Function get_runtime is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /// Returns a unique identifier for the node currently being explored  
+ //  in the branch-and-bound algorithm for a MIP problem.  
+ //  
+ /// NOTE: This method should only be called during the callback process  
+ //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and you need to identify the node from which it originates).  
+ [[nodiscard]] virtual long get_id_node( void ) const {
+  throw( std::runtime_error( "Function get_id_node is not supported "
+    "by the current *MILPSolver" ) );
+  
+  return( 0 );
+  }
+
+ /** 
+ * Adds multiple MIP starts to a MIP problem. This function allows the solver 
+ * to receive multiple sets of starting values by providing vectors of variable 
+ * indices and corresponding values for each start.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.
+ */
+ virtual void add_mip_starts( 
+  std::vector< std::vector< int > > varidxs ,
+  std::vector< std::vector< double > > varvalues ) {
+
+    throw( std::runtime_error( "Function add_mip_starts is not supported "
+      "by the current *MILPSolver" ) );
+
+    return;
+  }
+
+/** @} ---------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Methods that use the dictionaries
   *
   * The following methods use the dictionaries to get the indices of the
   * Variables/Constraints from the pointers and viceversa.
@@ -499,7 +650,27 @@ class MILPSolver : public CDASolver
  [[nodiscard]] int get_num_integer_vars( void ) const { return( int_vars ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- #ifdef MILPSOLVER_DEBUG
+
+/** 
+ * Adds a new warm start to the solver. See Solver.h for further details.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.  */
+ //void add_warm_start( const Solution * sol ,
+  //                    const std::vector< AbstractPath > varpaths ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+/** 
+ * Adds a set of warm start to the solver. See Solver.h for further details.
+ * 
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ * to infer values for the unspecified variables.  */
+//void add_warm_start( const std::vector< Solution * > sols ,
+//                     const std::vector< AbstractPath > varpaths ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ #ifdef MILPSolver_DEBUG
   /// Check the dictionaries for inconsistencies
   virtual void check_status( void );
  #endif
@@ -517,24 +688,87 @@ class MILPSolver : public CDASolver
  /// does nothing as there is nothing to do
  int compute( bool changedvars = true ) override;
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*--------------------------------------------------------------------------*/
  /// does nothing as there is nothing to do
  void get_var_solution( Configuration * solc ) override {}
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// takes a get_numcols()-vector of doubles and writes it as var solution
+ /** The get_numcols()-vector \p x is supposed to encode a var solution in the
+  * natural format, i.e., x[ i ] is the value of the ColVariable corresponding
+  * to the i-th column in the coefficient matrix as constructed by
+  * MILPSolver; this method writes it in the Block. It can obviously be used
+  * to implement get_var_solution(). */
+ 
+ void write_var_solution( const std::vector< double > & x );
+
+/*--------------------------------------------------------------------------*/
  /// does nothing as there is nothing to do
  void get_dual_solution( Configuration * solc ) override {}
 
-/** @} --------------------------------------------------------------------*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// takes two vectors of doubles and writes them as dual solution
+ /** The get_numrows()-vector \p pi and the get_numcols()-vector \p rc are
+  * supposed to encode dual a solution in the natural format, i.e., pi[ j ]
+  * is the value of the dual variable of to the FRowConstraint corresponding
+  * to the j-th row in the coefficient matrix as constructed by
+  * MILPSolver, while rc[ i ] is the value of the reduced cost of the
+  * ColVariable corresponding to the i-th column in the coefficient matrix
+  * as constructed by MILPSolver; this method writes them in the Block if
+  * they are provided, i.e., both pi and rc may be empty(), in which case
+  * they are ignored.
+  *
+  * Note that the reduced cost part is nontrivial, in that there is not
+  * really such a thing as the reduced cost of a ColVariable; this has to
+  * be implemented as the dual variable of a BoxConstraint using that
+  * ColVariable. Currently, the method just looks if there is one, and if
+  * not it ignores the thing; maybe we'll add a general mechanism to throw
+  * exception instead.
+  *
+  * This method can obviously be used to implement get_dual_solution(). */
+ 
+ void write_dual_solution( const std::vector< double > & pi ,
+			   const std::vector< double > & rc );
+
+/** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for handling parameters
  * @{ */
 
  /// sets an integer parameter with the given value
+  /** Set the "int" parameters specific of MILPSolver, together with the
+  * parameters of MILPSolver that various solver actually "listens to":
+  *
+  * - intThrowReducedCostException [0]: it indicates whether an exception must
+  *                                     be thrown if there is an inconsistency
+  *   when a reduced cost is being stored during a call to get_dual_solution()
+  *   or get_dual_direction(). The reduced cost of a Variable is stored in at
+  *   most one OneVarConstraint on that Variable. It may happen that a
+  *   Variable has no OneVarConstraint, in which case its reduced cost will
+  *   not be stored and will be lost. Usually, the reduced cost of a Variable
+  *   is of interest if the Variable has a finite nonzero lower or upper
+  *   bound. In this case, if a OneVariableConstraint for that Variable is not
+  *   found, an exception is thrown. More specifically, there are two cases in
+  *   which an exception is thrown:
+  *
+  *   1) The Variable is fixed to a finite nonzero value and there is no
+  *      OneVarConstraint on that Variable whose lower and upper bounds are
+  *      both equal to the value of that Variable.
+  *
+  *   2) The Variable is not fixed, it has a finite nonzero lower or upper
+  *      bound and there is no OneVarConstraint on that Variable whose lower
+  *      or upper bound match the bounds of the Variable. */
  void set_par( idx_type par , int value ) override;
 
- // sets a double parameter with the given value
- // void set_par( idx_type par , double value ) override;
+ /// sets a double parameter with the given value
+ // although it actually does nothing, it has to be there since, due to an
+ // excess of caution, *MILPSolver::set_par( double ) call it, and if it's
+ // not there then set_par( int ) ends up being called with duuble -> int
+ // conversion that can go awry
+ void set_par( idx_type par , double value ) override {
+  CDASolver::set_par( par, value );
+  }
 
  /// sets a string parameter with the given value
  void set_par( idx_type par , std::string && value ) override;
@@ -613,16 +847,19 @@ class MILPSolver : public CDASolver
  using int_con = std::pair< int , const FRowConstraint * >;
  using var_int_int = std::tuple< const ColVariable * , int , int >;
  using con_int_int = std::tuple< const FRowConstraint * , int , int >;
+ using c_v_coeff_pair = DQuadFunction::c_v_coeff_pair;
+ using mat_indices = std::pair< int , int >;
 
  /** @name Variable and Constraint dictionaries
   *
   * The following vectors are used in order to keep track between the
   * Variables and Constraints of the Block and the constraint matrix.
   *
-  *  - svar_to_idx, scon_to_idx : vectors of tuples that store 1) the
-  *    address of the first element of each group of static variables and
-  *    constraints, respectively, 2) the corresponding index in constraint
-  *    matrix (column or row), and 3) the number of elements in the group.
+  *  - svar_to_idx, scon_to_idx, scon_to_idx : vectors of tuples 
+  *    that store 1) the address of the first element of each group of static 
+  *    variables and constraints, respectively, 2) the 
+  *    corresponding index in constraint matrix (column or row) and 3) 
+  *    the number of elements in the group.
   *    The vectors are kept sorted in ascending order by address.
   *
   *  - dvar_to_idx, dcon_to_idx : vectors of pairs that store the addresses
@@ -639,6 +876,16 @@ class MILPSolver : public CDASolver
   *    variables and constraints, respectively. The element at idx_to_d*[ i ]
   *    has index ( i + static_*s ), that is, it is the column/row
   *    ( i + static_*s ) of the constraint matrix.
+  * 
+  *  - svar_to_bound : vector of single OneVarConstraint * associated to 
+  *    each static variable. The order of the variables used to sort the 
+  *    array is the one given by Block::get_static_variables.
+  *    NOTE: this is used only if the option intSingleBound is set to 1.
+  *
+  *  - dvar_to_bound : vector of single OneVarConstraint * associated to 
+  *    each dynamic variable. The order of the variables used to sort the 
+  *    array is the one given by Block::get_static_variables.
+  *    NOTE: this is used only if the option intSingleBound is set to 1.
   *
   * Using these vectors of pair we can at any time locate the index of each
   * constraint and variable within the constraint matrix, and viceversa.
@@ -652,15 +899,20 @@ class MILPSolver : public CDASolver
  std::vector< int_var > idx_to_svar;     ///< from index to static variable
 
  std::vector< con_int_int > scon_to_idx; ///< from static constraint to index
- std::vector< int_con> idx_to_scon;      ///< from index to static constraint
+ std::vector< int_con> idx_to_scon;      ///< from index to linear static constraint
 
  std::vector< var_int > dvar_to_idx;     ///< from dynamic variable to index
  std::vector< const ColVariable * > idx_to_dvar;
                                          ///< from index to dynamic variable
 
  std::vector< con_int > dcon_to_idx;     ///< from dynamic constraint to index
- std::vector< const FRowConstraint * > idx_to_dcon;
-                                         ///< from index to dynamic constraint
+ std::vector< const FRowConstraint * > idx_to_dcon;     
+                                        ///< from index to dynamic constraint
+
+ std::vector< const OneVarConstraint * > svar_to_bound; 
+                                         ///< from static variable to bound
+ std::vector< const OneVarConstraint * > dvar_to_bound; 
+                                         /// from dynamic variable to bound
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- FIELDS FOR PROBLEM DESCRIPTION ---------------------*/
@@ -672,13 +924,28 @@ class MILPSolver : public CDASolver
   * plus vectors for costs, bounds and lhs/rhs of constraints" format.
   *
   * #matbeg, #matcnt, #matind and #matval define the (sparse) constraint
-  * matrix by its nonzero coefficients. These are grouped by column in the
-  * array matval. The nonzero elements of every column must be stored in
-  * sequential locations in this array with matbeg[ j ] containing the index
-  * of the beginning of column j and matcnt[ j ] containing the number of
-  * entries in column j. The components of matbeg must be in ascending
-  * order. For each k, matind[ k ] specifies the row number of the
-  * corresponding coefficient, matval[ k ].
+  * matrix associated to linear constraints by its nonzero coefficients. 
+  * These are grouped by column in the array matval. The nonzero elements 
+  * of every column must be stored in sequential locations in this array 
+  * with matbeg[ j ] containing the index of the beginning of column j 
+  * and matcnt[ j ] containing the number of entries in column j. 
+  * The components of matbeg must be in ascending order. For each k, 
+  * matind[ k ] specifies the row number of the corresponding coefficient, 
+  * matval[ k ].
+  *
+  * NOTE: the above mentioned structures are grouped by column when no 
+  * quadratic constraint is in the initial load of the model. Otherwise, 
+  * the representation is switched to the rows.
+  *
+  * For a quadratic constraint i, we separtely store all the nonzeros linear
+  * terms in the above mentioned matbeg, matcnt, ... structures (grouped by
+  * rows). The quadratic part of the constraint is instead represented with a
+  * map< mat_indices,float > stored in the i-th position of the vector q_part.
+  * 
+  * The same procedure is applied for the objective function, with the linear
+  * coefficients stored in objective, the diagonal coefficients of the quadratic
+  * matrix stored in q_objective and the off-diagonal ones stored using three 
+  * vectors ndq_rowind, ndq_colind, ndq_objective.
   * @{  */
 
  /** Pointers to the currently registered Block and all its descendants
@@ -696,6 +963,15 @@ class MILPSolver : public CDASolver
   * not including the objective function or bounds on the variables. */
  int numrows{};
 
+ /** An integer that specifies the number of quadratic rows in the set of
+  * constraints, not including the objective function or bounds on the 
+  * variables. */
+ int numquadrows{};
+
+ /** An integer that specifies the number of nonzero coefficients outside
+  * the diagonal of the quadratic objective matrix. */
+ int numnnzq{};
+
  /** An integer that specifies whether the problem is a minimization or
   * maximization problem. */
  int objsense{};
@@ -703,13 +979,20 @@ class MILPSolver : public CDASolver
  /// A double that specify the summation of the constant terms of all blocks.
  OFValue constant_value{};
 
- /** An array of length at least numcols containing the objective function
+ /** An array of length at least numcols containing the linear objective function
   * coefficients. */
  std::vector< double > objective;
 
- /** An array of length numcols containing the quadratic coefficients of
-  * the separable quadratic objective. */
+ /** An array of length numcols containing the quadratic coefficients along
+  * the diagonal of the quadratic objective matrix. */
  std::vector< double > q_objective;
+
+ /** An array of length numnnzq containing the quadratic coefficients outside
+  * the diagonal of the quadratic objective matrix. */
+ std::vector< double > ndq_objective;
+
+ std::vector< int > ndq_rowind; ///< Indices of rows for each quadratic coefficient
+ std::vector< int > ndq_colind; ///< Indices of columns for each quadratic coefficient
 
  /** An array of length at least numrows containing the righthand side value
   * for each constraint in the constraint matrix. */
@@ -727,10 +1010,18 @@ class MILPSolver : public CDASolver
   * in the constraint matrix. */
  std::vector< char > sense;
 
+ // Linear constraints container
  std::vector< int > matbeg;     ///< Beginnings of constraint matrix columns
  std::vector< int > matcnt;     ///< Sizes of constraint matrix columns
  std::vector< int > matind;     ///< Indices of rows for each coefficient
  std::vector< double > matval;  ///< All nonzero coefficients
+
+ /* Quadratic constraints container */ 
+
+ // Linear coefficients (already stored in matbeg,...)
+
+ // Quadratic coefficients
+ std::vector< std::map< mat_indices , float > > q_part;
 
  /** An array of length at least numcols containing the lower bound on each
   * of the variables. */
@@ -758,6 +1049,22 @@ class MILPSolver : public CDASolver
  /// if true, relax [M]ILP by removing integrality constraints
  bool relax_int_vars = false;
 
+ /* if true, no more than one OneVarConstraint can be associated to a
+ *  single variable. 
+ *  Moreover, the vectors svar_to_bound and dvar_to_bound are activated
+ *  to guarantee a direct link between variables and bound. */
+ bool single_bound = false;
+
+  /* if true, modification on constraints are enabled. This parameter can
+  *  be useful when dealing with quadratic constraint, where Modification 
+  * from some Solver (e.g. CPLEX) are not allowed. */
+ bool cons_modification = true;
+
+ /** This variable indicates whether an exception must be thrown if there is
+ * an inconsistency when a reduced cost is being stored during a call to
+ * get_dual_solution() or get_dual_direction(). */
+ bool throw_reduced_cost_exception;
+
  /** An array of length at least numcols containing pointers to character
   * strings containing the names of the variables. */
  std::vector< char * > colname;
@@ -770,6 +1077,53 @@ class MILPSolver : public CDASolver
  int int_vars{};           ///< Number of integer variables
  int static_vars{};        ///< Number of static variables
  int static_cons{};        ///< Number of static constraints
+ int static_quadcons{};    ///< Number of static quadratic constraints
+
+ /** Warm start structures used by the solver.
+ *
+ * These fields store the initial solution data that can be provided to
+ * the solver. As described in Solver.h, each warm start is represented
+ * as a tuple: (Solution*, std::vector<AbstractPath>).
+ *
+ * Since multiple warm starts may be supplied, two vectors are maintained:
+ * - v_warmstart_sol: stores the Solution* instances
+ * - v_warmstart_vars: stores the AbstractPath vectors
+ *
+ * @note A single std::vector<AbstractPath> can be shared across multiple
+ * Solution * instances. To track this association, a std::vector<int> 
+ * — matching the length of v_warmstart_sol— is used to record which :AbstractPath
+ * vector is referenced by each Solution *.
+ *
+ * Currently, warm starts can be provided in two ways:
+ *
+ * 1. **Programmatically**, by storing the necessary data structures
+ *    directly in the Solver instance using the methods `add_warm_start()`
+ *    or `add_warm_starts()`.
+ *
+ * 2. **Via input files**, using two files of type `eWarmStartFile` and
+ *    `eSolutionFile`. The corresponding filenames can be set using the
+ *    string parameters:
+ *      - "strWarmStartVariables" — path to the file defining set of variables
+ *      for which we would like to provide a warm start.
+ *      - "strWarmStartSolution"  — path to the file containing the
+ *      warm start solution (i.e. initial values for the specified set of
+ *      variables).
+ *
+ *    If a filename follows the format "filename[idx]", only the indexed 
+ *    structure within the file will be used. 
+ *    (Behavior for unspecified indices or other formats is TBD.)
+ */
+
+ std::string warmstart_variables; // warm start variables filename
+ std::string warmstart_solution;  // warm start solution filename
+
+ //std::vector< std::vector< AbstractPath >> v_warmstart_vars;
+                                  // warm start variables
+ //std::vector< Solution * > v_warmstart_sol;               
+                                  // warm start solutions
+ 
+ //std::vector< int > v_warmstart_sol2vars; 
+                                  // corresponding variables for each solution
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------- PROTECTED METHODS ----------------------------*/
@@ -813,7 +1167,8 @@ class MILPSolver : public CDASolver
  /// gets the active bounds for the specified variable
  // TODO: This should be temporary
  std::vector< OneVarConstraint * > get_active_bounds(
-					     const ColVariable & var ) const;
+					     const ColVariable & var ,
+               bool first_scan = false ) const;
 
 /*--------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */
@@ -951,12 +1306,12 @@ class MILPSolver : public CDASolver
   * constraint is linear since the identical function zero is.
   *
   * @param con a reference to a FRowConstraint
-  * @param n   an counter that should be 0 when lconst is the first
-  *            element of a vector of static FRowConstraints
+  * @param n a counter that should be 0 when row is the first
+  *            element of a vector of linear static FRowConstraints
   * @param row a counter for constraints/rows */
 
- void scan_static_constraint( const FRowConstraint & con , Index & n ,
-			      Index & col );
+ void scan_static_constraint( const FRowConstraint & con , Index & n,
+			      Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a dynamic FRowConstraint and fills the dictionaries accordingly.
@@ -978,6 +1333,22 @@ class MILPSolver : public CDASolver
  void scan_constraint( const FRowConstraint & con , Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /** Scans a static ColVariable to found the associated bound and fills the 
+  *  dictionaries accordingly
+  *
+  * @param var a reference to a ColVariable */
+
+ void scan_static_variable_bound( const ColVariable & var );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /** Scans a dynamic ColVariable to found the associated bound and fills the 
+  *  dictionaries accordingly
+  *
+  * @param var a reference to a ColVariable */
+
+ void scan_dynamic_variable_bound( const ColVariable & var );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a FRealObjective and fills the vectors of the LP accordingly.
   * Moreover, since both the CPLEX and SCIP C API does not support the concept
   * of "constant term", all of them, for each Block of the problem, are
@@ -986,6 +1357,102 @@ class MILPSolver : public CDASolver
   * @param obj a FRealObjective */
 
  void scan_objective( const FRealObjective * obj );
+
+/*--------------------------------------------------------------------------*/
+/*--------------- AUXILIARY METHODS FOR MULTI-ARRAY GROUP  -----------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Multi-array methods
+ *
+ * These methods are used in load_problem() to read data from complex
+ * multi_array<> structures.
+ * Each method is templated with:
+ *  1) T - the type of elements in the group, expected to be either
+ *     ColVariable or FRowConstraint.
+ *  2) K - the number of dimensions of the multi_array.
+ *
+ * NOTE: Currently, only 2D or 3D arrays are supported.
+ * @{ */
+
+ /** Scans a multi_array structure and returns its number of dimensions.
+  *
+  * This method attempts to cast a boost::any element to a boost::multi_array.
+  * It should be used as a recursive method, as it will try to cast an 
+  * increasing number of dimensions until the cast succeeds.
+  * If the cast succeeds, it returns the number of dimensions of the array.
+  * A default maximum of K = 9 dimensions is used when attempting the cast.
+  * 
+  * @param any the reference to the multi_array
+  * @param T the basic type of the multi_array
+  * @param K the number of dimensions of the multi array 
+ */
+
+ template< typename T , unsigned short K >
+  int get_multi_array_dim( const boost::any & any ,
+                           un_any_type< T > , un_any_int< K > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ template< typename T >
+  int get_multi_array_dim( const boost::any & ,
+                          un_any_type< T > , un_any_int< 9 > ) {
+  return( -1 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** Scans a multi_array structure and returns its type.
+  *
+  * This method attempts to cast a boost::any element to a boost::multi_array
+  * with fixed number of dimensions K.
+  * If the cast succeeds, it returns the type of the array.
+  * In SMS++ currently two different types of multi_array are available:
+  *
+  * - boost::multi_array< T > -> type 0
+  * - boost::multi_array< std::vector < T > > -> type 1
+  * 
+  * @param any the reference to the multi_array
+  * @param T the basic type of the multi_array
+  * @param K the number of dimensions of the multi array 
+ */
+ template< typename T , unsigned short K >
+  int get_multi_array_type( 
+                         const boost::any & any ,
+                         un_any_type< T > , 
+                         un_any_int< K > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** These methods attempt to cast a multi_array with specific attributes.
+ * If the cast is successful, they return a pointer to the resulting 
+ * structure. 
+ * 
+ * @param any the reference to the multi_array
+ * @param T the basic type of the multi_array
+ * @param K the number of dimensions of the multi array */
+
+ // Cast to a 2D multi_array of type 0
+ template< typename T >
+ boost::multi_array< T , 2 > * get_multi_array0( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 2 > );
+
+ // Cast to a 2D multi_array of type 1
+ template< typename T >
+ boost::multi_array< std::vector< T >, 2 > * get_multi_array1( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 2 > );
+
+ // Cast to a 3D multi_array of type 0
+ template< typename T >
+ boost::multi_array< T , 3 > * get_multi_array0( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 3 > );
+
+ // Cast to a 3D multi_array of type 1
+ template< typename T >
+ boost::multi_array< std::vector< T >, 3 > * get_multi_array1( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 3 > );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
