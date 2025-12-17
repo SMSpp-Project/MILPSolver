@@ -298,11 +298,6 @@ void add_mip_starts(
   *   bit 2 : 1 (+4) if separation of lazy constraints is performed each time
   *           a feasible solution is generated
   *
-  *   bit 3-4: encode user cuts aggressiveness settings:
-  *            0 (+0) for moderate cut generation.
-  *            1 (+8) for aggressive cut generation.
-  *            2 (+16) for very aggressive cut generation.
-  *
   *   See vintCutSepCfgInd for properly setting Configurations for the
   *   corresponding calls to generate_dynamic_constraint(). */
 

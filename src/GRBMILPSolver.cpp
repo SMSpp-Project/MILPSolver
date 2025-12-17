@@ -586,13 +586,14 @@ int GRBMILPSolver::compute( bool changedvars )
    // the callback has to be set
    GRBsetcallbackfunc( model , & GRBMILPSolver_callback , this );
 
-   if( CutSepPar & 3 ) {  // we do user cut separation, thus we have to set the possibility in Gurobi
+   if( CutSepPar & 3 ) {  // we do user cut separation.
+    // Simply shut off a few presolve reductions that can sometimes prevent 
+    // the cut from being applied to the presolved model.
     GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRECRUSH , 1 );
-    auto md = ( CutSepPar >> 3 ) & 3;
-    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_CUTS , md );
    }
    
-   if( CutSepPar & 4 )  // we do lazy constraint separation, thus we have to set the possibility in Gurobi
+   if( CutSepPar & 4 )  // we do lazy constraint separation.
+    // We have to set the possibility in Gurobi.
     GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_LAZYCONSTRAINTS , 1 );
    
    f_callback_set = true;
