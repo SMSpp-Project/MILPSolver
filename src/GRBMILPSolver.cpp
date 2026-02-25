@@ -1268,20 +1268,28 @@ bool GRBMILPSolver::has_dual_direction( void )
  int model_status;
  GRBgetintattr( model , GRB_INT_ATTR_STATUS , & model_status );
 
+ int verbosity = 0;
+ GRBgetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
+
  switch( model_status ) {
   case( GRB_INFEASIBLE ):
   case( GRB_INF_OR_UNBD ):
   case( GRB_UNBOUNDED ):  break;
-  default: DEBUG_LOG( "Status of the Gurobi model not infeasible or "
-      "unbounded" << std::endl );
+  default: 
+      if( verbosity ){
+        DEBUG_LOG( "Status of the Gurobi model not infeasible or "
+        "unbounded" << std::endl );
+      }
     return( false );                       
  }
 
  int infunbd_info;
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , & infunbd_info );
  if( ! infunbd_info ) {
-  DEBUG_LOG( "In order to ask for the farkas proof of the model, the "
-    "parameter GRB_INT_PAR_INFUNBDINFO should be set to 1" << std::endl );
+  if( verbosity )
+    DEBUG_LOG( "In order to ask for the dual solution of"
+                      "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
+                      "should be set to 1" << std::endl);
   return( false );
  }
  
