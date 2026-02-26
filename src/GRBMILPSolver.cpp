@@ -1030,14 +1030,19 @@ bool GRBMILPSolver::has_var_direction( void )
 {
  int isMIP = 1;
  GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP );
- 
- int verbosity = 0;
- GRBgetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
 
  if( ( isMIP ) ) {
  // The model is a MIP
-    if( verbosity )
-      DEBUG_LOG( "Unbounded direction isavailable only for LP model" << std::endl);
+    
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: Unbounded direction is available only for LP models. \n";
+    
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+  
     return( false );  
   }
 
@@ -1051,11 +1056,18 @@ bool GRBMILPSolver::has_var_direction( void )
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
 
  if( ( m_status != GRB_UNBOUNDED ) || ( ! infunbd_info ) ) {
-  if( verbosity )
-    DEBUG_LOG( "In order to ask for the unbounded direction of"
-                "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
-                "should be set to 1" << std::endl);
-  return( false );
+    
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: In order to ask for the unbounded direction of "
+      "the model, the parameter InfUnbdInfo should be set to 1"". \n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+    
+    return( false );
  }
 
  return( true );
@@ -1093,14 +1105,17 @@ bool GRBMILPSolver::has_dual_solution( void )
 {
  int isMIP = 1;
  GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP );
- 
- int verbosity = 0;
- GRBgetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
 
  if( ( isMIP ) ) {
- // The model is a MIP
-    if( verbosity )
-      DEBUG_LOG( "Dual solution for MIP model not available" << std::endl);
+    // The model is a MIP
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: Dual solution for MIP model not available. \n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
     return( false );  
   }
 
@@ -1115,20 +1130,35 @@ bool GRBMILPSolver::has_dual_solution( void )
 
  if( ( m_status == GRB_INFEASIBLE || m_status == GRB_INF_OR_UNBD || 
         m_status == GRB_UNBOUNDED ) && ( ! infunbd_info ) ) {
-  if( verbosity )
-    DEBUG_LOG( "In order to ask for the dual solution of"
-                      "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
-                      "should be set to 1" << std::endl);
-  return( false );
+    
+    // Warning message
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: To retrieve the model's dual solution, "
+      "set the parameter InfUnbdInfo to 1.\n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+    
+    return( false );
  }
 
  if( numquadrows > 0 ) {
   int qcp_dual;
   GRBgetintparam( env , GRB_INT_PAR_QCPDUAL , & qcp_dual );
   if( ! qcp_dual ) {
-    if( verbosity )
-      DEBUG_LOG( "In order to retrieve dual values for QCP models  "
-            "the attribute QCPDUAL must be set to 1" << std::endl);
+    // Warning message
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: To retrieve the dual solution of a "
+      "QCP model, the attribute QCPDUAL must be set to 1. \n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
 
     return( false );
   }
@@ -1140,9 +1170,16 @@ bool GRBMILPSolver::has_dual_solution( void )
  std::vector< double > small_pi( 1 , 0 );
  if( int status = GRBgetdblattrarray( model , GRB_DBL_ATTR_PI , 0 , 
                     1 , small_pi.data() ) ) {
-  if( verbosity )
-      DEBUG_LOG( "Query of dual values with attributes GRB_PI " 
-        "returned status " + std::to_string( status ) << std::endl);
+  // Warning message
+  std::string msg = std::string("GRBMILPSolver Warning [")
+    + __func__ + "]: Query of dual values with attributes GRB_PI " 
+    "returned status" + std::to_string( status ) + ".\n";
+
+  // Print warning message in Gurobi log
+  GRBmsg( GRBgetenv(model), msg.c_str() );
+
+  // Print warning message in MILPSolver DEBUG
+  DEBUG_LOG( msg.c_str() );
 
   return( false );
   }
@@ -1268,28 +1305,39 @@ bool GRBMILPSolver::has_dual_direction( void )
  int model_status;
  GRBgetintattr( model , GRB_INT_ATTR_STATUS , & model_status );
 
- int verbosity = 0;
- GRBgetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
-
  switch( model_status ) {
   case( GRB_INFEASIBLE ):
   case( GRB_INF_OR_UNBD ):
   case( GRB_UNBOUNDED ):  break;
-  default: 
-      if( verbosity ){
-        DEBUG_LOG( "Status of the Gurobi model not infeasible or "
-        "unbounded" << std::endl );
-      }
+  default:
+    // Warning message
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: No dual ray can be retrieved unless the "
+      "model status is infeasible or unbounded. \n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+
     return( false );                       
  }
 
  int infunbd_info;
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , & infunbd_info );
  if( ! infunbd_info ) {
-  if( verbosity )
-    DEBUG_LOG( "In order to ask for the dual solution of"
-                      "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
-                      "should be set to 1" << std::endl);
+    // Warning message
+    std::string msg = std::string("GRBMILPSolver Warning [") 
+      + __func__ + "]: To retrieve the model's dual solution, "
+    "set the parameter InfUnbdInfo to 1.\n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv( model ) ,  msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+
   return( false );
  }
  
@@ -3126,7 +3174,7 @@ void GRBMILPSolver::add_mip_starts(
  // Loop over each MIP start
  for( int i = 0; i < nstarts; ++i ) {
   // Set the number of the MIP start provided
-  GRBsetintparam( env , GRB_INT_PAR_STARTNUMBER , i );
+  GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_STARTNUMBER , i );
 
   // Loop over each provided value
   for( int j = 0; j < varidxs[ i ].size(); ++j ) {
