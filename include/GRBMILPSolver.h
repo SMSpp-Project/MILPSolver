@@ -190,6 +190,14 @@ class GRBMILPSolver : public MILPSolver {
  /// writes the current unbounded direction in the Block
  void get_var_direction( Configuration * dirc = nullptr ) override;
 
+ /** The following methods provide access to dual information of the
+ *  current solution.
+ *
+ *  Note: When using Gurobi, the parameter InfUnbdInfo must be set to 1
+ *  to make this information available. Otherwise, SMS++ will return
+ *  false when such information is requested.
+ */
+
  /// tells whether a dual solution is available
  bool has_dual_solution( void ) override;
 
