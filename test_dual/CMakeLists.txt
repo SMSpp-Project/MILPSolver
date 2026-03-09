@@ -14,12 +14,8 @@
 # may wrongly appear unused, and by default the linker does not include them,
 # so we have to force the linking.
 if (BUILD_SHARED_LIBS)
-    if (UNIX)
-        if (APPLE)
-            add_link_options("-Wl,-dead_strip_dylibs")
-        else ()
-            add_link_options("-Wl,--no-as-needed")
-        endif ()
+    if (UNIX AND (NOT APPLE))
+        add_link_options("-Wl,--no-as-needed")
     endif ()
 else ()
     if (MSVC)
