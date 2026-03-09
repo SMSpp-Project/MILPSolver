@@ -14,9 +14,7 @@
 # may wrongly appear unused, and by default the linker does not include them,
 # so we have to force the linking.
 if (BUILD_SHARED_LIBS)
-    if (MSVC)
-        add_link_options("/OPT:NOREF")
-    else () # Unix
+    if (UNIX)
         if (APPLE)
             add_link_options("-Wl,-dead_strip_dylibs")
         else ()
@@ -37,8 +35,18 @@ endif ()
 
 # ----- MILPSolver_test_dual ------------------------------------------------ #
 add_executable(test_dual test_dual.cpp)
-target_link_libraries(test_dual PRIVATE
-                      SMS++::MILPSolver)
+target_link_libraries(test_dual PRIVATE SMS++::MILPSolver)
+
+if (WIN32 AND BUILD_SHARED_LIBS)
+    # copy runtime DLLs next to the exe after build
+    add_custom_command(TARGET test_dual POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:test_dual>
+            $<TARGET_FILE_DIR:test_dual>
+            COMMAND_EXPAND_LISTS
+            COMMENT "Copying runtime DLLs next to test_dual.exe"
+    )
+endif()
 
 add_test(NAME test_dual
          COMMAND test_dual

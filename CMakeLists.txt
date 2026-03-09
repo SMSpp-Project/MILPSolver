@@ -107,6 +107,10 @@ configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
 add_library(${modName})
 target_compile_features(${modName} PUBLIC cxx_std_17)
 
+if (MSVC AND BUILD_SHARED_LIBS)
+    target_link_options(${modName} INTERFACE "/INCLUDE:SMSpp_force_load_${modName}")
+endif()
+
 # Ensure that the executables from /tools are run before adding the /include
 # directory to generate the necessary *_defs.h and *_maps.h files of the correct
 # solver version installed on the system, if they are not already present
