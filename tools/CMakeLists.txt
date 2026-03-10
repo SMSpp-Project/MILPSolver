@@ -124,55 +124,6 @@ if (MILPSolver_USE_HiGHS)
     set(HiGHS_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/HiGHS${HiGHS_VERSION_NO_DOTS}_defs.h)
     set(HiGHS_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/HiGHS${HiGHS_VERSION_NO_DOTS}_maps.h)
 
-    # --------------------------------------------------------------------------- #
-    # Debug information for CI / cross-compiling environments                     #
-    # --------------------------------------------------------------------------- #
-
-    message(STATUS "================ BUILD DEBUG INFO ================")
-
-    message(STATUS "CMAKE_SYSTEM_NAME            = ${CMAKE_SYSTEM_NAME}")
-    message(STATUS "CMAKE_SYSTEM_PROCESSOR       = ${CMAKE_SYSTEM_PROCESSOR}")
-    message(STATUS "CMAKE_HOST_SYSTEM_NAME       = ${CMAKE_HOST_SYSTEM_NAME}")
-    message(STATUS "CMAKE_HOST_SYSTEM_PROCESSOR  = ${CMAKE_HOST_SYSTEM_PROCESSOR}")
-
-    message(STATUS "CMAKE_CROSSCOMPILING         = ${CMAKE_CROSSCOMPILING}")
-
-    message(STATUS "CMAKE_C_COMPILER             = ${CMAKE_C_COMPILER}")
-    message(STATUS "CMAKE_CXX_COMPILER           = ${CMAKE_CXX_COMPILER}")
-    message(STATUS "CMAKE_C_COMPILER_TARGET      = ${CMAKE_C_COMPILER_TARGET}")
-    message(STATUS "CMAKE_CXX_COMPILER_TARGET    = ${CMAKE_CXX_COMPILER_TARGET}")
-
-    message(STATUS "CMAKE_OSX_ARCHITECTURES      = ${CMAKE_OSX_ARCHITECTURES}")
-    message(STATUS "CMAKE_OSX_DEPLOYMENT_TARGET  = ${CMAKE_OSX_DEPLOYMENT_TARGET}")
-
-    message(STATUS "CONDA_BUILD                  = $ENV{CONDA_BUILD}")
-    message(STATUS "CONDA_PREFIX                 = $ENV{CONDA_PREFIX}")
-    message(STATUS "BUILD_PREFIX                 = $ENV{BUILD_PREFIX}")
-    message(STATUS "HOST_PREFIX                  = $ENV{HOST_PREFIX}")
-    message(STATUS "CONDA_BUILD_CROSS_COMPILATION= $ENV{CONDA_BUILD_CROSS_COMPILATION}")
-
-    # Host architecture
-    execute_process(
-            COMMAND uname -m
-            OUTPUT_VARIABLE HOST_ARCH
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-
-    message(STATUS "uname -m                     = ${HOST_ARCH}")
-
-    # Compiler version
-    execute_process(
-            COMMAND ${CMAKE_CXX_COMPILER} --version
-            OUTPUT_VARIABLE CXX_VERSION
-    )
-
-    message(STATUS "CXX compiler version:")
-    message(STATUS "${CXX_VERSION}")
-
-    message(STATUS "==================================================")
-
-    # --------------------------------------------------------------------------- #
-
     if (CMAKE_CROSSCOMPILING)
         add_custom_command(
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}

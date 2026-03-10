@@ -67,18 +67,23 @@ release: SW = $(COMMON_SW) $(SW_RELEASE)
 
 # include the makefiles of the individual *_pars- - - - - - - - - - - - - - -
 # if you are not interested in some of them, just comment them away here
+#
+# If a specific target is requested, only include the makefile(s) strictly
+# needed for that target, so that missing optional dependencies do not prevent
+# building the requested parser.
 
-# cpx_pars
-include $(DIR)/makefile_cpx
-
-# grb_pars
-include $(DIR)/makefile_grb
-
-# highs_pars
-include $(DIR)/makefile_highs
-
-# scip_pars
-include $(DIR)/makefile_scip
+# no explicit target, or generic targets requiring all pars
+ifeq ($(strip $(MAKECMDGOALS)),)
+    include $(DIR)/makefile_cpx
+    include $(DIR)/makefile_grb
+    include $(DIR)/makefile_highs
+    include $(DIR)/makefile_scip
+else ifneq ($(filter default debug release,$(MAKECMDGOALS)),)
+    include $(DIR)/makefile_cpx
+    include $(DIR)/makefile_grb
+    include $(DIR)/makefile_highs
+    include $(DIR)/makefile_scip
+endif
 
 # collate all (defined) executables
 NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS)
@@ -122,6 +127,6 @@ distclean: clean
 
 # phony targets - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-.PHONY: debug release clean distclean
+.PHONY: debug release clean distclean cpx_pars grb_pars highs_pars scip_pars
 
 ############################ End of makefile #################################
