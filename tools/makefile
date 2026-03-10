@@ -83,6 +83,19 @@ else ifneq ($(filter default debug release,$(MAKECMDGOALS)),)
     include $(DIR)/makefile_grb
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
+else
+    ifneq ($(filter cpx_pars,$(MAKECMDGOALS)),)
+        include $(DIR)/makefile_cpx
+    endif
+    ifneq ($(filter grb_pars,$(MAKECMDGOALS)),)
+        include $(DIR)/makefile_grb
+    endif
+    ifneq ($(filter highs_pars,$(MAKECMDGOALS)),)
+        include $(DIR)/makefile_highs
+    endif
+    ifneq ($(filter scip_pars,$(MAKECMDGOALS)),)
+        include $(DIR)/makefile_scip
+    endif
 endif
 
 # collate all (defined) executables
