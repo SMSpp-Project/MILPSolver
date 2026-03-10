@@ -97,6 +97,20 @@ debug: $(NAME)
 #release: SW = $(SW_RELEASE)
 release: $(NAME)
 
+# individual targets- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+cpx_pars: SW = $(COMMON_SW) $(SW_RELEASE)
+cpx_pars: $(CPX_PARS)
+
+grb_pars: SW = $(COMMON_SW) $(SW_RELEASE)
+grb_pars: $(GRB_PARS)
+
+highs_pars: SW = $(COMMON_SW) $(SW_RELEASE)
+highs_pars: $(HIGHS_PARS)
+
+scip_pars: SW = $(COMMON_SW) $(SW_RELEASE)
+scip_pars: $(SCIP_PARS)
+
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
