@@ -182,22 +182,13 @@ if (MILPSolver_USE_HiGHS)
                 VERBATIM
         )
     else ()
-        add_executable(highs_pars highs_pars.cpp)
-        target_compile_features(highs_pars PRIVATE cxx_std_17)
-        target_link_libraries(highs_pars PRIVATE SMS++::SMS++ HiGHS::HiGHS)
-
         add_custom_command(
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
-                COMMAND $<TARGET_FILE:highs_pars>
+                COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR} highs_headers
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                DEPENDS highs_pars
-                COMMENT "Running highs_pars to generate necessary headers"
+                COMMENT "Running native highs_pars to generate necessary headers"
                 VERBATIM
         )
-
-        include(GNUInstallDirs)
-        install(TARGETS highs_pars
-                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif ()
 
     add_custom_target(generate_highs_headers
