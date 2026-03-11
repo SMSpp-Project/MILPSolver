@@ -135,7 +135,7 @@ if (MILPSolver_USE_HiGHS)
                 COMMAND /bin/sh -c "ls \"$PREFIX/lib\" | grep highs || true"
                 COMMAND ${CMAKE_COMMAND} -E env
                         HiGHS_ROOT=$ENV{BUILD_PREFIX}
-                        make -C ${CMAKE_CURRENT_SOURCE_DIR} highs_pars
+                        make -C ${CMAKE_CURRENT_SOURCE_DIR} highs
                 COMMAND ${CMAKE_COMMAND} -E env
                         DYLD_LIBRARY_PATH=$ENV{BUILD_PREFIX}/lib:$ENV{DYLD_LIBRARY_PATH}
                         ${CMAKE_CURRENT_SOURCE_DIR}/highs_pars

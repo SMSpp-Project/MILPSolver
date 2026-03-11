@@ -84,16 +84,16 @@ else ifneq ($(filter default debug release,$(MAKECMDGOALS)),)
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
 else
-    ifneq ($(filter cpx_pars,$(MAKECMDGOALS)),)
+    ifneq ($(filter cpx,$(MAKECMDGOALS)),)
         include $(DIR)/makefile_cpx
     endif
-    ifneq ($(filter grb_pars,$(MAKECMDGOALS)),)
+    ifneq ($(filter grb,$(MAKECMDGOALS)),)
         include $(DIR)/makefile_grb
     endif
-    ifneq ($(filter highs_pars,$(MAKECMDGOALS)),)
+    ifneq ($(filter highs,$(MAKECMDGOALS)),)
         include $(DIR)/makefile_highs
     endif
-    ifneq ($(filter scip_pars,$(MAKECMDGOALS)),)
+    ifneq ($(filter scip,$(MAKECMDGOALS)),)
         include $(DIR)/makefile_scip
     endif
 endif
@@ -117,17 +117,17 @@ release: $(NAME)
 
 # individual targets- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-cpx_pars: SW = $(COMMON_SW) $(SW_RELEASE)
-cpx_pars: $(CPX_PARS)
+cpx: SW = $(COMMON_SW) $(SW_RELEASE)
+cpx: $(CPX_PARS)
 
-grb_pars: SW = $(COMMON_SW) $(SW_RELEASE)
-grb_pars: $(GRB_PARS)
+grb: SW = $(COMMON_SW) $(SW_RELEASE)
+grb: $(GRB_PARS)
 
-highs_pars: SW = $(COMMON_SW) $(SW_RELEASE)
-highs_pars: $(HIGHS_PARS)
+highs: SW = $(COMMON_SW) $(SW_RELEASE)
+highs: $(HIGHS_PARS)
 
-scip_pars: SW = $(COMMON_SW) $(SW_RELEASE)
-scip_pars: $(SCIP_PARS)
+scip: SW = $(COMMON_SW) $(SW_RELEASE)
+scip: $(SCIP_PARS)
 
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -140,6 +140,6 @@ distclean: clean
 
 # phony targets - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-.PHONY: debug release clean distclean cpx_pars grb_pars highs_pars scip_pars
+.PHONY: debug release clean distclean cpx grb highs scip
 
 ############################ End of makefile #################################
