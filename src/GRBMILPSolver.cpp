@@ -326,11 +326,11 @@ void GRBMILPSolver::load_problem( void )
         }
 
       }
-      else
+      else{
         int error = GRBaddconstrs( model , n_constrs , tot_nnz , & matbeg_t[ tmp ] , 
                       & matind_t[ tmp ] , & matval_t[ tmp ] , & grb_sense[ tmp ] ,
                       & grb_rhs[ tmp ] , NULL );
-                      
+
         if( error ){
           // Some error was thrown while adding the constraint
           std::string msg = std::string("GRBMILPSolver Error [")
@@ -343,6 +343,7 @@ void GRBMILPSolver::load_problem( void )
           // Print warning message in MILPSolver DEBUG
           DEBUG_LOG( msg.c_str() );
         }
+      }
     }
     else { // ranged case
       char * name = use_custom_names ? rowname[ j ] : NULL; // retrieve constraint name
