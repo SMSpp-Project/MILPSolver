@@ -307,14 +307,42 @@ void GRBMILPSolver::load_problem( void )
         matval_group_con[ i ] = matval_t[ matbeg_t[ tmp ] + i ];
       }
       
-      if( use_custom_names )
-        GRBaddconstrs( model , n_constrs , tot_nnz , matbeg_group_con.data() , 
+      if( use_custom_names ){
+        int error = GRBaddconstrs( model , n_constrs , tot_nnz , matbeg_group_con.data() , 
                       matind_group_con.data() , matval_group_con.data() , & grb_sense[ tmp ] ,
                       & grb_rhs[ tmp ] , & rowname[ tmp ] );
+
+        if( error ){
+          // Some error was thrown while adding the constraint
+          std::string msg = std::string("GRBMILPSolver Error [")
+            + __func__ + "]: GRBaddconstrs returned status "
+            + std::to_string( error ) + ". \n";
+
+          // Print warning message in Gurobi log
+          GRBmsg( GRBgetenv(model), msg.c_str() );
+
+          // Print warning message in MILPSolver DEBUG
+          DEBUG_LOG( msg.c_str() );
+        }
+
+      }
       else
-        GRBaddconstrs( model , n_constrs , tot_nnz , & matbeg_t[ tmp ] , 
+        int error = GRBaddconstrs( model , n_constrs , tot_nnz , & matbeg_t[ tmp ] , 
                       & matind_t[ tmp ] , & matval_t[ tmp ] , & grb_sense[ tmp ] ,
                       & grb_rhs[ tmp ] , NULL );
+                      
+        if( error ){
+          // Some error was thrown while adding the constraint
+          std::string msg = std::string("GRBMILPSolver Error [")
+            + __func__ + "]: GRBaddconstrs returned status "
+            + std::to_string( error ) + ". \n";
+
+          // Print warning message in Gurobi log
+          GRBmsg( GRBgetenv(model), msg.c_str() );
+
+          // Print warning message in MILPSolver DEBUG
+          DEBUG_LOG( msg.c_str() );
+        }
     }
     else { // ranged case
       char * name = use_custom_names ? rowname[ j ] : NULL; // retrieve constraint name
