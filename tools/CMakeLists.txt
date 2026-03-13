@@ -127,18 +127,14 @@ if (MILPSolver_USE_HiGHS)
     if (CMAKE_CROSSCOMPILING)
         add_custom_command(
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
-                COMMAND ${CMAKE_COMMAND} -E echo "BUILD_PREFIX = ${BUILD_PREFIX_VALUE}"
-                COMMAND ${CMAKE_COMMAND} -E echo "PREFIX = ${PREFIX_VALUE}"
-                COMMAND ls -ld ${BUILD_PREFIX_VALUE}/include
-                COMMAND ls -ld ${BUILD_PREFIX_VALUE}/include/highs
-                COMMAND ls -ld ${BUILD_PREFIX_VALUE}/include/highs/interfaces
-                COMMAND ls -ld ${PREFIX_VALUE}/include
-                COMMAND ls -ld ${PREFIX_VALUE}/include/highs
-                COMMAND ls -ld ${PREFIX_VALUE}/include/highs/interfaces
-                COMMAND ${CMAKE_COMMAND} -E env HiGHS_ROOT=${BUILD_PREFIX_VALUE}
+                COMMAND ${CMAKE_COMMAND} -E echo "BUILD_PREFIX = $ENV{BUILD_PREFIX}"
+                COMMAND ${CMAKE_COMMAND} -E echo "PREFIX = $ENV{PREFIX}"
+                COMMAND ls -R $ENV{BUILD_PREFIX}/include/highs
+                COMMAND ls $ENV{BUILD_PREFIX}/lib/libhighs*
+                COMMAND ${CMAKE_COMMAND} -E env HiGHS_ROOT=$ENV{BUILD_PREFIX}
                         make -C ${CMAKE_CURRENT_SOURCE_DIR} highs_pars
                 COMMAND ${CMAKE_COMMAND} -E env
-                        DYLD_LIBRARY_PATH=${BUILD_PREFIX_VALUE}/lib:$ENV{DYLD_LIBRARY_PATH}
+                        DYLD_LIBRARY_PATH=$ENV{BUILD_PREFIX}/lib:$ENV{DYLD_LIBRARY_PATH}
                         ${CMAKE_CURRENT_SOURCE_DIR}/highs_pars
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native highs_pars to generate necessary headers"
