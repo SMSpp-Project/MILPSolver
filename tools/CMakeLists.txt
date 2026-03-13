@@ -127,14 +127,18 @@ if (MILPSolver_USE_HiGHS)
     if (CMAKE_CROSSCOMPILING)
         add_custom_command(
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
-                COMMAND /bin/sh -c "echo BUILD_PREFIX=$BUILD_PREFIX"
-                COMMAND /bin/sh -c "echo PREFIX=$PREFIX"
-                COMMAND /bin/sh -c "ls -R \"$BUILD_PREFIX/include/highs\" || true"
-                COMMAND /bin/sh -c "ls -R \"$BUILD_PREFIX/include/highs/interfaces\" || true"
-                COMMAND /bin/sh -c "ls \"$BUILD_PREFIX/lib\" | grep '^libhighs' || true"
-                COMMAND /bin/sh -c "make -C \"${CMAKE_CURRENT_SOURCE_DIR}\" HiGHS_ROOT=\"$BUILD_PREFIX\" highs_pars"
-                COMMAND /bin/sh -c "file \"${CMAKE_CURRENT_SOURCE_DIR}/highs_pars\" || true"
-                COMMAND /bin/sh -c "DYLD_LIBRARY_PATH=\"$BUILD_PREFIX/lib:$DYLD_LIBRARY_PATH\" \"${CMAKE_CURRENT_SOURCE_DIR}/highs_pars\""
+                COMMAND /bin/sh -c "echo BUILD_PREFIX=$$BUILD_PREFIX"
+                COMMAND /bin/sh -c "echo PREFIX=$$PREFIX"
+                COMMAND /bin/sh -c "ls -ld \"$$BUILD_PREFIX/include\" || true"
+                COMMAND /bin/sh -c "ls -ld \"$$BUILD_PREFIX/include/highs\" || true"
+                COMMAND /bin/sh -c "ls -ld \"$$BUILD_PREFIX/include/highs/interfaces\" || true"
+                COMMAND /bin/sh -c "ls -ld \"$$PREFIX/include\" || true"
+                COMMAND /bin/sh -c "ls -ld \"$$PREFIX/include/highs\" || true"
+                COMMAND /bin/sh -c "ls -ld \"$$PREFIX/include/highs/interfaces\" || true"
+                COMMAND /bin/sh -c "ls \"$$BUILD_PREFIX/lib\" | grep '^libhighs' || true"
+                COMMAND /bin/sh -c "ls \"$$PREFIX/lib\" | grep '^libhighs' || true"
+                COMMAND /bin/sh -c "make -C \"${CMAKE_CURRENT_SOURCE_DIR}\" HiGHS_ROOT=\"$$BUILD_PREFIX\" highs_pars"
+                COMMAND /bin/sh -c "DYLD_LIBRARY_PATH=\"$$BUILD_PREFIX/lib:$$DYLD_LIBRARY_PATH\" \"${CMAKE_CURRENT_SOURCE_DIR}/highs_pars\""
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native highs_pars to generate necessary headers"
                 VERBATIM
