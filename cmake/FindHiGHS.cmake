@@ -52,20 +52,20 @@ else ()
     # ----- Find the HiGHS library ------------------------------------------ #
     if (UNIX)
         find_library(HiGHS_LIBRARY
-                NAMES highs
-                PATHS ${HiGHS_ROOT}/lib
-                DOC "HiGHS library.")
+                     NAMES highs
+                     PATHS ${HiGHS_ROOT}/lib
+                     DOC "HiGHS library.")
 
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
                 CACHE FILEPATH "HiGHS debug library." FORCE)
     elseif (WIN32)
         find_library(HiGHS_LIBRARY
-                NAMES highs
-                PATHS ${HiGHS_ROOT}/lib
-                      ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
-                      $ENV{LIBRARY_LIB}
-                NO_DEFAULT_PATH
-                DOC "HiGHS library.")
+                     NAMES highs
+                     PATHS ${HiGHS_ROOT}/lib
+                           ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
+                           $ENV{LIBRARY_LIB}
+                     NO_DEFAULT_PATH
+                     DOC "HiGHS library.")
 
         find_library(HiGHS_LIBRARY_DEBUG
                      NAMES highs

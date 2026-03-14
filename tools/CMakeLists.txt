@@ -127,8 +127,8 @@ if (MILPSolver_USE_HiGHS)
     if (CMAKE_CROSSCOMPILING)
         add_custom_command(
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
-                COMMAND ${CMAKE_COMMAND} -E env HiGHS_ROOT=$ENV{BUILD_PREFIX}
-                        make -C ${CMAKE_CURRENT_SOURCE_DIR} highs_pars
+                COMMAND ${CMAKE_MAKE_PROGRAM} -C ${CMAKE_CURRENT_SOURCE_DIR}
+                        HiGHS_ROOT=${BUILD_PREFIX_ENV} highs_pars
                 COMMAND ${CMAKE_COMMAND} -E env
                         DYLD_LIBRARY_PATH=$ENV{BUILD_PREFIX}/lib:$ENV{DYLD_LIBRARY_PATH}
                         ${CMAKE_CURRENT_SOURCE_DIR}/highs_pars
