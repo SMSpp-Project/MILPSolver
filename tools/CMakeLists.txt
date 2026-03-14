@@ -127,10 +127,6 @@ if (MILPSolver_USE_HiGHS)
     if (CMAKE_CROSSCOMPILING)
         add_custom_command(
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
-                COMMAND ${CMAKE_COMMAND} -E echo "BUILD_PREFIX = $ENV{BUILD_PREFIX}"
-                COMMAND ${CMAKE_COMMAND} -E echo "PREFIX = $ENV{PREFIX}"
-                COMMAND ls -R $ENV{BUILD_PREFIX}/include/highs
-                COMMAND ls $ENV{BUILD_PREFIX}/lib/libhighs*
                 COMMAND ${CMAKE_COMMAND} -E env HiGHS_ROOT=$ENV{BUILD_PREFIX}
                         make -C ${CMAKE_CURRENT_SOURCE_DIR} highs_pars
                 COMMAND ${CMAKE_COMMAND} -E env
