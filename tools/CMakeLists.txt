@@ -127,11 +127,13 @@ if (MILPSolver_USE_HiGHS)
     if (CMAKE_CROSSCOMPILING)
         add_custom_command(
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
-                COMMAND ${CMAKE_MAKE_PROGRAM} -C ${CMAKE_CURRENT_SOURCE_DIR}
-                        HiGHS_ROOT=${BUILD_PREFIX_ENV} highs_pars
-                COMMAND ${CMAKE_COMMAND} -E env
-                        DYLD_LIBRARY_PATH=$ENV{BUILD_PREFIX}/lib:$ENV{DYLD_LIBRARY_PATH}
-                        ${CMAKE_CURRENT_SOURCE_DIR}/highs_pars
+                COMMAND /bin/sh -c
+                        "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
+                        HiGHS_ROOT='$$BUILD_PREFIX' highs_pars"
+                COMMAND /bin/sh -c
+                        "DYLD_LIBRARY_PATH='$$BUILD_PREFIX/lib:$$DYLD_LIBRARY_PATH' \
+                        DYLD_FALLBACK_LIBRARY_PATH='$$BUILD_PREFIX/lib:$$DYLD_FALLBACK_LIBRARY_PATH' \
+                        '${CMAKE_CURRENT_SOURCE_DIR}/highs_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native highs_pars to generate necessary headers"
                 VERBATIM
