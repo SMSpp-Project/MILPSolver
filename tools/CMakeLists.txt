@@ -129,7 +129,7 @@ if (MILPSolver_USE_HiGHS)
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
                 COMMAND /bin/sh -c
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
-                        HiGHS_ROOT='$$BUILD_PREFIX' highs_pars"
+                        HiGHS_ROOT='$$PREFIX' highs_pars"
                 COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/highs_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native highs_pars to generate necessary headers"
