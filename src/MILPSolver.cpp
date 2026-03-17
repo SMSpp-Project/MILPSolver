@@ -1601,6 +1601,36 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
     throw( std::invalid_argument(
 	   "This ColVariable is not active in the examined FRowConstraint" ) );
   }
+
+  /* If the DEBUG is activated, we can check wether a variable appears 
+   * multiple times in a single constraint, which will clearly produce
+   * an error in later stage of the process. */
+  #ifdef MILPSolver_DEBUG
+    if( nz_elements > 0 ){
+      // Create a vector containing only the indices of active constraints
+      std::vector<int> idx_ac(nz_elements); 
+      std::copy( matind.begin() + matbeg[ col ], 
+                  matind.begin() + matbeg[ col ] + nz_elements, idx_ac.begin());
+
+      // Now sort the vector with respect to the constraint indices
+      std::sort( idx_ac.begin(), idx_ac.end() );
+
+      // Now check there are no repeated indices
+      for( int j = 0 ; j < nz_elements - 1 ; ++j ){
+        if( idx_ac[ j ] == idx_ac[ j + 1 ] ){
+          // Error message
+          std::string msg = std::string("MILPSolver Error [")
+            + __func__ + "]: Variable with index " + std::to_string( col )
+            + " repeated multiple times in constraint with index " +
+            std::to_string( idx_ac[ j ] ) + ".\n"; 
+
+          // Print warning message in MILPSolver DEBUG
+          DEBUG_LOG( msg.c_str() );
+        }
+      }
+   }
+  #endif
+
  }
  ++col;
  }
@@ -1642,6 +1672,14 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
   * grouped by rows. */
  if( numquadrows != 0 ) {
   if( auto f = con.get_function() ) {
+
+   /* If the DEBUG is activated, we can check wether a variable appears 
+   * multiple times in a single constraint, which will clearly produce
+   * an error in later stage of the process. */
+   #ifdef MILPSolver_DEBUG
+    // Initialize vector to store active variables indices
+    std::vector< int > idxs_av;
+   #endif
     
     if( row == 0 )
       matbeg[ row ] = 0;
@@ -1658,6 +1696,11 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
         matval[ matbeg[ row ] + j ] = std::get< 1 >( el );;
         matind[ matbeg[ row ] + j ] = idx_v;
+
+        #ifdef MILPSolver_DEBUG
+          // Add the variable index to the safety vector
+          idxs_av.push_back( idx_v );
+        #endif
 
         j++;
       }
@@ -1692,6 +1735,11 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
           matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
           matind[ matbeg[ row ] + nnz ] = idx_v;
           nnz++;
+
+          #ifdef MILPSolver_DEBUG
+            // Add the variable index to the safety vector
+            idxs_av.push_back( idx_v );
+          #endif
         }
 
         // Note: the quadratic matrix does not contain the diagonal elements.
@@ -1747,6 +1795,11 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
           matval[ matbeg[ row ] + nnz ] = std::get< 1 >( el );
           matind[ matbeg[ row ] + nnz ] = idx_v;
           nnz++;
+
+          #ifdef MILPSolver_DEBUG
+            // Add the variable index to the safety vector
+            idxs_av.push_back( idx_v );
+          #endif
         }
 
         // Check if the diagonal quadratic coefficient is nonzero
@@ -1766,6 +1819,29 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
     }
     else
       throw( std::invalid_argument( "Unexpected constraint type" ) );
+
+    #ifdef MILPSolver_DEBUG
+      // Now perform the actual sanity check of not having repeated variables
+      // in the constraint
+
+      // Sort the vector with respect to the variable indices
+      std::sort( idxs_av.begin(), idxs_av.end() );
+
+      // Now check there are no repeated indices
+      for( int j = 0 ; j < idxs_av.size() - 1 ; ++j ){
+        if( idxs_av[ j ] == idxs_av[ j + 1 ] ){
+          // Error message
+          std::string msg = std::string("MILPSolver Error [")
+            + __func__ + "]: Variable with index " + 
+            std::to_string( idxs_av[ j ] ) + 
+            + " repeated multiple times in constraint with index " +
+            std::to_string( row ) + ".\n"; 
+
+          // Print warning message in MILPSolver DEBUG
+          DEBUG_LOG( msg.c_str() );
+        }
+      }
+    #endif
    }
   }
 
