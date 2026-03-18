@@ -1828,17 +1828,19 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
       std::sort( idxs_av.begin(), idxs_av.end() );
 
       // Now check there are no repeated indices
-      for( int j = 0 ; j < idxs_av.size() - 1 ; ++j ){
-        if( idxs_av[ j ] == idxs_av[ j + 1 ] ){
-          // Error message
-          std::string msg = std::string("MILPSolver Error [")
-            + __func__ + "]: Variable with index " + 
-            std::to_string( idxs_av[ j ] ) + 
-            + " repeated multiple times in constraint with index " +
-            std::to_string( row ) + ".\n"; 
+      if( idxs_av.size() > 0 ){
+        for( int j = 0 ; j < idxs_av.size() - 1 ; ++j ){
+          if( idxs_av[ j ] == idxs_av[ j + 1 ] ){
+            // Error message
+            std::string msg = std::string("MILPSolver Error [")
+              + __func__ + "]: Variable with index " + 
+              std::to_string( idxs_av[ j ] ) + 
+              + " repeated multiple times in constraint with index " +
+              std::to_string( row ) + ".\n"; 
 
-          // Print warning message in MILPSolver DEBUG
-          DEBUG_LOG( msg.c_str() );
+            // Print warning message in MILPSolver DEBUG
+            DEBUG_LOG( msg.c_str() );
+          }
         }
       }
     #endif
