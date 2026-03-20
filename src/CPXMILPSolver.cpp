@@ -296,8 +296,13 @@ void CPXMILPSolver::load_problem( void )
                   & sense[ i ] , rmatbeg.data() , rmatind.data() , 
                   rmatval.data() , nullptr , &name );
 
-      if( sense[ i ] == 'R' ) 
-        CPXchgrngval( env , lp , 1 , & i , & rngval[ i ] );
+      if( sense[ i ] == 'R' ) {
+        // We have to be sure of not considering the quadratic
+        // constraints in the set of linear ones, because CPLEX keeps
+        // the two separated.
+        int linear_idx = i - count_quad;
+        CPXchgrngval( env , lp , 1 , & linear_idx , & rngval[ i ] );
+      }
      }
     else {
       // Quadratic Constraint
