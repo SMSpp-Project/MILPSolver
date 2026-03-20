@@ -1346,7 +1346,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
 
   int aux_counter = 0;
   for( int j = 0 ; j < numcols + cpx_idx_aux_qvar.size() ; ++j ) {
-    if( j != cpx_quad_var_aux[ aux_counter ] ) 
+    if( j != cpx_idx_aux_qvar[ aux_counter ] ) 
       // column j is not an auxiliary variable
       x[ j - aux_counter ] = x_q[ j ];
     else
