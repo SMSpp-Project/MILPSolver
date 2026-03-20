@@ -2,9 +2,6 @@
 #    CMake file for MILPSolver/tools                                          #
 # --------------------------------------------------------------------------- #
 
-# This is needed for setting the runtime path when installing.
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
 # Function to remove dots from version strings
 function(remove_dots VERSION OUTPUT_VAR REPLACE_WITH_ZERO)
     if (REPLACE_WITH_ZERO)
@@ -47,10 +44,6 @@ if (MILPSolver_USE_CPLEX)
     )
 
     add_dependencies(generate_headers generate_cplex_headers)
-
-    include(GNUInstallDirs)
-    install(TARGETS cpx_pars
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif ()
 
 if (MILPSolver_USE_SCIP)
@@ -80,10 +73,6 @@ if (MILPSolver_USE_SCIP)
     )
 
     add_dependencies(generate_headers generate_scip_headers)
-
-    include(GNUInstallDirs)
-    install(TARGETS scip_pars
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif ()
 
 if (MILPSolver_USE_GUROBI)
@@ -111,10 +100,6 @@ if (MILPSolver_USE_GUROBI)
     )
 
     add_dependencies(generate_headers generate_gurobi_headers)
-
-    include(GNUInstallDirs)
-    install(TARGETS grb_pars
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif ()
 
 if (MILPSolver_USE_HiGHS)
@@ -148,10 +133,6 @@ if (MILPSolver_USE_HiGHS)
                 COMMENT "Running highs_pars to generate necessary headers"
                 VERBATIM
         )
-
-        include(GNUInstallDirs)
-        install(TARGETS highs_pars
-                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif ()
 
     add_custom_target(generate_highs_headers
