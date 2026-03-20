@@ -408,7 +408,7 @@ void GRBMILPSolver::load_problem( void )
       else{
         // Filling map between ranged constraint and auxiliary variables built by Gurobi
         // See GRBMILPSolver.h for further information
-        map_rng_con_aux_var.push_back( { i , numcols + n_ranged_con + count_quad } );
+        map_rng_con_aux_var.push_back( { i , numcols + n_ranged_con + num_qauxvar } );
         
         if( i < static_cons)
           last_static_rng_con = n_ranged_con;
@@ -423,6 +423,7 @@ void GRBMILPSolver::load_problem( void )
                             name );
         
         ++n_ranged_con;
+        GRBupdatemodel( model );
       }
      }
     else{
@@ -473,12 +474,14 @@ void GRBMILPSolver::load_problem( void )
         }
 
         // Add new auxiliary variable with coeficient 1 in the row
-        std::string tmp = "quad_aux_var_" + std::to_string( count_quad ); 
+        std::string tmp = "quad_aux_var_" + std::to_string( num_qauxvar ); 
 
         GRBaddvar( model , 0 , nullptr , nullptr , 0 , -GRB_INFINITY , 
               GRB_INFINITY , 'C' , tmp.c_str() );
 
-        rmatind.push_back( numcols + count_quad + n_ranged_con );
+        status = GRBupdatemodel( model );
+
+        rmatind.push_back( numcols + num_qauxvar + n_ranged_con );
         rmatval.push_back( 1 );
 
         // update the Gurobi problem with q x + v <= q_0
@@ -487,7 +490,7 @@ void GRBMILPSolver::load_problem( void )
                         name );
 
         // Now we have to create the auxiliary quadratic constraint
-        std::vector< int > lidx = { numcols + count_quad + n_ranged_con };
+        std::vector< int > lidx = { numcols + num_qauxvar + n_ranged_con };
         std::vector< double > lcoeff = { 1 };
         std::vector< int > qidx1;
         std::vector< int > qidx2;
@@ -504,7 +507,7 @@ void GRBMILPSolver::load_problem( void )
         // Call specific function to generate the structures required
         generate_qcon_matrix( qidx1 , qidx2 , qcoeff , i , false );
 
-        std::string tmp_con = "quad_aux_con_" + std::to_string( count_quad );
+        std::string tmp_con = "quad_aux_con_" + std::to_string( num_qauxvar );
 
         GRBaddqconstr( model , lidx.size() , lidx.data() , lcoeff.data() , 
           qidx1.size() , qidx1.data() , qidx2.data() , qcoeff.data() , 
@@ -513,6 +516,7 @@ void GRBMILPSolver::load_problem( void )
         grb_quad_var_aux[ i ] = numcols + num_qauxvar + n_ranged_con; // Index of aux var
 
         grb_idx_aux_qvar.push_back( numcols + num_qauxvar + n_ranged_con ); 
+
         num_qauxvar++; // Update counter of auxiliary variables
        }
       grb_quad_con_aux[ i ] = count_quad; // Index of quad con

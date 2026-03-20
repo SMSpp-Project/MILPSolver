@@ -296,8 +296,13 @@ void CPXMILPSolver::load_problem( void )
                   & sense[ i ] , rmatbeg.data() , rmatind.data() , 
                   rmatval.data() , nullptr , &name );
 
-      if( sense[ i ] == 'R' ) 
-        CPXchgrngval( env , lp , 1 , & i , & rngval[ i ] );
+      if( sense[ i ] == 'R' ) {
+        // We have to be sure of not considering the quadratic
+        // constraints in the set of linear ones, because CPLEX keeps
+        // the two separated.
+        int linear_idx = i - count_quad;
+        CPXchgrngval( env , lp , 1 , & linear_idx , & rngval[ i ] );
+      }
      }
     else {
       // Quadratic Constraint
@@ -366,7 +371,7 @@ void CPXMILPSolver::load_problem( void )
         // Add new auxiliary variable with coeficient 1 in the row
         std::vector< double > v_lb = { -CPX_INFBOUND };
         std::vector< double > v_ub = { CPX_INFBOUND };
-        std::string tmp = "quad_aux_var_" + std::to_string( count_quad );
+        std::string tmp = "quad_aux_var_" + std::to_string( num_qauxvar );
         std::vector< char * > v_name( 1 );
         v_name[ 0 ] = strcpy( new char[ tmp.length() + 1 ] , tmp.c_str() );
 
@@ -375,7 +380,7 @@ void CPXMILPSolver::load_problem( void )
 
         delete[] v_name[ 0 ];
 
-        rmatind.push_back( numcols + count_quad );
+        rmatind.push_back( numcols + num_qauxvar );
         rmatval.push_back( 1 );
 
         // update the CPLEX problem with q x + v <= q_0
@@ -384,10 +389,10 @@ void CPXMILPSolver::load_problem( void )
                   rmatval.data() , nullptr , &name );
 
         // Now we have to create the auxiliary quadratic constraint
-        std::vector< int > lidx = { numcols + count_quad };
+        std::vector< int > lidx = { numcols + num_qauxvar };
         std::vector< double > lcoeff = { 1 };
 
-        std::string tmp_con = "quad_aux_con_" + std::to_string( count_quad );
+        std::string tmp_con = "quad_aux_con_" + std::to_string( num_qauxvar );
 
         CPXaddqconstr( env , lp , 1 , qidx1.size() , 0 ,
           sense_q , lidx.data() , lcoeff.data() , qidx1.data() ,
@@ -1341,7 +1346,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
 
   int aux_counter = 0;
   for( int j = 0 ; j < numcols + cpx_idx_aux_qvar.size() ; ++j ) {
-    if( j != cpx_quad_var_aux[ aux_counter ] ) 
+    if( j != cpx_idx_aux_qvar[ aux_counter ] ) 
       // column j is not an auxiliary variable
       x[ j - aux_counter ] = x_q[ j ];
     else
