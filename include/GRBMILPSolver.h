@@ -705,6 +705,11 @@ void add_mip_starts(
   *                   variable at the end of the model. Thus, the new couple
   *                   ( idx_rng_con , idx_aux_var ) will have values greater than the
   *                   previously added ones. 
+  * 
+  *   IMPORTANT NOTE2: Gurobi does not add auxiliary variables until GRBupdatemodel() 
+  *                   is called. Since we only call it at the end of the loading phase,
+  *                   we assume that all auxiliary ranged variables are located in
+  *                   the last columns of the Gurobi matrix.
   * */
  // the vector of pair ( ranged constraint - axiliary variable )
  std::vector<std::pair < int , int >> map_rng_con_aux_var;

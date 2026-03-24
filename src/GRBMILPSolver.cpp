@@ -380,11 +380,13 @@ void GRBMILPSolver::load_problem( void )
   int n_ranged_con = 0; // Counter of already inserted ranged constraint
   int num_qauxvar = 0; // Counter of already inserted auxiliary variables
 
+  // Initialize vector storing the indices of ranged constraints
+  std::vector< int > ranged_idxs;
+
   for( int i = 0 ; i < numrows ; i++ ) {
 
     char * name = use_custom_names ? rowname[ i ] : NULL; // retrieve constraint name
     
-    //if( q_part[ i ].nonZeros() == 0 ) {
     if( q_part[ i ].empty() ) {
       // Simple Linear Constraint
       int nzcnt = matcnt[ i ];
@@ -406,9 +408,10 @@ void GRBMILPSolver::load_problem( void )
                       rmatval.data() , sense[ i ] , grb_rhs[ i ] , 
                       name );
       else{
-        // Filling map between ranged constraint and auxiliary variables built by Gurobi
-        // See GRBMILPSolver.h for further information
-        map_rng_con_aux_var.push_back( { i , numcols + n_ranged_con + num_qauxvar } );
+        // NOTE: Gurobi does not add auxiliary variables until GRBupdatemodel() is called.
+        // Since we only call it at the end of the loading phase, we assume that all
+        // auxiliary ranged variables are located in the last columns of the Gurobi matrix.
+        ranged_idxs.push_back( i );
         
         if( i < static_cons)
           last_static_rng_con = n_ranged_con;
@@ -423,7 +426,6 @@ void GRBMILPSolver::load_problem( void )
                             name );
         
         ++n_ranged_con;
-        GRBupdatemodel( model );
       }
      }
     else{
@@ -479,9 +481,9 @@ void GRBMILPSolver::load_problem( void )
         GRBaddvar( model , 0 , nullptr , nullptr , 0 , -GRB_INFINITY , 
               GRB_INFINITY , 'C' , tmp.c_str() );
 
-        status = GRBupdatemodel( model );
+        //status = GRBupdatemodel( model );
 
-        rmatind.push_back( numcols + num_qauxvar + n_ranged_con );
+        rmatind.push_back( numcols + num_qauxvar );
         rmatval.push_back( 1 );
 
         // update the Gurobi problem with q x + v <= q_0
@@ -490,7 +492,7 @@ void GRBMILPSolver::load_problem( void )
                         name );
 
         // Now we have to create the auxiliary quadratic constraint
-        std::vector< int > lidx = { numcols + num_qauxvar + n_ranged_con };
+        std::vector< int > lidx = { numcols + num_qauxvar };
         std::vector< double > lcoeff = { 1 };
         std::vector< int > qidx1;
         std::vector< int > qidx2;
@@ -513,9 +515,9 @@ void GRBMILPSolver::load_problem( void )
           qidx1.size() , qidx1.data() , qidx2.data() , qcoeff.data() , 
           sense_q , 0 , tmp_con.c_str() );
 
-        grb_quad_var_aux[ i ] = numcols + num_qauxvar + n_ranged_con; // Index of aux var
+        grb_quad_var_aux[ i ] = numcols + num_qauxvar; // Index of aux var
 
-        grb_idx_aux_qvar.push_back( numcols + num_qauxvar + n_ranged_con ); 
+        grb_idx_aux_qvar.push_back( numcols + num_qauxvar ); 
 
         num_qauxvar++; // Update counter of auxiliary variables
        }
@@ -523,6 +525,13 @@ void GRBMILPSolver::load_problem( void )
       ++count_quad;
       }
     }
+
+    // Filling map between ranged constraint and auxiliary variables built by Gurobi
+    // See GRBMILPSolver.h for further information
+    for( int i = 0 ; i < n_ranged_con ; i++ ){
+      map_rng_con_aux_var.push_back( { ranged_idxs[ i ] , 
+                                    numcols + num_qauxvar + i } );
+      }
   }
 
  status = GRBupdatemodel( model );
