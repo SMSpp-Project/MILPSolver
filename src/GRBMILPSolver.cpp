@@ -1679,9 +1679,11 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
 
   // Simply "jump" quadratic constraints 
   // NOTE: if the quadratic constraint has a linear part (see GRBMILPSolver.h:660)
-  // we are building also linear constraint. Thus, we will need to "jump"
+  // we are building also linear constraint. Thus, to retrieve the Gurobi 
+  // index of the linear constraint, we will need to "jump"
   // only quadratic constraint without a linear part, i.e. for which an 
-  // auxiliary variable has not been built.
+  // linear constraint has not been built. This is beacuse Gurobi keeps separate
+  // index sets for both linear and quadratic constraints.
   auto new_idx = idx;
   for( int j = 0 ; j < idx ; j++ ) {
     if( ( ! q_part[ j ].empty() ) && ( grb_quad_var_aux[ j ] == -1 ) ) {
@@ -2764,6 +2766,10 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  GRBdelconstrs( model , 1 , &index );
  GRBupdatemodel( model );
 
+ // NOTE: at the moment there is no need of checking the quadratic structures,
+ // as we only allow quadratic static constraints. Hence, all the modification
+ // done to dynamic constraints do not impact the quadratic constraints indices.
+
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::remove_dynamic_constraint( con );
  }
@@ -2790,6 +2796,10 @@ void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
 
  GRBdelvars( model , 1 , &index );
  GRBupdatemodel( model );
+
+ // NOTE: at the moment there is no need of checking the quadratic structures,
+ // as we only allow quadratic static constraints. Hence, all the modification
+ // done to dynamic variables do not impact the quadratic indices.
 
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::remove_dynamic_variable( var );
@@ -3952,17 +3962,34 @@ const std::string & GRBMILPSolver::vstr_par_idx2str( idx_type idx ) const
 
 void GRBMILPSolver::check_status( void )
 {
- int nvars;
- GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , &nvars );
- if( numcols != nvars )
-  DEBUG_LOG( "numcols is " << numcols << " but GRB_INT_ATTR_NUMVARS returns "
-	     << nvars << std::endl );
+ int grb_nvars;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , &grb_nvars );
+ int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ int exp_nvars = numcols + n_ranged_con + n_aux_quad_var;
+ if( exp_nvars != grb_nvars )
+  DEBUG_LOG( "total number of expected variable is " << exp_nvars 
+	     << " but GRB_INT_ATTR_NUMVARS returns " << grb_nvars << std::endl );
 
- int nconstr;
- GRBgetintattr( model , GRB_INT_ATTR_NUMCONSTRS , &nconstr );
- if( numrows != nconstr )
-  DEBUG_LOG( "numrows is " << numrows << " but GRB_INT_ATTR_NUMCONSTRS returns "
-	     << nconstr << std::endl );
+ // Number of linear constraints in Gurobi
+ int grb_nconstrlin;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMCONSTRS , &grb_nconstrlin );
+
+ // Retrieve true number of linear constraint in SMS++. We have to consider that
+ // for some quadratic constraints we also add an auxiliary linear constraint 
+ // (see GRBMILPSolver.h:660).
+ int exp_nconstrlin = numrows - numquadrows + n_aux_quad_var;
+ if( exp_nconstrlin != grb_nconstrlin  )
+  DEBUG_LOG( "total number of expected linear constraint is " << exp_nconstrlin
+       <<  " but GRB_INT_ATTR_NUMCONSTRS returns " << grb_nconstrlin << std::endl );
+
+ // Number of quadratic constraints in Gurobi
+ int grb_nconstrquad;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMQCONSTRS , &grb_nconstrquad );
+
+ if( numquadrows != grb_nconstrquad  )
+  DEBUG_LOG( "total number of expected quadratic constraint is " << numquadrows
+       <<  " but GRB_INT_ATTR_NUMQCONSTRS returns " << grb_nconstrquad << std::endl );
 
  int nbin , nint;
  GRBgetintattr( model , GRB_INT_ATTR_NUMINTVARS , &nint );
