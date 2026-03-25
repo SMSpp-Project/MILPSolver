@@ -1420,9 +1420,11 @@ bool GRBMILPSolver::has_dual_direction( void )
 void GRBMILPSolver::get_dual_direction( Configuration * dirc )
 {
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_quad_aux_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_quad_aux_var;
  std::vector< double > y( numrows , 0 );
  std::vector< double > dj( numcols , 0 );
- std::vector< double > dj_grb( numcols + n_ranged_con , 0 );
+ std::vector< double > dj_grb( tot_grb_vars , 0 );
 
  double proof;
 
@@ -1441,18 +1443,33 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  if( status_proof != 0 || status_y != 0 )
   throw( std::runtime_error( "an error occurred in getting Farkas certificate" ) );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , numcols + n_ranged_con , dj_grb.data() ) )
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , tot_grb_vars , dj_grb.data() ) )
   throw( std::runtime_error( "Unable to get reduced costs querying the attribute GBL_RC") );
 
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
+ if( tot_grb_vars == numcols ) // there are no auxiliary variables in Gurobi
   dj = dj_grb;
  else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
-      dj[ j - aux_counter ] = dj_grb[ j ];
-    else
-      ++aux_counter;
+  int rng_counter = 0;
+  int q_counter = 0;
+
+  for (int j = 0 ; j < dj_grb.size() ; ++j ) {
+   const bool is_rng_aux =
+    (rng_counter < map_rng_con_aux_var.size() &&
+      j == map_rng_con_aux_var[rng_counter].second);
+
+   const bool is_q_aux =
+    (q_counter < grb_idx_aux_qvar.size() &&
+      j == grb_idx_aux_qvar[q_counter]);
+
+   if (is_rng_aux) {
+    ++rng_counter;
+   }
+   else if (is_q_aux) {
+    ++q_counter;
+   }
+   else {
+    dj[ j - rng_counter - q_counter ] = dj_grb[ j ];
+   }
   }
  }
 
