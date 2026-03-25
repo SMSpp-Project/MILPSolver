@@ -1585,56 +1585,77 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
  if( idx == Inf< int >() )
   return( idx );
 
+ if( idx >= numcols ){
+  throw( std::runtime_error( "Index is out of range") );
+ }
+
+ int new_idx = idx;
  int n_ranged_con = map_rng_con_aux_var.size();
- bool is_qcp = ( numquadrows > 0 );
- 
- if( ( ! is_qcp ) && ( n_ranged_con != 0 ) ) {
-  int tmp_count = last_static_rng_con + 1;
-    while( ( idx >= map_rng_con_aux_var[ tmp_count ].second ) &&
-           ( tmp_count < n_ranged_con ) ) {
-      ++tmp_count;
-      ++idx;
-    }
-  }
- else if( is_qcp && ( n_ranged_con == 0 ) ) {
-  // Simply "jump" quadratic constraints auxiliary variables
-  // We can use the cpx_idx_aux_qvar vector, containing all the indices
-  // of auxiliary variables already sorted.
-  int count = 0;
-  while( ( grb_idx_aux_qvar[ count ] < idx ) &&
-         ( count < grb_idx_aux_qvar.size() ) ) {
-    ++idx;
-    ++count;
-  }
+ int n_quad_aux_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_quad_aux_var;
+
+ if( tot_grb_vars == numcols ) {
+  // Nothing to do
+  return( new_idx );
  }
  else{
-  // We have to skip both
-  bool update_idx = 1;
+  int rng_count = last_static_rng_con; // We can immediately skip the ranged
+                                       // constraint added in the loading phase.
+  int q_count = 0;
 
-  int tmp_count = last_static_rng_con + 1;
-  auto it = lower_bound( grb_quad_var_aux.begin() , grb_quad_var_aux.end() , idx + 1 );
-  auto last_it = grb_quad_var_aux.begin();
+  while( true ){
+    bool has_rng = ( rng_count < map_rng_con_aux_var.size() );
+    bool has_q   = ( q_count < grb_idx_aux_qvar.size() );
 
-  while( update_idx ) {
-
-    if( ( tmp_count < n_ranged_con ) &&
-        ( idx >= map_rng_con_aux_var[ tmp_count ].second ) ) {
-      ++tmp_count;
-      ++idx;
-      it = lower_bound( last_it , grb_quad_var_aux.end() , idx + 1 );
+    if ( !has_rng && !has_q ) {
+     // There are no more auxiliary variables to skip
+     break;
     }
-    else if( it != grb_quad_var_aux.end() ) {
-      ++idx;
-      last_it = it + 1;
-      it = lower_bound( it + 1 , grb_quad_var_aux.end() , idx + 1 );
+
+    int next_aux_idx;
+    bool take_rng;
+
+    if( has_rng && has_q ){
+      if( map_rng_con_aux_var[ rng_count ].second <= grb_idx_aux_qvar[ q_count ] ){
+        // It is important to understand which var must be skipped first
+        next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
+        take_rng = true;
+      } 
+      else{
+        next_aux_idx = grb_idx_aux_qvar[ q_count ];
+        take_rng = false;
+      }
     }
-    else
-      update_idx = 0;
+    else if( has_rng ){
+      // Only left ranged auxiliary variables to skip
+      next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
+      take_rng = true;
+    }
+    else{
+      // Only left quadratic auxiliary variables to skip
+      next_aux_idx = grb_idx_aux_qvar[ q_count ];
+      take_rng = false;
+    }
+    
+    if(next_aux_idx <= new_idx){
+      // Index must be skipped
+      ++new_idx;
+      if( take_rng ){
+        ++rng_count;
+      } 
+      else{
+        ++q_count;
+      }
+    }
+    else{
+      // We can return the index
+      break;
+    }
   }
- }
 
-  return( idx );
+ return( new_idx );
  }
+}
 
 /*--------------------------------------------------------------------------*/
 
