@@ -1045,23 +1045,42 @@ Solver::OFValue GRBMILPSolver::get_var_value( void )
 void GRBMILPSolver::get_var_solution( Configuration * solc )
 {
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_aux_quad_var;
  std::vector< double > x( numcols , 0 );
- std::vector< double > x_grb( numcols + n_ranged_con, 0 );
+ std::vector< double > x_grb( tot_grb_vars, 0 );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_X , 0 , numcols + n_ranged_con , x_grb.data() ) )
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_X , 0 , tot_grb_vars , x_grb.data() ) )
   throw( std::runtime_error( "Unable to get the solution with GRB_DBL_ATTR_X" ) );
 
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
-  x = x_grb;
- else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
-      x[ j - aux_counter ] = x_grb[ j ];
-    else
-      ++aux_counter;
+ if( tot_grb_vars == numcols ) { // there are no auxiliary variables in Gurobi.
+    x = x_grb;
   }
- }
+  else {
+   int aux_counter_rng = 0;
+   int aux_counter_quad = 0;
+
+   for( int j = 0; j < tot_grb_vars; ++j ) {
+
+    bool is_rng_aux =
+      (aux_counter_rng < map_rng_con_aux_var.size() &&
+        j == map_rng_con_aux_var[aux_counter_rng].second);
+
+    bool is_quad_aux =
+      (aux_counter_quad < grb_idx_aux_qvar.size() &&
+        j == grb_idx_aux_qvar[aux_counter_quad]);
+
+    if( is_rng_aux ) {
+      ++aux_counter_rng; // auxiliary variable of a ranged constraint
+    }
+    else if( is_quad_aux ) {
+      ++aux_counter_quad; // auxiliary variable of a quadratic constraint
+    }
+    else {
+      x[j - aux_counter_rng - aux_counter_quad] = x_grb[j];
+    }
+   }
+  }
 
  MILPSolver::write_var_solution( x );
  }
@@ -1120,23 +1139,42 @@ bool GRBMILPSolver::has_var_direction( void )
 void GRBMILPSolver::get_var_direction( Configuration * dirc )
 {
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_aux_quad_var;
  std::vector< double > x( numcols , 0 );
- std::vector< double > x_grb( numcols + n_ranged_con, 0 );
+ std::vector< double > x_grb( tot_grb_vars, 0 );
  
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_UNBDRAY , 0 , numcols + n_ranged_con , x_grb.data() ) )
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_UNBDRAY , 0 , tot_grb_vars , x_grb.data() ) )
   throw( std::runtime_error( "Unable to get the unbounded direction with GRB_DBL_ATTR_UNBDRAY" ) );
  
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
-  x = x_grb;
- else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
-      x[ j - aux_counter ] = x_grb[ j ];
-    else
-      ++aux_counter;
+ if( tot_grb_vars == numcols ) { // there are no auxiliary variables in Gurobi.
+    x = x_grb;
+  }
+  else {
+   int aux_counter_rng = 0;
+   int aux_counter_quad = 0;
+
+   for( int j = 0; j < tot_grb_vars; ++j ) {
+
+    bool is_rng_aux =
+      (aux_counter_rng < map_rng_con_aux_var.size() &&
+        j == map_rng_con_aux_var[aux_counter_rng].second);
+
+    bool is_quad_aux =
+      (aux_counter_quad < grb_idx_aux_qvar.size() &&
+        j == grb_idx_aux_qvar[aux_counter_quad]);
+
+    if( is_rng_aux ) {
+      ++aux_counter_rng; // auxiliary variable of a ranged constraint
+    }
+    else if( is_quad_aux ) {
+      ++aux_counter_quad; // auxiliary variable of a quadratic constraint
+    }
+    else {
+      x[j - aux_counter_rng - aux_counter_quad] = x_grb[j];
+    }
    }
- }
+  }
  
  MILPSolver::write_var_solution( x );
 }
@@ -1266,38 +1304,29 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
  if( ( n_ranged_con == 0 ) && ( grb_idx_aux_qvar.size() == 0 ) )
   // there are neither ranged constraint or auxiliary variables for quadratic constraint
   dj = dj_grb;
- else if( grb_idx_aux_qvar.size() == 0 ) {
-  // there are no auxiliary variables for quadratic constraint (jump only ranged one)
-  int rng_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ rng_counter ].second ) // column j is not an auxiliary variable
-      dj[ j - rng_counter ] = dj_grb[ j ];
-    else
-      ++rng_counter;
-   }
-  }
- else if( n_ranged_con == 0 ) {
-  // there are no ranged constraint (jump auxiliary variables for quadratic constraint)
-  int q_counter = 0;
-  for( int j = 0 ; j < numcols + grb_idx_aux_qvar.size() ; ++j ) {
-    if( j != grb_idx_aux_qvar[ q_counter ] ) // column j is not an auxiliary variable
-      dj[ j - q_counter ] = dj_grb[ j ];
-    else
-      ++q_counter;
-   }
-  }
  else{
-  // there are both ranged constraint and auxiliary variables for quadratic constraint
   int rng_counter = 0;
   int q_counter = 0;
-  for( int j = 0 ; j < numcols + + n_ranged_con + grb_idx_aux_qvar.size() ; ++j ) {
-    if( j == grb_idx_aux_qvar[ q_counter ] )
-      ++q_counter;
-    else if(  j == map_rng_con_aux_var[ rng_counter ].second )
-      ++rng_counter;
-    else
-      dj[ j - q_counter - rng_counter ] = dj_grb[ j ];
+
+  for (int j = 0 ; j < dj_grb.size() ; ++j ) {
+   const bool is_rng_aux =
+    (rng_counter < map_rng_con_aux_var.size() &&
+      j == map_rng_con_aux_var[rng_counter].second);
+
+   const bool is_q_aux =
+    (q_counter < grb_idx_aux_qvar.size() &&
+      j == grb_idx_aux_qvar[q_counter]);
+
+   if (is_rng_aux) {
+    ++rng_counter;
    }
+   else if (is_q_aux) {
+    ++q_counter;
+   }
+   else {
+    dj[ j - rng_counter - q_counter ] = dj_grb[ j ];
+   }
+  }
  }
 
  /* Retrieve dual values for initial constraints (also quadratic) */
