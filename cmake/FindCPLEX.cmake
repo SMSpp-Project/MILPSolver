@@ -155,7 +155,7 @@ else ()
                 DOC "CPLEX library.")
 
         set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIBRARY}
-                CACHE FILEPATH "CPLEX library." FORCE)
+                CACHE FILEPATH "CPLEX debug library." FORCE)
     elseif (WIN32)
 
         # ----- Macro: find_win_cplex_library ------------------------------- #
