@@ -97,9 +97,9 @@ else ()
 
     # ----- Find the GUROBI include directory ------------------------------- #
     find_path(GUROBI_INCLUDE_DIR
-              NAMES gurobi_c.h
-              PATHS ${GUROBI_DIR}/include
-              DOC "GUROBI include directory.")
+            NAMES gurobi_c.h
+            PATHS ${GUROBI_DIR}/include
+            DOC "GUROBI include directory.")
 
     # ----- Find the GUROBI library ----------------------------------------- #
     if (UNIX)
@@ -115,9 +115,9 @@ else ()
     if (GUROBI_LIBRARIES)
         list(GET GUROBI_LIBRARIES 0 GUROBI_LIB)
         find_library(GUROBI_LIBRARY
-                     NAMES ${GUROBI_LIB}
-                     PATHS ${GUROBI_DIR}/lib
-                     DOC "GUROBI library.")
+                NAMES ${GUROBI_LIB}
+                PATHS ${GUROBI_DIR}/lib
+                DOC "GUROBI library.")
     else ()
         set(GUROBI_LIBRARY GUROBI_LIBRARY-NOTFOUND)
     endif ()
@@ -205,7 +205,7 @@ endif ()
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(GUROBI_INCLUDE_DIR
-                 GUROBI_LIBRARY
-                 GUROBI_VERSION)
+        GUROBI_LIBRARY
+        GUROBI_VERSION)
 
 # --------------------------------------------------------------------------- #

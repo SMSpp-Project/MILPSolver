@@ -87,15 +87,15 @@ else ()
 
     # ----- Find the SCIP include directory --------------------------------- #
     find_path(SCIP_INCLUDE_DIR
-              NAMES scip/scip.h
-              PATHS ${SCIP_ROOT}/include
-              DOC "SCIP include directory.")
+            NAMES scip/scip.h
+            PATHS ${SCIP_ROOT}/include
+            DOC "SCIP include directory.")
 
     # ----- Find the SCIP library ------------------------------------------- #
     find_library(SCIP_LIBRARY
-                 NAMES scip
-                 PATH_SUFFIXES ${SCIP_LIB_PATH_SUFFIXES}
-                 DOC "SCIP library.")
+            NAMES scip
+            PATH_SUFFIXES ${SCIP_LIB_PATH_SUFFIXES}
+            DOC "SCIP library.")
 
     # ----- Parse the version ----------------------------------------------- #
     if (SCIP_INCLUDE_DIR)
@@ -152,7 +152,7 @@ endif ()
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(SCIP_INCLUDE_DIR
-                 SCIP_LIBRARY
-                 SCIP_VERSION)
+        SCIP_LIBRARY
+        SCIP_VERSION)
 
 # --------------------------------------------------------------------------- #
