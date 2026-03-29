@@ -44,36 +44,36 @@ else ()
 
     # ----- Find the HiGHS include directory -------------------------------- #
     find_path(HiGHS_INCLUDE_DIR
-              NAMES Highs.h interfaces/highs_c_api.h
-              PATHS ${HiGHS_ROOT}
-              PATH_SUFFIXES include/highs src
-              DOC "HiGHS include directory.")
+            NAMES Highs.h interfaces/highs_c_api.h
+            PATHS ${HiGHS_ROOT}
+            PATH_SUFFIXES include/highs src
+            DOC "HiGHS include directory.")
 
     # ----- Find the HiGHS library ------------------------------------------ #
     if (UNIX)
         find_library(HiGHS_LIBRARY
-                     NAMES highs
-                     PATHS ${HiGHS_ROOT}/lib
-                     DOC "HiGHS library.")
+                NAMES highs
+                PATHS ${HiGHS_ROOT}/lib
+                DOC "HiGHS library.")
 
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
                 CACHE FILEPATH "HiGHS debug library." FORCE)
     elseif (WIN32)
         find_library(HiGHS_LIBRARY
-                     NAMES highs
-                     PATHS ${HiGHS_ROOT}/lib
-                           ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
-                           $ENV{LIBRARY_LIB}
-                     NO_DEFAULT_PATH
-                     DOC "HiGHS library.")
+                NAMES highs
+                PATHS ${HiGHS_ROOT}/lib
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
+                $ENV{LIBRARY_LIB}
+                NO_DEFAULT_PATH
+                DOC "HiGHS library.")
 
         find_library(HiGHS_LIBRARY_DEBUG
-                     NAMES highs
-                     PATHS ${HiGHS_ROOT}/debug/lib
-                           ${HiGHS_ROOT}/build/lib/Debug
-                           ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/lib
-                     NO_DEFAULT_PATH
-                     DOC "HiGHS debug library.")
+                NAMES highs
+                PATHS ${HiGHS_ROOT}/debug/lib
+                ${HiGHS_ROOT}/build/lib/Debug
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/lib
+                NO_DEFAULT_PATH
+                DOC "HiGHS debug library.")
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
@@ -128,8 +128,8 @@ endif ()
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
 mark_as_advanced(HiGHS_INCLUDE_DIR
-                 HiGHS_LIBRARY
-                 HiGHS_LIBRARY_DEBUG
-                 HiGHS_VERSION)
+        HiGHS_LIBRARY
+        HiGHS_LIBRARY_DEBUG
+        HiGHS_VERSION)
 
 # --------------------------------------------------------------------------- #
