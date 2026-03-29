@@ -380,11 +380,13 @@ void GRBMILPSolver::load_problem( void )
   int n_ranged_con = 0; // Counter of already inserted ranged constraint
   int num_qauxvar = 0; // Counter of already inserted auxiliary variables
 
+  // Initialize vector storing the indices of ranged constraints
+  std::vector< int > ranged_idxs;
+
   for( int i = 0 ; i < numrows ; i++ ) {
 
     char * name = use_custom_names ? rowname[ i ] : NULL; // retrieve constraint name
     
-    //if( q_part[ i ].nonZeros() == 0 ) {
     if( q_part[ i ].empty() ) {
       // Simple Linear Constraint
       int nzcnt = matcnt[ i ];
@@ -406,9 +408,10 @@ void GRBMILPSolver::load_problem( void )
                       rmatval.data() , sense[ i ] , grb_rhs[ i ] , 
                       name );
       else{
-        // Filling map between ranged constraint and auxiliary variables built by Gurobi
-        // See GRBMILPSolver.h for further information
-        map_rng_con_aux_var.push_back( { i , numcols + n_ranged_con + num_qauxvar } );
+        // NOTE: Gurobi does not add auxiliary variables until GRBupdatemodel() is called.
+        // Since we only call it at the end of the loading phase, we assume that all
+        // auxiliary ranged variables are located in the last columns of the Gurobi matrix.
+        ranged_idxs.push_back( i );
         
         if( i < static_cons)
           last_static_rng_con = n_ranged_con;
@@ -423,7 +426,6 @@ void GRBMILPSolver::load_problem( void )
                             name );
         
         ++n_ranged_con;
-        GRBupdatemodel( model );
       }
      }
     else{
@@ -479,9 +481,9 @@ void GRBMILPSolver::load_problem( void )
         GRBaddvar( model , 0 , nullptr , nullptr , 0 , -GRB_INFINITY , 
               GRB_INFINITY , 'C' , tmp.c_str() );
 
-        status = GRBupdatemodel( model );
+        //status = GRBupdatemodel( model );
 
-        rmatind.push_back( numcols + num_qauxvar + n_ranged_con );
+        rmatind.push_back( numcols + num_qauxvar );
         rmatval.push_back( 1 );
 
         // update the Gurobi problem with q x + v <= q_0
@@ -490,7 +492,7 @@ void GRBMILPSolver::load_problem( void )
                         name );
 
         // Now we have to create the auxiliary quadratic constraint
-        std::vector< int > lidx = { numcols + num_qauxvar + n_ranged_con };
+        std::vector< int > lidx = { numcols + num_qauxvar };
         std::vector< double > lcoeff = { 1 };
         std::vector< int > qidx1;
         std::vector< int > qidx2;
@@ -513,9 +515,9 @@ void GRBMILPSolver::load_problem( void )
           qidx1.size() , qidx1.data() , qidx2.data() , qcoeff.data() , 
           sense_q , 0 , tmp_con.c_str() );
 
-        grb_quad_var_aux[ i ] = numcols + num_qauxvar + n_ranged_con; // Index of aux var
+        grb_quad_var_aux[ i ] = numcols + num_qauxvar; // Index of aux var
 
-        grb_idx_aux_qvar.push_back( numcols + num_qauxvar + n_ranged_con ); 
+        grb_idx_aux_qvar.push_back( numcols + num_qauxvar ); 
 
         num_qauxvar++; // Update counter of auxiliary variables
        }
@@ -523,6 +525,13 @@ void GRBMILPSolver::load_problem( void )
       ++count_quad;
       }
     }
+
+    // Filling map between ranged constraint and auxiliary variables built by Gurobi
+    // See GRBMILPSolver.h for further information
+    for( int i = 0 ; i < n_ranged_con ; i++ ){
+      map_rng_con_aux_var.push_back( { ranged_idxs[ i ] , 
+                                    numcols + num_qauxvar + i } );
+      }
   }
 
  status = GRBupdatemodel( model );
@@ -1036,23 +1045,42 @@ Solver::OFValue GRBMILPSolver::get_var_value( void )
 void GRBMILPSolver::get_var_solution( Configuration * solc )
 {
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_aux_quad_var;
  std::vector< double > x( numcols , 0 );
- std::vector< double > x_grb( numcols + n_ranged_con, 0 );
+ std::vector< double > x_grb( tot_grb_vars, 0 );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_X , 0 , numcols + n_ranged_con , x_grb.data() ) )
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_X , 0 , tot_grb_vars , x_grb.data() ) )
   throw( std::runtime_error( "Unable to get the solution with GRB_DBL_ATTR_X" ) );
 
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
-  x = x_grb;
- else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
-      x[ j - aux_counter ] = x_grb[ j ];
-    else
-      ++aux_counter;
+ if( tot_grb_vars == numcols ) { // there are no auxiliary variables in Gurobi.
+    x = x_grb;
   }
- }
+  else {
+   int aux_counter_rng = 0;
+   int aux_counter_quad = 0;
+
+   for( int j = 0; j < tot_grb_vars; ++j ) {
+
+    bool is_rng_aux =
+      (aux_counter_rng < map_rng_con_aux_var.size() &&
+        j == map_rng_con_aux_var[aux_counter_rng].second);
+
+    bool is_quad_aux =
+      (aux_counter_quad < grb_idx_aux_qvar.size() &&
+        j == grb_idx_aux_qvar[aux_counter_quad]);
+
+    if( is_rng_aux ) {
+      ++aux_counter_rng; // auxiliary variable of a ranged constraint
+    }
+    else if( is_quad_aux ) {
+      ++aux_counter_quad; // auxiliary variable of a quadratic constraint
+    }
+    else {
+      x[j - aux_counter_rng - aux_counter_quad] = x_grb[j];
+    }
+   }
+  }
 
  MILPSolver::write_var_solution( x );
  }
@@ -1111,23 +1139,42 @@ bool GRBMILPSolver::has_var_direction( void )
 void GRBMILPSolver::get_var_direction( Configuration * dirc )
 {
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_aux_quad_var;
  std::vector< double > x( numcols , 0 );
- std::vector< double > x_grb( numcols + n_ranged_con, 0 );
+ std::vector< double > x_grb( tot_grb_vars, 0 );
  
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_UNBDRAY , 0 , numcols + n_ranged_con , x_grb.data() ) )
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_UNBDRAY , 0 , tot_grb_vars , x_grb.data() ) )
   throw( std::runtime_error( "Unable to get the unbounded direction with GRB_DBL_ATTR_UNBDRAY" ) );
  
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
-  x = x_grb;
- else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
-      x[ j - aux_counter ] = x_grb[ j ];
-    else
-      ++aux_counter;
+ if( tot_grb_vars == numcols ) { // there are no auxiliary variables in Gurobi.
+    x = x_grb;
+  }
+  else {
+   int aux_counter_rng = 0;
+   int aux_counter_quad = 0;
+
+   for( int j = 0; j < tot_grb_vars; ++j ) {
+
+    bool is_rng_aux =
+      (aux_counter_rng < map_rng_con_aux_var.size() &&
+        j == map_rng_con_aux_var[aux_counter_rng].second);
+
+    bool is_quad_aux =
+      (aux_counter_quad < grb_idx_aux_qvar.size() &&
+        j == grb_idx_aux_qvar[aux_counter_quad]);
+
+    if( is_rng_aux ) {
+      ++aux_counter_rng; // auxiliary variable of a ranged constraint
+    }
+    else if( is_quad_aux ) {
+      ++aux_counter_quad; // auxiliary variable of a quadratic constraint
+    }
+    else {
+      x[j - aux_counter_rng - aux_counter_quad] = x_grb[j];
+    }
    }
- }
+  }
  
  MILPSolver::write_var_solution( x );
 }
@@ -1257,38 +1304,29 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
  if( ( n_ranged_con == 0 ) && ( grb_idx_aux_qvar.size() == 0 ) )
   // there are neither ranged constraint or auxiliary variables for quadratic constraint
   dj = dj_grb;
- else if( grb_idx_aux_qvar.size() == 0 ) {
-  // there are no auxiliary variables for quadratic constraint (jump only ranged one)
-  int rng_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ rng_counter ].second ) // column j is not an auxiliary variable
-      dj[ j - rng_counter ] = dj_grb[ j ];
-    else
-      ++rng_counter;
-   }
-  }
- else if( n_ranged_con == 0 ) {
-  // there are no ranged constraint (jump auxiliary variables for quadratic constraint)
-  int q_counter = 0;
-  for( int j = 0 ; j < numcols + grb_idx_aux_qvar.size() ; ++j ) {
-    if( j != grb_idx_aux_qvar[ q_counter ] ) // column j is not an auxiliary variable
-      dj[ j - q_counter ] = dj_grb[ j ];
-    else
-      ++q_counter;
-   }
-  }
  else{
-  // there are both ranged constraint and auxiliary variables for quadratic constraint
   int rng_counter = 0;
   int q_counter = 0;
-  for( int j = 0 ; j < numcols + + n_ranged_con + grb_idx_aux_qvar.size() ; ++j ) {
-    if( j == grb_idx_aux_qvar[ q_counter ] )
-      ++q_counter;
-    else if(  j == map_rng_con_aux_var[ rng_counter ].second )
-      ++rng_counter;
-    else
-      dj[ j - q_counter - rng_counter ] = dj_grb[ j ];
+
+  for (int j = 0 ; j < dj_grb.size() ; ++j ) {
+   const bool is_rng_aux =
+    (rng_counter < map_rng_con_aux_var.size() &&
+      j == map_rng_con_aux_var[rng_counter].second);
+
+   const bool is_q_aux =
+    (q_counter < grb_idx_aux_qvar.size() &&
+      j == grb_idx_aux_qvar[q_counter]);
+
+   if (is_rng_aux) {
+    ++rng_counter;
    }
+   else if (is_q_aux) {
+    ++q_counter;
+   }
+   else {
+    dj[ j - rng_counter - q_counter ] = dj_grb[ j ];
+   }
+  }
  }
 
  /* Retrieve dual values for initial constraints (also quadratic) */
@@ -1382,9 +1420,11 @@ bool GRBMILPSolver::has_dual_direction( void )
 void GRBMILPSolver::get_dual_direction( Configuration * dirc )
 {
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_quad_aux_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_quad_aux_var;
  std::vector< double > y( numrows , 0 );
  std::vector< double > dj( numcols , 0 );
- std::vector< double > dj_grb( numcols + n_ranged_con , 0 );
+ std::vector< double > dj_grb( tot_grb_vars , 0 );
 
  double proof;
 
@@ -1403,18 +1443,33 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  if( status_proof != 0 || status_y != 0 )
   throw( std::runtime_error( "an error occurred in getting Farkas certificate" ) );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , numcols + n_ranged_con , dj_grb.data() ) )
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , tot_grb_vars , dj_grb.data() ) )
   throw( std::runtime_error( "Unable to get reduced costs querying the attribute GBL_RC") );
 
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
+ if( tot_grb_vars == numcols ) // there are no auxiliary variables in Gurobi
   dj = dj_grb;
  else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
-      dj[ j - aux_counter ] = dj_grb[ j ];
-    else
-      ++aux_counter;
+  int rng_counter = 0;
+  int q_counter = 0;
+
+  for (int j = 0 ; j < dj_grb.size() ; ++j ) {
+   const bool is_rng_aux =
+    (rng_counter < map_rng_con_aux_var.size() &&
+      j == map_rng_con_aux_var[rng_counter].second);
+
+   const bool is_q_aux =
+    (q_counter < grb_idx_aux_qvar.size() &&
+      j == grb_idx_aux_qvar[q_counter]);
+
+   if (is_rng_aux) {
+    ++rng_counter;
+   }
+   else if (is_q_aux) {
+    ++q_counter;
+   }
+   else {
+    dj[ j - rng_counter - q_counter ] = dj_grb[ j ];
+   }
   }
  }
 
@@ -1451,61 +1506,76 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
 
 int GRBMILPSolver::grb_index_of_variable( int old_idx ) const
 {
+ if( old_idx >= numcols ){
+  throw( std::runtime_error( "Index is out of range") );
+ }
+
  int new_idx = old_idx;
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_quad_aux_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_quad_aux_var;
 
- bool is_qcp = ( numquadrows > 0 );
-
- if( !is_qcp && n_ranged_con == 0 ) {
+ if( tot_grb_vars == numcols ) {
   // Nothing to do
   return( new_idx );
  }
- else if( !is_qcp && n_ranged_con != 0 ) {
-  // Simply "jump" ranged constraints auxiliary variables
-  int tmp_count = 0;
-    while( tmp_count < n_ranged_con && new_idx >= map_rng_con_aux_var[ tmp_count ].second ) {
-      ++tmp_count;
-      ++new_idx;
-    }
-  }
- else if( is_qcp && ( n_ranged_con == 0 ) ) {
-  // Simply "jump" quadratic constraints auxiliary variables
-  // We can use the grb_idx_aux_qvar vector, containing all the indices
-  // of auxiliary variables already sorted.
-  int count = 0;
-  while( ( count < grb_idx_aux_qvar.size() ) && 
-          ( grb_idx_aux_qvar[ count ] < new_idx ) ) {
-    ++new_idx;
-    ++count;
-   }
-  }
  else{
-  // We have to skip both
-  bool update_idx = 1;
+  int rng_count = 0;
+  int q_count = 0;
 
-  int tmp_count = 0;
-  auto it = lower_bound( grb_quad_var_aux.begin() , grb_quad_var_aux.end() , new_idx + 1 );
-  auto last_it = grb_quad_var_aux.begin();
+  while( true ){
+    bool has_rng = ( rng_count < map_rng_con_aux_var.size() );
+    bool has_q   = ( q_count < grb_idx_aux_qvar.size() );
 
-  while( update_idx ) {
-
-    if( tmp_count < n_ranged_con && new_idx >= map_rng_con_aux_var[ tmp_count ].second ) {
-      ++tmp_count;
-      ++new_idx;
-      it = lower_bound( last_it , grb_quad_var_aux.end() , new_idx + 1 );
+    if ( !has_rng && !has_q ) {
+     // There are no more auxiliary variables to skip
+     break;
     }
-    else if( it != grb_quad_var_aux.end() ) {
-      ++new_idx;
-      last_it = it + 1;
-      it = lower_bound( it + 1 , grb_quad_var_aux.end() , new_idx + 1 );
+
+    int next_aux_idx;
+    bool take_rng;
+
+    if( has_rng && has_q ){
+      if( map_rng_con_aux_var[ rng_count ].second <= grb_idx_aux_qvar[ q_count ] ){
+        // It is important to understand which var must be skipped first
+        next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
+        take_rng = true;
+      } 
+      else{
+        next_aux_idx = grb_idx_aux_qvar[ q_count ];
+        take_rng = false;
+      }
     }
-    else
-      update_idx = 0;
-   }
+    else if( has_rng ){
+      // Only left ranged auxiliary variables to skip
+      next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
+      take_rng = true;
+    }
+    else{
+      // Only left quadratic auxiliary variables to skip
+      next_aux_idx = grb_idx_aux_qvar[ q_count ];
+      take_rng = false;
+    }
+    
+    if(next_aux_idx <= new_idx){
+      // Index must be skipped
+      ++new_idx;
+      if( take_rng ){
+        ++rng_count;
+      } 
+      else{
+        ++q_count;
+      }
+    }
+    else{
+      // We can return the index
+      break;
+    }
   }
 
  return( new_idx );
  }
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -1515,56 +1585,77 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
  if( idx == Inf< int >() )
   return( idx );
 
+ if( idx >= numcols ){
+  throw( std::runtime_error( "Index is out of range") );
+ }
+
+ int new_idx = idx;
  int n_ranged_con = map_rng_con_aux_var.size();
- bool is_qcp = ( numquadrows > 0 );
- 
- if( ( ! is_qcp ) && ( n_ranged_con != 0 ) ) {
-  int tmp_count = last_static_rng_con + 1;
-    while( ( idx >= map_rng_con_aux_var[ tmp_count ].second ) &&
-           ( tmp_count < n_ranged_con ) ) {
-      ++tmp_count;
-      ++idx;
-    }
-  }
- else if( is_qcp && ( n_ranged_con == 0 ) ) {
-  // Simply "jump" quadratic constraints auxiliary variables
-  // We can use the cpx_idx_aux_qvar vector, containing all the indices
-  // of auxiliary variables already sorted.
-  int count = 0;
-  while( ( grb_idx_aux_qvar[ count ] < idx ) &&
-         ( count < grb_idx_aux_qvar.size() ) ) {
-    ++idx;
-    ++count;
-  }
+ int n_quad_aux_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_quad_aux_var;
+
+ if( tot_grb_vars == numcols ) {
+  // Nothing to do
+  return( new_idx );
  }
  else{
-  // We have to skip both
-  bool update_idx = 1;
+  int rng_count = last_static_rng_con; // We can immediately skip the ranged
+                                       // constraint added in the loading phase.
+  int q_count = 0;
 
-  int tmp_count = last_static_rng_con + 1;
-  auto it = lower_bound( grb_quad_var_aux.begin() , grb_quad_var_aux.end() , idx + 1 );
-  auto last_it = grb_quad_var_aux.begin();
+  while( true ){
+    bool has_rng = ( rng_count < map_rng_con_aux_var.size() );
+    bool has_q   = ( q_count < grb_idx_aux_qvar.size() );
 
-  while( update_idx ) {
-
-    if( ( tmp_count < n_ranged_con ) &&
-        ( idx >= map_rng_con_aux_var[ tmp_count ].second ) ) {
-      ++tmp_count;
-      ++idx;
-      it = lower_bound( last_it , grb_quad_var_aux.end() , idx + 1 );
+    if ( !has_rng && !has_q ) {
+     // There are no more auxiliary variables to skip
+     break;
     }
-    else if( it != grb_quad_var_aux.end() ) {
-      ++idx;
-      last_it = it + 1;
-      it = lower_bound( it + 1 , grb_quad_var_aux.end() , idx + 1 );
+
+    int next_aux_idx;
+    bool take_rng;
+
+    if( has_rng && has_q ){
+      if( map_rng_con_aux_var[ rng_count ].second <= grb_idx_aux_qvar[ q_count ] ){
+        // It is important to understand which var must be skipped first
+        next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
+        take_rng = true;
+      } 
+      else{
+        next_aux_idx = grb_idx_aux_qvar[ q_count ];
+        take_rng = false;
+      }
     }
-    else
-      update_idx = 0;
+    else if( has_rng ){
+      // Only left ranged auxiliary variables to skip
+      next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
+      take_rng = true;
+    }
+    else{
+      // Only left quadratic auxiliary variables to skip
+      next_aux_idx = grb_idx_aux_qvar[ q_count ];
+      take_rng = false;
+    }
+    
+    if(next_aux_idx <= new_idx){
+      // Index must be skipped
+      ++new_idx;
+      if( take_rng ){
+        ++rng_count;
+      } 
+      else{
+        ++q_count;
+      }
+    }
+    else{
+      // We can return the index
+      break;
+    }
   }
- }
 
-  return( idx );
+ return( new_idx );
  }
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -1588,9 +1679,11 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
 
   // Simply "jump" quadratic constraints 
   // NOTE: if the quadratic constraint has a linear part (see GRBMILPSolver.h:660)
-  // we are building also linear constraint. Thus, we will need to "jump"
+  // we are building also linear constraint. Thus, to retrieve the Gurobi 
+  // index of the linear constraint, we will need to "jump"
   // only quadratic constraint without a linear part, i.e. for which an 
-  // auxiliary variable has not been built.
+  // linear constraint has not been built. This is beacuse Gurobi keeps separate
+  // index sets for both linear and quadratic constraints.
   auto new_idx = idx;
   for( int j = 0 ; j < idx ; j++ ) {
     if( ( ! q_part[ j ].empty() ) && ( grb_quad_var_aux[ j ] == -1 ) ) {
@@ -2673,6 +2766,10 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  GRBdelconstrs( model , 1 , &index );
  GRBupdatemodel( model );
 
+ // NOTE: at the moment there is no need of checking the quadratic structures,
+ // as we only allow quadratic static constraints. Hence, all the modification
+ // done to dynamic constraints do not impact the quadratic constraints indices.
+
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::remove_dynamic_constraint( con );
  }
@@ -2699,6 +2796,10 @@ void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
 
  GRBdelvars( model , 1 , &index );
  GRBupdatemodel( model );
+
+ // NOTE: at the moment there is no need of checking the quadratic structures,
+ // as we only allow quadratic static constraints. Hence, all the modification
+ // done to dynamic variables do not impact the quadratic indices.
 
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::remove_dynamic_variable( var );
@@ -3861,17 +3962,34 @@ const std::string & GRBMILPSolver::vstr_par_idx2str( idx_type idx ) const
 
 void GRBMILPSolver::check_status( void )
 {
- int nvars;
- GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , &nvars );
- if( numcols != nvars )
-  DEBUG_LOG( "numcols is " << numcols << " but GRB_INT_ATTR_NUMVARS returns "
-	     << nvars << std::endl );
+ int grb_nvars;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , &grb_nvars );
+ int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ int exp_nvars = numcols + n_ranged_con + n_aux_quad_var;
+ if( exp_nvars != grb_nvars )
+  DEBUG_LOG( "total number of expected variable is " << exp_nvars 
+	     << " but GRB_INT_ATTR_NUMVARS returns " << grb_nvars << std::endl );
 
- int nconstr;
- GRBgetintattr( model , GRB_INT_ATTR_NUMCONSTRS , &nconstr );
- if( numrows != nconstr )
-  DEBUG_LOG( "numrows is " << numrows << " but GRB_INT_ATTR_NUMCONSTRS returns "
-	     << nconstr << std::endl );
+ // Number of linear constraints in Gurobi
+ int grb_nconstrlin;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMCONSTRS , &grb_nconstrlin );
+
+ // Retrieve true number of linear constraint in SMS++. We have to consider that
+ // for some quadratic constraints we also add an auxiliary linear constraint 
+ // (see GRBMILPSolver.h:660).
+ int exp_nconstrlin = numrows - numquadrows + n_aux_quad_var;
+ if( exp_nconstrlin != grb_nconstrlin  )
+  DEBUG_LOG( "total number of expected linear constraint is " << exp_nconstrlin
+       <<  " but GRB_INT_ATTR_NUMCONSTRS returns " << grb_nconstrlin << std::endl );
+
+ // Number of quadratic constraints in Gurobi
+ int grb_nconstrquad;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMQCONSTRS , &grb_nconstrquad );
+
+ if( numquadrows != grb_nconstrquad  )
+  DEBUG_LOG( "total number of expected quadratic constraint is " << numquadrows
+       <<  " but GRB_INT_ATTR_NUMQCONSTRS returns " << grb_nconstrquad << std::endl );
 
  int nbin , nint;
  GRBgetintattr( model , GRB_INT_ATTR_NUMINTVARS , &nint );

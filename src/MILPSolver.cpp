@@ -3284,7 +3284,9 @@ void MILPSolver::check_status( void )
   for( const auto & i : q_Block->get_static_constraints() ) {
    auto count = un_any_thing_count_static( FRowConstraint , i );
    if( count != Inf< std::size_t >() ) {
-    ++scg;
+    if( count > 0 )
+      ++scg;
+    
     c += count;
     sc += count;
     continue;
@@ -3321,8 +3323,11 @@ void MILPSolver::check_status( void )
    auto count = un_any_thing_count_static( ColVariable , i );
    if( count == Inf< std::size_t >() )
     throw( std::invalid_argument( "MILPSolver: not a ColVariable" ) );
-   ++svg;
-   v += count;
+   
+   if( count > 0 )
+    ++svg;
+   
+    v += count;
    sv += count;
   }
 
