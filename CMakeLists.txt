@@ -109,7 +109,7 @@ target_compile_features(${modName} PUBLIC cxx_std_17)
 
 if (MSVC AND BUILD_SHARED_LIBS)
     target_link_options(${modName} INTERFACE "/INCLUDE:SMSpp_force_load_${modName}")
-endif()
+endif ()
 
 # Ensure that the executables from /tools are run before adding the /include
 # directory to generate the necessary *_defs.h and *_maps.h files of the correct
@@ -272,8 +272,8 @@ install(FILES
 # dynamic loading will look into it.
 if (hasParent)
     set(SMSPP_BUILD_RPATH
-        "${SMSPP_BUILD_RPATH};${CMAKE_CURRENT_BINARY_DIR}"
-        PARENT_SCOPE)
+            "${SMSPP_BUILD_RPATH};${CMAKE_CURRENT_BINARY_DIR}"
+            PARENT_SCOPE)
 endif ()
 
 # ----- Packaging support --------------------------------------------------- #
@@ -288,9 +288,9 @@ if (NOT hasParent)
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_LIST_DIR}/LICENSE")
     set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_LIST_DIR}/README.md")
     set(CPACK_SOURCE_IGNORE_FILES
-        \\\\.git/
-        \\\\.gitignore$
-        \\\\.gitattributes$)
+            \\\\.git/
+            \\\\.gitignore$
+            \\\\.gitattributes$)
     include(CPack)
 endif ()
 
