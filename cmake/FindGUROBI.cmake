@@ -153,35 +153,6 @@ if (NOT GUROBI_FOUND)
                 CACHE FILEPATH "GUROBI runtime DLL." FORCE)
     endif ()
 
-    # ----- Find the GUROBI license ----------------------------------------- #
-    set(GUROBI_LICENSE_FOUND FALSE)
-
-    if (UNIX)
-        if (APPLE)
-            set(LICENSE_PATHS ${GUROBI_ROOT} "/Users/$ENV{USER}")
-        else ()
-            set(LICENSE_PATHS ${GUROBI_ROOT} "/home/$ENV{USER}")
-        endif ()
-    elseif (WIN32)
-        set(LICENSE_PATHS ${GUROBI_ROOT} "C:/Users/$ENV{USERNAME}")
-    endif ()
-
-    foreach (path ${LICENSE_PATHS})
-        if (EXISTS "${path}/gurobi.lic")
-            set(GUROBI_LICENSE_FOUND TRUE)
-            message(STATUS "Gurobi license file found at: ${path}/gurobi.lic")
-            break()
-        endif ()
-    endforeach ()
-
-    if (NOT GUROBI_LICENSE_FOUND)
-        message(WARNING "Gurobi license file not found in default locations.\
-                         Unfortunately, CMake cannot access the $GRB_LICENSE_FILE environment variable.\
-                         If you have already defined it, please ignore this warning, otherwise\
-                         define it specifying your custom location of the `gurobi.lic` file, or move it\
-                         to one of the default locations to definitively suppress this warning, i.e.: ${LICENSE_PATHS}")
-    endif ()
-
     # ----- Parse the version ----------------------------------------------- #
     if (GUROBI_INCLUDE_DIR)
         file(STRINGS
@@ -215,6 +186,35 @@ if (NOT GUROBI_FOUND)
                 GUROBI
                 REQUIRED_VARS GUROBI_LIBRARY GUROBI_INCLUDE_DIR
                 VERSION_VAR GUROBI_VERSION)
+    endif ()
+
+    # ----- Find the GUROBI license ----------------------------------------- #
+    set(GUROBI_LICENSE_FOUND FALSE)
+
+    if (UNIX)
+        if (APPLE)
+            set(LICENSE_PATHS ${GUROBI_ROOT} "/Users/$ENV{USER}")
+        else ()
+            set(LICENSE_PATHS ${GUROBI_ROOT} "/home/$ENV{USER}")
+        endif ()
+    elseif (WIN32)
+        set(LICENSE_PATHS ${GUROBI_ROOT} "C:/Users/$ENV{USERNAME}")
+    endif ()
+
+    foreach (path ${LICENSE_PATHS})
+        if (EXISTS "${path}/gurobi.lic")
+            set(GUROBI_LICENSE_FOUND TRUE)
+            message(STATUS "Gurobi license file found at: ${path}/gurobi.lic")
+            break()
+        endif ()
+    endforeach ()
+
+    if (NOT GUROBI_LICENSE_FOUND)
+        message(WARNING "Gurobi license file not found in default locations.\
+                         Unfortunately, CMake cannot access the $GRB_LICENSE_FILE environment variable.\
+                         If you have already defined it, please ignore this warning, otherwise\
+                         define it specifying your custom location of the `gurobi.lic` file, or move it\
+                         to one of the default locations to definitively suppress this warning, i.e.: ${LICENSE_PATHS}")
     endif ()
 endif ()
 
