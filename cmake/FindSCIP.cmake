@@ -115,12 +115,6 @@ if (NOT SCIP_FOUND)
                 PATHS ${SCIP_ROOT}
                 PATH_SUFFIXES bin
                 DOC "SCIP runtime DLL.")
-
-        find_file(TBB_DLL
-                NAMES tbb.dll libtbb.dll
-                PATHS ${SCIP_ROOT}
-                PATH_SUFFIXES bin
-                DOC "TBB runtime DLL.")
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
@@ -149,7 +143,7 @@ if (NOT SCIP_FOUND)
     if (WIN32)
         find_package_handle_standard_args(
                 SCIP
-                REQUIRED_VARS SCIP_LIBRARY SCIP_DLL TBB_DLL SCIP_INCLUDE_DIR
+                REQUIRED_VARS SCIP_LIBRARY SCIP_DLL SCIP_INCLUDE_DIR
                 VERSION_VAR SCIP_VERSION)
     else ()
         find_package_handle_standard_args(
@@ -164,12 +158,11 @@ if (SCIP_FOUND)
     set(SCIP_INCLUDE_DIRS ${SCIP_INCLUDE_DIR})
     set(SCIP_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
-    if (UNIX)
-        if (TARGET TBB::tbb)
-            set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
-        endif ()
-        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} dl)
+    if (TARGET TBB::tbb)
+        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
     endif ()
+
+    set(SCIP_LIBRARIES ${SCIP_LIBRARIES} dl)
 
     if (NOT TARGET SCIP::SCIP)
         if (WIN32)
@@ -197,8 +190,7 @@ if (WIN32)
     mark_as_advanced(SCIP_INCLUDE_DIR
             SCIP_LIBRARY
             SCIP_DLL
-            SCIP_VERSION
-            TBB_DLL)
+            SCIP_VERSION)
 else ()
     mark_as_advanced(SCIP_INCLUDE_DIR
             SCIP_LIBRARY
