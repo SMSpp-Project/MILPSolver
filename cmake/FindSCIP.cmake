@@ -78,12 +78,22 @@ endforeach ()
 # https://cmake.org/cmake/help/latest/module/FindThreads.html
 find_package(Threads QUIET)
 
-find_package(TBB QUIET)
+if (UNIX)
+    find_package(TBB QUIET)
+endif ()
 
 # Check if already in cache
-if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_VERSION)
-    set(SCIP_FOUND TRUE)
+if (WIN32)
+    if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_DLL AND TBB_DLL AND SCIP_VERSION)
+        set(SCIP_FOUND TRUE)
+    endif ()
 else ()
+    if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_VERSION)
+        set(SCIP_FOUND TRUE)
+    endif ()
+endif ()
+
+if (NOT SCIP_FOUND)
 
     # ----- Find the SCIP include directory --------------------------------- #
     find_path(SCIP_INCLUDE_DIR
@@ -94,8 +104,24 @@ else ()
     # ----- Find the SCIP library ------------------------------------------- #
     find_library(SCIP_LIBRARY
             NAMES scip
+            PATHS ${SCIP_ROOT}
             PATH_SUFFIXES ${SCIP_LIB_PATH_SUFFIXES}
             DOC "SCIP library.")
+
+    # ----- Find the SCIP runtime DLL on Windows ---------------------------- #
+    if (WIN32)
+        find_file(SCIP_DLL
+                NAMES libscip.dll scip.dll
+                PATHS ${SCIP_ROOT}
+                PATH_SUFFIXES bin
+                DOC "SCIP runtime DLL.")
+
+        find_file(TBB_DLL
+                NAMES tbb.dll libtbb.dll
+                PATHS ${SCIP_ROOT}
+                PATH_SUFFIXES bin
+                DOC "TBB runtime DLL.")
+    endif ()
 
     # ----- Parse the version ----------------------------------------------- #
     if (SCIP_INCLUDE_DIR)
@@ -120,10 +146,17 @@ else ()
     # REQUIRED_VARS are set.
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
-    find_package_handle_standard_args(
-            SCIP
-            REQUIRED_VARS SCIP_LIBRARY SCIP_INCLUDE_DIR
-            VERSION_VAR SCIP_VERSION)
+    if (WIN32)
+        find_package_handle_standard_args(
+                SCIP
+                REQUIRED_VARS SCIP_LIBRARY SCIP_DLL TBB_DLL SCIP_INCLUDE_DIR
+                VERSION_VAR SCIP_VERSION)
+    else ()
+        find_package_handle_standard_args(
+                SCIP
+                REQUIRED_VARS SCIP_LIBRARY SCIP_INCLUDE_DIR
+                VERSION_VAR SCIP_VERSION)
+    endif ()
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
@@ -131,28 +164,45 @@ if (SCIP_FOUND)
     set(SCIP_INCLUDE_DIRS ${SCIP_INCLUDE_DIR})
     set(SCIP_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 
-    if (TARGET TBB::tbb)
-        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
-    endif ()
-
     if (UNIX)
+        if (TARGET TBB::tbb)
+            set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
+        endif ()
         set(SCIP_LIBRARIES ${SCIP_LIBRARIES} dl)
     endif ()
 
     if (NOT TARGET SCIP::SCIP)
-        add_library(SCIP::SCIP UNKNOWN IMPORTED)
-        set_target_properties(
-                SCIP::SCIP PROPERTIES
-                IMPORTED_LOCATION "${SCIP_LIBRARY}"
-                INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${SCIP_LIBRARIES}")
+        if (WIN32)
+            add_library(SCIP::SCIP SHARED IMPORTED)
+            set_target_properties(
+                    SCIP::SCIP PROPERTIES
+                    IMPORTED_IMPLIB "${SCIP_LIBRARY}"
+                    IMPORTED_LOCATION "${SCIP_DLL}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${SCIP_LIBRARIES}")
+        else ()
+            add_library(SCIP::SCIP UNKNOWN IMPORTED)
+            set_target_properties(
+                    SCIP::SCIP PROPERTIES
+                    IMPORTED_LOCATION "${SCIP_LIBRARY}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${SCIP_LIBRARIES}")
+        endif ()
     endif ()
 endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-mark_as_advanced(SCIP_INCLUDE_DIR
-        SCIP_LIBRARY
-        SCIP_VERSION)
+if (WIN32)
+    mark_as_advanced(SCIP_INCLUDE_DIR
+            SCIP_LIBRARY
+            SCIP_DLL
+            SCIP_VERSION
+            TBB_DLL)
+else ()
+    mark_as_advanced(SCIP_INCLUDE_DIR
+            SCIP_LIBRARY
+            SCIP_VERSION)
+endif ()
 
 # --------------------------------------------------------------------------- #

@@ -77,9 +77,17 @@ endforeach ()
 find_package(Threads QUIET)
 
 # Check if already in cache
-if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_VERSION)
-    set(GUROBI_FOUND TRUE)
+if (WIN32)
+    if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_DLL AND GUROBI_VERSION)
+        set(GUROBI_FOUND TRUE)
+    endif ()
 else ()
+    if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_VERSION)
+        set(GUROBI_FOUND TRUE)
+    endif ()
+endif ()
+
+if (NOT GUROBI_FOUND)
 
     if (UNIX)
         if (APPLE)
@@ -124,6 +132,26 @@ else ()
 
     set(GUROBI_LIBRARY ${GUROBI_LIB}
             CACHE FILEPATH "GUROBI library." FORCE)
+
+    if (WIN32)
+
+        # ----- Macro: find_win_gurobi_dll ---------------------------------- #
+        macro(find_win_gurobi_dll var)
+            file(GLOB GUROBI_DLL_CANDIDATES "${GUROBI_DIR}/bin/gurobi*.dll")
+            set(${var} "${var}-NOTFOUND")
+            foreach (_dll ${GUROBI_DLL_CANDIDATES})
+                get_filename_component(_dll_name "${_dll}" NAME)
+                if (_dll_name MATCHES "^gurobi[0-9]+\\.dll$")
+                    set(${var} "${_dll}")
+                    break()
+                endif ()
+            endforeach ()
+        endmacro()
+
+        find_win_gurobi_dll(GUROBI_DLL_FILE)
+        set(GUROBI_DLL ${GUROBI_DLL_FILE}
+                CACHE FILEPATH "GUROBI runtime DLL." FORCE)
+    endif ()
 
     # ----- Find the GUROBI license ----------------------------------------- #
     set(GUROBI_LICENSE_FOUND FALSE)
@@ -177,10 +205,17 @@ else ()
     # REQUIRED_VARS are set.
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
-    find_package_handle_standard_args(
-            GUROBI
-            REQUIRED_VARS GUROBI_LIBRARY GUROBI_INCLUDE_DIR
-            VERSION_VAR GUROBI_VERSION)
+    if (WIN32)
+        find_package_handle_standard_args(
+                GUROBI
+                REQUIRED_VARS GUROBI_LIBRARY GUROBI_DLL GUROBI_INCLUDE_DIR
+                VERSION_VAR GUROBI_VERSION)
+    else ()
+        find_package_handle_standard_args(
+                GUROBI
+                REQUIRED_VARS GUROBI_LIBRARY GUROBI_INCLUDE_DIR
+                VERSION_VAR GUROBI_VERSION)
+    endif ()
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
@@ -193,19 +228,36 @@ if (GUROBI_FOUND)
     endif ()
 
     if (NOT TARGET GUROBI::Gurobi)
-        add_library(GUROBI::Gurobi UNKNOWN IMPORTED)
-        set_target_properties(
-                GUROBI::Gurobi PROPERTIES
-                IMPORTED_LOCATION "${GUROBI_LIBRARY}"
-                INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${GUROBI_LIBRARIES}")
+        if (WIN32)
+            add_library(GUROBI::Gurobi SHARED IMPORTED)
+            set_target_properties(
+                    GUROBI::Gurobi PROPERTIES
+                    IMPORTED_IMPLIB "${GUROBI_LIBRARY}"
+                    IMPORTED_LOCATION "${GUROBI_DLL}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${GUROBI_LIBRARIES}")
+        else ()
+            add_library(GUROBI::Gurobi UNKNOWN IMPORTED)
+            set_target_properties(
+                    GUROBI::Gurobi PROPERTIES
+                    IMPORTED_LOCATION "${GUROBI_LIBRARY}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${GUROBI_LIBRARIES}")
+        endif ()
     endif ()
 endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-mark_as_advanced(GUROBI_INCLUDE_DIR
-        GUROBI_LIBRARY
-        GUROBI_VERSION)
+if (WIN32)
+    mark_as_advanced(GUROBI_INCLUDE_DIR
+            GUROBI_LIBRARY
+            GUROBI_DLL
+            GUROBI_VERSION)
+else ()
+    mark_as_advanced(GUROBI_INCLUDE_DIR
+            GUROBI_LIBRARY
+            GUROBI_VERSION)
+endif ()
 
 # --------------------------------------------------------------------------- #

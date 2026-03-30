@@ -38,9 +38,17 @@ find_package(Threads QUIET)
 find_package(ZLIB REQUIRED QUIET)
 
 # Check if already in cache
-if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG AND HIGHS_VERSION)
-    set(HiGHS_FOUND TRUE)
+if (WIN32)
+    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_DLL AND HiGHS_VERSION)
+        set(HiGHS_FOUND TRUE)
+    endif ()
 else ()
+    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_VERSION)
+        set(HiGHS_FOUND TRUE)
+    endif ()
+endif ()
+
+if (NOT HiGHS_FOUND)
 
     # ----- Find the HiGHS include directory -------------------------------- #
     find_path(HiGHS_INCLUDE_DIR
@@ -56,24 +64,25 @@ else ()
                 PATHS ${HiGHS_ROOT}/lib
                 DOC "HiGHS library.")
 
-        set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
-                CACHE FILEPATH "HiGHS debug library." FORCE)
     elseif (WIN32)
         find_library(HiGHS_LIBRARY
                 NAMES highs
-                PATHS ${HiGHS_ROOT}/lib
+                PATHS
+                ${HiGHS_ROOT}/lib
                 ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
                 $ENV{LIBRARY_LIB}
                 NO_DEFAULT_PATH
                 DOC "HiGHS library.")
 
-        find_library(HiGHS_LIBRARY_DEBUG
-                NAMES highs
-                PATHS ${HiGHS_ROOT}/debug/lib
-                ${HiGHS_ROOT}/build/lib/Debug
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/lib
+        # ----- Find the HiGHS runtime DLLs on Windows ---------------------- #
+        find_file(HiGHS_DLL
+                NAMES highs.dll libhighs.dll
+                PATHS
+                ${HiGHS_ROOT}/bin
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
+                $ENV{LIBRARY_BIN}
                 NO_DEFAULT_PATH
-                DOC "HiGHS debug library.")
+                DOC "HiGHS runtime DLL.")
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
@@ -99,10 +108,17 @@ else ()
     # REQUIRED_VARS are set.
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
-    find_package_handle_standard_args(
-            HiGHS
-            REQUIRED_VARS HiGHS_LIBRARY HiGHS_INCLUDE_DIR
-            VERSION_VAR HiGHS_VERSION)
+    if (WIN32)
+        find_package_handle_standard_args(
+                HiGHS
+                REQUIRED_VARS HiGHS_LIBRARY HiGHS_DLL HiGHS_INCLUDE_DIR
+                VERSION_VAR HiGHS_VERSION)
+    else ()
+        find_package_handle_standard_args(
+                HiGHS
+                REQUIRED_VARS HiGHS_LIBRARY HiGHS_INCLUDE_DIR
+                VERSION_VAR HiGHS_VERSION)
+    endif ()
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
@@ -115,21 +131,36 @@ if (HiGHS_FOUND)
     endif ()
 
     if (NOT TARGET HiGHS::HiGHS)
-        add_library(HiGHS::HiGHS UNKNOWN IMPORTED)
-        set_target_properties(
-                HiGHS::HiGHS PROPERTIES
-                IMPORTED_LOCATION "${HiGHS_LIBRARY}"
-                IMPORTED_LOCATION_DEBUG "${HiGHS_LIBRARY_DEBUG}"
-                INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
+        if (WIN32)
+            add_library(HiGHS::HiGHS SHARED IMPORTED)
+            set_target_properties(
+                    HiGHS::HiGHS PROPERTIES
+                    IMPORTED_IMPLIB "${HiGHS_LIBRARY}"
+                    IMPORTED_LOCATION "${HiGHS_DLL}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
+        else ()
+            add_library(HiGHS::HiGHS UNKNOWN IMPORTED)
+            set_target_properties(
+                    HiGHS::HiGHS PROPERTIES
+                    IMPORTED_LOCATION "${HiGHS_LIBRARY}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
+        endif ()
     endif ()
 endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-mark_as_advanced(HiGHS_INCLUDE_DIR
-        HiGHS_LIBRARY
-        HiGHS_LIBRARY_DEBUG
-        HiGHS_VERSION)
+if (WIN32)
+    mark_as_advanced(HiGHS_INCLUDE_DIR
+            HiGHS_LIBRARY
+            HiGHS_DLL
+            HiGHS_VERSION)
+else ()
+    mark_as_advanced(HiGHS_INCLUDE_DIR
+            HiGHS_LIBRARY
+            HiGHS_VERSION)
+endif ()
 
 # --------------------------------------------------------------------------- #
