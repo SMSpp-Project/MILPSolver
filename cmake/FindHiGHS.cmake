@@ -11,6 +11,7 @@
 #        HiGHS_FOUND         - True if headers are found                      #
 #        HiGHS_INCLUDE_DIRS  - Include directories                            #
 #        HiGHS_LIBRARIES     - Libraries to be linked                         #
+#        HiGHS_DLL           - The found runtime DLL (Windows only)           #
 #        HiGHS_VERSION       - Version number                                 #
 #                                                                             #
 #    This module reads hints about search locations from variables:           #

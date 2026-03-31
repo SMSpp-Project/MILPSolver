@@ -11,6 +11,7 @@
 #        SCIP_FOUND         - True if headers are found                       #
 #        SCIP_INCLUDE_DIRS  - Include directories                             #
 #        SCIP_LIBRARIES     - Libraries to be linked                          #
+#        SCIP_DLL           - The found runtime DLL (Windows only)            #
 #        SCIP_VERSION       - Version number                                  #
 #                                                                             #
 #    This module reads hints about search locations from variables:           #

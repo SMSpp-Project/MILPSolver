@@ -12,6 +12,7 @@
 #        GUROBI_LICENSE_FOUND - True if gurobi.lic file is found              #
 #        GUROBI_INCLUDE_DIRS  - Include directories                           #
 #        GUROBI_LIBRARIES     - Libraries to be linked                        #
+#        GUROBI_DLL           - The found runtime DLL (Windows only)          #
 #        GUROBI_VERSION       - Version number                                #
 #                                                                             #
 #    This module reads hints about search locations from variables:           #
