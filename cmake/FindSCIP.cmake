@@ -162,7 +162,9 @@ if (SCIP_FOUND)
         set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
     endif ()
 
-    set(SCIP_LIBRARIES ${SCIP_LIBRARIES} dl)
+    if (UNIX)
+        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} dl)
+    endif ()
 
     if (NOT TARGET SCIP::SCIP)
         if (WIN32)
