@@ -40,11 +40,12 @@ find_package(ZLIB REQUIRED QUIET)
 
 # Check if already in cache
 if (WIN32)
-    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_DLL AND HiGHS_VERSION)
+    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG
+            AND HiGHS_DLL AND HiGHS_DLL_DEBUG AND HiGHS_VERSION)
         set(HiGHS_FOUND TRUE)
     endif ()
 else ()
-    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_VERSION)
+    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG AND HiGHS_VERSION)
         set(HiGHS_FOUND TRUE)
     endif ()
 endif ()
@@ -65,25 +66,52 @@ if (NOT HiGHS_FOUND)
                 PATHS ${HiGHS_ROOT}/lib
                 DOC "HiGHS library.")
 
+        set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
+                CACHE FILEPATH "HiGHS debug library." FORCE)
     elseif (WIN32)
         find_library(HiGHS_LIBRARY
                 NAMES highs
                 PATHS
                 ${HiGHS_ROOT}/lib
+                ${HiGHS_ROOT}/build/lib/Release
                 ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
                 $ENV{LIBRARY_LIB}
                 NO_DEFAULT_PATH
                 DOC "HiGHS library.")
+
+        find_library(HiGHS_LIBRARY_DEBUG
+                NAMES highs
+                PATHS
+                ${HiGHS_ROOT}/debug/lib
+                ${HiGHS_ROOT}/build/lib/Debug
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/lib
+                NO_DEFAULT_PATH
+                DOC "HiGHS debug library.")
 
         # ----- Find the HiGHS runtime DLLs on Windows ---------------------- #
         find_file(HiGHS_DLL
                 NAMES highs.dll libhighs.dll
                 PATHS
                 ${HiGHS_ROOT}/bin
+                ${HiGHS_ROOT}/build/bin/Release
                 ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
                 $ENV{LIBRARY_BIN}
                 NO_DEFAULT_PATH
                 DOC "HiGHS runtime DLL.")
+
+        find_file(HiGHS_DLL_DEBUG
+                NAMES highs.dll libhighs.dll
+                PATHS
+                ${HiGHS_ROOT}debug/bin
+                ${HiGHS_ROOT}build/bin/Debug
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin
+                NO_DEFAULT_PATH
+                DOC "HiGHS debug runtime DLL.")
+
+        if (NOT HiGHS_DLL_DEBUG AND HiGHS_DLL)
+            set(HiGHS_DLL_DEBUG ${HiGHS_DLL}
+                    CACHE FILEPATH "HiGHS debug runtime DLL." FORCE)
+        endif ()
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
@@ -112,7 +140,8 @@ if (NOT HiGHS_FOUND)
     if (WIN32)
         find_package_handle_standard_args(
                 HiGHS
-                REQUIRED_VARS HiGHS_LIBRARY HiGHS_DLL HiGHS_INCLUDE_DIR
+                REQUIRED_VARS HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG
+                HiGHS_DLL HiGHS_DLL_DEBUG HiGHS_INCLUDE_DIR
                 VERSION_VAR HiGHS_VERSION)
     else ()
         find_package_handle_standard_args(
@@ -137,7 +166,9 @@ if (HiGHS_FOUND)
             set_target_properties(
                     HiGHS::HiGHS PROPERTIES
                     IMPORTED_IMPLIB "${HiGHS_LIBRARY}"
+                    IMPORTED_IMPLIB_DEBUG "${HiGHS_LIBRARY_DEBUG}"
                     IMPORTED_LOCATION "${HiGHS_DLL}"
+                    IMPORTED_LOCATION_DEBUG "${HiGHS_DLL_DEBUG}"
                     INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
                     INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
         else ()
@@ -145,6 +176,7 @@ if (HiGHS_FOUND)
             set_target_properties(
                     HiGHS::HiGHS PROPERTIES
                     IMPORTED_LOCATION "${HiGHS_LIBRARY}"
+                    IMPORTED_LOCATION_DEBUG "${HiGHS_LIBRARY_DEBUG}"
                     INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
                     INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
         endif ()
@@ -156,11 +188,14 @@ endif ()
 if (WIN32)
     mark_as_advanced(HiGHS_INCLUDE_DIR
             HiGHS_LIBRARY
+            HiGHS_LIBRARY_DEBUG
             HiGHS_DLL
+            HiGHS_DLL_DEBUG
             HiGHS_VERSION)
 else ()
     mark_as_advanced(HiGHS_INCLUDE_DIR
             HiGHS_LIBRARY
+            HiGHS_LIBRARY_DEBUG
             HiGHS_VERSION)
 endif ()
 
