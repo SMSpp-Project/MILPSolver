@@ -29,14 +29,4 @@ endif ()
 add_executable(test_cuts test_cuts.cpp)
 target_link_libraries(test_cuts PRIVATE SMS++::MILPSolver)
 
-if (WIN32 AND BUILD_SHARED_LIBS AND NOT DEFINED ENV{CONDA_BUILD})
-    # copy runtime DLLs next to the exe after build
-    add_custom_command(TARGET test_cuts POST_BUILD
-                       COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                       $<TARGET_RUNTIME_DLLS:test_cuts>
-                       $<TARGET_FILE_DIR:test_cuts>
-                       COMMAND_EXPAND_LISTS
-                       COMMENT "Copying runtime DLLs next to test_cuts.exe")
-endif()
-
 # --------------------------------------------------------------------------- #
