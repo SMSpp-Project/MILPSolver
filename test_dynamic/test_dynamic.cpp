@@ -61,7 +61,7 @@
 // This is beecause some *MILPSolver (e.g. GRBMILPSolver) could have 
 // restrictions on the use of ranged constraints and in this way we make 
 // sure that no constraint changes from non ranged to ranged one.
-#define CONTROL_RANGED 0
+#define CONTROL_RANGED 1
 
 /*--------------------------------------------------------------------------*/
 
@@ -98,7 +98,7 @@
 // SKIP_BEAT + 1, so that the input parameter still dictates the number of
 // Block solutions
 
-#define SKIP_BEAT 2
+#define SKIP_BEAT 0
 
 /*--------------------------------------------------------------------------*/
 
