@@ -2738,6 +2738,7 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
     int index_aux_var = (*it_rng).second;
     GRBdelvars( model , 1 , &index_aux_var );
     map_rng_con_aux_var.erase( it_rng );
+    map_rng_con_aux_var.shrink_to_fit();
 
     // Update map : find the first pair with idx aux var greater than index
     auto it_rng_var = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
@@ -2780,17 +2781,22 @@ void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
  int index = grb_index_of_dynamic_variable( var );
  int n_ranged_con = map_rng_con_aux_var.size();
+ int count = 0; // counter of number of explored elements
 
  if( n_ranged_con != 0 ) {
- // Update map : find the first pair with idx aux var greater than index
-  auto it_rng = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
-      [&index]( std::pair< int , int > const& elem ) {
-      return( elem.second > index );
-    });
+  // First jump all the auxiliary variables
+  auto it_rng = map_rng_con_aux_var.begin();
+  while( count < n_ranged_con && ( *it_rng ).second <= index ){
+    index++;
+    ++it_rng;
+    count++;
+  }
+
   // Update map : decrease the idx of aux var
-  while( it_rng != map_rng_con_aux_var.end() ) {
+  while( count < n_ranged_con ) {
     --( *it_rng ).second;
     ++it_rng;
+    count++;
   }
  }
 
