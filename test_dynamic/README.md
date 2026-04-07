@@ -27,7 +27,7 @@ each time the results of the two `Solver` are compared.
 
 The usage of the executable is the following:
 
-       ./DynamicLP_test seed [wchg nvar dens #rounds #chng %chng]
+       ./test_dynamic seed [wchg nvar dens #rounds #chng %chng]
        wchg: what to change, coded bit-wise [255]
              0 = add rows, 1 = delete rows 
              2 = modify rows, 3 = modify constants

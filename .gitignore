@@ -5,7 +5,7 @@ tools/scip_pars
 tools/highs_pars
 tools/.headers.stamp
 test_cuts/test_cuts
-test_dynamic/DynamicLP_test
+test_dynamic/test_dynamic
 test_dual/dual_test
 
 # Include files
