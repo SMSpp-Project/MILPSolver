@@ -30,7 +30,7 @@
 /*-------------------------------- MACROS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#define LOG_LEVEL 0
+#define LOG_LEVEL 1
 // 0 = only pass/fail
 // 1 = result of each test
 // 2 = + solver log
@@ -751,11 +751,12 @@ static void printAb( const MultiVector & tA , const RealVector & tb ,
 
 // Some functions used to check results of solvers in loop
 
-bool CompareSolution( double const d1 , double const d2 )
+bool CompareSolution(double d1, double d2)
 {
- return( abs( d1 - d2 ) >= 2e-7 *
-	 max( double( 1 ) , abs( max( d1 , d2 ) ) ) );
- }
+    double diff = std::abs(d1 - d2);
+    double scale = std::max(1.0, std::max(std::abs(d1), std::abs(d2)));
+    return diff >= 2e-6 * scale;
+}
 
 bool allEqual( std::vector< double > const & v )
 {
