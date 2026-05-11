@@ -114,6 +114,7 @@ if (MILPSolver_USE_HiGHS)
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
                 COMMAND /bin/sh -c
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
+                        CC='${CMAKE_CXX_COMPILER}' \
                         HiGHS_ROOT='$$BUILD_PREFIX' highs_pars"
                 COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/highs_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
