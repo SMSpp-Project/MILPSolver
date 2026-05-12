@@ -287,6 +287,26 @@ class SCIPMILPSolver : public MILPSolver
  *  @{ */
 
  /// sets an integer parameter with the given value
+ /** Set the "int" parameters specific of SCIPMILPSolver, together with the
+  * parameters of MILPSolver that SCIPMILPSolver actually "listens to" and all
+  * parameters supported by SCIP:
+  *
+  * - intCutSepPar [0]: coded bit-wise, indicate if and when separation of
+  *                     either user cuts or lazy constraints is performed:
+  *
+  *   bit 0 : 1 (+1) if separation of user cuts is performed at the root
+  *           node only
+  *
+  *   bit 1 : 1 (+2) if separation of user cuts is performed at every other
+  *           node except the root one
+  *
+  *   bit 2 : 1 (+4) if separation of lazy constraints is performed each time
+  *           a feasible solution is generated
+  *
+  *   See vintCutSepCfgInd for properly setting Configurations for the
+  *   corresponding calls to generate_dynamic_constraint(). */
+
+ /// sets an integer parameter with the given value
  void set_par( idx_type par , int value ) override;
 
  /// sets a double parameter with the given value
@@ -653,6 +673,62 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
 			  std::vector< int > & qidx2 ,
 			  std::vector< double > & qcoeff );
 
+/** @} ---------------------------------------------------------------------*/
+/*---------------------- METHODS FOR ADDING A CALLBACK ---------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Methods for add a new constraint which will eventually be 
+ *  enforced or separated producing new cuts or lazy constraints.
+ *  @{ */
+
+/** creates and captures a constraint handler which will be used as a 
+  * separator. */
+ SCIP_RETCODE SCIPcreateSCIPMILPSolver_cb(
+   SCIP*        scip,               /**< SCIP data structure */
+   SCIP_CONS**  cons,               /**< pointer to hold the created 
+                                         constraint */
+   const char*  name,               /**< name of constraint */
+   const char*  Conhdlr_name,       /**< name of constraint handler */
+   std::vector< SCIP_VAR * > vars,  /**< SCIP vars */
+   SCIP_Bool    initial,            /**< should the LP relaxation of 
+                                         constraint be in the initial LP? */
+   SCIP_Bool    separate,           /**< should the constraint be 
+                                         separated during LP processing? */
+   SCIP_Bool    enforce,            /**< should the constraint be enforced 
+                                         during node processing? */
+   SCIP_Bool    check,              /**< should the constraint be checked 
+                                         for feasibility? */
+   SCIP_Bool    propagate,          /**< should the constraint be propagated 
+                                         during node processing? */
+   SCIP_Bool    local,              /**< is constraint only valid locally? */
+   SCIP_Bool    modifiable,         /**< is constraint modifiable (subject 
+                                         to column generation)? */
+   SCIP_Bool    dynamic,            /**< is constraint dynamic? */
+   SCIP_Bool    removable           /**< should the constraint be removed 
+                                         from the LP due to aging or cleanup? */
+   );
+
+/** Creates and captures a constraint which will be used as a separator. This
+  * method recieves in input the necessary parameters to distinguish between a
+  * lazy constraint separator and a user cut one. In particular, the relevant
+  * parameters are:
+  *   - separate: set to TRUE for uc;
+  *   - enforce: set to TRUE for lc;
+  *   - check: set to TRUE for lc.
+ */
+ SCIP_RETCODE SCIPcreateSCIPMILPSolver_basiccb(
+   SCIP*        scip,               /**< SCIP data structure */
+   SCIP_CONS**  cons,               /**< pointer to hold the created constraint */
+   const char*  name,               /**< name of constraint */
+   const char*  Conhdlr_name,       /**< name of constraint handler */
+   std::vector< SCIP_VAR * > vars,  /**< SCIP vars */
+   SCIP_Bool    separate,           /**< should the constraint be 
+                                        separated during LP processing? */
+   SCIP_Bool    enforce,            /**< should the constraint be enforced 
+                                         during node processing? */
+   SCIP_Bool    check               /**< should the constraint be checked 
+                                         for feasibility? */
+   );
+
  SMSpp_insert_in_factory_h;
 
 /*--------------------------------------------------------------------------*/
@@ -660,29 +736,32 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
  };  // end( class SCIPMILPSolver )
 
 /*--------------------------------------------------------------------------*/
-/*--------------------- Class SCIPMILPSolver_Conhdlr -----------------------*/
+/*--------------------- Class SCIPMILPSolver_CBK ---------------------------*/
 /*--------------------------------------------------------------------------*/
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#ifndef __SCIPMILPSOLVER_CONHDLR_H
- #define __SCIPMILPSOLVER_CONHDLR_H
+#ifndef __SCIPMILPSOLVER_CBK_H
+ #define __SCIPMILPSOLVER_CBK_H
  
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*
- * SCIPMILPSolver_Conhdlr is a tool developed for SCIPMILPSolver, in order 
+ * SCIPMILPSolver_CBK is a tool developed for SCIPMILPSolver, in order 
  * to generate valid inequalities or even facets of the polyhedron described 
  * by a single constraint or a subset of the constraints of a single 
- * constraint class. It is essentially used to for user cuts / lazy
+ * constraint class. It is used for enforcing lazy constraints or user cuts.
+ * 
+ * For detailed instruction on how to specify which type of cuts should be 
+ * considered, refer to the description of the parameter IntCutSepPar.
 
-* The SCIPMILPSolver_Conhdlr class derives from scip::ObjConshdlr and it
-  * creates specific user cut/ or lazy constraint to be added within a
-  * SMS++ model handled by SCIPMILPSolver.  */
+* The SCIPMILPSolver_CBK class derives from scip::ObjConshdlr and it
+  * creates lazy constraint/user cuts to be added within a SMS++ model 
+  * handled by SCIPMILPSolver.  */
 
-class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
+class SCIPMILPSolver_CBK : public scip::ObjConshdlr
 {
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
@@ -696,14 +775,15 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 /** @name Constructor and Destructor
  *  @{ */
 
- SCIPMILPSolver_Conhdlr( SCIP* scip, /**< SCIP data structure */
+ SCIPMILPSolver_CBK( SCIP* scip, /**< SCIP data structure */
     SMSpp_di_unipi_it::SCIPMILPSolver* scipmilpsolver, /**< "parent" 
                                     * SCIPMILPSolver from which the Constraint 
                                     * handler has been called. */
-    unsigned char SeparationPar    /**< separation decider parameter */
+    unsigned char CutSepPar      /* Bitwise encoded parameter to understand
+                                  * at which depth separation is enabled. */
     );
 
- ~SCIPMILPSolver_Conhdlr() override;
+ ~SCIPMILPSolver_CBK(){};
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- FUNDAMENTAL CALLBACK METHODS -----------------------*/
@@ -732,13 +812,9 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 /** separation method of constraint handler for LP solution
 *
 *  Separates all constraints of the constraint handler. The method is called in 
-*  the LP solution loop, which means that a valid LP solution exists.
+*  the LP solution loop, which means that a valid LP candidate exists.
 *
-*  In this function we add new user cut (uc) in the model.
-*  NOTE: we are sure that a new uc can be added, because first a SCIP_CHECK
-*  method has declared that separation is possible. 
-*
-*  possible return values for *result (if more than one applies, the first in 
+*  Possible return values for *result (if more than one applies, the first in 
 *  the list should be used):
 *  - SCIP_CUTOFF     : the node is infeasible in the variable's bounds and 
 *                      can be cut off
@@ -747,7 +823,7 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 *                      resolved
 *  - SCIP_FEASIBLE   : all constraints of the handler are feasible
 */
-   virtual SCIP_DECL_CONSSEPALP(scip_sepalp) override;
+ virtual SCIP_DECL_CONSSEPALP(scip_sepalp) override;
 
 /** constraint enforcing method of constraint handler for pseudo solutions
 *
@@ -767,13 +843,13 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 * Possible return values for *result:
 *  - SCIP_DIDNOTRUN  : the enforcement was skipped 
 */
-   virtual SCIP_DECL_CONSENFOPS(scip_enfops) override;
+ virtual SCIP_DECL_CONSENFOPS(scip_enfops) override;
 
 /** feasibility check method of constraint handler for primal solutions
 *
 *  The given solution has to be checked for feasibility.
 *
-*  In this method we check if possible new user cut / lazy constraint
+*  In this method we check if possibly new lazy constraint
 *  can be added to the model.
 * 
 *  Possible return values for *result:
@@ -809,7 +885,7 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 *    Thus, the last method will be always called on all the problem variables,
 *    in order to avoid SCIP from fixing them. 
 */
-   virtual SCIP_DECL_CONSLOCK(scip_lock) override;
+ virtual SCIP_DECL_CONSLOCK(scip_lock) override;
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- ADDITIONAL CALLBACK METHODS ------------------------*/
@@ -829,67 +905,25 @@ class SCIPMILPSolver_Conhdlr : public scip::ObjConshdlr
 /*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
- /** bitwise-encoded parameter for deciding if and when separation of user
-  * cuts and lazy constraints is performed */
- unsigned char CutSepPar;
-
  /* parent *milpsolver from which the separator* is called */
  SMSpp_di_unipi_it::SCIPMILPSolver* parent_scipmilpsolver;
 
+ /* Bitwise encoded parameter to understand at which dept separation is 
+  * enabled: 
+  *   bit 0 : 1 (+1) if separation is performed at the root node only
+  *
+  *   bit 1 : 1 (+2) if separation is performed at every other node except 
+  *                  the root one*/
+ unsigned char DepthPar;
+
 /*--------------------------------------------------------------------------*/
 
- };  // end( class SCIPMILPSolver_Conhdlr )
-
-/** @} ---------------------------------------------------------------------*/
-/*---------------------- METHODS FOR ADDING A CALLBACK ---------------------*/
-/*--------------------------------------------------------------------------*/
-/** @name Methods for add a new constraint which will eventually be 
- *  enforced or separated producing new cuts or lazy constraints.
- *  @{ */
-
-/** creates and captures a constraint used which will be used as a separator */
- SCIP_RETCODE SCIPcreateSCIPMILPSolver_cb(
-   SCIP*        scip,               /**< SCIP data structure */
-   SCIP_CONS**  cons,               /**< pointer to hold the created 
-                                         constraint */
-   const char*  name,               /**< name of constraint */
-   std::vector< SCIP_VAR * > vars,  /**< SCIP vars */
-   SCIP_Bool    initial,            /**< should the LP relaxation of 
-                                         constraint be in the initial LP? */
-   SCIP_Bool    separate,           /**< should the constraint be 
-                                         separated during LP processing? */
-   SCIP_Bool    enforce,            /**< should the constraint be enforced 
-                                         during node processing? */
-   SCIP_Bool    check,              /**< should the constraint be checked 
-                                         for feasibility? */
-   SCIP_Bool    propagate,          /**< should the constraint be propagated 
-                                         during node processing? */
-   SCIP_Bool    local,              /**< is constraint only valid locally? */
-   SCIP_Bool    modifiable,         /**< is constraint modifiable (subject 
-                                         to column generation)? */
-   SCIP_Bool    dynamic,            /**< is constraint dynamic? */
-   SCIP_Bool    removable           /**< should the constraint be removed 
-                                         from the LP due to aging or cleanup? */
-   );
-
-/** creates and captures a a constraint which will be used as a separator
- *  with all its constraint flags set to their default values */
-SCIP_RETCODE SCIPcreateSCIPMILPSolver_basiccb(
-   SCIP*        scip,               /**< SCIP data structure */
-   SCIP_CONS**  cons,               /**< pointer to hold the created constraint */
-   const char*  name,               /**< name of constraint */
-   std::vector< SCIP_VAR * > vars   /**< SCIP vars */
-   );
+ };  // end( class SCIPMILPSolver_CBK )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#endif  /* SCIPMILPSolver_Conhdlr.h included */
-
-/*--------------------------------------------------------------------------*/
-/*------------ End methods of Class SCIPMILPSolver_Conhdlr -----------------*/
-/*--------------------------------------------------------------------------*/
-
+#endif  /* __SCIPMILPSOLVER_CBK_H.h included */
 
 /*--------------------------------------------------------------------------*/
 
