@@ -670,6 +670,28 @@ int GRBMILPSolver::compute( bool changedvars )
  int m_status;
  GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
 
+ // If Gurobi's presolve returned INF_OR_UNBD it can't tell whether the
+ // model is infeasible or unbounded. Per Gurobi documentation, the way
+ // to obtain a definitive answer is to set DualReductions = 0 and
+ // re-optimise; we do this here so that GRBMILPSolver returns the
+ // correct status (kInfeasible vs kUnbounded) instead of the previous
+ // heuristic guess "kUnbounded". This matters in particular for the
+ // tester comparison logic, which treats kInfeasible and kUnbounded
+ // very differently (e.g., the LP-duality pair detection in dual mode,
+ // and the natural-vs-linearised consistency check in primal mode).
+ if( m_status == GRB_INF_OR_UNBD ) {
+  int saved;
+  GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , & saved );
+  GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , 0 );
+  if( int status = GRBoptimize( model ) ) {
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
+   sol_status = decode_grb_error( status );
+   goto Return_status;
+   }
+  GRBgetintattr( model , GRB_INT_ATTR_STATUS , & m_status );
+  GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
+  }
+
  sol_status = decode_model_status( m_status );
 
  Return_status:
