@@ -57,46 +57,6 @@ PIPSMILPSolver::PIPSMILPSolver( void ) :
  UpCutOff( Inf< double >() ) ,
  LwCutOff( -Inf< double >() ) ,
 
- /* size/nonzero callbacks */
- nCall( nullptr ) ,
- myCall( nullptr ) ,
- mzCall( nullptr ) ,
- mylCall( nullptr ) ,
- mzlCall( nullptr ) ,
- fnnzQ( nullptr ) ,
- fnnzA( nullptr ) ,
- fnnzB( nullptr ) ,
- fnnzC( nullptr ) ,
- fnnzD( nullptr ) ,
- fnnzBl( nullptr ) ,
- fnnzDl( nullptr ) ,
-
- /* vector callbacks */
- fc( nullptr ) ,
- fb( nullptr ) ,
- fbl( nullptr ) ,
- fclow( nullptr ) ,
- fcupp( nullptr ) ,
- ficlow( nullptr ) ,
- ficupp( nullptr ) ,
- fdllow( nullptr ) ,
- fdlupp( nullptr ) ,
- fidllow( nullptr ) ,
- fidlupp( nullptr ) ,
- fxlow( nullptr ) ,
- fxupp( nullptr ) ,
- fixlow( nullptr ) ,
- fixupp( nullptr ) ,
-
- /* matrix callbacks */
- fQ( nullptr ) ,
- fA( nullptr ) ,
- fB( nullptr ) ,
- fC( nullptr ) ,
- fD( nullptr ) ,
- fBl( nullptr ) ,
- fDl( nullptr ) ,
-
  /* Pips problem handling structures */
  pips_tree( nullptr ) ,
  pips_interface( nullptr ) { }
@@ -115,6 +75,13 @@ PIPSMILPSolver::~PIPSMILPSolver()
  delete pips_tree;
  pips_tree = nullptr;
 
+ int finalized = 0;
+ MPI_Finalized(&finalized);
+
+ if (mpi_initialized_by_this_solver && !finalized) {
+  MPI_Finalize();
+ }
+
 }
 
 /*--------------------------------------------------------------------------*/
@@ -126,10 +93,27 @@ void PIPSMILPSolver::set_Block( Block * block )
  if( block == f_Block )
   return;
 
+ int initialized = 0;
+ MPI_Initialized( &initialized );
+
+ if( ! initialized ) {
+  int err = MPI_Init( nullptr , nullptr );
+
+  int initialized = 0;
+  MPI_Initialized( &initialized );
+
+  if( err != MPI_SUCCESS || ! initialized ) {
+      throw std::runtime_error("MPI_Init failed");
+  }
+  MPIErrorHandler::init();  // Important: set error handlr
+  mpi_initialized_by_this_solver = true;
+ }
+
  MILPSolver::set_Block( block );
+
  UpCutOff = Inf< double >();
  LwCutOff = -Inf< double >();
- }
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -186,7 +170,7 @@ PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extract_block_matrix(
 
 /*--------------------------------------------------------------------------*/
 
-Index PIPSMILPSolver::collect_subtree(
+int PIPSMILPSolver::collect_subtree(
  Block * block ,
  std::vector< Block * > & subtree ,
  Index parent_leaf
@@ -268,9 +252,9 @@ int PIPSMILPSolver::No_LinkInEqCons( void * user_data, int id, int* nnz){
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::EvaluateNnz( int id , int* nnz , 
-                                std::vector< FRowConstraint * > node_cons ,
+                                std::vector< const FRowConstraint * > node_cons ,
                                 const int nCons , 
-                                std::vector< ColVariable * > vars ,
+                                std::vector< const ColVariable * > vars ,
                                 const int nVars ){ 
   if( id < n_nodes ){
    // Check if the node has own constraint or variables
@@ -386,7 +370,7 @@ int PIPSMILPSolver::nnzLinkInEqCons( void * user_data, int id , int* nnz ){
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractRhsVector( int id , double* vec , int len ,
-                                std::vector< FRowConstraint * > node_cons ,
+                                std::vector< const FRowConstraint * > node_cons ,
                                 const int nCons ,
                                 std::vector< double > rhs ,
                                 std::vector< char > sense ,
@@ -420,7 +404,7 @@ int PIPSMILPSolver::ExtractRhsVector( int id , double* vec , int len ,
    else{
     // Inequality constraints, we have to distinguish several cases
     for( int i = 0 ; i < global_idxs_cons.size() ; i++ ){
-     idx = global_idxs_cons[ i ]; // true constraint index
+     int idx = global_idxs_cons[ i ]; // true constraint index
      if( idx < rhs.size() ){ 
       if( sense[ idx ] == 'L' )
        // <= RHS, store the element
@@ -450,7 +434,7 @@ int PIPSMILPSolver::ExtractRhsVector( int id , double* vec , int len ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractLhsVector( int id , double* vec , int len ,
-                                std::vector< FRowConstraint * > node_cons ,
+                                std::vector< const FRowConstraint * > node_cons ,
                                 const int nCons ,
                                 std::vector< double > rhs ,
                                 std::vector< char > sense ,
@@ -476,7 +460,7 @@ int PIPSMILPSolver::ExtractLhsVector( int id , double* vec , int len ,
    sub_rhs.reserve( global_idxs_cons.size() );
 
    for( int i = 0 ; i < global_idxs_cons.size() ; i++ ){
-    idx = global_idxs_cons[ i ]; // true constraint index
+    int idx = global_idxs_cons[ i ]; // true constraint index
     if( idx < rhs.size() ){ 
      if( sense[ idx ] == 'G' )
       // >= LHS, store the element
@@ -565,8 +549,8 @@ int PIPSMILPSolver::RhsLinkInEqCons( void * user_data, int id , double* vec,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  solver->ExtractRhsVector( id , vec, len , LinkInEqCons , 
-                n_LinkInEqCons , solver-> rhs ,
+  solver->ExtractRhsVector( id , vec, len , solver->LinkInEqCons , 
+                solver->n_LinkInEqCons , solver->rhs ,
                 solver->sense , solver->rngval );
   return 0;
 }
@@ -579,8 +563,8 @@ int PIPSMILPSolver::LhsLinkInEqCons( void * user_data, int id , double* vec,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  solver->ExtractLhsVector( id , vec, len , LinkInEqCons , 
-                n_LinkInEqCons , solver-> rhs ,
+  solver->ExtractLhsVector( id , vec, len , solver->LinkInEqCons , 
+                solver->n_LinkInEqCons , solver-> rhs ,
                 solver->sense , solver->rngval );
   return 0;
 }
@@ -588,7 +572,7 @@ int PIPSMILPSolver::LhsLinkInEqCons( void * user_data, int id , double* vec,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractRhsActiveFlag( int id , double* vec , int len ,
-                                std::vector< FRowConstraint * > node_cons ,
+                                std::vector< const FRowConstraint * > node_cons ,
                                 const int nCons ,
                                 std::vector< double > rhs ,
                                 std::vector< char > sense ,
@@ -609,7 +593,7 @@ int PIPSMILPSolver::ExtractRhsActiveFlag( int id , double* vec , int len ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractLhsActiveFlag( int id , double* vec , int len ,
-                                std::vector< FRowConstraint * > node_cons ,
+                                std::vector< const FRowConstraint * > node_cons ,
                                 const int nCons ,
                                 std::vector< double > rhs ,
                                 std::vector< char > sense ,
@@ -686,7 +670,7 @@ int PIPSMILPSolver::FlagLhsLinkInEqCons( void * user_data, int id , double* vec,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractVarBounds( int id , double* vec , int len ,
-                                std::vector< ColVariable * > node_vars ,
+                                std::vector< const ColVariable * > node_vars ,
                                 const int nVars ,
                                 std::vector< double > bounds ){ 
   if( id < n_nodes ){
@@ -763,7 +747,7 @@ int PIPSMILPSolver::ObjVars( void * user_data, int id , double* vec,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractFlagVarBounds( int id , double* vec , int len ,
-                                std::vector< ColVariable * > node_vars ,
+                                std::vector< const ColVariable * > node_vars ,
                                 const int nVars ,
                                 std::vector< double > bounds ){ 
   ExtractVarBounds( id , vec , len , node_vars , nVars , bounds );
@@ -807,9 +791,9 @@ int PIPSMILPSolver::FlagLBVars( void * user_data, int id , double* vec,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractMatrix( int id , int* krowM, int* jcolM, double* M , 
-                                std::vector< FRowConstraint * > node_cons ,
+                                std::vector< const FRowConstraint * > node_cons ,
                                 const int nCons , 
-                                std::vector< ColVariable * > vars ,
+                                std::vector< const ColVariable * > vars ,
                                 const int nVars ){ 
   if( id < n_nodes ){
    // Check if the node has own constraint or variables
@@ -941,7 +925,7 @@ int PIPSMILPSolver::MatLinkInEqCons( void * user_data, int id , int* krowM,
 /*--------------------------------------------------------------------------*/
 
 std::vector< int > PIPSMILPSolver::compute_cons_global_idxs( 
-                                  std::vector< FRowConstraint * > cons ,
+                                  std::vector< const FRowConstraint * > cons ,
                                   const int nCons ){
  // Initialize vector to -1
  std::vector< int > global_idxs( nCons , -1 );
@@ -969,7 +953,7 @@ std::vector< int > PIPSMILPSolver::compute_cons_global_idxs(
 /*--------------------------------------------------------------------------*/
 
 std::vector< int > PIPSMILPSolver::compute_vars_global_idxs( 
-                                  std::vector< ColVariable * > vars ,
+                                  std::vector< const ColVariable * > vars ,
                                   const int nVars ){
  // Initialize vector to -1
  std::vector< int > global_idxs( nVars , -1 );
@@ -1067,14 +1051,12 @@ void PIPSMILPSolver::load_problem( void )
 
  // Clear PIPS structures
  int status = 0;
+  
+ delete pips_interface;
+ pips_interface = nullptr;
 
- if( pips_interface ){
-  delete pips_interface;
-  pips_interface = nullptr;
-
-  delete pips_tree;
-  pips_tree = nullptr;
- }
+ delete pips_tree;
+ pips_tree = nullptr;
 
  /* The strategy in PIPSMILPSolver will simply be to correctly store the
   * elements belonging to each node. After that, by simply calling 
@@ -1091,7 +1073,7 @@ void PIPSMILPSolver::load_problem( void )
  nodes_subtrees.clear();
 
  // Set the first node (root) to be the f_Block
- Index n_nodes = 1;
+ n_nodes = 1;
  Index n_blocks = 1; 
  nodes_subtrees.push_back( { f_Block } );
 
@@ -1122,8 +1104,6 @@ void PIPSMILPSolver::load_problem( void )
  n_varNode.resize( n_nodes, 0 );
  n_EqConsNode.resize( n_nodes, 0 );
  n_InEqConsNode.resize( n_nodes, 0 );
- n_LinkEqConsNode.resize( n_nodes, 0 );
- n_LinkInEqConsNode.resize( n_nodes, 0 );
 
  varNode.resize( n_nodes );
  EqConsNode.resize( n_nodes );
@@ -1167,6 +1147,11 @@ void PIPSMILPSolver::load_problem( void )
   }
   num_node++;
  }
+
+ int rank;
+ int size;
+ MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+ MPI_Comm_size(MPI_COMM_WORLD, &size);
 
  // Now set all the callbacks - - - - - - - - - - - - - - - - - - - - - - - - 
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1233,30 +1218,33 @@ void PIPSMILPSolver::load_problem( void )
     fRhsInEqCons , fFlagRhsInEqCons , fLhsLinkInEqCons , fFlagLhsLinkInEqCons , fRhsLinkInEqCons ,
     fFlagRhsLinkInEqCons , fLBVars , fFlagLBVars , fUBVars , fFlagUBVars , nullptr, nullptr, false );
 
-   auto* root = new DistributedInputTree( std::move( data_root ) );
+ auto* root = new DistributedInputTree( std::move( data_root ) );
 
-   for(int id = 1; id <= n_nodes ; ++id ) {
-      // Build the problem tree
-      std::unique_ptr<DistributedInputTree::DistributedInputNode> data_child = 
-        std::make_unique<DistributedInputTree::DistributedInputNode>( this, id, fNo_VarinNode, 
-          fNo_EqConsinNode, fNo_LinkEqCons, fNo_InEqConsinNode, fNo_LinkInEqCons, fQ, fnnzQ, fObjVars, 
-          fMatEqConsDiag, fnnzEqConsDiag, fMatEqConsVert , fnnzEqConsVert , fMatLinkEqCons , fnnzLinkEqCons, 
-          fRhsEqCons , fRhsLinkEqCons , fMatInEqConsDiag , fnnzInEqConsDiag , fMatInEqConsVert , 
-          fnnzInEqConsVert , fMatLinkInEqCons , fnnzLinkInEqCons , fLhsInEqCons , fFlagLhsInEqCons ,
-          fRhsInEqCons , fFlagRhsInEqCons , fLhsLinkInEqCons , fFlagLhsLinkInEqCons , fRhsLinkInEqCons ,
-          fFlagRhsLinkInEqCons , fLBVars , fFlagLBVars , fUBVars , fFlagUBVars , nullptr, nullptr, false );
+ for(int id = 1; id < n_nodes ; ++id ) {
+  // Build the problem tree
+  std::unique_ptr<DistributedInputTree::DistributedInputNode> data_child = 
+    std::make_unique<DistributedInputTree::DistributedInputNode>( this, id, fNo_VarinNode, 
+      fNo_EqConsinNode, fNo_LinkEqCons, fNo_InEqConsinNode, fNo_LinkInEqCons, fQ, fnnzQ, fObjVars, 
+      fMatEqConsDiag, fnnzEqConsDiag, fMatEqConsVert , fnnzEqConsVert , fMatLinkEqCons , fnnzLinkEqCons, 
+      fRhsEqCons , fRhsLinkEqCons , fMatInEqConsDiag , fnnzInEqConsDiag , fMatInEqConsVert , 
+      fnnzInEqConsVert , fMatLinkInEqCons , fnnzLinkInEqCons , fLhsInEqCons , fFlagLhsInEqCons ,
+      fRhsInEqCons , fFlagRhsInEqCons , fLhsLinkInEqCons , fFlagLhsLinkInEqCons , fRhsLinkInEqCons ,
+      fFlagRhsLinkInEqCons , fLBVars , fFlagLBVars , fUBVars , fFlagUBVars , nullptr, nullptr, false );
 
-      root->add_child( std::make_unique<DistributedInputTree>( std::move( data_child ) ) );
-   }
+   root->add_child( std::make_unique<DistributedInputTree>( std::move( data_child ) ) );
+ }
 
-   /* use BiCGStab for outer solve */
-   //pipsipmpp_options::set_parameter("PRESOLVE", false);
-   //pipsipmpp_options::set_parameter("SCALER", "geometricmean");
+ if (rank == 0)
+  std::cout << "Using a total of " << size << " MPI processes.\n";
 
-   pips_interface = new PIPSIPMppInterface( pips_tree, MPI_COMM_WORLD );
-   pips_tree = root;
+/* use BiCGStab for outer solve */
+//pipsipmpp_options::set_parameter("PRESOLVE", false);
+//pipsipmpp_options::set_parameter("SCALER", "geometricmean");
 
-   return;
+ pips_tree = root;
+ pips_interface = new PIPSIPMppInterface( pips_tree, MPI_COMM_WORLD );
+
+ return;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1315,6 +1303,334 @@ template< typename T >
   throw( std::runtime_error( "Unsupported group type" ) );
 } // end( PIPSMILPSolver::scan_simple_group )
 
+/*--------------------------------------------------------------------------*/
+
+template< typename T >
+ void PIPSMILPSolver::scan_multiarray_group( const boost::any & gr ,
+            Block * qb , Index num_node , bool is_static , un_any_type< T > )
+{
+ // Get multi array number of dimension
+ int ma_dim = get_multi_array_dim( gr , un_any_type< T >() , 
+                                    un_any_int< 2 >() );
+
+ if( ma_dim == 2 ) {
+  // Use the 2D multi_array
+
+  // Get type of multi array. See MILPSolver.h:1256 for further details.
+  int type = get_multi_array_type( gr , un_any_type< T >() ,
+                                  un_any_int< 2 >() );
+
+  // Indices of the 2 dimensions
+  int idx_0 = 0;
+  int idx_1 = 0;
+
+  if( type == 1 ) {
+   // Multi arrays of type 1 (i.e. multi_array< std::vector < T * > >).
+   // In this case elements are not stored in sequential cells. Thus, 
+   // we have to "unpack" each std::vector and store them separately.
+   auto ma = get_multi_array1( gr , un_any_type< T >() ,
+                            un_any_int< 2 >() );
+
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
+    // Constraint group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     // Scanning a group of Constraints
+     auto scan = [ this , num_node ]
+      ( const FRowConstraint & c ) {
+        scan_constraint( c , num_node );
+     };
+     // Scan all the constraints one at a time
+     if( is_static )
+      un_any_const_static( gr , scan  , un_any_type< FRowConstraint >() );
+     else
+      un_any_const_dynamic( gr , scan , un_any_type< FRowConstraint >() );
+
+     // The linearization produced by ma->data() for the 2D multi_array
+     // stores elements in row-major order. Therefore, we should increment
+     // the column index first, and when it exceeds the number of columns,
+     // reset it and increment the row index.
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
+      idx_1++;
+     else {
+      idx_1 = 0;
+      idx_0++;
+     }
+    }
+   }
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
+    // Variable group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     // Scanning a group of Variables
+     // in this case we simply add the variable to the corresponding node
+     auto push_var_toNode = [ this , num_node ]
+       ( const ColVariable & c ) {
+        n_varNode[ num_node ] += 1;
+         varNode[ num_node ].push_back( &c );
+     };
+     if( is_static )
+      un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
+     else
+      un_any_const_dynamic( gr , push_var_toNode , un_any_type< ColVariable >() );
+
+     // The linearization produced by ma->data() for the 2D multi_array
+     // stores elements in row-major order. Therefore, we should increment
+     // the column index first, and when it exceeds the number of columns,
+     // reset it and increment the row index.
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
+      idx_1++;
+     else {
+      idx_1 = 0;
+      idx_0++;
+     }
+    }
+   }
+   else
+    throw( std::runtime_error( "Unsupported group type" ) );
+  }
+  else if( type == 0 ) {
+   // Multi arrays of type 0 (i.e. multi_array< T >) store
+   // elements in sequential cells. Thus, we can store them
+   // as usually done for std::vector< T > by only keeping track
+   // of the first element and storing the number of non empty
+   // cells in the structure.
+   auto ma = get_multi_array0( gr , un_any_type< T >() ,
+                              un_any_int< 2 >() );
+
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
+    // Constraint group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     // Scanning a group of Constraints
+     auto scan = [ this , num_node ]
+      ( const FRowConstraint & c ) {
+        scan_constraint( c , num_node );
+     };
+     // Scan all the constraints one at a time
+     if( is_static )
+      un_any_const_static( gr , scan  , un_any_type< FRowConstraint >() );
+     else
+      un_any_const_dynamic( gr , scan , un_any_type< FRowConstraint >() );
+
+     // The linearization produced by ma->data() for the 2D multi_array
+     // stores elements in row-major order. Therefore, we should increment
+     // the column index first, and when it exceeds the number of columns,
+     // reset it and increment the row index.
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
+      idx_1++;
+     else {
+      idx_1 = 0;
+      idx_0++;
+     }
+    }
+   }
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
+    // Variable group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     // Scanning a group of Variables
+     // in this case we simply add the variable to the corresponding node
+     auto push_var_toNode = [ this , num_node ]
+       ( const ColVariable & c ) {
+        n_varNode[ num_node ] += 1;
+         varNode[ num_node ].push_back( &c );
+     };
+     if( is_static )
+      un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
+     else
+      un_any_const_dynamic( gr , push_var_toNode , un_any_type< ColVariable >() );
+
+     // The linearization produced by ma->data() for the 2D multi_array
+     // stores elements in row-major order. Therefore, we should increment
+     // the column index first, and when it exceeds the number of columns,
+     // reset it and increment the row index.
+     if( idx_1 < ma->shape()[ 1 ] - 1 )
+      idx_1++;
+     else {
+      idx_1 = 0;
+      idx_0++;
+     }
+    }
+   }
+   else
+    throw( std::runtime_error( "Unsupported group type" ) );
+  }
+  else
+   throw( std::runtime_error( "Unsupported multi-array type" ) );
+ }
+ else if( ma_dim == 3 ) {
+  // Use the 3D multi_array
+
+  // Get type of multi array. See MILPSolver.h:1256 for further details.
+  int type = get_multi_array_type( gr , un_any_type< T >() ,
+                un_any_int< 3 >() );
+
+  // Indices of the 3 dimensions
+  int idx_0 = 0;
+  int idx_1 = 0;
+  int idx_2 = 0;
+
+  if( type == 1 ) {
+   // Multi arrays of type 1 (i.e. multi_array< std::vector < T * > >).
+   // In this case elements are not stored in sequential cells. Thus, 
+   // we have to "unpack" each std::vector and store them separately.
+   auto ma = get_multi_array1( gr , un_any_type< T >() ,
+                            un_any_int< 3 >() );
+
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
+    // Constraint group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     // Scanning a group of Constraints
+     auto scan = [ this , num_node ]
+      ( const FRowConstraint & c ) {
+        scan_constraint( c , num_node );
+     };
+     // Scan all the constraints one at a time
+     if( is_static )
+      un_any_const_static( gr , scan  , un_any_type< FRowConstraint >() );
+     else
+      un_any_const_dynamic( gr , scan , un_any_type< FRowConstraint >() );
+
+     // The linearization produced by ma->data() for the 3D multi_array
+     // stores elements in row-major order.
+     if( idx_2 < ma->shape()[ 1 ] - 1 )
+      idx_2++; // Move third counter
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+      idx_1++; // Move second counter
+      idx_2 = 0; // Reset third counter
+     }
+     else {
+      idx_0++; // Move first counter
+      idx_1 = 0; // Reset second counter
+      idx_2 = 0; // Reset third counter
+     }
+    }
+   }
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
+    // Variable group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     // Scanning a group of Variables
+     // in this case we simply add the variable to the corresponding node
+     auto push_var_toNode = [ this , num_node ]
+       ( const ColVariable & c ) {
+        n_varNode[ num_node ] += 1;
+         varNode[ num_node ].push_back( &c );
+     };
+     if( is_static )
+      un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
+     else
+      un_any_const_dynamic( gr , push_var_toNode , un_any_type< ColVariable >() );
+
+     // The linearization produced by ma->data() for the 3D multi_array
+     // stores elements in row-major order.
+     if( idx_2 < ma->shape()[ 1 ] - 1 )
+      idx_2++; // Move third counter
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+      idx_1++; // Move second counter
+      idx_2 = 0; // Reset third counter
+     }
+     else {
+      idx_0++; // Move first counter
+      idx_1 = 0; // Reset second counter
+      idx_2 = 0; // Reset third counter
+     }
+    }
+   }
+   else
+    throw( std::runtime_error( "Unsupported group type" ) );
+  }
+  else if( type == 0 ) {
+   // Multi arrays of type 0 (i.e., multi_array< T >) store
+   // elements in sequential cells. Thus, we can store them
+   // as usually done for std::vector< T > by only keeping track
+   // of the first element and storing the number of non-empty
+   // cells in the structure.
+   auto ma = get_multi_array0( gr , un_any_type< T >() ,
+                              un_any_int< 3 >() );
+
+   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
+    // Constraint group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     // Scanning a group of Constraints
+     auto scan = [ this , num_node ]
+      ( const FRowConstraint & c ) {
+        scan_constraint( c , num_node );
+     };
+     // Scan all the constraints one at a time
+     if( is_static )
+      un_any_const_static( gr , scan  , un_any_type< FRowConstraint >() );
+     else
+      un_any_const_dynamic( gr , scan , un_any_type< FRowConstraint >() );
+
+     // The linearization produced by ma->data() for the 3D multi_array
+     // stores elements in row-major order.
+     if( idx_2 < ma->shape()[ 1 ] - 1 )
+      idx_2++; // Move third counter
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+      idx_1++; // Move second counter
+      idx_2 = 0; // Reset third counter
+     }
+     else {
+      idx_0++; // Move first counter
+      idx_1 = 0; // Reset second counter
+      idx_2 = 0; // Reset third counter
+     }
+    }
+   }
+   else if( typeid( T * ) == typeid( ColVariable * ) ) {
+    // Variable group
+
+    // Scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
+     // Scanning a group of Variables
+     // in this case we simply add the variable to the corresponding node
+     auto push_var_toNode = [ this , num_node ]
+       ( const ColVariable & c ) {
+        n_varNode[ num_node ] += 1;
+         varNode[ num_node ].push_back( &c );
+     };
+     if( is_static )
+      un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
+     else
+      un_any_const_dynamic( gr , push_var_toNode , un_any_type< ColVariable >() );
+
+     // The linearization produced by ma->data() for the 3D multi_array
+     // stores elements in row-major order.
+     if( idx_2 < ma->shape()[ 1 ] - 1 )
+      idx_2++; // Move third counter
+     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+      idx_1++; // Move second counter
+      idx_2 = 0; // Reset third counter
+     }
+     else {
+      idx_0++; // Move first counter
+      idx_1 = 0; // Reset second counter
+      idx_2 = 0; // Reset third counter
+     }
+    }
+   }
+   else
+    throw( std::runtime_error( "Unsupported group type" ) );
+  }
+  else
+   throw( std::runtime_error( "Unsupported multi-array type" ) );
+ }
+ else
+    // Handle invalid or unsupported ma_dim 
+    return; 
+
+} // end( PIPSMILPSolver::scan_multiarray_group )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1404,19 +1720,17 @@ int PIPSMILPSolver::compute( bool changedvars )
  // Not possible in PIPS
 
  // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
- sol_status = decode_pips_status( pips_interface.run() );
-
- MPI_Finalize();
+ sol_status = decode_pips_status( pips_interface->run() );
 
  Return_status:
  unlock();  // unlock the mutex
  return( sol_status );
 
- }  // end( PIPSMILPSolver::compute )
+}  // end( PIPSMILPSolver::compute )
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::decode_pips_status( int status )
+int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
 {
  DEBUG_LOG( "pips_interface.run() returned " << status << std::endl );
 
@@ -1424,31 +1738,30 @@ int PIPSMILPSolver::decode_pips_status( int status )
  * a PIPS solution as returned by pips_interface.run(). */
 
  switch( status ) {
-  case( READ_ERROR ):
-  case( UNKNOWN ) :
-  case( DID_NOT_RUN ):
-  case( NOT_FINISHED ):
-  case( STOPPED_AFTER_PRESOLVE ):
+  case( TerminationStatus::READ_ERROR ):
+  case( TerminationStatus::UNKNOWN ) :
+  case( TerminationStatus::DID_NOT_RUN ):
+  case( TerminationStatus::NOT_FINISHED ):
+  case( TerminationStatus::STOPPED_AFTER_PRESOLVE ):
    // Some error happened.
    return( kError );
-  case( TIMELIMIT ):
+  case( TerminationStatus::TIMELIMIT ):
    // Time limit exceeded
    return( kStopTime );
-  case( INFEASIBLE ):
+  case( TerminationStatus::INFEASIBLE ):
    // Problem is infeasible.
    return( kInfeasible );
-  case( UNBOUNDED ):
+  case( TerminationStatus::UNBOUNDED ):
    // Problem has been proven unbounded.
    return( kUnbounded );
-  case( MAX_ITS_EXCEEDED ):
+  case( TerminationStatus::MAX_ITS_EXCEEDED ):
    // Iteration limit has been reached;
    return( kStopIter );
-  case( SUCCESSFUL_TERMINATION ):
+  case( TerminationStatus::SUCCESSFUL_TERMINATION ):
    // Compilation terminated succesfully
    return( kOK );
   default:;
   }
 
- throw( std::runtime_error( "pips_interface.run() returned unknown status " +
-			    std::to_string( status ) ) );
- }
+ throw( std::runtime_error( "pips_interface.run() returned unknown status." ) );
+}

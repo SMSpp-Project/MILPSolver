@@ -78,6 +78,8 @@ class PIPSMILPSolver : public MILPSolver {
  using c_Subset = Block::c_Subset;
  using Range = Block::Range;
 
+ using Index = Block::Index;  // "import" Index from Block
+
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -139,32 +141,32 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Copies a selected matrix block into the arrays supplied by PIPS.
  int ExtractMatrix( int id , int * krowM , int * jcolM , double * M ,
-                    std::vector< FRowConstraint * > node_cons ,
+                    std::vector< const FRowConstraint * > node_cons ,
                     const int nCons ,
-                    std::vector< ColVariable * > vars ,
+                    std::vector< const ColVariable * > vars ,
                     const int nVars );
 
  /// Counts the nonzeros of a selected PIPS matrix block.
  int EvaluateNnz( int id , int * nnz ,
-                  std::vector< FRowConstraint * > node_cons ,
+                  std::vector< const FRowConstraint * > node_cons ,
                   const int nCons ,
-                  std::vector< ColVariable * > vars ,
+                  std::vector< const ColVariable * > vars ,
                   const int nVars );
 
  /// Computes global MILPSolver row indices for a set of constraints.
  std::vector< int > compute_cons_global_idxs(
-  std::vector< FRowConstraint * > cons , const int nCons );
+  std::vector< const FRowConstraint * > cons , const int nCons );
 
  /// Computes global MILPSolver column indices for a set of variables.
  std::vector< int > compute_vars_global_idxs(
-  std::vector< ColVariable * > vars , const int nVars );
+  std::vector< const ColVariable * > vars , const int nVars );
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- TREE/SCAN HELPERS -----------------------------*/
 /*--------------------------------------------------------------------------*/
 
  /// Recursively collects a Block subtree and maps each Block to its PIPS leaf.
- Index collect_subtree( Block * block , std::vector< Block * > & subtree ,
+ int collect_subtree( Block * block , std::vector< Block * > & subtree ,
                         Index parent_leaf );
 
  /// Scans an SMS++ variable/constraint group and dispatches to the right scan.
@@ -177,6 +179,11 @@ class PIPSMILPSolver : public MILPSolver {
  void scan_simple_group( const boost::any & gr , Block * qb , Index num_node ,
                          bool is_static , un_any_type< T > );
 
+ template< typename T >
+ void scan_multiarray_group( const boost::any & gr , Block * qb , 
+                                Index num_node , bool is_static , 
+                                un_any_type< T > );
+
  /// Classifies one constraint as node-local or global-linking.
  void scan_constraint( const FRowConstraint & con , Index num_node );
 
@@ -186,7 +193,7 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Extracts equality RHS or inequality upper-bound values for selected rows.
  int ExtractRhsVector( int id , double * vec , int len ,
-                       std::vector< FRowConstraint * > node_cons ,
+                       std::vector< const FRowConstraint * > node_cons ,
                        const int nCons ,
                        std::vector< double > rhs ,
                        std::vector< char > sense ,
@@ -194,7 +201,7 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Extracts inequality lower-bound values for selected rows.
  int ExtractLhsVector( int id , double * vec , int len ,
-                       std::vector< FRowConstraint * > node_cons ,
+                       std::vector< const FRowConstraint * > node_cons ,
                        const int nCons ,
                        std::vector< double > rhs ,
                        std::vector< char > sense ,
@@ -202,7 +209,7 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Extracts active flags for selected row upper bounds.
  int ExtractRhsActiveFlag( int id , double * vec , int len ,
-                           std::vector< FRowConstraint * > node_cons ,
+                           std::vector< const FRowConstraint * > node_cons ,
                            const int nCons ,
                            std::vector< double > rhs ,
                            std::vector< char > sense ,
@@ -210,7 +217,7 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Extracts active flags for selected row lower bounds.
  int ExtractLhsActiveFlag( int id , double * vec , int len ,
-                           std::vector< FRowConstraint * > node_cons ,
+                           std::vector< const FRowConstraint * > node_cons ,
                            const int nCons ,
                            std::vector< double > rhs ,
                            std::vector< char > sense ,
@@ -218,13 +225,13 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Extracts variable objective coefficients or bounds for a node.
  int ExtractVarBounds( int id , double * vec , int len ,
-                       std::vector< ColVariable * > node_vars ,
+                       std::vector< const ColVariable * > node_vars ,
                        const int nVars ,
                        std::vector< double > bounds );
 
  /// Extracts active flags for variable bounds.
  int ExtractFlagVarBounds( int id , double * vec , int len ,
-                            std::vector< ColVariable * > node_vars ,
+                            std::vector< const ColVariable * > node_vars ,
                             const int nVars ,
                             std::vector< double > bounds );
 
@@ -391,31 +398,33 @@ class PIPSMILPSolver : public MILPSolver {
  std::vector< int > n_varNode;
 
  /// Variables assigned to each node.
- std::vector< std::vector< ColVariable * > > varNode;
+ std::vector< std::vector< const ColVariable * > > varNode;
 
  /// Number of node-local equality constraints in each node.
  std::vector< int > n_EqConsNode;
 
  /// Node-local equality constraints.
- std::vector< std::vector< FRowConstraint * > > EqConsNode;
+ std::vector< std::vector< const FRowConstraint * > > EqConsNode;
 
  /// Number of node-local inequality constraints in each node.
  std::vector< int > n_InEqConsNode;
 
  /// Node-local inequality constraints.
- std::vector< std::vector< FRowConstraint * > > InEqConsNode;
+ std::vector< std::vector< const FRowConstraint * > > InEqConsNode;
 
  /// Number of global linking equality constraints.
  int n_LinkEqCons = 0;
 
  /// Global linking equality constraints.
- std::vector< FRowConstraint * > LinkEqCons;
+ std::vector< const FRowConstraint * > LinkEqCons;
 
  /// Number of global linking inequality constraints.
  int n_LinkInEqCons = 0;
 
  /// Global linking inequality constraints.
- std::vector< FRowConstraint * > LinkInEqCons;
+ std::vector< const FRowConstraint * > LinkInEqCons;
+
+ bool mpi_initialized_by_this_solver = false;
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- OTHER DATA ---------------------------------*/
@@ -424,6 +433,16 @@ class PIPSMILPSolver : public MILPSolver {
  double UpCutOff;  ///< externally set upper cutoff
  double LwCutOff;  ///< externally set lower cutoff
 
+ /** vector containing the filenames used to load of the Configuration of
+  * the "Configuration DB" */
+ std::vector< std::string > ConfigDBFName;
+
+ /// the "Configuration DB" istself
+ std::vector< Configuration * > v_ConfigDB;
+
+ /// the mutex to ensure that SCIP threads do not overstep in the callback
+ std::mutex f_callback_mutex;
+
 /*--------------------------------------------------------------------------*/
 /*---------------------- PRIVATE PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -431,7 +450,7 @@ class PIPSMILPSolver : public MILPSolver {
  private:
 
  /// Converts PIPS-IPM++ status codes into SMS++ solver status codes.
- static int decode_pips_status( int status );
+ static int decode_pips_status( TerminationStatus status );
 
  SMSpp_insert_in_factory_h;
 
