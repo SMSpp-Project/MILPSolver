@@ -155,6 +155,8 @@ void CPXMILPSolver::clear_problem( unsigned int what )
   CPXfreeprob( env , & lp );
   lp = nullptr;
   }
+
+ f_inverted_rows.clear();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -168,6 +170,7 @@ void CPXMILPSolver::load_problem( void )
  cpx_quad_var_aux.clear();
  cpx_quad_con_aux.clear();
  cpx_idx_aux_qvar.clear();
+ f_inverted_rows.clear();
 
  if( lp )
   CPXfreeprob( env , & lp );
@@ -506,6 +509,14 @@ int CPXMILPSolver::compute( bool changedvars )
  // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
  if( MILPSolver::compute( changedvars ) != kOK )
   throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
+
+ // short-circuit: any FRowConstraint with lhs > rhs makes the problem
+ // structurally infeasible (see f_inverted_rows documentation)
+ if( ! f_inverted_rows.empty() ) {
+  sol_status = kInfeasible;
+  unlock();
+  return( sol_status );
+  }
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() )
@@ -1777,6 +1788,22 @@ void CPXMILPSolver::const_modification( const ConstraintMod * mod )
    con_lhs = con->get_lhs();
    con_rhs = con->get_rhs();
 
+   if( con_lhs > con_rhs ) {
+    // Inverted bounds: the row is structurally infeasible. CPLEX's
+    // ranged-row encoding (rngval = rhs - lhs < 0) would silently swap
+    // them into the feasible interval [rhs, lhs], so we encode the row
+    // as a feasible equality at con_rhs and track it in f_inverted_rows;
+    // compute() will short-circuit to kInfeasible.
+    f_inverted_rows.insert( con );
+    sense = 'E';
+    rhs = con_rhs;
+    CPXchgrhs( env , lp , 1 , & index , & rhs );
+    CPXchgsense( env , lp , 1 , & index , & sense );
+    break;
+    }
+
+   f_inverted_rows.erase( con );
+
    if( con_lhs == con_rhs ) {
     sense = 'E';
     rhs = con_rhs;
@@ -2513,26 +2540,36 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
   auto con_rhs = con->get_rhs();
   double rhs , rngval;
   char sense;
+  bool inverted = false;
 
-  if( con_lhs == con_rhs ) {
+  if( con_lhs > con_rhs ) {
+   // Inverted bounds: see f_inverted_rows documentation. Encode the new
+   // row as a feasible equality at con_rhs and record it; compute() will
+   // short-circuit to kInfeasible while it remains in this state.
+   inverted = true;
    sense = 'E';
    rhs = con_rhs;
    }
   else
-   if( con_lhs == -Inf< double >() ) {
-    sense = 'L';
+   if( con_lhs == con_rhs ) {
+    sense = 'E';
     rhs = con_rhs;
     }
    else
-    if( con_rhs == Inf< double >() ) {
-     sense = 'G';
-     rhs = con_lhs;
+    if( con_lhs == -Inf< double >() ) {
+     sense = 'L';
+     rhs = con_rhs;
      }
-    else {
-     sense = 'R';
-     rhs = con_lhs;
-     rngval = con_rhs - con_lhs;
-     }
+    else
+     if( con_rhs == Inf< double >() ) {
+      sense = 'G';
+      rhs = con_lhs;
+      }
+     else {
+      sense = 'R';
+      rhs = con_lhs;
+      rngval = con_rhs - con_lhs;
+      }
 
   // update the CPLEX problem
   CPXaddrows( env , lp , 0 , 1 , rmatind.size() , & rhs , & sense ,
@@ -2544,6 +2581,9 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
    int index = numrows - 1;
    CPXchgrngval( env , lp , 1 , & index , & rngval );
    }
+
+  if( inverted )
+   f_inverted_rows.insert( con );
   }
  }  // end( CPXMILPSolver::add_dynamic_constraint )
 
@@ -2648,6 +2688,8 @@ void CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
   throw( std::runtime_error( "Dynamic constraint not found" ) );
 
  CPXdelrows( env , lp , index , index );
+
+ f_inverted_rows.erase( con );
 
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::remove_dynamic_constraint( con );

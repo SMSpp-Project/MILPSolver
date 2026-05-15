@@ -37,6 +37,8 @@
 
 #include <ilcplex/cplex.h>
 
+#include <unordered_set>
+
 #include "MILPSolver.h"
 
 // Include the proper CPLEX parameter mapping
@@ -793,10 +795,23 @@ class CPXMILPSolver : public MILPSolver {
         Index row ,
         bool lin_null );
 
- /** Evaluate the gradient of a specific quadratic constraint 
+ /** Evaluate the gradient of a specific quadratic constraint
   * in the optimum find by CPLEX. */
  double evaluate_dual_qcon( Index row ,
         std::vector< double > x_sol );
+
+ /// FRowConstraints with \f$ lhs > rhs \f$ in their current state
+ /** CPLEX encodes a ranged row with \f$ \mathit{rngval} =
+  *  \mathit{rhs} - \mathit{lhs} \f$. When \f$ \mathit{rngval} < 0 \f$
+  *  (i.e. \f$ \mathit{lhs} > \mathit{rhs} \f$), CPLEX silently re-interprets
+  *  the row as the swapped interval
+  *  \f$ [\mathit{rhs}, \mathit{lhs}] \f$, masking the intended
+  *  infeasibility. To preserve the SMS++ semantics we detect this case in
+  *  const_modification() / add_dynamic_constraint(), encode the row in
+  *  CPLEX as a feasible equality at \f$ \mathit{rhs} \f$, and record the
+  *  affected FRowConstraint here. compute() short-circuits to
+  *  kInfeasible if this set is non-empty. */
+ std::unordered_set< const FRowConstraint * > f_inverted_rows;
 
 /*--------------------------------------------------------------------------*/
 
