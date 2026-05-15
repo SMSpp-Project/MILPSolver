@@ -70,7 +70,7 @@ int GRBMILPSolver_callback( GRBmodel * model , void * cbdata , int where ,
 
 GRBMILPSolver::GRBMILPSolver( void ) :
  MILPSolver() , env( nullptr ) , model( nullptr ) , f_callback_set( false ) ,
- last_static_rng_con( -1 ) , CutSepPar( 0 ) ,
+ last_static_rng_con( -1 ) ,
  UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
 {
  int status = 0;
@@ -585,14 +585,11 @@ std::array< double , 2 > GRBMILPSolver::get_problem_bounds(
 
 /*--------------------------------------------------------------------------*/
 
-int GRBMILPSolver::compute( bool changedvars )
+int GRBMILPSolver::guts_of_compute( void )
 {
- lock();  // lock the mutex: this is done again inside MILPSolver::compute,
-          // but that's OK since the mutex is recursive
-
- // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
- if( MILPSolver::compute( changedvars ) != kOK )
-  throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
+ // Note: locking, process_modifications() and the LP cut separation loop
+ // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
+ // This method is only responsible for the actual Gurobi call.
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() ) {
@@ -621,7 +618,11 @@ int GRBMILPSolver::compute( bool changedvars )
 
  // the actual call to GUROBI- - - - - - - - - - - - - - - - - - - - - - - - -
 
- if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
+ // dispatch LP vs MIP: only intRelaxIntVars == 2 unconditionally goes
+ // through the LP path so the base user-cut-separation loop in
+ // MILPSolver::compute() works on a pure LP solve. Values 0 (MIP) and 1
+ // (MIP engine on relaxed problem) keep the pre-existing semantics
+ if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
 
   if( ( CutSepPar & 7 ) ||
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
@@ -629,15 +630,15 @@ int GRBMILPSolver::compute( bool changedvars )
    GRBsetcallbackfunc( model , & GRBMILPSolver_callback , this );
 
    if( CutSepPar & 3 ) {  // we do user cut separation.
-    // Simply shut off a few presolve reductions that can sometimes prevent 
+    // Simply shut off a few presolve reductions that can sometimes prevent
     // the cut from being applied to the presolved model.
     GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRECRUSH , 1 );
    }
-   
+
    if( CutSepPar & 4 )  // we do lazy constraint separation.
     // We have to set the possibility in Gurobi.
     GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_LAZYCONSTRAINTS , 1 );
-   
+
    f_callback_set = true;
    }
   else {
@@ -648,23 +649,31 @@ int GRBMILPSolver::compute( bool changedvars )
   }
 
   if( int status = GRBoptimize( model ) ) { //error
-   
+
    sol_status = decode_grb_error( status );
-   goto Return_status;
+   return( sol_status );
    }
 
   int m_status;
   GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
 
   sol_status = decode_model_status( m_status );
-  goto Return_status;
+  return( sol_status );
   }
 
  // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // (no MIP callback is installed here even if CutSepPar > 0: when
+ // relax_int_vars == 2 the LP separation loop is driven by MILPSolver
+ // around this method)
+
+ if( f_callback_set ) {    // a callback was set in a previous solve
+  GRBsetcallbackfunc( model , NULL , nullptr );  // un-set it
+  f_callback_set = false;
+  }
 
  if( int status = GRBoptimize( model ) ) {
   sol_status = decode_grb_error( status );
-  goto Return_status;
+  return( sol_status );
   }
 
  int m_status;
@@ -686,19 +695,16 @@ int GRBMILPSolver::compute( bool changedvars )
   if( int status = GRBoptimize( model ) ) {
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
    sol_status = decode_grb_error( status );
-   goto Return_status;
+   return( sol_status );
    }
   GRBgetintattr( model , GRB_INT_ATTR_STATUS , & m_status );
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
   }
 
  sol_status = decode_model_status( m_status );
-
- Return_status:
- unlock();  // unlock the mutex
  return( sol_status );
 
- }  // end( GRBMILPSolver::compute )
+ }  // end( GRBMILPSolver::guts_of_compute )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3494,10 +3500,7 @@ std::string GRBMILPSolver::grb_dbl_par_map( idx_type par ) const
 
 void GRBMILPSolver::set_par( idx_type par , int value )
 {
- if( par == intCutSepPar ) {
-  CutSepPar = value;
-  return;
-  }
+ // intCutSepPar is now handled by MILPSolver base
 
  if( par == intMaxIter ) { // intMaxIter is an int parameter in sms++ but a double in Gurobi
   set_par( par , (double)value );
@@ -3646,8 +3649,7 @@ Solver::idx_type GRBMILPSolver::get_num_vstr_par( void ) const {
 
 int GRBMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( 0 );
+ // intCutSepPar is now handled by MILPSolver base
 
  std::string gp = grb_int_par_map( par );
  if( gp.size() > 0 ) {
@@ -3730,8 +3732,7 @@ const std::vector< std::string > & GRBMILPSolver::get_dflt_vstr_par(
 
 int GRBMILPSolver::get_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( CutSepPar );
+ // intCutSepPar is now handled by MILPSolver base
 
  std::string gp = grb_int_par_map( par );
   if( gp.size() > 0 ) {
@@ -3804,8 +3805,7 @@ const std::vector< std::string > & GRBMILPSolver::get_vstr_par( idx_type par )
 Solver::idx_type GRBMILPSolver::int_par_str2idx(
 					     const std::string & name ) const
 {
- if( name == "intCutSepPar" )
-  return( intCutSepPar );
+ // intCutSepPar is now handled by MILPSolver::int_par_str2idx()
 
  /* In GRBMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
 
@@ -3832,11 +3832,8 @@ Solver::idx_type GRBMILPSolver::int_par_str2idx(
 
 const std::string & GRBMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::array< std::string , 1 > _pars =
-                     { "intCutSepPar" };
-
- if( idx == intCutSepPar )
-  return( _pars[ 0 ] );
+ // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
+ // fall-through at the end of this method)
 
  // note: this implementation is not thread safe, and it requires that the
  //       result is used immediately after the call (prior to any other call

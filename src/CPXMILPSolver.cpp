@@ -101,7 +101,7 @@ int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
 
 CPXMILPSolver::CPXMILPSolver( void ) :
  MILPSolver() , env( nullptr ) , lp( nullptr ) , f_callback_set( false ) ,
- CutSepPar( 0 ) , UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
+ UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
 {
  int status = 0;
  env = CPXopenCPLEX( & status );
@@ -498,14 +498,11 @@ std::array< double , 2 > CPXMILPSolver::get_problem_bounds(
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::compute( bool changedvars )
+int CPXMILPSolver::guts_of_compute( void )
 {
- lock();  // lock the mutex: this is done again inside MILPSolver::compute,
-          // but that's OK since the mutex is recursive
-
- // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
- if( MILPSolver::compute( changedvars ) != kOK )
-  throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
+ // Note: locking, process_modifications() and the LP cut separation loop
+ // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
+ // This method is only responsible for the actual CPLEX call.
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() )
@@ -550,7 +547,12 @@ int CPXMILPSolver::compute( bool changedvars )
  // the actual call to CPLEX- - - - - - - - - - - - - - - - - - - - - - - - -
  CPXgettime( env , & starting_time ); // store initial timestamp
 
- if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
+ // dispatch LP vs MIP: only intRelaxIntVars == 2 unconditionally goes
+ // through the LP path (CPXlpopt/CPXqpopt) so that the base
+ // user-cut-separation loop in MILPSolver::compute() works on a pure LP
+ // solve. Values 0 (MIP) and 1 (MIP engine on relaxed problem) keep the
+ // pre-existing semantics of going through CPXmipopt
+ if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
 
   if( ( CutSepPar & 7 ) ||
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
@@ -581,27 +583,34 @@ int CPXMILPSolver::compute( bool changedvars )
    else
     sol_status = decode_cpx_error( status );
 
-   goto Return_status;
+   return( sol_status );
    }
 
   sol_status = decode_mip_status( CPXgetstat( env , lp ) );
-  goto Return_status;
+  return( sol_status );
   }
 
  // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // (no MIP callback is installed here even if CutSepPar > 0: when
+ // relax_int_vars == 2 the LP separation loop is driven by MILPSolver
+ // around this method)
+
+ if( f_callback_set ) {    // a callback was set in a previous solve
+  CPXcallbacksetfunc( env , lp , 0 , nullptr , nullptr );  // un-set it
+  f_callback_set = false;
+  current_Cntx = nullptr;
+  current_Cntx_id = 0;
+  }
 
  if( int status = is_qp ? CPXqpopt( env , lp ) : CPXlpopt( env , lp ) ) {
   sol_status = decode_cpx_error( status );  // error
-  goto Return_status;
+  return( sol_status );
   }
 
  sol_status = decode_lqp_status( CPXgetstat( env , lp ) );
-
- Return_status:
- unlock();  // unlock the mutex
  return( sol_status );
 
- }  // end( CPXMILPSolver::compute )
+ }  // end( CPXMILPSolver::guts_of_compute )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3255,10 +3264,9 @@ int CPXMILPSolver::cpx_dbl_par_map( idx_type par ) const
 
 void CPXMILPSolver::set_par( idx_type par , int value )
 {
- if( par == intCutSepPar ) {
-  CutSepPar = value;
-  return;
-  }
+ // intCutSepPar is now handled by MILPSolver base (the CutSepPar member
+ // is inherited, and the base read_lock / write lock policy in compute()
+ // uses it to decide the Block locking). The base will be called below.
 
  if( int cp = cpx_int_par_map( par ) ) {
   if( cp > 0 )
@@ -3398,8 +3406,7 @@ Solver::idx_type CPXMILPSolver::get_num_vstr_par( void ) const {
 
 int CPXMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( 0 );
+ // intCutSepPar is now handled by MILPSolver base
 
  if( int cp = cpx_int_par_map( par ) ) {
   if( cp > 0 ) {
@@ -3487,8 +3494,7 @@ const std::vector< std::string > & CPXMILPSolver::get_dflt_vstr_par(
 
 int CPXMILPSolver::get_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( CutSepPar );
+ // intCutSepPar is now handled by MILPSolver base
 
  if( int cp = cpx_int_par_map( par ) ) {
   if( cp > 0 ) {
@@ -3566,8 +3572,7 @@ const std::vector< std::string > & CPXMILPSolver::get_vstr_par( idx_type par )
 Solver::idx_type CPXMILPSolver::int_par_str2idx(
 					     const std::string & name ) const
 {
- if( name == "intCutSepPar" )
-  return( intCutSepPar );
+ // intCutSepPar is now handled by MILPSolver::int_par_str2idx()
 
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
@@ -3593,10 +3598,8 @@ Solver::idx_type CPXMILPSolver::int_par_str2idx(
 
 const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::array< std::string , 1 > _pars =
-                     { "intCutSepPar" };
- if( idx == intCutSepPar )
-  return( _pars[ 0 ] );
+ // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
+ // fall-through at the end of this method)
 
  // note: this implementation is not thread safe and it requires that the
  //       result is used immediately after the call (prior to any other call

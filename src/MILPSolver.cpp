@@ -2102,20 +2102,66 @@ template< typename T >
 
 int MILPSolver::compute( bool changedvars )
 {
- lock();  // lock the mutex
+ lock();  // lock the Solver mutex
 
- // read-lock the Block, unless already owned
+ // separation may happen during this compute() either via the derived
+ // Solver's cut callback (CutSepPar > 0) or via the explicit LP cut
+ // separation loop driven here when intRelaxIntVars == 2; in both cases
+ // we need write access to the Block (the cut callback can write the LP
+ // solution into the Variable; the explicit loop does the same via
+ // get_var_solution()), so a full lock() is acquired. Otherwise the
+ // Block is only read_lock()-ed for the duration of process_modifications
+ const bool may_separate = ( CutSepPar > 0 ) || ( relax_int_vars == 2 );
+
  bool owned = f_Block->is_owned_by( f_id );
- if( ( ! owned ) && ( ! f_Block->read_lock() ) )
-  throw( std::runtime_error( "Unable to lock the Block" ) );
+ if( ! owned ) {
+  if( may_separate ) {
+   if( ! f_Block->lock( f_id ) )
+    throw( std::runtime_error( "MILPSolver::compute: unable to lock Block" ) );
+   }
+  else
+   if( ! f_Block->read_lock() )
+    throw( std::runtime_error( "MILPSolver::compute: unable to read_lock Block"
+                               ) );
+  }
 
  MILPSolver::process_modifications();
 
- if( ! owned )
-  f_Block->read_unlock();  // read-unlock the Block
+ if( ( ! owned ) && ( ! may_separate ) )
+  f_Block->read_unlock();  // no separation: release the read lock early
 
- unlock();  // unlock the mutex
- return( kOK );
+ // dispatch to the derived class for the actual back-end solve - - - - - - -
+ int sts = guts_of_compute();
+
+ // intRelaxIntVars == 2: explicit LP cut separation loop - - - - - - - - - -
+ if( relax_int_vars == 2 ) {
+  for( int pass = 1 ; ( sts == kOK ) && ( pass < max_cut_passes ) ; ++pass ) {
+   // write the LP solution into the Block Variable (so the separator can
+   // see the right point); get_var_solution() with a nullptr Configuration
+   // is the existing public API to do this
+   get_var_solution( nullptr );
+
+   // call the Block's separator; new dynamic Constraint reach this Solver
+   // as BlockModAdd< FRowConstraint > queued in v_mod
+   auto nM = v_mod.size();
+   f_Block->generate_dynamic_constraints();
+   if( v_mod.size() == nM )
+    break;                       // no new constraint: converged
+
+   // process the new Modification (each will call the derived class's
+   // add_dynamic_constraint() and update the back-end model)
+   MILPSolver::process_modifications();
+
+   // re-solve with the augmented model
+   sts = guts_of_compute();
+   }
+  }
+
+ if( ( ! owned ) && may_separate )
+  f_Block->unlock( f_id );       // release the write lock at the end
+
+ unlock();  // unlock the Solver mutex
+ return( sts );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2963,7 +3009,7 @@ void MILPSolver::set_par( idx_type par , int value )
   return;
   }
  if( par == intRelaxIntVars ) {
-  relax_int_vars = bool( value );
+  relax_int_vars = value;
   return;
   }
  if( par == intSingleBound ) {
@@ -2974,6 +3020,14 @@ void MILPSolver::set_par( idx_type par , int value )
   cons_modification = bool( value );
   return;
  }
+ if( par == intCutSepPar ) {
+  CutSepPar = (unsigned char)( value );
+  return;
+  }
+ if( par == intMaxCutPasses ) {
+  max_cut_passes = value;
+  return;
+  }
 
  CDASolver::set_par( par, value );
  }
@@ -3035,6 +3089,12 @@ int MILPSolver::get_dflt_int_par( idx_type par ) const
  if( par == intConsModification )
   return( 1 );
 
+ if( par == intCutSepPar )
+  return( 0 );
+
+ if( par == intMaxCutPasses )
+  return( 1000 );
+
  return( CDASolver::get_dflt_int_par( par ) );
  }
 
@@ -3077,12 +3137,18 @@ int MILPSolver::get_int_par( idx_type par ) const
 
  if( par == intRelaxIntVars )
   return( relax_int_vars );
- 
+
  if( par == intSingleBound )
   return( single_bound );
 
  if( par == intConsModification )
   return( cons_modification );
+
+ if( par == intCutSepPar )
+  return( CutSepPar );
+
+ if( par == intMaxCutPasses )
+  return( max_cut_passes );
 
  return( CDASolver::get_int_par( par ) );
  }
@@ -3132,6 +3198,12 @@ Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
  if( name == "intConsModification" )
   return( intConsModification );
 
+ if( name == "intCutSepPar" )
+  return( intCutSepPar );
+
+ if( name == "intMaxCutPasses" )
+  return( intMaxCutPasses );
+
  return( CDASolver::int_par_str2idx( name ) );
  }
 
@@ -3143,7 +3215,9 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
                                                   "intUseCustomNames",
                                                   "intRelaxIntVars" ,
                                                   "intSingleBound" ,
-                                                  "intConsModification" };
+                                                  "intConsModification" ,
+                                                  "intCutSepPar" ,
+                                                  "intMaxCutPasses" };
  if( idx == intThrowReducedCostException )
   return( pars[ 0 ] );
 
@@ -3158,6 +3232,12 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
 
  if( idx == intConsModification )
   return( pars[ 4 ] );
+
+ if( idx == intCutSepPar )
+  return( pars[ 5 ] );
+
+ if( idx == intMaxCutPasses )
+  return( pars[ 6 ] );
 
  return( CDASolver::int_par_idx2str( idx ) );
  }
