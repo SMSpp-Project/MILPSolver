@@ -2083,6 +2083,12 @@ void SCIPMILPSolver::set_par( idx_type par, int value )
  // is inherited, and the base read_lock/write lock policy in compute()
  // uses it to decide the Block locking).
 
+ // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
+ // separation loop logging) before letting SCIP consume it through the
+ // mapping below
+ if( par == intLogVerb )
+  log_verbosity = value;
+
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
   case( intComputeDuals ):

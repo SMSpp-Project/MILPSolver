@@ -1147,6 +1147,16 @@ class MILPSolver : public CDASolver
  /// maximum number of LP cut separation passes (see intMaxCutPasses)
  int max_cut_passes = 1000;
 
+ /// SMS++-semantic value of intLogVerb captured at set_par() time
+ /**< Mirrors the value most recently set via set_par( intLogVerb , v ).
+  * The derived classes each map intLogVerb to their backend log
+  * parameter (e.g., LogToConsole for Gurobi, CPXPARAM_ScreenOutput for
+  * CPLEX), which may clamp or otherwise alter the value; this member
+  * preserves the original integer the caller asked for, so that base
+  * methods (in particular compute() with its intRelaxIntVars == 2 loop)
+  * can take it as the verbosity intended for SMS++-side logging. */
+ int log_verbosity = 0;
+
  /* if true, no more than one OneVarConstraint can be associated to a
  *  single variable. 
  *  Moreover, the vectors svar_to_bound and dvar_to_bound are activated

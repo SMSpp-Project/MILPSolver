@@ -3502,6 +3502,12 @@ void GRBMILPSolver::set_par( idx_type par , int value )
 {
  // intCutSepPar is now handled by MILPSolver base
 
+ // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
+ // separation loop logging) before letting Gurobi consume it through the
+ // mapping below
+ if( par == intLogVerb )
+  log_verbosity = value;
+
  if( par == intMaxIter ) { // intMaxIter is an int parameter in sms++ but a double in Gurobi
   set_par( par , (double)value );
   return;

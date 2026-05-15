@@ -2130,11 +2130,24 @@ int MILPSolver::compute( bool changedvars )
  if( ( ! owned ) && ( ! may_separate ) )
   f_Block->read_unlock();  // no separation: release the read lock early
 
+ // optional logging: gated by both a non-null log stream and the
+ // SMS++-semantic intLogVerb >= 2 (captured at set_par() time as
+ // log_verbosity, see comment in MILPSolver.h)
+ const int log_verb = ( f_log ) ? log_verbosity : 0;
+
  // dispatch to the derived class for the actual back-end solve - - - - - - -
  int sts = guts_of_compute();
 
  // intRelaxIntVars == 2: explicit LP cut separation loop - - - - - - - - - -
  if( relax_int_vars == 2 ) {
+  if( log_verb >= 2 )
+   *f_log << "MILPSolver::compute: starting LP cut separation loop "
+	  << "(intRelaxIntVars == 2, max " << max_cut_passes << " passes)"
+	  << std::endl;
+
+  // save and restore precision so we don't perturb the caller's stream
+  auto savprec = ( log_verb >= 2 ) ? f_log->precision() : std::streamsize( 0 );
+
   for( int pass = 1 ; ( sts == kOK ) && ( pass < max_cut_passes ) ; ++pass ) {
    // write the LP solution into the Block Variable (so the separator can
    // see the right point); get_var_solution() with a nullptr Configuration
@@ -2145,7 +2158,17 @@ int MILPSolver::compute( bool changedvars )
    // as BlockModAdd< FRowConstraint > queued in v_mod
    auto nM = v_mod.size();
    f_Block->generate_dynamic_constraints();
-   if( v_mod.size() == nM )
+   auto new_mods = v_mod.size() - nM;
+
+   if( log_verb >= 2 ) {
+    f_log->precision( 10 );
+    *f_log << "  pass " << pass << ": guts_of_compute -> sts = " << sts
+	   << ", value = " << get_var_value()
+	   << "; generate_dynamic_constraints -> " << new_mods
+	   << " new Modification" << std::endl;
+    }
+
+   if( new_mods == 0 )
     break;                       // no new constraint: converged
 
    // process the new Modification (each will call the derived class's
@@ -2154,6 +2177,13 @@ int MILPSolver::compute( bool changedvars )
 
    // re-solve with the augmented model
    sts = guts_of_compute();
+   }
+
+  if( log_verb >= 2 ) {
+   f_log->precision( 10 );
+   *f_log << "MILPSolver::compute: LP cut separation loop ended, sts = "
+	  << sts << ", value = " << get_var_value() << std::endl;
+   f_log->precision( savprec );
    }
   }
 

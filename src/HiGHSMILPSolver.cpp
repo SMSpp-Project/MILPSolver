@@ -2367,6 +2367,12 @@ void HiGHSMILPSolver::set_par( idx_type par , int value )
 {
  // intCutSepPar is now handled by MILPSolver base
 
+ // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
+ // separation loop logging) before letting HiGHS consume it through the
+ // mapping below
+ if( par == intLogVerb )
+  log_verbosity = value;
+
  std::string highs_opt = highs_int_par_map( par );
  if( highs_opt.size() > 0 ) {
   // NOTE: in SMS++ we treat both int and bool HiGHS options as int. Thus, it 
