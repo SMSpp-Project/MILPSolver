@@ -11,9 +11,9 @@ tools/highs_pars
 tools/.headers.stamp
 
 # Test binaries
-test_cuts/test_cuts
-test_dynamic/test_dynamic
-test_dual/test_dual
+test_cuts/cuts_test
+test_dynamic/dynamic_test
+test_dual/dual_test
 
 # Generated headers (from solver SDKs)
 include/*_defs.h

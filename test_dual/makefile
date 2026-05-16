@@ -11,7 +11,7 @@
 ##############################################################################
 
 # module name
-NAME = test_dual
+NAME = dual_test
 
 # basic directory
 DIR = .

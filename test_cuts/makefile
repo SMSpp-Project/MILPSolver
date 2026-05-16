@@ -11,7 +11,7 @@
 ##############################################################################
 
 # module name
-NAME = test_cuts
+NAME = cuts_test
 
 # basic directory
 DIR = .
