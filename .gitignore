@@ -13,7 +13,7 @@ tools/.headers.stamp
 # Test binaries
 test_cuts/test_cuts
 test_dynamic/test_dynamic
-test_dual/dual_test
+test_dual/test_dual
 
 # Generated headers (from solver SDKs)
 include/*_defs.h
