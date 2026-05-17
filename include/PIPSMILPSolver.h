@@ -28,6 +28,7 @@
 #include "DistributedInputTree.h"
 #include "PIPSIPMppInterface.hpp"
 #include "MILPSolver.h"
+#include "PIPSIPMppOptions.h"
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- PIPS CALLBACK TYPES ---------------------------*/
@@ -99,6 +100,12 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Solves the currently loaded problem with PIPS-IPM++.
  int compute( bool changedvars = false ) override;
+
+ /// returns a valid lower bound on the optimal objective function value
+ OFValue get_lb( void ) override;
+
+ /// returns a valid upper bound on the optimal objective function value
+ OFValue get_ub( void ) override;
 
  /// Clears the current PIPS tree/interface and the base MILPSolver data.
  void clear_problem( unsigned int what ) override;
@@ -172,17 +179,16 @@ class PIPSMILPSolver : public MILPSolver {
  /// Scans an SMS++ variable/constraint group and dispatches to the right scan.
  template< typename T >
  void scan_group( const boost::any & gr , Block * qb , Index num_node ,
-                  bool is_static , un_any_type< T > );
+                  un_any_type< T > );
 
  /// Scans a simple SMS++ variable/constraint group.
  template< typename T >
  void scan_simple_group( const boost::any & gr , Block * qb , Index num_node ,
-                         bool is_static , un_any_type< T > );
+                         un_any_type< T > );
 
  template< typename T >
  void scan_multiarray_group( const boost::any & gr , Block * qb , 
-                                Index num_node , bool is_static , 
-                                un_any_type< T > );
+                                Index num_node , un_any_type< T > );
 
  /// Classifies one constraint as node-local or global-linking.
  void scan_constraint( const FRowConstraint & con , Index num_node );
@@ -223,7 +229,7 @@ class PIPSMILPSolver : public MILPSolver {
                            std::vector< char > sense ,
                            std::vector< double > ranges );
 
- /// Extracts variable objective coefficients or bounds for a node.
+ /// Extracts variable bounds for a node.
  int ExtractVarBounds( int id , double * vec , int len ,
                        std::vector< const ColVariable * > node_vars ,
                        const int nVars ,
@@ -234,6 +240,13 @@ class PIPSMILPSolver : public MILPSolver {
                             std::vector< const ColVariable * > node_vars ,
                             const int nVars ,
                             std::vector< double > bounds );
+
+ /// Extracts variable objective coefficients.
+ int ExtractObj( int id , double* vec , int len ,
+                                std::vector< const ColVariable * > node_vars ,
+                                const int nVars ,
+                                std::vector< double > obj_value ,
+                                int objsense );
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PIPS CALLBACKS -------------------------------*/
