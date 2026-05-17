@@ -94,9 +94,8 @@ class HiGHSMILPSolver : public MILPSolver {
 
  /// enum for integer parameters (options in HiGHS)
  enum int_par_type_HiGHS {
-  ///< parameter for deciding if/when cut separation is done
-  intCutSepPar = intLastAlgParMILP ,
-  intFirstHiGHSPar ,  ///< first HiGHS int/bool parameter
+  // note: intCutSepPar has moved to MILPSolver base (enum int_par_type_MILP)
+  intFirstHiGHSPar = intLastAlgParMILP ,  ///< first HiGHS int/bool parameter
   /// first allowed new int parameter for derived classes
   intLastAlgParHiGHS = intFirstHiGHSPar + HiGHS_NUM_INT_PARS
   };
@@ -161,8 +160,9 @@ class HiGHSMILPSolver : public MILPSolver {
  /// sets the Block that the Solver has to solve and initializes HiGHS
  void set_Block( Block * block ) override;
 
- /// optimizes the problem with HiGHS
- int compute( bool changedvars = false ) override;
+ // note: the public compute() entry point is inherited from MILPSolver;
+ // HiGHSMILPSolver implements only the HiGHS-specific solve in
+ // guts_of_compute() below (protected)
 
  /// returns a valid lower bound on the optimal objective function value
  OFValue get_lb( void ) override;
@@ -486,6 +486,16 @@ void add_mip_starts(
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
+
+ /// HiGHS back-end solve, called by MILPSolver::compute()
+ /** Performs the actual HiGHS optimisation. Locking, Modification
+  * processing and the LP cut-separation loop (intRelaxIntVars == 2) are
+  * all handled by MILPSolver::compute(). */
+
+ int guts_of_compute( void ) override;
+
+/*--------------------------------------------------------------------------*/
+
  /** @name Get variable bounds for the problem
   *
   * The following two methods retrieve the upper and lower bound for the
@@ -599,9 +609,7 @@ void add_mip_starts(
 
  bool f_callback_set;  // true if the callback has been set
 
- /** bitwise-encoded parameter for deciding if and when separation of user
-  * cuts and lazy constraints is performed */
- unsigned char CutSepPar;
+ // note: CutSepPar is now an inherited member of MILPSolver base
 
  /** vector containing the indices of the Configuration for the various
   * user cuts / lazy constraints separations in the "Configuration DB" */

@@ -92,10 +92,9 @@ class SCIPMILPSolver : public MILPSolver
 
  /// Types of integer parameters
  enum int_par_type_SCPS {
-  ///< parameter for deciding if/when cut separation is done
-  intCutSepPar = intLastAlgParMILP ,
+  // note: intCutSepPar has moved to MILPSolver base (enum int_par_type_MILP)
   // parameter used to tell SCIP if it needs to compute dual values
-  intComputeDuals ,
+  intComputeDuals = intLastAlgParMILP ,
   /// First SCIP int/long parameter
   intFirstSCIPPar ,
   /// First allowed new int parameter for derived classes
@@ -162,8 +161,9 @@ class SCIPMILPSolver : public MILPSolver
  /// sets the Block that the Solver has to solve and initializes CPLEX.
  void set_Block( Block * block ) override;
 
- /// optimizes the problem with SCIP
- int compute( bool changedvars = false ) override;
+ // note: the public compute() entry point is inherited from MILPSolver;
+ // SCIPMILPSolver implements only the SCIP-specific solve in
+ // guts_of_compute() below (protected)
 
  /// returns a valid lower bound on the optimal objective function value
  OFValue get_lb( void ) override;
@@ -479,14 +479,23 @@ class SCIPMILPSolver : public MILPSolver
  protected:
 
 /*--------------------------------------------------------------------------*/
+/*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
+/*--------------------------------------------------------------------------*/
+
+ /// SCIP back-end solve, called by MILPSolver::compute()
+ /** Performs the actual SCIP optimisation. Locking, Modification
+  * processing and the LP cut-separation loop (intRelaxIntVars == 2) are
+  * all handled by MILPSolver::compute(). */
+
+ int guts_of_compute( void ) override;
+
+/*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
  bool f_callback_set;  // true if the callback has been set
 
- /** bitwise-encoded parameter for deciding if and when separation of user
-  * cuts and lazy constraints is performed */
- unsigned char CutSepPar;
+ // note: CutSepPar is now an inherited member of MILPSolver base
 
   /** integer parameter used to understand if SCIP needs to compute dual
    *  values. In this case, all the other algorithms that run before SCIP
