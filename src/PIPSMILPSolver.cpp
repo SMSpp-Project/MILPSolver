@@ -1488,6 +1488,10 @@ void PIPSMILPSolver::load_problem( void )
  }
  nodes_subtrees.shrink_to_fit();
 
+ if( n_nodes == 1)
+  throw( std::runtime_error( "PIPSMILPSolver requires at least two blocks "
+    "in order to work." ) );
+
  DEBUG_LOG( "Number of blocks      = " << n_blocks << std::endl );
  DEBUG_LOG( "Number of nodes      = " << n_nodes << std::endl );
 
