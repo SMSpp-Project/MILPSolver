@@ -1254,6 +1254,102 @@ class MILPSolver : public CDASolver
  /// removes a single dynamic bound
  virtual void remove_dynamic_bound( const OneVarConstraint * con );
 
+/*--------------------------------------------------------------------------*/
+/*--------------- AUXILIARY METHODS FOR MULTI-ARRAY GROUP  -----------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Multi-array methods
+ *
+ * These methods are used in load_problem() to read data from complex
+ * multi_array<> structures.
+ * Each method is templated with:
+ *  1) T - the type of elements in the group, expected to be either
+ *     ColVariable or FRowConstraint.
+ *  2) K - the number of dimensions of the multi_array.
+ *
+ * NOTE: Currently, only 2D or 3D arrays are supported.
+ * @{ */
+
+ /** Scans a multi_array structure and returns its number of dimensions.
+  *
+  * This method attempts to cast a boost::any element to a boost::multi_array.
+  * It should be used as a recursive method, as it will try to cast an 
+  * increasing number of dimensions until the cast succeeds.
+  * If the cast succeeds, it returns the number of dimensions of the array.
+  * A default maximum of K = 9 dimensions is used when attempting the cast.
+  * 
+  * @param any the reference to the multi_array
+  * @param T the basic type of the multi_array
+  * @param K the number of dimensions of the multi array 
+ */
+
+ template< typename T , unsigned short K >
+  int get_multi_array_dim( const boost::any & any ,
+                           un_any_type< T > , un_any_int< K > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ template< typename T >
+  int get_multi_array_dim( const boost::any & ,
+                          un_any_type< T > , un_any_int< 9 > ) {
+  return( -1 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** Scans a multi_array structure and returns its type.
+  *
+  * This method attempts to cast a boost::any element to a boost::multi_array
+  * with fixed number of dimensions K.
+  * If the cast succeeds, it returns the type of the array.
+  * In SMS++ currently two different types of multi_array are available:
+  *
+  * - boost::multi_array< T > -> type 0
+  * - boost::multi_array< std::vector < T > > -> type 1
+  * 
+  * @param any the reference to the multi_array
+  * @param T the basic type of the multi_array
+  * @param K the number of dimensions of the multi array 
+ */
+ template< typename T , unsigned short K >
+  int get_multi_array_type( 
+                         const boost::any & any ,
+                         un_any_type< T > , 
+                         un_any_int< K > );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** These methods attempt to cast a multi_array with specific attributes.
+ * If the cast is successful, they return a pointer to the resulting 
+ * structure. 
+ * 
+ * @param any the reference to the multi_array
+ * @param T the basic type of the multi_array
+ * @param K the number of dimensions of the multi array */
+
+ // Cast to a 2D multi_array of type 0
+ template< typename T >
+ boost::multi_array< T , 2 > * get_multi_array0( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 2 > );
+
+ // Cast to a 2D multi_array of type 1
+ template< typename T >
+ boost::multi_array< std::vector< T >, 2 > * get_multi_array1( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 2 > );
+
+ // Cast to a 3D multi_array of type 0
+ template< typename T >
+ boost::multi_array< T , 3 > * get_multi_array0( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 3 > );
+
+ // Cast to a 3D multi_array of type 1
+ template< typename T >
+ boost::multi_array< std::vector< T >, 3 > * get_multi_array1( 
+                          const boost::any & ,
+                          un_any_type< T > , un_any_int< 3 > );
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1357,102 +1453,6 @@ class MILPSolver : public CDASolver
   * @param obj a FRealObjective */
 
  void scan_objective( const FRealObjective * obj );
-
-/*--------------------------------------------------------------------------*/
-/*--------------- AUXILIARY METHODS FOR MULTI-ARRAY GROUP  -----------------*/
-/*--------------------------------------------------------------------------*/
-/** @name Multi-array methods
- *
- * These methods are used in load_problem() to read data from complex
- * multi_array<> structures.
- * Each method is templated with:
- *  1) T - the type of elements in the group, expected to be either
- *     ColVariable or FRowConstraint.
- *  2) K - the number of dimensions of the multi_array.
- *
- * NOTE: Currently, only 2D or 3D arrays are supported.
- * @{ */
-
- /** Scans a multi_array structure and returns its number of dimensions.
-  *
-  * This method attempts to cast a boost::any element to a boost::multi_array.
-  * It should be used as a recursive method, as it will try to cast an 
-  * increasing number of dimensions until the cast succeeds.
-  * If the cast succeeds, it returns the number of dimensions of the array.
-  * A default maximum of K = 9 dimensions is used when attempting the cast.
-  * 
-  * @param any the reference to the multi_array
-  * @param T the basic type of the multi_array
-  * @param K the number of dimensions of the multi array 
- */
-
- template< typename T , unsigned short K >
-  int get_multi_array_dim( const boost::any & any ,
-                           un_any_type< T > , un_any_int< K > );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- template< typename T >
-  int get_multi_array_dim( const boost::any & ,
-                          un_any_type< T > , un_any_int< 9 > ) {
-  return( -1 );
- }
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- /** Scans a multi_array structure and returns its type.
-  *
-  * This method attempts to cast a boost::any element to a boost::multi_array
-  * with fixed number of dimensions K.
-  * If the cast succeeds, it returns the type of the array.
-  * In SMS++ currently two different types of multi_array are available:
-  *
-  * - boost::multi_array< T > -> type 0
-  * - boost::multi_array< std::vector < T > > -> type 1
-  * 
-  * @param any the reference to the multi_array
-  * @param T the basic type of the multi_array
-  * @param K the number of dimensions of the multi array 
- */
- template< typename T , unsigned short K >
-  int get_multi_array_type( 
-                         const boost::any & any ,
-                         un_any_type< T > , 
-                         un_any_int< K > );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- /** These methods attempt to cast a multi_array with specific attributes.
- * If the cast is successful, they return a pointer to the resulting 
- * structure. 
- * 
- * @param any the reference to the multi_array
- * @param T the basic type of the multi_array
- * @param K the number of dimensions of the multi array */
-
- // Cast to a 2D multi_array of type 0
- template< typename T >
- boost::multi_array< T , 2 > * get_multi_array0( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 2 > );
-
- // Cast to a 2D multi_array of type 1
- template< typename T >
- boost::multi_array< std::vector< T >, 2 > * get_multi_array1( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 2 > );
-
- // Cast to a 3D multi_array of type 0
- template< typename T >
- boost::multi_array< T , 3 > * get_multi_array0( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 3 > );
-
- // Cast to a 3D multi_array of type 1
- template< typename T >
- boost::multi_array< std::vector< T >, 3 > * get_multi_array1( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 3 > );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
