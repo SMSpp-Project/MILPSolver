@@ -77,7 +77,8 @@ MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
 	$(MILPSSDR)/obj/CPXMILPSolver.o \
 	$(MILPSSDR)/obj/GRBMILPSolver.o \
 	$(MILPSSDR)/obj/SCIPMILPSolver.o \
-	$(MILPSSDR)/obj/HiGHSMILPSolver.o
+	$(MILPSSDR)/obj/HiGHSMILPSolver.o \
+	$(MILPSSDR)/obj/PIPSMILPSolver.o
 
 MILPSINC = -I$(MILPSSDR)/include
 
@@ -85,7 +86,8 @@ MILPSH = $(MILPSSDR)/include/MILPSolver.h \
 	$(MILPSSDR)/include/CPXMILPSolver.h \
 	$(MILPSSDR)/include/GRBMILPSolver.h \
 	$(MILPSSDR)/include/SCIPMILPSolver.h \
-	$(MILPSSDR)/include/HiGHSMILPSolver.h
+	$(MILPSSDR)/include/HiGHSMILPSolver.h \
+	$(MILPSSDR)/include/PIPSMILPSolver.h
 
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -113,6 +115,7 @@ $(MILPSSDR)/obj/CPXMILPSolver.o:   | $(STAMP)
 $(MILPSSDR)/obj/SCIPMILPSolver.o:  | $(STAMP)
 $(MILPSSDR)/obj/GRBMILPSolver.o:   | $(STAMP)
 $(MILPSSDR)/obj/HiGHSMILPSolver.o: | $(STAMP)
+$(MILPSSDR)/obj/PIPSMILPSolver.o:  | $(STAMP)
 
 $(MILPSSDR)/obj/MILPSolver.o: $(MILPSSDR)/src/MILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
@@ -142,5 +145,11 @@ $(MILPSSDR)/obj/HiGHSMILPSolver.o: $(MILPSSDR)/src/HiGHSMILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/HiGHSMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libHiGHSINC) $(SW)
+
+$(MILPSSDR)/obj/PIPSMILPSolver.o: $(MILPSSDR)/src/PIPSMILPSolver.cpp \
+	$(MILPSSDR)/include/PIPSMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/PIPSMILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(libPIPSINC) $(SW)
 
 ########################## End of makefile ###################################

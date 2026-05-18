@@ -49,6 +49,9 @@ include $(MILPSSDR)/../extlib/makefile-libSCIP
 # include makefile for libHiGHS
 include $(MILPSSDR)/../extlib/makefile-libHiGHS
 
+# include makefile for libPIPS
+include $(MILPSSDR)/../extlib/makefile-libPIPS
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -58,10 +61,10 @@ include $(MILPSSDR)/makefile
 # by the makefile, thus the := assignment has to be used (use GNU make)
 MILPSOBJ := $(MILPSOBJ) $(SMS++OBJ)
 MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libGUROBIINC) \
-	$(libHiGHSINC) $(libSCIPINC)
+	$(libHiGHSINC) $(libSCIPINC) $(libPIPSINC)
 
 # external libraries for MILPSolver
 MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB) \
-	$(libSCIPLIB)
+	$(libSCIPLIB) $(libPIPSLIB)
 
 ############################ End of makefile #################################
