@@ -43,7 +43,7 @@
 using namespace SMSpp_di_unipi_it;
 
 #ifndef PIPS_CALLBACK_SANITY
- #define PIPS_CALLBACK_SANITY 1
+ #define PIPS_CALLBACK_SANITY 0
 #endif
 
 namespace {
@@ -2138,7 +2138,7 @@ void PIPSMILPSolver::scan_constraint( const FRowConstraint & con , Index num_nod
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::guts_of_compute( bool changedvars )
+int PIPSMILPSolver::guts_of_compute( void )
 {
  // Note: locking, process_modifications() and the LP cut separation loop
  // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
