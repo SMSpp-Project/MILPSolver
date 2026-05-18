@@ -98,8 +98,9 @@ class PIPSMILPSolver : public MILPSolver {
  /// Loads the SMS++ Block and builds the PIPS DistributedInputTree.
  void load_problem( void ) override;
 
- /// Solves the currently loaded problem with PIPS-IPM++.
- int compute( bool changedvars = false ) override;
+ // note: the public compute() entry point is inherited from MILPSolver;
+ // PIPSMILPSolver implements only the PIPS-specific solve in
+ // guts_of_compute() below (protected)
 
  /// returns a valid lower bound on the optimal objective function value
  OFValue get_lb( void ) override;
@@ -111,6 +112,17 @@ class PIPSMILPSolver : public MILPSolver {
  void clear_problem( unsigned int what ) override;
 
  protected:
+
+/*--------------------------------------------------------------------------*/
+/*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
+/*--------------------------------------------------------------------------*/
+
+/// PIPS-IPM++ back-end solve, called by MILPSolver::compute()
+ /** Performs the actual PIPS-IPM++ optimisation. Locking, Modification
+  * processing and the LP cut-separation loop (intRelaxIntVars == 2) are
+  * all handled by MILPSolver::compute(). */
+
+ int guts_of_compute( void ) override;
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- PIPS MATRIX HELPERS ----------------------------*/

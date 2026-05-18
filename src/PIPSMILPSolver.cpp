@@ -2138,14 +2138,11 @@ void PIPSMILPSolver::scan_constraint( const FRowConstraint & con , Index num_nod
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::compute( bool changedvars )
+int PIPSMILPSolver::guts_of_compute( bool changedvars )
 {
- lock();  // lock the mutex: this is done again inside MILPSolver::compute,
-          // but that's OK since the mutex is recursive
-
- // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
- if( MILPSolver::compute( changedvars ) != kOK )
-  throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
+ // Note: locking, process_modifications() and the LP cut separation loop
+ // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
+ // This method is only responsible for the actual PIPS-IPM++ call.
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  // Not possible in PIPS
