@@ -11,7 +11,7 @@
 ##############################################################################
 
 # module name
-NAME = test_dynamic
+NAME = dynamic_test
 
 # basic directory
 DIR = .

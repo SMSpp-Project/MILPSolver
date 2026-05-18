@@ -73,7 +73,7 @@ void HiGHSMILPSolver_callback( const int callback_type,
 
 HiGHSMILPSolver::HiGHSMILPSolver( void ) :
  MILPSolver() , highs( nullptr ) , f_callback_set( false ) ,
- CutSepPar( 0 ) , UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
+ UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
 {
  // Create a Highs instance
  highs = Highs_create();
@@ -320,19 +320,16 @@ std::array< double , 2 > HiGHSMILPSolver::get_problem_bounds(
 
 /*--------------------------------------------------------------------------*/
 
-int HiGHSMILPSolver::compute( bool changedvars )
+int HiGHSMILPSolver::guts_of_compute( void )
 {
- lock();  // lock the mutex: this is done again inside MILPSolver::compute,
-          // but that's OK since the mutex is recursive
-
- // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
- if( MILPSolver::compute( changedvars ) != kOK )
-  throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
+ // Note: locking, process_modifications() and the LP cut separation loop
+ // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
+ // This method is only responsible for the actual HiGHS call.
 
  // HiGHS doesn't actually support MIQP problem
  if( ( int_vars > 0 ) && ( q_obj_val.size() > 0 ) )
-  if( ! relax_int_vars ) // we are not relaxing int variables
-    throw( std::runtime_error( 
+  if( relax_int_vars == 0 ) // we are not relaxing int variables
+    throw( std::runtime_error(
   "HiGHS cannot solve QP models where some of the variables must take integer values" ) );
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
@@ -346,10 +343,14 @@ int HiGHSMILPSolver::compute( bool changedvars )
 
  // the actual call to HiGHS- - - - - - - - - - - - - - - - - - - - - - - - -
 
- if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
+ // dispatch LP vs MIP: only intRelaxIntVars == 2 unconditionally goes
+ // through the LP path so the base user-cut-separation loop in
+ // MILPSolver::compute() works on a pure LP solve. Values 0 (MIP) and 1
+ // (MIP engine on relaxed problem) keep the pre-existing semantics
+ if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
   if( ( CutSepPar & 7 ) ||
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
-   // the callback has to be set 
+   // the callback has to be set
    Highs_setCallback( highs,  & HiGHSMILPSolver_callback, this );
 
    // Enable basic Callback type during MIP to check UB/LB
@@ -358,9 +359,9 @@ int HiGHSMILPSolver::compute( bool changedvars )
    f_callback_set = true;
 
    if( CutSepPar & 3 ) // we do user cut separation
-    throw( std::runtime_error( 
+    throw( std::runtime_error(
       "HiGHS still doesn't support user cut separation" ) );
-   
+
    if( CutSepPar & 4 )  // we do lazy constraint separation
     Highs_startCallback( highs , kHighsCallbackMipImprovingSolution );
    }
@@ -368,6 +369,14 @@ int HiGHSMILPSolver::compute( bool changedvars )
    if( f_callback_set )  // the callback was set
     f_callback_set = false;
   }
+ else
+  // continuous case (LP): no MIP callback even if CutSepPar > 0; when
+  // relax_int_vars == 2 the user-cut separation loop runs in
+  // MILPSolver::compute() around this method
+  if( f_callback_set ) {
+   Highs_setCallback( highs , nullptr , nullptr );
+   f_callback_set = false;
+   }
 
  // Call HiGHS to solve the problem
  if( Highs_run( highs ) == -1 ) {
@@ -382,8 +391,8 @@ int HiGHSMILPSolver::compute( bool changedvars )
 
  // If an LP is solved and then modified, the original optimal basis is used
  // to provide a starting basis for the modified LP.
- // Sometimes, HiGHS could produce an error when solving from the advanced 
- // basis, returning a model status Unknown. In such cases, we can try to 
+ // Sometimes, HiGHS could produce an error when solving from the advanced
+ // basis, returning a model status Unknown. In such cases, we can try to
  // re-solve the model from scratch.
  if( m_status == kHighsModelStatusUnknown ) {
   Highs_clearSolver( highs );
@@ -395,17 +404,14 @@ int HiGHSMILPSolver::compute( bool changedvars )
    std::cerr << "WARNING: An unmanaged error occurred during the execution of  " <<
     "HiGHS_run" << std::endl;
    }
- 
+
   m_status = Highs_getModelStatus( highs );
   }
-  
- sol_status = decode_model_status( m_status );
 
- Return_status:
- unlock();  // unlock the mutex
+ sol_status = decode_model_status( m_status );
  return( sol_status );
 
- }  // end( HiGHSMILPSolver::compute )
+ }  // end( HiGHSMILPSolver::guts_of_compute )
 
 /*--------------------------------------------------------------------------*/
 
@@ -2359,10 +2365,13 @@ std::string HiGHSMILPSolver::highs_dbl_par_map( idx_type par ) const
 
 void HiGHSMILPSolver::set_par( idx_type par , int value )
 {
- if( par == intCutSepPar ) {
-  CutSepPar = value;
-  return;
-  }
+ // intCutSepPar is now handled by MILPSolver base
+
+ // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
+ // separation loop logging) before letting HiGHS consume it through the
+ // mapping below
+ if( par == intLogVerb )
+  log_verbosity = value;
 
  std::string highs_opt = highs_int_par_map( par );
  if( highs_opt.size() > 0 ) {
@@ -2522,8 +2531,7 @@ Solver::idx_type HiGHSMILPSolver::get_num_vstr_par( void ) const {
 
 int HiGHSMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( 0 );
+ // intCutSepPar is now handled by MILPSolver base
 
  std::string highs_opt = highs_int_par_map( par );
  if( highs_opt.size() > 0 ) {
@@ -2645,8 +2653,7 @@ const std::vector< std::string > & HiGHSMILPSolver::get_dflt_vstr_par(
 
 int HiGHSMILPSolver::get_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( CutSepPar );
+ // intCutSepPar is now handled by MILPSolver base
 
  std::string highs_opt = highs_int_par_map( par );
   if( highs_opt.size() > 0 ) {
@@ -2733,8 +2740,7 @@ const std::vector< std::string > & HiGHSMILPSolver::get_vstr_par( idx_type par )
 Solver::idx_type HiGHSMILPSolver::int_par_str2idx(
 					     const std::string & name ) const
 {
- if( name == "intCutSepPar" )
-  return( intCutSepPar );
+ // intCutSepPar is now handled by MILPSolver::int_par_str2idx()
 
  /* In HiGHSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
 
@@ -2761,10 +2767,8 @@ Solver::idx_type HiGHSMILPSolver::int_par_str2idx(
 
 const std::string & HiGHSMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::array< std::string , 1 > _pars =
-                     { "intCutSepPar" };
- if( idx == intCutSepPar )
-  return( _pars[ 0 ] );
+ // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
+ // fall-through at the end of this method)
 
  // note: this implementation is not thread safe, and it requires that the
  //       result is used immediately after the call (prior to any other call

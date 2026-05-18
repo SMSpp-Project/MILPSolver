@@ -60,8 +60,8 @@ SMSpp_insert_in_factory_cpp_0( SCIPMILPSolver );
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-SCIPMILPSolver::SCIPMILPSolver() : 
-MILPSolver() , f_callback_set( false ) , CutSepPar( 0 ) ,
+SCIPMILPSolver::SCIPMILPSolver() :
+MILPSolver() , f_callback_set( false ) ,
 UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
 {
  SCIP_CALL_ABORT( SCIPcreate( & scip ) );
@@ -377,14 +377,11 @@ std::array< double , 2 > SCIPMILPSolver::get_problem_bounds(
 
 /*--------------------------------------------------------------------------*/
 
-int SCIPMILPSolver::compute( bool changedvars )
+int SCIPMILPSolver::guts_of_compute( void )
 {
- lock();  // lock the mutex: this is done again inside MILPSolver::compute,
-          // but that's OK since the mutex is recursive
-
- // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
- if( MILPSolver::compute( changedvars ) != kOK )
-  throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
+ // Note: locking, process_modifications() and the LP cut separation loop
+ // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
+ // This method is only responsible for the actual SCIP call.
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() ) {
@@ -403,10 +400,12 @@ int SCIPMILPSolver::compute( bool changedvars )
  }
 
  // the actual call to SCIP - - - - - - - - - - - - - - - - - - - - - - - - -
- 
- if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
 
- // SCIP constraint handler for adding cuts and lazy constraints
+ // SCIP constraint handler for adding cuts and lazy constraints. Only
+ // installed for the MIP path (relax_int_vars != 2): when
+ // relax_int_vars == 2 the LP cut separation loop runs in
+ // MILPSolver::compute() around this method.
+ if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
 
  if( ( CutSepPar & 7 ) ||
    ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
@@ -422,19 +421,19 @@ int SCIPMILPSolver::compute( bool changedvars )
     if( CutSepPar & 3 ) {  // we do user cut separation.
      separate = TRUE;
     }
-   
+
     if( CutSepPar & 4 ){  // we do lazy constraint separation.
      enforce  = TRUE;
      check    = TRUE;
     }
-    
+
     // Add the constraint handler
-    SCIP_CALL_ABORT( SCIPincludeObjConshdlr( scip , 
+    SCIP_CALL_ABORT( SCIPincludeObjConshdlr( scip ,
                     new SCIPMILPSolver_CBK( scip , this , CutSepPar ),
                     TRUE ) );
 
     SCIP_CONS* cons; // constraint initialization
-    
+
     // Now set the correct parameter based on the value of CutSepPar
     SCIP_CALL_ABORT( SCIPcreateSCIPMILPSolver_basiccb(
       scip,                     /**< SCIP data structure */
@@ -450,7 +449,7 @@ int SCIPMILPSolver::compute( bool changedvars )
     SCIP_CALL( SCIPaddCons(scip, cons) );
     SCIP_CALL( SCIPreleaseCons(scip, &cons) );
    }
-    
+
  f_callback_set = true;
  }
  else {
@@ -475,7 +474,6 @@ int SCIPMILPSolver::compute( bool changedvars )
   default:                        sol_status = kError + SCIPgetStatus( scip );
   }
 
- unlock();  // unlock the mutex
  return( sol_status );
  }
 
@@ -2081,12 +2079,19 @@ std::vector< SCIP_VAR * > SCIPMILPSolver::get_SCIP_var( void ) {
 
 void SCIPMILPSolver::set_par( idx_type par, int value )
 {
+ // intCutSepPar is now handled by MILPSolver base (the CutSepPar member
+ // is inherited, and the base read_lock/write lock policy in compute()
+ // uses it to decide the Block locking).
+
+ // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
+ // separation loop logging) before letting SCIP consume it through the
+ // mapping below
+ if( par == intLogVerb )
+  log_verbosity = value;
+
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
-  case( intCutSepPar ): 
-   CutSepPar = value; 
-   return;
-  case( intComputeDuals ): 
+  case( intComputeDuals ):
    // Duals need to be computed. 
    ComputeDuals = value; 
    // Disable all the algorithms that run before the call to the Solver.
@@ -2297,9 +2302,8 @@ int SCIPMILPSolver::get_int_par( idx_type par ) const
  SCIP_Longint long_val;
 
  // solver parameters explicitly mapped in SCIP
+ // (intCutSepPar is now handled by MILPSolver base)
  switch( par ) {
-  case( intCutSepPar ):
-   return( CutSepPar );
   case( intComputeDuals ):
    return( ComputeDuals );
   case( intMaxIter ):
@@ -2439,7 +2443,8 @@ const std::vector< std::string > & SCIPMILPSolver::get_vstr_par( idx_type par )
 
 int SCIPMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intCutSepPar || par == intComputeDuals)
+ // intCutSepPar is now handled by MILPSolver base
+ if( par == intComputeDuals )
   return( 0 );
 
  int value;
@@ -2582,8 +2587,7 @@ const std::vector< std::string > & SCIPMILPSolver::get_dflt_vstr_par(
 Solver::idx_type SCIPMILPSolver::int_par_str2idx( const std::string & name )
  const
 {
- if( name == "intCutSepPar" )
-  return( intCutSepPar );
+ // intCutSepPar is now handled by MILPSolver::int_par_str2idx()
 
  if( name == "intComputeDuals" )
   return( intComputeDuals );
@@ -2605,12 +2609,12 @@ Solver::idx_type SCIPMILPSolver::int_par_str2idx( const std::string & name )
 
 const std::string & SCIPMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::vector< std::string > _pars =
-                     { "intCutSepPar" , "intComputeDuals" };
- if( idx == intCutSepPar )
-  return( _pars[ 0 ] );
- else if( idx == intComputeDuals)
-  return( _pars[ 1 ] );
+ // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
+ // fall-through at the end of this method)
+
+ static const std::string _intComputeDuals = "intComputeDuals";
+ if( idx == intComputeDuals)
+  return( _intComputeDuals );
 
  // SCIP parameters
  if( ( idx >= intFirstSCIPPar ) && ( idx < intLastAlgParSCPS ) )

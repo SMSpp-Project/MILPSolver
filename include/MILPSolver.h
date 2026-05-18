@@ -156,10 +156,59 @@ class MILPSolver : public CDASolver
   intThrowReducedCostException = intLastParCDAS ,
   intUseCustomNames , ///< use custom names for rows/columns
   /// Relax [M]ILP by removing integrality constraints for integer variables
-  intRelaxIntVars , 
-  intSingleBound , // Force that at maximum one OneVarConstraint can be 
+  /**< Controls how the integrality of integer Variable is treated. Three
+   * semantics are supported:
+   *
+   * - intRelaxIntVars == 0 [default]: the problem is solved as a MILP, with
+   *   integer Variable kept integer.
+   *
+   * - intRelaxIntVars == 1: the problem is solved as the LP relaxation,
+   *   i.e., integer Variable are treated as continuous. The Solver uses
+   *   the MILP engine on a problem whose integrality has been relaxed
+   *   (the cut callback, if any, still fires as for a MIP). This is
+   *   appropriate when the user wants the LP relaxation but the Solver's
+   *   MIP machinery (in particular the user-cut callback at the root
+   *   node) is required.
+   *
+   * - intRelaxIntVars == 2: the problem is solved as a pure LP with an
+   *   explicit user-cut separation loop driven by MILPSolver. After each
+   *   LP solve, the Block's generate_dynamic_constraints() is called and,
+   *   if any new dynamic Constraint is added, the LP is re-solved; the
+   *   loop terminates when no new constraint is generated or
+   *   intMaxCutPasses rounds have been performed. This mode does *not*
+   *   install the MIP cut callback (which would not fire on a pure LP
+   *   solve) and is therefore the only one suitable for getting the LP
+   *   relaxation value of a Block with non-trivial dynamic constraints
+   *   when the underlying Solver does not natively support user-cut
+   *   separation on continuous problems. */
+  intRelaxIntVars ,
+  intSingleBound , // Force that at maximum one OneVarConstraint can be
                    // associated to a single variable
   intConsModification , // Enable/Disable constraint modifications
+  /// parameter for deciding if/when cut separation is done
+  /**< If > 0, the Solver may perform user-cut and/or lazy-constraint
+   * separation during compute(), calling generate_dynamic_constraints()
+   * on the attached Block. The specific bit-coded semantics (which
+   * sub-events fire the separation, when in the search tree, ...) is
+   * defined by the derived class; the base class only inspects whether
+   * the value is non-zero, which has two effects:
+   *
+   * - when non-zero, compute() holds the Block under a write lock() for
+   *   its full duration (since the cut callback may modify the Block);
+   *   when zero, compute() only acquires a read_lock() for the duration
+   *   of process_modifications() and then releases it.
+   *
+   * - when non-zero, the loop driven by intRelaxIntVars == 2 (see) is
+   *   executed (only if intRelaxIntVars == 2; otherwise the derived
+   *   class governs the callback installation as appropriate). */
+  intCutSepPar ,
+  /// maximum number of LP cut separation passes (when intRelaxIntVars == 2)
+  /**< Caps the number of "solve LP - separate user cuts - re-solve"
+   * iterations performed by the base compute() when intRelaxIntVars == 2.
+   * Defaults to 1000. Increase if the separator is known to require very
+   * many passes to converge; reduce to limit the time spent in the
+   * separation loop when fast (possibly weaker) bounds are acceptable. */
+  intMaxCutPasses ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
@@ -685,7 +734,29 @@ class MILPSolver : public CDASolver
  void set_Block( Block * block ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// does nothing as there is nothing to do
+ /// compute() entry point shared by all the *MILPSolver derived classes
+ /** The base compute() takes care of:
+  *
+  * - acquiring the appropriate locks (Solver mutex; on the Block, write
+  *   lock() if cut separation may happen during the solve, otherwise
+  *   read_lock() only for the duration of process_modifications());
+  *
+  * - dispatching pending Modification (via process_modifications());
+  *
+  * - dispatching to the derived class via guts_of_compute() to perform
+  *   the actual back-end solve;
+  *
+  * - if intRelaxIntVars == 2, wrapping guts_of_compute() in an LP
+  *   cut-separation loop: after each solve the LP solution is written
+  *   into the Block Variable (via get_var_solution()),
+  *   generate_dynamic_constraints() is called on the Block, and the
+  *   resulting new Modification (if any) is processed before the next
+  *   guts_of_compute() iteration. The loop terminates when no new
+  *   Modification is produced or intMaxCutPasses rounds have been done.
+  *
+  * Derived classes should *not* override compute(); they should instead
+  * override guts_of_compute(). */
+
  int compute( bool changedvars = true ) override;
 
 /*--------------------------------------------------------------------------*/
@@ -836,6 +907,24 @@ class MILPSolver : public CDASolver
 /*--------------------------------------------------------------------------*/
 
  protected:
+
+/*--------------------------------------------------------------------------*/
+/*------------------------- PROTECTED METHODS ------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ /// derived-class hook performing the actual back-end solve
+ /** Virtual method called by MILPSolver::compute() after the locks have
+  * been acquired and any pending Modification have been processed. The
+  * derived class implements only the part that is specific to its
+  * underlying solver: calling the LP/MIP optimisation function, decoding
+  * the return code, and storing it into f_status or the analogous member.
+  *
+  * The default base-class implementation returns kOK and does nothing,
+  * which makes MILPSolver usable as a stand-alone class for the sole
+  * purpose of keeping the matrix-based representation in sync with the
+  * Block (no actual optimisation is performed). */
+
+ virtual int guts_of_compute( void ) { return( kOK ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------- VARIABLE AND CONSTRAINT TRACKING VECTORS ----------------*/
@@ -1046,8 +1135,27 @@ class MILPSolver : public CDASolver
  /// if true, use Variable/Constraint custom names
  bool use_custom_names = true;
 
- /// if true, relax [M]ILP by removing integrality constraints
- bool relax_int_vars = false;
+ /// how to handle the integrality of integer Variable
+ /**< 0 = solve as MILP, 1 = MILP engine on the relaxed problem, 2 = LP
+  * with explicit user-cut separation loop; see the comments to the
+  * intRelaxIntVars parameter for details. */
+ int relax_int_vars = 0;
+
+ /// parameter for deciding if/when cut separation is done; see intCutSepPar
+ unsigned char CutSepPar = 0;
+
+ /// maximum number of LP cut separation passes (see intMaxCutPasses)
+ int max_cut_passes = 1000;
+
+ /// SMS++-semantic value of intLogVerb captured at set_par() time
+ /**< Mirrors the value most recently set via set_par( intLogVerb , v ).
+  * The derived classes each map intLogVerb to their backend log
+  * parameter (e.g., LogToConsole for Gurobi, CPXPARAM_ScreenOutput for
+  * CPLEX), which may clamp or otherwise alter the value; this member
+  * preserves the original integer the caller asked for, so that base
+  * methods (in particular compute() with its intRelaxIntVars == 2 loop)
+  * can take it as the verbosity intended for SMS++-side logging. */
+ int log_verbosity = 0;
 
  /* if true, no more than one OneVarConstraint can be associated to a
  *  single variable. 
