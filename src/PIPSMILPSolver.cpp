@@ -48,30 +48,48 @@ using namespace SMSpp_di_unipi_it;
 
 namespace {
 
+struct PIPSCallbackNullStream {
+ template< class T >
+ const PIPSCallbackNullStream & operator<<( const T & ) const { return *this; }
+
+ const PIPSCallbackNullStream & operator<<( std::ostream & ( * )( std::ostream & ) ) const
+ {
+  return *this;
+ }
+};
+
+static const PIPSCallbackNullStream pips_callback_null_stream;
+
+#if PIPS_CALLBACK_SANITY
+ #define PIPS_CALLBACK_COUT std::cout
+#else
+ #define PIPS_CALLBACK_COUT pips_callback_null_stream
+#endif
+
 #if PIPS_CALLBACK_SANITY
 
 void sanity_print_indices( const char * what , const std::vector< int > & idxs )
 {
- std::cout << "  " << what << ":";
+ PIPS_CALLBACK_COUT << "  " << what << ":";
  for( int idx : idxs )
-  std::cout << " " << idx;
- std::cout << std::endl;
+  PIPS_CALLBACK_COUT << " " << idx;
+ PIPS_CALLBACK_COUT << std::endl;
 }
 
 void sanity_check_id( const char * cb , int id , int n_nodes )
 {
- std::cout << "\n[PIPS CALLBACK] " << cb << " id=" << id << std::endl;
+ PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK] " << cb << " id=" << id << std::endl;
  if( id < 0 || id >= n_nodes )
-  std::cout << "  [SANITY ERROR] id outside [0," << n_nodes << ")" << std::endl;
+  PIPS_CALLBACK_COUT << "  [SANITY ERROR] id outside [0," << n_nodes << ")" << std::endl;
 }
 
 void sanity_check_count( const char * cb , int id , int value , int expected_min = 0 )
 {
- std::cout << "[PIPS CALLBACK] " << cb
+ PIPS_CALLBACK_COUT << "[PIPS CALLBACK] " << cb
            << " id=" << id
            << " returns " << value << std::endl;
  if( value < expected_min )
-  std::cout << "  [SANITY ERROR] negative/invalid count" << std::endl;
+  PIPS_CALLBACK_COUT << "  [SANITY ERROR] negative/invalid count" << std::endl;
 }
 
 template< class CSR >
@@ -80,7 +98,7 @@ void sanity_check_csr( const char * cb , int id , int nRows , int nCols ,
                        const std::vector< int > & globalRows ,
                        const std::vector< int > & globalCols )
 {
- std::cout << "\n[PIPS CALLBACK MATRIX] " << cb
+ PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK MATRIX] " << cb
            << " id=" << id
            << " nRows=" << nRows
            << " nCols=" << nCols
@@ -92,33 +110,33 @@ void sanity_check_csr( const char * cb , int id , int nRows , int nCols ,
  bool ok = true;
 
  if( static_cast< int >( mat.krow.size() ) != nRows + 1 ) {
-  std::cout << "  [SANITY ERROR] krow.size()=" << mat.krow.size()
+  PIPS_CALLBACK_COUT << "  [SANITY ERROR] krow.size()=" << mat.krow.size()
             << " but expected " << nRows + 1 << std::endl;
   ok = false;
  }
 
  if( mat.jcol.size() != mat.val.size() ) {
-  std::cout << "  [SANITY ERROR] jcol.size()=" << mat.jcol.size()
+  PIPS_CALLBACK_COUT << "  [SANITY ERROR] jcol.size()=" << mat.jcol.size()
             << " differs from val.size()=" << mat.val.size() << std::endl;
   ok = false;
  }
 
  if( ! mat.krow.empty() && mat.krow.front() != 0 ) {
-  std::cout << "  [SANITY ERROR] krow[0]=" << mat.krow.front()
+  PIPS_CALLBACK_COUT << "  [SANITY ERROR] krow[0]=" << mat.krow.front()
             << " but expected 0" << std::endl;
   ok = false;
  }
 
  if( ! mat.krow.empty() &&
      mat.krow.back() != static_cast< int >( mat.val.size() ) ) {
-  std::cout << "  [SANITY ERROR] krow.back()=" << mat.krow.back()
+  PIPS_CALLBACK_COUT << "  [SANITY ERROR] krow.back()=" << mat.krow.back()
             << " but nnz=" << mat.val.size() << std::endl;
   ok = false;
  }
 
  for( int i = 0 ; i + 1 < static_cast< int >( mat.krow.size() ) ; ++i ) {
   if( mat.krow[ i ] > mat.krow[ i + 1 ] ) {
-   std::cout << "  [SANITY ERROR] krow is decreasing at row " << i
+   PIPS_CALLBACK_COUT << "  [SANITY ERROR] krow is decreasing at row " << i
              << ": " << mat.krow[ i ] << " > " << mat.krow[ i + 1 ]
              << std::endl;
    ok = false;
@@ -134,7 +152,7 @@ void sanity_check_csr( const char * cb , int id , int nRows , int nCols ,
   if( row_start < 0 || row_end < 0 ||
       row_start > static_cast< int >( mat.val.size() ) ||
       row_end > static_cast< int >( mat.val.size() ) ) {
-   std::cout << "  [SANITY ERROR] row " << i
+   PIPS_CALLBACK_COUT << "  [SANITY ERROR] row " << i
              << " has invalid pointer range [" << row_start
              << "," << row_end << ")" << std::endl;
    ok = false;
@@ -143,7 +161,7 @@ void sanity_check_csr( const char * cb , int id , int nRows , int nCols ,
 
   for( int k = row_start ; k < row_end ; ++k ) {
    if( mat.jcol[ k ] < 0 || mat.jcol[ k ] >= nCols ) {
-    std::cout << "  [SANITY ERROR] entry k=" << k
+    PIPS_CALLBACK_COUT << "  [SANITY ERROR] entry k=" << k
               << " has invalid local column " << mat.jcol[ k ]
               << " outside [0," << nCols << ")" << std::endl;
     ok = false;
@@ -152,7 +170,7 @@ void sanity_check_csr( const char * cb , int id , int nRows , int nCols ,
     ++col_nnz[ mat.jcol[ k ] ];
 
    if( ! std::isfinite( mat.val[ k ] ) ) {
-    std::cout << "  [SANITY ERROR] entry k=" << k
+    PIPS_CALLBACK_COUT << "  [SANITY ERROR] entry k=" << k
               << " is not finite: " << mat.val[ k ] << std::endl;
     ok = false;
    }
@@ -160,40 +178,40 @@ void sanity_check_csr( const char * cb , int id , int nRows , int nCols ,
  }
 
  for( int i = 0 ; i < nRows && i + 1 < static_cast< int >( mat.krow.size() ) ; ++i )
-  std::cout << "  row " << i << " nnz=" << mat.krow[ i + 1 ] - mat.krow[ i ]
+  PIPS_CALLBACK_COUT << "  row " << i << " nnz=" << mat.krow[ i + 1 ] - mat.krow[ i ]
             << std::endl;
 
  for( int j = 0 ; j < static_cast< int >( col_nnz.size() ) ; ++j )
-  std::cout << "  col " << j << " nnz=" << col_nnz[ j ] << std::endl;
+  PIPS_CALLBACK_COUT << "  col " << j << " nnz=" << col_nnz[ j ] << std::endl;
 
  for( int i = 0 ; i < nRows && i + 1 < static_cast< int >( mat.krow.size() ) ; ++i ) {
   for( int k = mat.krow[ i ] ; k < mat.krow[ i + 1 ] ; ++k ) {
-   std::cout << "    localRow=" << i
+   PIPS_CALLBACK_COUT << "    localRow=" << i
              << " localCol=" << mat.jcol[ k ]
              << " val=" << mat.val[ k ] << std::endl;
   }
  }
 
  if( ok )
-  std::cout << "  [SANITY OK] CSR structure is consistent" << std::endl;
+  PIPS_CALLBACK_COUT << "  [SANITY OK] CSR structure is consistent" << std::endl;
 }
 
 void sanity_check_vector( const char * cb , int id , const double * vec ,
                           int len , int expected_len )
 {
- std::cout << "\n[PIPS CALLBACK VECTOR] " << cb
+ PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK VECTOR] " << cb
            << " id=" << id
            << " len=" << len
            << " expected_len=" << expected_len << std::endl;
 
  if( len != expected_len )
-  std::cout << "  [SANITY WARNING] PIPS requested len=" << len
+  PIPS_CALLBACK_COUT << "  [SANITY WARNING] PIPS requested len=" << len
             << " but local expected length is " << expected_len << std::endl;
 
  for( int i = 0 ; i < len ; ++i ) {
-  std::cout << "  [" << i << "]=" << vec[ i ] << std::endl;
+  PIPS_CALLBACK_COUT << "  [" << i << "]=" << vec[ i ] << std::endl;
   if( std::isnan( vec[ i ] ) )
-   std::cout << "  [SANITY ERROR] NaN at position " << i << std::endl;
+   PIPS_CALLBACK_COUT << "  [SANITY ERROR] NaN at position " << i << std::endl;
  }
 }
 
@@ -614,7 +632,7 @@ int PIPSMILPSolver::ExtractRhsVector( int id , double* vec , int len ,
     }
    }
    if( static_cast< int >( sub_rhs.size() ) != len )
-    std::cout << "[SANITY WARNING] ExtractRhsVector id=" << id
+    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractRhsVector id=" << id
               << " built " << sub_rhs.size()
               << " values but PIPS requested len=" << len << std::endl;
    std::copy( sub_rhs.begin(), sub_rhs.end(), vec );
@@ -674,7 +692,7 @@ int PIPSMILPSolver::ExtractLhsVector( int id , double* vec , int len ,
     }
    }
    if( static_cast< int >( sub_rhs.size() ) != len )
-    std::cout << "[SANITY WARNING] ExtractLhsVector id=" << id
+    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractLhsVector id=" << id
               << " built " << sub_rhs.size()
               << " values but PIPS requested len=" << len << std::endl;
    std::copy( sub_rhs.begin(), sub_rhs.end(), vec );
@@ -689,7 +707,7 @@ int PIPSMILPSolver::ExtractLhsVector( int id , double* vec , int len ,
 
 int PIPSMILPSolver::RhsEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] RhsEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -704,7 +722,7 @@ int PIPSMILPSolver::RhsEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::RhsInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] RhsInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsInEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -719,7 +737,7 @@ int PIPSMILPSolver::RhsInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::LhsInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] LhsInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LhsInEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -734,7 +752,7 @@ int PIPSMILPSolver::LhsInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::RhsLinkEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] RhsLinkEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsLinkEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -748,7 +766,7 @@ int PIPSMILPSolver::RhsLinkEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::RhsLinkInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] RhsLinkInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsLinkInEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -763,7 +781,7 @@ int PIPSMILPSolver::RhsLinkInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::LhsLinkInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] LhsLinkInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LhsLinkInEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -823,7 +841,7 @@ int PIPSMILPSolver::ExtractRhsActiveFlag( int id , double* vec , int len ,
     }
    }
    if( static_cast< int >( sub_rhs.size() ) != len )
-    std::cout << "[SANITY WARNING] ExtractRhsActiveFlag id=" << id
+    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractRhsActiveFlag id=" << id
               << " built " << sub_rhs.size()
               << " values but PIPS requested len=" << len << std::endl;
    std::copy( sub_rhs.begin(), sub_rhs.end(), vec );
@@ -874,7 +892,7 @@ int PIPSMILPSolver::ExtractLhsActiveFlag( int id , double* vec , int len ,
     }
    }
    if( static_cast< int >( sub_rhs.size() ) != len )
-    std::cout << "[SANITY WARNING] ExtractLhsActiveFlag id=" << id
+    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractLhsActiveFlag id=" << id
               << " built " << sub_rhs.size()
               << " values but PIPS requested len=" << len << std::endl;
    std::copy( sub_rhs.begin(), sub_rhs.end(), vec );
@@ -890,7 +908,7 @@ int PIPSMILPSolver::ExtractLhsActiveFlag( int id , double* vec , int len ,
 
 int PIPSMILPSolver::FlagRhsInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] FlagRhsInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagRhsInEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -905,7 +923,7 @@ int PIPSMILPSolver::FlagRhsInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagLhsInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] FlagLhsInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLhsInEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -920,7 +938,7 @@ int PIPSMILPSolver::FlagLhsInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagRhsLinkInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] FlagRhsLinkInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagRhsLinkInEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -935,7 +953,7 @@ int PIPSMILPSolver::FlagRhsLinkInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagLhsLinkInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] FlagLhsLinkInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLhsLinkInEqCons id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -981,7 +999,7 @@ int PIPSMILPSolver::ExtractVarBounds( int id , double* vec , int len ,
       sub_bounds.push_back( bounds[ idx ] );
    
    if( static_cast< int >( sub_bounds.size() ) != len )
-    std::cout << "[SANITY WARNING] ExtractVarBounds id=" << id
+    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractVarBounds id=" << id
               << " built " << sub_bounds.size()
               << " values but PIPS requested len=" << len << std::endl;
    std::copy( sub_bounds.begin(), sub_bounds.end(), vec );
@@ -996,7 +1014,7 @@ int PIPSMILPSolver::ExtractVarBounds( int id , double* vec , int len ,
 
 int PIPSMILPSolver::UBVars( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] UBVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] UBVars id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -1010,7 +1028,7 @@ int PIPSMILPSolver::UBVars( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::LBVars( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] LBVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LBVars id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -1025,7 +1043,7 @@ int PIPSMILPSolver::LBVars( void * user_data, int id , double* vec,
 int PIPSMILPSolver::ObjVars( void * user_data, int id , double* vec,
                                 int len ){
 
-  std::cout << "\n[PIPS CALLBACK ENTER] ObjVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] ObjVars id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -1112,7 +1130,7 @@ int PIPSMILPSolver::ExtractFlagVarBounds( int id , double* vec , int len ,
       sub_bounds.push_back( 1.0 );
    
    if( static_cast< int >( sub_bounds.size() ) != len )
-    std::cout << "[SANITY WARNING] ExtractFlagVarBounds id=" << id
+    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractFlagVarBounds id=" << id
               << " built " << sub_bounds.size()
               << " values but PIPS requested len=" << len << std::endl;
    std::copy( sub_bounds.begin(), sub_bounds.end(), vec );
@@ -1127,7 +1145,7 @@ int PIPSMILPSolver::ExtractFlagVarBounds( int id , double* vec , int len ,
 
 int PIPSMILPSolver::FlagUBVars( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] FlagUBVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagUBVars id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -1141,7 +1159,7 @@ int PIPSMILPSolver::FlagUBVars( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagLBVars( void * user_data, int id , double* vec,
                                 int len ){
-  std::cout << "\n[PIPS CALLBACK ENTER] FlagLBVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLBVars id=" << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -1199,7 +1217,7 @@ int PIPSMILPSolver::MatEqConsDiag( void * user_data, int id , int* krowM,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  std::cout << "\n[PIPS CALLBACK ENTER] MatEqConsDiag id=" << id << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatEqConsDiag id=" << id << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->EqConsNode[ id ] , 
                 solver->n_EqConsNode[ id ] , solver->varNode[ id ] , 
                 solver->n_varNode[ id ] );
@@ -1220,7 +1238,7 @@ int PIPSMILPSolver::MatEqConsVert( void * user_data, int id , int* krowM,
   else{
    // Use the current class in the callback
    auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-   std::cout << "\n[PIPS CALLBACK ENTER] MatEqConsVert id=" << id << std::endl;
+   PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatEqConsVert id=" << id << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->EqConsNode[ id ] , 
                 solver->n_EqConsNode[ id ] , solver->varNode[ 0 ] , 
                 solver->n_varNode[ 0 ] );
@@ -1235,7 +1253,7 @@ int PIPSMILPSolver::MatInEqConsDiag( void * user_data, int id , int* krowM,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  std::cout << "\n[PIPS CALLBACK ENTER] MatInEqConsDiag id=" << id << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatInEqConsDiag id=" << id << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->InEqConsNode[ id ] , 
                 solver->n_InEqConsNode[ id ] , solver->varNode[ id ] , 
                 solver->n_varNode[ id ] );
@@ -1257,7 +1275,7 @@ int PIPSMILPSolver::MatInEqConsVert( void * user_data, int id , int* krowM,
    // Use the current class in the callback
    auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-   std::cout << "\n[PIPS CALLBACK ENTER] MatInEqConsVert id=" << id << std::endl;
+   PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatInEqConsVert id=" << id << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->InEqConsNode[ id ] , 
                 solver->n_InEqConsNode[ id ] , solver->varNode[ 0 ] , 
                 solver->n_varNode[ 0 ] );
@@ -1272,7 +1290,7 @@ int PIPSMILPSolver::MatLinkEqCons( void * user_data, int id , int* krowM,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  std::cout << "\n[PIPS CALLBACK ENTER] MatLinkEqCons id=" << id << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatLinkEqCons id=" << id << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->LinkEqCons , 
                 solver->n_LinkEqCons , solver->varNode[ id ] , 
                 solver->n_varNode[ id ] );
@@ -1286,7 +1304,7 @@ int PIPSMILPSolver::MatLinkInEqCons( void * user_data, int id , int* krowM,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  std::cout << "\n[PIPS CALLBACK ENTER] MatLinkInEqCons id=" << id << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatLinkInEqCons id=" << id << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->LinkInEqCons , 
                 solver->n_LinkInEqCons , solver->varNode[ id ] , 
                 solver->n_varNode[ id ] );
@@ -1394,25 +1412,25 @@ PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extractSubmatrixToCRS(
   result.krow.push_back( result.val.size() );
  }
 
- std::cout << "\n[DEBUG extractSubmatrixToCRS]" << std::endl;
- std::cout << "nRows = " << nRows
+ PIPS_CALLBACK_COUT << "\n[DEBUG extractSubmatrixToCRS]" << std::endl;
+ PIPS_CALLBACK_COUT << "nRows = " << nRows
            << ", nCols = " << nCols
            << ", nnz = " << result.val.size()
            << std::endl;
 
- std::cout << "selectedRows: ";
+ PIPS_CALLBACK_COUT << "selectedRows: ";
  for( int r : selectedRows )
-  std::cout << r << " ";
- std::cout << std::endl;
+  PIPS_CALLBACK_COUT << r << " ";
+ PIPS_CALLBACK_COUT << std::endl;
 
- std::cout << "selectedCols: ";
+ PIPS_CALLBACK_COUT << "selectedCols: ";
  for( int c : selectedCols )
-  std::cout << c << " ";
- std::cout << std::endl;
+  PIPS_CALLBACK_COUT << c << " ";
+ PIPS_CALLBACK_COUT << std::endl;
 
  for( int i = 0 ; i < nRows ; ++i ) {
   for( int k = result.krow[ i ] ; k < result.krow[ i + 1 ] ; ++k ) {
-   std::cout << "  localRow = " << i
+   PIPS_CALLBACK_COUT << "  localRow = " << i
              << ", localCol = " << result.jcol[ k ]
              << ", val = " << result.val[ k ]
              << std::endl;
@@ -1647,7 +1665,7 @@ void PIPSMILPSolver::load_problem( void )
   std::cout << "Using a total of " << size << " MPI processes.\n";
 
 /* use BiCGStab for outer solve */
-pipsipmpp_options::set_parameter("PRESOLVE", false);
+//pipsipmpp_options::set_parameter("PRESOLVE", false);
 //pipsipmpp_options::set_parameter("SCALER", "geometricmean");
 
  pips_tree = root;
