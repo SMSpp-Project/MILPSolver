@@ -530,7 +530,7 @@ void PIPSMILPSolver::load_problem( void )
 
  for(int id = 1; id < n_nodes ; ++id ) {
   // Create the leaves (depth = id)
-  std::unique_ptr<DistributedInputTree::DistributedInputNode> data_root = 
+  std::unique_ptr<DistributedInputTree::DistributedInputNode> data_child = 
     std::make_unique<DistributedInputTree::DistributedInputNode>( this, id, 
       fNo_VarinNode, fNo_EqConsinNode, fNo_LinkEqCons, fNo_InEqConsinNode, 
       fNo_LinkInEqCons, fQ, fnnzQ, fObjVars, fMatEqConsVert , fnnzEqConsVert , 
