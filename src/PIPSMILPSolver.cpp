@@ -1646,12 +1646,13 @@ int PIPSMILPSolver::ExtractVarBounds( int id , double* vec , int len ,
    sub_bounds.reserve( global_idxs_vars.size() );
     
    for( auto idx : global_idxs_vars )
-    if( idx < bounds.size() )
+    if( idx < bounds.size() ){
      if( bounds[ idx ] == -Inf< double >() || 
           bounds[ idx ] == Inf< double >() )
       sub_bounds.push_back( 0.0 );
      else
       sub_bounds.push_back( bounds[ idx ] );
+    }
    
    if( static_cast< int >( sub_bounds.size() ) != len )
     PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractVarBounds id=" << id
@@ -1692,12 +1693,13 @@ int PIPSMILPSolver::ExtractFlagVarBounds( int id , double* vec , int len ,
    sub_bounds.reserve( global_idxs_vars.size() );
     
    for( auto idx : global_idxs_vars )
-    if( idx < bounds.size() )
+    if( idx < bounds.size() ){
      if( bounds[ idx ] == -Inf< double >() || 
           bounds[ idx ] == Inf< double >() )
       sub_bounds.push_back( 0.0 );
      else
       sub_bounds.push_back( 1.0 );
+    }
    
    if( static_cast< int >( sub_bounds.size() ) != len )
     PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractFlagVarBounds id=" << id
