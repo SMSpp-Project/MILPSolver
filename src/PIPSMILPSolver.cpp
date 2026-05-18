@@ -42,6 +42,12 @@
 
 using namespace SMSpp_di_unipi_it;
 
+/*
+ * Anonymous namespace for file-local debug/printing utilities.
+ * These helpers are used to inspect callback inputs and reconstructed
+ * PIPS data structures while debugging the PIPSMILPSolver interface.
+ */
+
 #ifndef PIPS_CALLBACK_SANITY
  #define PIPS_CALLBACK_SANITY 0
 #endif
@@ -52,7 +58,8 @@ struct PIPSCallbackNullStream {
  template< class T >
  const PIPSCallbackNullStream & operator<<( const T & ) const { return *this; }
 
- const PIPSCallbackNullStream & operator<<( std::ostream & ( * )( std::ostream & ) ) const
+ const PIPSCallbackNullStream & operator<<( std::ostream & ( * )
+        ( std::ostream & ) ) const
  {
   return *this;
  }
@@ -80,16 +87,19 @@ void sanity_check_id( const char * cb , int id , int n_nodes )
 {
  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK] " << cb << " id=" << id << std::endl;
  if( id < 0 || id >= n_nodes )
-  PIPS_CALLBACK_COUT << "  [SANITY ERROR] id outside [0," << n_nodes << ")" << std::endl;
+  PIPS_CALLBACK_COUT << "  [SANITY ERROR] id outside [0," << n_nodes << ")" 
+    << std::endl;
 }
 
-void sanity_check_count( const char * cb , int id , int value , int expected_min = 0 )
+void sanity_check_count( const char * cb , int id , int value , 
+                          int expected_min = 0 )
 {
  PIPS_CALLBACK_COUT << "[PIPS CALLBACK] " << cb
            << " id=" << id
            << " returns " << value << std::endl;
  if( value < expected_min )
-  PIPS_CALLBACK_COUT << "  [SANITY ERROR] negative/invalid count" << std::endl;
+  PIPS_CALLBACK_COUT << "  [SANITY ERROR] negative/invalid count" 
+    << std::endl;
 }
 
 template< class CSR >
@@ -273,6 +283,8 @@ PIPSMILPSolver::~PIPSMILPSolver()
 }
 
 /*--------------------------------------------------------------------------*/
+/*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
+/*--------------------------------------------------------------------------*/
 
 void PIPSMILPSolver::set_Block( Block * block )
 {
@@ -391,7 +403,8 @@ void PIPSMILPSolver::load_problem( void )
       varNode[ num_node ].push_back( &c );
      };
 
-     un_any_const_dynamic( i , push_var_toNode , un_any_type< ColVariable >() );
+     un_any_const_dynamic( i , push_var_toNode , 
+                            un_any_type< ColVariable >() );
     }
   }
   num_node++;
@@ -433,41 +446,56 @@ void PIPSMILPSolver::load_problem( void )
 
  // Number of elements
  FNNZ fNo_VarinNode = &No_VarinNode; // Number of variables
- FNNZ fNo_EqConsinNode = &No_EqConsinNode; // Number of equality constraints per node
- FNNZ fNo_InEqConsinNode = &No_InEqConsinNode; // Number of inequality constraints per node
- FNNZ fNo_LinkEqCons = &No_LinkEqCons; // Number of global linking equality constraints
- FNNZ fNo_LinkInEqCons = &No_LinkInEqCons; // Number of global linking inequality constraints
+ FNNZ fNo_EqConsinNode = &No_EqConsinNode; 
+              // Number of equality constraints per node
+ FNNZ fNo_InEqConsinNode = &No_InEqConsinNode; 
+              // Number of inequality constraints per node
+ FNNZ fNo_LinkEqCons = &No_LinkEqCons; 
+              // Number of global linking equality constraints
+ FNNZ fNo_LinkInEqCons = &No_LinkInEqCons; 
+              // Number of global linking inequality constraints
 
  // Nonzeros
- FNNZ fnnzQ = &nnzAllZero; // TBD: number of quadratic nonzero terms in objective
+ FNNZ fnnzQ = &nnzAllZero; 
+              // TBD: number of quadratic nonzero terms in objective
  
- FNNZ fnnzEqConsDiag = &nnzEqConsDiag; // Number of nonzeros in the diagonal matrices
- FNNZ fnnzEqConsVert = &nnzEqConsVert; // Number of nonzeros in the vertical root matrices
-
- FNNZ fnnzInEqConsDiag = &nnzInEqConsDiag; // Number of nonzeros in the equality diagonal matrices
- FNNZ fnnzInEqConsVert = &nnzInEqConsVert; // Number of nonzeros in the inequality vertical root matrices
-
- FNNZ fnnzLinkEqCons = &nnzLinkEqCons; // Number of nonzeros in the equality linking matrices
- FNNZ fnnzLinkInEqCons = &nnzLinkInEqCons; // Number of nonzeros in the inequality linking matrices
+ FNNZ fnnzEqConsDiag = &nnzEqConsDiag; 
+              // Number of nonzeros in the diagonal matrices
+ FNNZ fnnzEqConsVert = &nnzEqConsVert; 
+              // Number of nonzeros in the vertical root matrices
+ FNNZ fnnzInEqConsDiag = &nnzInEqConsDiag; 
+              // Number of nonzeros in the equality diagonal matrices
+ FNNZ fnnzInEqConsVert = &nnzInEqConsVert; 
+              // Number of nonzeros in the inequality vertical root matrices
+ FNNZ fnnzLinkEqCons = &nnzLinkEqCons; 
+              // Number of nonzeros in the equality linking matrices
+ FNNZ fnnzLinkInEqCons = &nnzLinkInEqCons;
+              // Number of nonzeros in the inequality linking matrices
    
- // Vectors (TBD)
+ // Vectors
  FVEC fRhsEqCons = &RhsEqCons; // rhs of equality constraints per node
- FVEC fRhsInEqCons = &RhsInEqCons; // rhs of linking inequality constraints per node
- FVEC fLhsInEqCons = &LhsInEqCons; // lhs of linking inequality constraints per node
+ FVEC fRhsInEqCons = &RhsInEqCons; 
+              // rhs of linking inequality constraints per node
+ FVEC fLhsInEqCons = &LhsInEqCons; 
+              // lhs of linking inequality constraints per node
+ FVEC fRhsLinkEqCons = &RhsLinkEqCons; 
+              // rhs of linking equality constraints
+ FVEC fRhsLinkInEqCons = &RhsLinkInEqCons; 
+              // rhs of linking inequality constraints
+ FVEC fLhsLinkInEqCons = &LhsLinkInEqCons; 
+              // lhs of linking inequality constraints
 
- FVEC fRhsLinkEqCons = &RhsLinkEqCons; // rhs of linking equality constraints
- FVEC fRhsLinkInEqCons = &RhsLinkInEqCons; // rhs of linking inequality constraints
- FVEC fLhsLinkInEqCons = &LhsLinkInEqCons; // lhs of linking inequality constraints
-
- FVEC fFlagRhsInEqCons = &FlagRhsInEqCons; // active rhs of linking inequality constraints per node
- FVEC fFlagLhsInEqCons = &FlagLhsInEqCons; // active lhs of linking inequality constraints per node
-
- FVEC fFlagRhsLinkInEqCons = &FlagRhsLinkInEqCons; // active rhs of linking inequality constraints
- FVEC fFlagLhsLinkInEqCons = &FlagLhsLinkInEqCons; // active lhs of linking inequality constraints
+ FVEC fFlagRhsInEqCons = &FlagRhsInEqCons; 
+              // active rhs of linking inequality constraints per node
+ FVEC fFlagLhsInEqCons = &FlagLhsInEqCons; 
+              // active lhs of linking inequality constraints per node
+ FVEC fFlagRhsLinkInEqCons = &FlagRhsLinkInEqCons; 
+              // active rhs of linking inequality constraints
+ FVEC fFlagLhsLinkInEqCons = &FlagLhsLinkInEqCons; 
+              // active lhs of linking inequality constraints
 
  FVEC fUBVars = &UBVars; // Upper bounds on the variables
  FVEC fLBVars = &LBVars; // Lower bounds on the variables
-
  FVEC fFlagUBVars = &FlagUBVars; // Upper bound flags on the variables
  FVEC fFlagLBVars = &FlagLBVars; // Lower bound flag on the variables
 
@@ -484,38 +512,42 @@ void PIPSMILPSolver::load_problem( void )
  FMAT fQ = &matAllZero; // TBD Quadratic objective matrix
 
  // Build the problem tree
+
+ // Create the root node (depth = 0)
  std::unique_ptr<DistributedInputTree::DistributedInputNode> data_root = 
-  std::make_unique<DistributedInputTree::DistributedInputNode>( this, 0, fNo_VarinNode, 
-    fNo_EqConsinNode, fNo_LinkEqCons, fNo_InEqConsinNode, fNo_LinkInEqCons, fQ, fnnzQ, fObjVars, 
-    fMatEqConsVert , fnnzEqConsVert , fMatEqConsDiag, fnnzEqConsDiag, fMatLinkEqCons , fnnzLinkEqCons, 
-    fRhsEqCons , fRhsLinkEqCons , fMatInEqConsVert , fnnzInEqConsVert , fMatInEqConsDiag , 
-    fnnzInEqConsDiag , fMatLinkInEqCons , fnnzLinkInEqCons , fLhsInEqCons , fFlagLhsInEqCons ,
-    fRhsInEqCons , fFlagRhsInEqCons , fLhsLinkInEqCons , fFlagLhsLinkInEqCons , fRhsLinkInEqCons ,
-    fFlagRhsLinkInEqCons , fLBVars , fFlagLBVars , fUBVars , fFlagUBVars , nullptr, nullptr, false );
+  std::make_unique<DistributedInputTree::DistributedInputNode>( this, 0, 
+    fNo_VarinNode, fNo_EqConsinNode, fNo_LinkEqCons, fNo_InEqConsinNode, 
+    fNo_LinkInEqCons, fQ, fnnzQ, fObjVars, fMatEqConsVert , fnnzEqConsVert , 
+    fMatEqConsDiag, fnnzEqConsDiag, fMatLinkEqCons , fnnzLinkEqCons, 
+    fRhsEqCons , fRhsLinkEqCons , fMatInEqConsVert , fnnzInEqConsVert , 
+    fMatInEqConsDiag , fnnzInEqConsDiag , fMatLinkInEqCons , 
+    fnnzLinkInEqCons , fLhsInEqCons , fFlagLhsInEqCons , fRhsInEqCons , 
+    fFlagRhsInEqCons , fLhsLinkInEqCons , fFlagLhsLinkInEqCons , 
+    fRhsLinkInEqCons ,fFlagRhsLinkInEqCons , fLBVars , fFlagLBVars , 
+    fUBVars , fFlagUBVars , nullptr, nullptr, false );
 
  auto* root = new DistributedInputTree( std::move( data_root ) );
 
  for(int id = 1; id < n_nodes ; ++id ) {
-  // Build the problem tree
-  std::unique_ptr<DistributedInputTree::DistributedInputNode> data_child = 
-    std::make_unique<DistributedInputTree::DistributedInputNode>( this, id, fNo_VarinNode, 
-    fNo_EqConsinNode, fNo_LinkEqCons, fNo_InEqConsinNode, fNo_LinkInEqCons, fQ, fnnzQ, fObjVars, 
-    fMatEqConsVert , fnnzEqConsVert , fMatEqConsDiag, fnnzEqConsDiag, fMatLinkEqCons , fnnzLinkEqCons, 
-    fRhsEqCons , fRhsLinkEqCons , fMatInEqConsVert , fnnzInEqConsVert , fMatInEqConsDiag , 
-    fnnzInEqConsDiag , fMatLinkInEqCons , fnnzLinkInEqCons , fLhsInEqCons , fFlagLhsInEqCons ,
-    fRhsInEqCons , fFlagRhsInEqCons , fLhsLinkInEqCons , fFlagLhsLinkInEqCons , fRhsLinkInEqCons ,
-    fFlagRhsLinkInEqCons , fLBVars , fFlagLBVars , fUBVars , fFlagUBVars , nullptr, nullptr, false );
+  // Create the leaves (depth = id)
+  std::unique_ptr<DistributedInputTree::DistributedInputNode> data_root = 
+    std::make_unique<DistributedInputTree::DistributedInputNode>( this, id, 
+      fNo_VarinNode, fNo_EqConsinNode, fNo_LinkEqCons, fNo_InEqConsinNode, 
+      fNo_LinkInEqCons, fQ, fnnzQ, fObjVars, fMatEqConsVert , fnnzEqConsVert , 
+      fMatEqConsDiag, fnnzEqConsDiag, fMatLinkEqCons , fnnzLinkEqCons, 
+      fRhsEqCons , fRhsLinkEqCons , fMatInEqConsVert , fnnzInEqConsVert , 
+      fMatInEqConsDiag , fnnzInEqConsDiag , fMatLinkInEqCons , 
+      fnnzLinkInEqCons , fLhsInEqCons , fFlagLhsInEqCons , fRhsInEqCons , 
+      fFlagRhsInEqCons , fLhsLinkInEqCons , fFlagLhsLinkInEqCons , 
+      fRhsLinkInEqCons ,fFlagRhsLinkInEqCons , fLBVars , fFlagLBVars , 
+      fUBVars , fFlagUBVars , nullptr, nullptr, false );
 
-   root->add_child( std::make_unique<DistributedInputTree>( std::move( data_child ) ) );
+   // Add the child to the root
+   root->add_child( 
+    std::make_unique<DistributedInputTree>( std::move( data_child ) ) );
  }
 
- if (rank == 0)
-  std::cout << "Using a total of " << size << " MPI processes.\n";
-
-/* use BiCGStab for outer solve */
-//pipsipmpp_options::set_parameter("PRESOLVE", false);
-//pipsipmpp_options::set_parameter("SCALER", "geometricmean");
-
+ // Store the constructed elements in the SMS++ structure
  pips_tree = root;
  pips_interface = new PIPSIPMppInterface( pips_tree, MPI_COMM_WORLD );
 
@@ -609,6 +641,46 @@ int PIPSMILPSolver::guts_of_compute( void )
 
 }  
 
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
+{
+ DEBUG_LOG( "pips_interface.run() returned " << status << std::endl );
+
+ /* The following are the symbols that may represent the status of
+ * a PIPS solution as returned by pips_interface.run(). */
+
+ switch( status ) {
+  case( TerminationStatus::READ_ERROR ):
+  case( TerminationStatus::UNKNOWN ) :
+  case( TerminationStatus::DID_NOT_RUN ):
+  case( TerminationStatus::NOT_FINISHED ):
+  case( TerminationStatus::STOPPED_AFTER_PRESOLVE ):
+   // Some error happened.
+   return( kError );
+  case( TerminationStatus::TIMELIMIT ):
+   // Time limit exceeded
+   return( kStopTime );
+  case( TerminationStatus::INFEASIBLE ):
+   // Problem is infeasible.
+   return( kInfeasible );
+  case( TerminationStatus::UNBOUNDED ):
+   // Problem has been proven unbounded.
+   return( kUnbounded );
+  case( TerminationStatus::MAX_ITS_EXCEEDED ):
+   // Iteration limit has been reached;
+   return( kStopIter );
+  case( TerminationStatus::SUCCESSFUL_TERMINATION ):
+   // Compilation terminated succesfully
+   return( kOK );
+  default:;
+  }
+
+ throw( std::runtime_error( "pips_interface.run() returned unknown status." ) );
+}
+
+/*--------------------------------------------------------------------------*/
+/*----------------------- PIPS CALLBACKS METHODS----------------------------*/
 /*--------------------------------------------------------------------------*/
 
 PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extract_block_matrix(
@@ -725,10 +797,10 @@ PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extractSubmatrixToCRS(
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractMatrix( int id , int* krowM, int* jcolM, double* M , 
-                                std::vector< const FRowConstraint * > node_cons ,
-                                const int nCons , 
-                                std::vector< const ColVariable * > vars ,
-                                const int nVars ){ 
+                              std::vector< const FRowConstraint * > node_cons ,
+                              const int nCons , 
+                              std::vector< const ColVariable * > vars ,
+                              const int nVars ){ 
   if( id < n_nodes ){
    // Check if the node has own constraint or variables
    if( nCons == 0 || nVars == 0 ){
@@ -765,10 +837,10 @@ int PIPSMILPSolver::ExtractMatrix( int id , int* krowM, int* jcolM, double* M ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::EvaluateNnz( int id , int* nnz , 
-                                std::vector< const FRowConstraint * > node_cons ,
-                                const int nCons , 
-                                std::vector< const ColVariable * > vars ,
-                                const int nVars ){ 
+                              std::vector< const FRowConstraint * > node_cons ,
+                              const int nCons , 
+                              std::vector< const ColVariable * > vars ,
+                              const int nVars ){ 
   if( id < n_nodes ){
    // Check if the node has own constraint or variables
    if( nCons == 0 || nVars == 0 ){
@@ -989,7 +1061,8 @@ template< typename T >
         n_varNode[ num_node ] += 1;
          varNode[ num_node ].push_back( &c );
      };
-     un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
+     un_any_const_static( gr , push_var_toNode , 
+      un_any_type< ColVariable >() );
 
      // The linearization produced by ma->data() for the 2D multi_array
      // stores elements in row-major order. Therefore, we should increment
@@ -1052,7 +1125,8 @@ template< typename T >
         n_varNode[ num_node ] += 1;
          varNode[ num_node ].push_back( &c );
      };
-     un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
+     un_any_const_static( gr , push_var_toNode , 
+      un_any_type< ColVariable >() );
 
      // The linearization produced by ma->data() for the 2D multi_array
      // stores elements in row-major order. Therefore, we should increment
@@ -1131,7 +1205,8 @@ template< typename T >
         n_varNode[ num_node ] += 1;
          varNode[ num_node ].push_back( &c );
      };
-     un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
+     un_any_const_static( gr , push_var_toNode , 
+      un_any_type< ColVariable >() );
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
@@ -1200,7 +1275,8 @@ template< typename T >
         n_varNode[ num_node ] += 1;
          varNode[ num_node ].push_back( &c );
      };
-     un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
+     un_any_const_static( gr , push_var_toNode , 
+      un_any_type< ColVariable >() );
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
@@ -1231,7 +1307,8 @@ template< typename T >
 
 /*--------------------------------------------------------------------------*/
 
-void PIPSMILPSolver::scan_constraint( const FRowConstraint & con , Index num_node )
+void PIPSMILPSolver::scan_constraint( const FRowConstraint & con , 
+                                      Index num_node )
 {
  // Check if the Constraint is not empty
  if( con.get_Block() == nullptr )
@@ -1305,11 +1382,11 @@ void PIPSMILPSolver::scan_constraint( const FRowConstraint & con , Index num_nod
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractRhsVector( int id , double* vec , int len ,
-                                std::vector< const FRowConstraint * > node_cons ,
-                                const int nCons ,
-                                std::vector< double > rhs ,
-                                std::vector< char > sense ,
-                                std::vector< double > ranges ){ 
+                              std::vector< const FRowConstraint * > node_cons ,
+                              const int nCons ,
+                              std::vector< double > rhs ,
+                              std::vector< char > sense ,
+                              std::vector< double > ranges ){ 
   if( id < n_nodes ){
    // Check if the node has own constraint
    if( nCons == 0 ){
@@ -1374,11 +1451,11 @@ int PIPSMILPSolver::ExtractRhsVector( int id , double* vec , int len ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractLhsVector( int id , double* vec , int len ,
-                                std::vector< const FRowConstraint * > node_cons ,
-                                const int nCons ,
-                                std::vector< double > rhs ,
-                                std::vector< char > sense ,
-                                std::vector< double > ranges ){ 
+                              std::vector< const FRowConstraint * > node_cons ,
+                              const int nCons ,
+                              std::vector< double > rhs ,
+                              std::vector< char > sense ,
+                              std::vector< double > ranges ){ 
   if( id < n_nodes ){
    // Check if the node has own constraint
    if( nCons == 0 ){
@@ -1434,11 +1511,11 @@ int PIPSMILPSolver::ExtractLhsVector( int id , double* vec , int len ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractRhsActiveFlag( int id , double* vec , int len ,
-                                std::vector< const FRowConstraint * > node_cons ,
-                                const int nCons ,
-                                std::vector< double > rhs ,
-                                std::vector< char > sense ,
-                                std::vector< double > ranges ){ 
+                              std::vector< const FRowConstraint * > node_cons ,
+                              const int nCons ,
+                              std::vector< double > rhs ,
+                              std::vector< char > sense ,
+                              std::vector< double > ranges ){ 
   if( id < n_nodes ){
    // Check if the node has own constraint
    if( nCons == 0 ){
@@ -1494,11 +1571,11 @@ int PIPSMILPSolver::ExtractRhsActiveFlag( int id , double* vec , int len ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractLhsActiveFlag( int id , double* vec , int len ,
-                                std::vector< const FRowConstraint * > node_cons ,
-                                const int nCons ,
-                                std::vector< double > rhs ,
-                                std::vector< char > sense ,
-                                std::vector< double > ranges ){ 
+                              std::vector< const FRowConstraint * > node_cons ,
+                              const int nCons ,
+                              std::vector< double > rhs ,
+                              std::vector< char > sense ,
+                              std::vector< double > ranges ){ 
   if( id < n_nodes ){
    // Check if the node has own constraint
    if( nCons == 0 ){
@@ -1545,9 +1622,9 @@ int PIPSMILPSolver::ExtractLhsActiveFlag( int id , double* vec , int len ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::ExtractVarBounds( int id , double* vec , int len ,
-                                std::vector< const ColVariable * > node_vars ,
-                                const int nVars ,
-                                std::vector< double > bounds ){ 
+                              std::vector< const ColVariable * > node_vars ,
+                              const int nVars ,
+                              std::vector< double > bounds ){ 
   if( id < n_nodes ){
    // Check if the node has own constraint
    if( nVars == 0 ){
@@ -1850,7 +1927,8 @@ int PIPSMILPSolver::MatEqConsDiag( void * user_data, int id , int* krowM,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatEqConsDiag id=" << id << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatEqConsDiag id=" << id 
+    << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->EqConsNode[ id ] , 
                 solver->n_EqConsNode[ id ] , solver->varNode[ id ] , 
                 solver->n_varNode[ id ] );
@@ -1871,7 +1949,8 @@ int PIPSMILPSolver::MatEqConsVert( void * user_data, int id , int* krowM,
   else{
    // Use the current class in the callback
    auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-   PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatEqConsVert id=" << id << std::endl;
+   PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatEqConsVert id=" << id 
+    << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->EqConsNode[ id ] , 
                 solver->n_EqConsNode[ id ] , solver->varNode[ 0 ] , 
                 solver->n_varNode[ 0 ] );
@@ -1886,7 +1965,8 @@ int PIPSMILPSolver::MatInEqConsDiag( void * user_data, int id , int* krowM,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatInEqConsDiag id=" << id << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatInEqConsDiag id=" << id 
+    << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->InEqConsNode[ id ] , 
                 solver->n_InEqConsNode[ id ] , solver->varNode[ id ] , 
                 solver->n_varNode[ id ] );
@@ -1908,7 +1988,8 @@ int PIPSMILPSolver::MatInEqConsVert( void * user_data, int id , int* krowM,
    // Use the current class in the callback
    auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-   PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatInEqConsVert id=" << id << std::endl;
+   PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatInEqConsVert id=" << id 
+    << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->InEqConsNode[ id ] , 
                 solver->n_InEqConsNode[ id ] , solver->varNode[ 0 ] , 
                 solver->n_varNode[ 0 ] );
@@ -1923,7 +2004,8 @@ int PIPSMILPSolver::MatLinkEqCons( void * user_data, int id , int* krowM,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatLinkEqCons id=" << id << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatLinkEqCons id=" << id 
+    << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->LinkEqCons , 
                 solver->n_LinkEqCons , solver->varNode[ id ] , 
                 solver->n_varNode[ id ] );
@@ -1937,7 +2019,8 @@ int PIPSMILPSolver::MatLinkInEqCons( void * user_data, int id , int* krowM,
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatLinkInEqCons id=" << id << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatLinkInEqCons id=" << id 
+    << std::endl;
   solver->ExtractMatrix( id , krowM, jcolM , M , solver->LinkInEqCons , 
                 solver->n_LinkInEqCons , solver->varNode[ id ] , 
                 solver->n_varNode[ id ] );
@@ -1955,7 +2038,8 @@ int PIPSMILPSolver::matAllZero(void*, int, int*, int*, double*) {
 int PIPSMILPSolver::ObjVars( void * user_data, int id , double* vec,
                                 int len ){
 
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] ObjVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] ObjVars id=" << id << " len=" 
+    << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -1970,7 +2054,8 @@ int PIPSMILPSolver::ObjVars( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::RhsEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsEqCons id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -1985,7 +2070,8 @@ int PIPSMILPSolver::RhsEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::RhsInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsInEqCons id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2000,7 +2086,8 @@ int PIPSMILPSolver::RhsInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::LhsInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LhsInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LhsInEqCons id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2015,7 +2102,8 @@ int PIPSMILPSolver::LhsInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::RhsLinkEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsLinkEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsLinkEqCons id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2029,7 +2117,8 @@ int PIPSMILPSolver::RhsLinkEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::RhsLinkInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsLinkInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsLinkInEqCons id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2044,7 +2133,8 @@ int PIPSMILPSolver::RhsLinkInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::LhsLinkInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LhsLinkInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LhsLinkInEqCons id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2059,7 +2149,8 @@ int PIPSMILPSolver::LhsLinkInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagRhsInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagRhsInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagRhsInEqCons id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2074,7 +2165,8 @@ int PIPSMILPSolver::FlagRhsInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagLhsInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLhsInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLhsInEqCons id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2089,7 +2181,8 @@ int PIPSMILPSolver::FlagLhsInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagRhsLinkInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagRhsLinkInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagRhsLinkInEqCons id=" 
+    << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2104,7 +2197,8 @@ int PIPSMILPSolver::FlagRhsLinkInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagLhsLinkInEqCons( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLhsLinkInEqCons id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLhsLinkInEqCons id=" 
+    << id << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2119,7 +2213,8 @@ int PIPSMILPSolver::FlagLhsLinkInEqCons( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::UBVars( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] UBVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] UBVars id=" << id << " len=" 
+    << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2133,7 +2228,8 @@ int PIPSMILPSolver::UBVars( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::LBVars( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LBVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LBVars id=" << id << " len=" 
+    << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2147,7 +2243,8 @@ int PIPSMILPSolver::LBVars( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagUBVars( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagUBVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagUBVars id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2161,7 +2258,8 @@ int PIPSMILPSolver::FlagUBVars( void * user_data, int id , double* vec,
 
 int PIPSMILPSolver::FlagLBVars( void * user_data, int id , double* vec,
                                 int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLBVars id=" << id << " len=" << len << std::endl;
+  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLBVars id=" << id 
+    << " len=" << len << std::endl;
 
   // Use the current class in the callback
   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2172,39 +2270,5 @@ int PIPSMILPSolver::FlagLBVars( void * user_data, int id , double* vec,
 }
 
 /*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
-{
- DEBUG_LOG( "pips_interface.run() returned " << status << std::endl );
-
- /* The following are the symbols that may represent the status of
- * a PIPS solution as returned by pips_interface.run(). */
-
- switch( status ) {
-  case( TerminationStatus::READ_ERROR ):
-  case( TerminationStatus::UNKNOWN ) :
-  case( TerminationStatus::DID_NOT_RUN ):
-  case( TerminationStatus::NOT_FINISHED ):
-  case( TerminationStatus::STOPPED_AFTER_PRESOLVE ):
-   // Some error happened.
-   return( kError );
-  case( TerminationStatus::TIMELIMIT ):
-   // Time limit exceeded
-   return( kStopTime );
-  case( TerminationStatus::INFEASIBLE ):
-   // Problem is infeasible.
-   return( kInfeasible );
-  case( TerminationStatus::UNBOUNDED ):
-   // Problem has been proven unbounded.
-   return( kUnbounded );
-  case( TerminationStatus::MAX_ITS_EXCEEDED ):
-   // Iteration limit has been reached;
-   return( kStopIter );
-  case( TerminationStatus::SUCCESSFUL_TERMINATION ):
-   // Compilation terminated succesfully
-   return( kOK );
-  default:;
-  }
-
- throw( std::runtime_error( "pips_interface.run() returned unknown status." ) );
-}
+/*--------------------- End File PIPSMILPSolver.cpp ------------------------*/
+/*--------------------------------------------------------------------------*/
