@@ -1392,12 +1392,19 @@ class MILPSolver : public CDASolver
 
  template< typename T , unsigned short K >
   int get_multi_array_dim( const boost::any & any ,
-                           un_any_type< T > , un_any_int< K > );
+                           un_any_type< T > , un_any_int< K > ){
+  if( any.type() == typeid( boost::multi_array< T , K > * ) ||
+    any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
+   return K;
+  else
+   return( get_multi_array_dim( any , un_any_type< T >() ,
+                              un_any_int< K + 1 >() ) );
+ }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
  template< typename T >
-  int get_multi_array_dim( const boost::any & ,
+  int get_multi_array_dim( const boost::any & any ,
                           un_any_type< T > , un_any_int< 9 > ) {
   return( -1 );
  }
@@ -1422,7 +1429,14 @@ class MILPSolver : public CDASolver
   int get_multi_array_type( 
                          const boost::any & any ,
                          un_any_type< T > , 
-                         un_any_int< K > );
+                         un_any_int< K > ){
+  if( any.type() == typeid( boost::multi_array< T , K > * ) )
+   return 0;
+  else if( any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
+   return 1;
+  else
+   return( -1 );
+ }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
@@ -1437,26 +1451,40 @@ class MILPSolver : public CDASolver
  // Cast to a 2D multi_array of type 0
  template< typename T >
  boost::multi_array< T , 2 > * get_multi_array0( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 2 > );
+                          const boost::any & any ,
+                          un_any_type< T > , un_any_int< 2 > ){
+  auto & var = * boost::any_cast< boost::multi_array< T , 2 > * >( any );
+   return &var;
+ }
 
  // Cast to a 2D multi_array of type 1
  template< typename T >
  boost::multi_array< std::vector< T >, 2 > * get_multi_array1( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 2 > );
+                          const boost::any & any ,
+                          un_any_type< T > , un_any_int< 2 > ){
+  auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 2 > * >
+    ( any );
+   return &var;
+ }
 
  // Cast to a 3D multi_array of type 0
  template< typename T >
  boost::multi_array< T , 3 > * get_multi_array0( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 3 > );
+                          const boost::any & any ,
+                          un_any_type< T > , un_any_int< 3 > ){
+  auto & var = * boost::any_cast< boost::multi_array< T , 3 > * >( any );
+   return &var;
+ }
 
  // Cast to a 3D multi_array of type 1
  template< typename T >
  boost::multi_array< std::vector< T >, 3 > * get_multi_array1( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 3 > );
+                          const boost::any & any ,
+                          un_any_type< T > , un_any_int< 3 > ){
+  auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 3 > * >
+    ( any );
+   return &var;
+ }
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
