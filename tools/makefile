@@ -78,11 +78,13 @@ ifeq ($(strip $(MAKECMDGOALS)),)
     include $(DIR)/makefile_grb
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
+	include $(DIR)/makefile_pips
 else ifneq ($(filter default debug release,$(MAKECMDGOALS)),)
     include $(DIR)/makefile_cpx
     include $(DIR)/makefile_grb
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
+	include $(DIR)/makefile_pips
 else
     ifneq ($(filter cpx_pars,$(MAKECMDGOALS)),)
 		include $(DIR)/makefile_cpx
@@ -96,10 +98,13 @@ else
 	ifneq ($(filter scip_pars,$(MAKECMDGOALS)),)
 		include $(DIR)/makefile_scip
 	endif
+	ifneq ($(filter pips_pars,$(MAKECMDGOALS)),)
+		include $(DIR)/makefile_pips
+	endif
 endif
 
 # collate all (defined) executables
-NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS)
+NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS) $(PIPS_PARS)
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

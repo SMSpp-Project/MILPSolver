@@ -42,6 +42,11 @@
 TOOLSSDR := ./$(MILPSSDR)/tools
 STAMP := $(TOOLSSDR)/.headers.stamp
 
+# PIPS-IPM++ source tree, needed only by tools/pips_pars.
+# Override from the command line if your layout differs, e.g.
+#   make PIPSIPM_ROOT=/absolute/path/to/PIPS-IPMpp
+PIPSIPM_ROOT ?= $(PIPS_ROOT)
+
 .PHONY: tools
 tools: $(STAMP)
 
@@ -57,6 +62,7 @@ $(STAMP):
 	    grb_pars)   p=GRB ;; \
 	    scip_pars)  p=SCIP ;; \
 	    highs_pars) p=HiGHS ;; \
+		pips_pars)  p=PIPS ;; \
 	    *)          p= ;; \
 	  esac; \
 	  if [ -n "$$p" ] && \
@@ -65,7 +71,11 @@ $(STAMP):
 	    echo " -> $$base (skip: headers already present)"; \
 	  else \
 	    echo " -> $$base"; \
-	    "./$$base"; \
+	    if [ "$$base" = "pips_pars" ]; then \
+	      "./$$base" -s "$(PIPSIPM_ROOT)" ../include; \
+	    else \
+	      "./$$base"; \
+	    fi; \
 	  fi; \
 	done
 	@echo "[MILPSolver] headers ready"
@@ -102,6 +112,7 @@ distclean: clean
 	rm -f $(MILPSSDR)/include/GRB*_defs.h $(MILPSSDR)/include/GRB*_maps.h
 	rm -f $(MILPSSDR)/include/SCIP*_defs.h $(MILPSSDR)/include/SCIP*_maps.h
 	rm -f $(MILPSSDR)/include/HiGHS*_defs.h $(MILPSSDR)/include/HiGHS*_maps.h
+	rm -f $(MILPSSDR)/include/PIPS*_defs.h $(MILPSSDR)/include/PIPS*_maps.h
 	rm -f $(STAMP)
 
 # phony targets - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
