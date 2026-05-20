@@ -8,6 +8,7 @@ tools/cpx_pars
 tools/grb_pars
 tools/scip_pars
 tools/highs_pars
+tools/pips_pars
 tools/.headers.stamp
 
 # Test binaries
