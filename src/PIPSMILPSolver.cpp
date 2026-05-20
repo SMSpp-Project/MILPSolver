@@ -30,6 +30,8 @@
 
 #include "PIPSMILPSolver.h"
 
+#include "PIPS_maps.h"
+
 #ifdef MILPSOLVER_DEBUG
  #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
 #else
@@ -678,6 +680,381 @@ int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
 
  throw( std::runtime_error( "pips_interface.run() returned unknown status." ) );
 }
+
+/*--------------------------------------------------------------------------*/
+
+std::string PIPSMILPSolver::pips_int_par_map( idx_type par ) const
+{
+ switch( par ) {
+  case( intMaxIter ): return( "IPM_MAX_ITER" );
+  case( intLogVerb ): return( "SILENT" );
+  }
+
+ // PIPS parameters
+ if( ( par >= intFirstPIPSPar ) && ( par < intLastAlgParPIPS ) ) {
+  return( SMSpp_to_PIPS_int_pars[ par - intFirstPIPSPar ] );
+
+  }
+
+ return( "" );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+std::string PIPSMILPSolver::pips_dbl_par_map( idx_type par ) const
+{
+ switch( par ) {
+  case( dblMaxTime ): return( "IPM_TIMELIMIT" );
+  case( dblRelAcc ):  return( "OUTER_BICG_TOL" );
+  }
+
+ if( ( par >= dblFirstPIPSPar ) && ( par < dblLastAlgParPIPS ) )
+  return( SMSpp_to_PIPS_dbl_pars[ par - dblFirstPIPSPar ] );
+
+ return( "" );
+ }
+
+/*--------------------------------------------------------------------------*/
+/*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
+/*--------------------------------------------------------------------------*/
+
+void PIPSMILPSolver::set_par( idx_type par , int value )
+{
+ // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
+ // separation loop logging) before letting PIPS consume it through the
+ // mapping below
+ if( par == intLogVerb )
+  log_verbosity = value;
+
+ std::string Pp = pips_int_par_map( par );
+ if( Pp.size() > 0 ) {
+  // Firstly, if we are setting the output verbosity, we have to be careful 
+  // that the SILENT parameter in PIPS has an opposite behaviour with respect
+  // to the other solvers. So we must switch the value
+  if( Pp == "SILENT" ){
+    pipsipmpp_options::set_parameter( Pp , value == 0 );
+    return;
+  }
+
+  // Now, we can set normally the other parameters but considering that the 
+  // option could be a boolean one in PIPS.
+  if( value == 0 || value == 1 ) {
+   try {
+    pipsipmpp_options::set_parameter( Pp , value );
+    return;
+   }
+   catch( const std::runtime_error & ) {
+    pipsipmpp_options::set_parameter( Pp , value != 0 );
+    return;
+   }
+  }
+
+  pipsipmpp_options::set_parameter( Pp , value );
+  return;
+  }
+
+ MILPSolver::set_par( par, value );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+void PIPSMILPSolver::set_par( idx_type par , double value )
+{
+ // Solver parameters explicitly mapped in PIPS
+ switch( par ) {
+  case( dblUpCutOff ): UpCutOff = value; return;
+  case( dblLwCutOff ): LwCutOff = value; return;
+  }
+
+ std::string Pp;
+ Pp = pips_dbl_par_map( par );
+
+ if( Pp.size() > 0 ) {
+  pipsipmpp_options::set_parameter( Pp , value );
+  return;
+  }
+
+ MILPSolver::set_par( par , value );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+void PIPSMILPSolver::set_par( idx_type par , std::string && value )
+{
+ // set the solver log to a specific file
+ if( par == strLogFileName ) {
+  // No currect option in PIPS
+  return;
+ }
+
+ // PIPS parameters
+ if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
+  std::string pips_par = SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ];
+  pipsipmpp_options::set_parameter( pips_par , value );
+  return;
+  }
+
+ MILPSolver::set_par( par, std::move( value ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+Solver::idx_type PIPSMILPSolver::get_num_int_par( void ) const {
+ return( MILPSolver::get_num_int_par()
+	 + intLastAlgParPIPS - intLastAlgParMILP );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+Solver::idx_type PIPSMILPSolver::get_num_dbl_par( void ) const {
+ return( MILPSolver::get_num_dbl_par()
+	 + dblLastAlgParPIPS - dblLastAlgParMILP );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+Solver::idx_type PIPSMILPSolver::get_num_str_par( void ) const {
+ return( MILPSolver::get_num_str_par()
+	 + strLastAlgParPIPS - strLastAlgParMILP );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::get_dflt_int_par( idx_type par ) const
+{
+ // intCutSepPar is now handled by MILPSolver base
+
+ std::string Pp = pips_int_par_map( par );
+ if( Pp.size() > 0 ) {
+   int value = pipsipmpp_options::get_int_parameter( Pp );
+   return( value );
+  }
+
+ return( MILPSolver::get_dflt_int_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+double PIPSMILPSolver::get_dflt_dbl_par( idx_type par ) const
+{
+ switch( par ) {
+  case( dblUpCutOff ): return( Inf< double >() );
+  case( dblLwCutOff ): return( -Inf< double >() );
+  }
+
+ std::string Pp = pips_dbl_par_map( par );
+ if( Pp.size() > 0 ) {
+   double value = pipsipmpp_options::get_double_parameter( Pp );
+   return( value );
+  }
+
+ return( MILPSolver::get_dflt_dbl_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+const std::string & PIPSMILPSolver::get_dflt_str_par( idx_type par ) const
+{
+ static std::string value;
+
+ if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
+  std::string pips_par = SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ];
+  value.reserve( 512 );
+  value = pipsipmpp_options::get_string_parameter( pips_par );
+
+  return( value );
+  }
+
+ return( MILPSolver::get_str_par( par ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::get_int_par( idx_type par ) const
+{
+ // intCutSepPar is now handled by MILPSolver base
+
+ std::string Pp = pips_int_par_map( par );
+ if( Pp.size() > 0 ) {
+   int value = pipsipmpp_options::get_int_parameter( Pp );
+   return( value );
+  }
+
+ return( MILPSolver::get_int_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+double PIPSMILPSolver::get_dbl_par( idx_type par ) const
+{
+ switch( par ) {
+  case( dblUpCutOff ): return( UpCutOff );
+  case( dblLwCutOff ): return( LwCutOff );
+  }
+
+ std::string Pp = pips_dbl_par_map( par );
+ if( Pp.size() > 0 ) {
+   double value = pipsipmpp_options::get_double_parameter( Pp );
+   return( value );
+  }
+
+ return( MILPSolver::get_dbl_par( par ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+const std::string & PIPSMILPSolver::get_str_par( idx_type par ) const
+{
+ static std::string value;
+
+ if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
+  std::string pips_par = SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ];
+  value.reserve( 512 );
+  value = pipsipmpp_options::get_string_parameter( pips_par );
+
+  return( value );
+  }
+
+ return( MILPSolver::get_str_par( par ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+Solver::idx_type PIPSMILPSolver::int_par_str2idx(
+					     const std::string & name ) const
+{
+ // intCutSepPar is now handled by MILPSolver::int_par_str2idx()
+
+ /* In PIPSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
+
+ idx_type idx = MILPSolver::int_par_str2idx( name );
+ if( idx < Inf< idx_type >() )
+  return( idx );
+
+ // PIPS parameters
+ std::string pips_par = name;
+ auto array_pos = std::find( SMSpp_to_PIPS_int_pars.begin() ,
+                        SMSpp_to_PIPS_int_pars.end() ,
+                        pips_par);
+
+ if( array_pos != SMSpp_to_PIPS_int_pars.end() ) {
+  int pos = std::distance( SMSpp_to_PIPS_int_pars.begin(), array_pos );
+  auto idx_par = PIPS_to_SMSpp_int_pars[ pos ].second;
+  return( idx_par );
+  }
+
+ return( Inf< idx_type >() );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::string & PIPSMILPSolver::int_par_idx2str( idx_type idx ) const
+{
+ // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
+ // fall-through at the end of this method)
+
+ // note: this implementation is not thread safe, and it requires that the
+ //       result is used immediately after the call (prior to any other call
+ //       to int_par_idx2str()), this may have to be improved upon
+ static std::string par_name;
+ par_name.reserve( 512 );
+
+ if( ( idx >= intFirstPIPSPar ) && ( idx < intLastAlgParPIPS ) ) {
+  par_name = SMSpp_to_PIPS_int_pars[ idx - intFirstPIPSPar ];
+  return( par_name );
+  }
+
+ return( MILPSolver::int_par_idx2str( idx ) );
+ }
+
+
+/*--------------------------------------------------------------------------*/
+
+Solver::idx_type PIPSMILPSolver::dbl_par_str2idx( const std::string & name )
+ const
+{
+ /* In PIPSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
+
+ idx_type idx = MILPSolver::dbl_par_str2idx( name );
+ if( idx < Inf< idx_type >() )
+  return( idx );
+
+ // PIPS parameters
+ std::string pips_par = name;
+ auto array_pos = std::find( SMSpp_to_PIPS_dbl_pars.begin() ,
+                        SMSpp_to_PIPS_dbl_pars.end() ,
+                        pips_par);
+
+ if( array_pos != SMSpp_to_PIPS_dbl_pars.end() ) {
+  int pos = std::distance( SMSpp_to_PIPS_dbl_pars.begin(), array_pos );
+  auto idx_par = PIPS_to_SMSpp_dbl_pars[ pos ].second;
+  return( idx_par );
+  }
+
+ return( Inf< idx_type >() );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::string & PIPSMILPSolver::dbl_par_idx2str( idx_type idx ) const
+{
+ // note: this implementation is not thread safe, and it requires that the
+ //       result is used immediately after the call (prior to any other call
+ //       to int_par_idx2str()), this may have to be improved upon
+ static std::string par_name;
+ par_name.reserve( 512 );
+
+ if( ( idx >= dblFirstPIPSPar ) && ( idx < dblLastAlgParPIPS ) ) {
+  par_name = SMSpp_to_PIPS_dbl_pars[ idx - dblFirstPIPSPar ];
+  return( par_name );
+  }
+
+ return( MILPSolver::dbl_par_idx2str( idx ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+Solver::idx_type PIPSMILPSolver::str_par_str2idx( const std::string & name )
+ const
+{
+ /* In PIPSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
+
+ idx_type idx = MILPSolver::str_par_str2idx( name );
+ if( idx < Inf< idx_type >() )
+  return( idx );
+
+ // PIPS parameters
+ std::string pips_par = name;
+ auto array_pos = std::find( SMSpp_to_PIPS_str_pars.begin() ,
+                        SMSpp_to_PIPS_str_pars.end() ,
+                        pips_par);
+
+ if( array_pos != SMSpp_to_PIPS_str_pars.end() ) {
+  int pos = std::distance( SMSpp_to_PIPS_str_pars.begin(), array_pos );
+  auto idx_par = PIPS_to_SMSpp_str_pars[ pos ].second;
+  return( idx_par );
+  }
+
+ return( Inf< idx_type >() );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+const std::string & PIPSMILPSolver::str_par_idx2str( idx_type idx ) const
+{
+ // note: this implementation is not thread safe, and it requires that the
+ //       result is used immediately after the call (prior to any other call
+ //       to int_par_idx2str()), this may have to be improved upon
+ static std::string par_name;
+ par_name.reserve( 512 );
+
+ if( ( idx >= strFirstPIPSPar ) && ( idx < strLastAlgParPIPS ) ) {
+  par_name = SMSpp_to_PIPS_str_pars[ idx - strFirstPIPSPar ];
+  return( par_name );
+  }
+
+ return( MILPSolver::str_par_idx2str( idx ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- PIPS CALLBACKS METHODS----------------------------*/

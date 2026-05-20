@@ -27,8 +27,11 @@
 
 #include "DistributedInputTree.h"
 #include "PIPSIPMppInterface.hpp"
-#include "MILPSolver.h"
 #include "PIPSIPMppOptions.h"
+#include "MILPSolver.h"
+
+// Include the proper PIPS parameter mapping
+#include "PIPS_defs.h"
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- PIPS CALLBACK TYPES ---------------------------*/
@@ -75,6 +78,33 @@ class PIPSMILPSolver : public MILPSolver {
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+ /// enum for integer parameters
+ enum int_par_type_PIPS {
+  // note: intCutSepPar has moved to MILPSolver base (enum int_par_type_MILP)
+  intFirstPIPSPar = intLastAlgParMILP ,  ///< first PIPS int/long parameter
+  /// first allowed new int parameter for derived classes
+  intLastAlgParPIPS = intFirstPIPSPar + PIPS_NUM_INT_PARS
+  };
+
+ /// enum for double parameters
+ enum dbl_par_type_PIPS {
+  /// first PIPS double parameter
+  dblFirstPIPSPar = dblLastAlgParMILP,
+  /// first allowed new double parameter for derived classes
+  dblLastAlgParPIPS = dblFirstPIPSPar + PIPS_NUM_DBL_PARS
+  };
+
+ /// enum for string parameters
+ enum str_par_type_PIPS {
+  /// first PIPS string parameter
+  strFirstPIPSPar = strLastAlgParMILP,
+  /// first allowed new string parameter for derived classes
+  strLastAlgParPIPS = strFirstPIPSPar + PIPS_NUM_STR_PARS
+  };
+
+/*--------------------------------------------------------------------------*/
+ // "importing" a few types from Block
+
  using Subset = Block::Subset;
  using c_Subset = Block::c_Subset;
  using Range = Block::Range;
@@ -111,6 +141,111 @@ class PIPSMILPSolver : public MILPSolver {
  /// Clears the current PIPS tree/interface and the base MILPSolver data.
  void clear_problem( unsigned int what ) override;
 
+ /** @} ---------------------------------------------------------------------*/
+/*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Methods for handling parameters
+ * @{ */
+
+ /// sets an integer parameter with the given value
+
+ void set_par( idx_type par , int value ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// sets a double parameter with the given value
+ void set_par( idx_type par , double value ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// sets a string parameter with the given value
+ void set_par( idx_type par , std::string && value ) override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the number of integer parameters
+ [[nodiscard]] idx_type get_num_int_par( void ) const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the number of double parameters
+ [[nodiscard]] idx_type get_num_dbl_par( void ) const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the number of string parameters
+ [[nodiscard]] idx_type get_num_str_par( void ) const override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the default value of the specified integer parameter
+ [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the default value of the specified double parameter
+ [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the default value of the specified string parameter
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a PIPS parameter. */
+ [[nodiscard]] const std::string & get_dflt_str_par( idx_type par )
+  const override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the value of the specified integer parameter
+ [[nodiscard]] int get_int_par( idx_type par ) const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the value of the specified double parameter
+ [[nodiscard]] double get_dbl_par( idx_type par ) const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** returns the value of the specified string parameter
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a PIPS parameter. */
+ [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
+ 
+/*--------------------------------------------------------------------------*/
+ /// returns the index of the int parameter with the specified name
+ [[nodiscard]] idx_type int_par_str2idx( const std::string & name )
+  const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** returns the name of the int parameter with the specified index
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a PIPS parameter. */
+ [[nodiscard]] const std::string & int_par_idx2str( idx_type idx )
+  const override;
+
+/*--------------------------------------------------------------------------*/
+ /// Returns the index of the double parameter with the specified name
+ [[nodiscard]] idx_type dbl_par_str2idx( const std::string & name )
+  const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** returns the name of the double parameter with the specified index
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a PIPS parameter. */
+ [[nodiscard]] const std::string & dbl_par_idx2str( idx_type idx )
+  const override;
+
+/*--------------------------------------------------------------------------*/
+ /// returns the index of the string parameter with the specified name
+ [[nodiscard]] idx_type
+  str_par_str2idx( const std::string & name ) const override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /** Returns the name of the string parameter with the specified index
+  * @note
+  * Due to a limit in the implementation, the string referenced by
+  * the return value is *overwritten* each time the method is called with
+  * par as a PIPS parameter. */
+ [[nodiscard]] const std::string & str_par_idx2str( idx_type idx )
+  const override;
+
  protected:
 
 /*--------------------------------------------------------------------------*/
@@ -123,6 +258,38 @@ class PIPSMILPSolver : public MILPSolver {
   * all handled by MILPSolver::compute(). */
 
  int guts_of_compute( void ) override;
+
+/** @} ---------------------------------------------------------------------*/
+ /// maps a Solver integer parameter into a PIPS one
+ /** Maps the Solver integer parameter \p par into a PIPS one;
+  * returns a string with the PIPS parameter name */
+ std::string pips_int_par_map( idx_type par ) const;
+ 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// maps a Solver double parameter into a PIPS one
+ std::string pips_dbl_par_map( idx_type par ) const;
+
+/** @name Handling of PIPS parameters
+  *
+  * The following maps are used to keep a relationship between SMS++ parameter
+  * system and PIPS parameters. This allows us to use PIPS parameters
+  * (See https://pips-ipmpp.gitlab.io/GMSPIPS.html#OPTIONS) as they were SMS++
+  * parameters with the same names, for example in configuration files.
+  *
+  * Note: since SMS++ does not support bool parameters, both int and
+  *       bool PIPS parameters are handled as SMS++ int parameters.
+  * @{ */
+
+ const static std::array< std::string , PIPS_NUM_INT_PARS > SMSpp_to_PIPS_int_pars;
+ const static std::array< std::string , PIPS_NUM_DBL_PARS > SMSpp_to_PIPS_dbl_pars;
+ const static std::array< std::string , PIPS_NUM_STR_PARS > SMSpp_to_PIPS_str_pars;
+
+ const static std::array< std::pair< std::string , int > , PIPS_NUM_INT_PARS >
+  PIPS_to_SMSpp_int_pars;
+ const static std::array< std::pair< std::string , int > , PIPS_NUM_DBL_PARS >
+  PIPS_to_SMSpp_dbl_pars;
+ const static std::array< std::pair< std::string , int > , PIPS_NUM_STR_PARS >
+  PIPS_to_SMSpp_str_pars;
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- PIPS MATRIX HELPERS ----------------------------*/
