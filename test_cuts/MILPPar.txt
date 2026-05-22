@@ -34,8 +34,8 @@ ComputeConfig  # exact type of the ComputeConfig object
 2  # number of integer parameters
 
 # now all the integer parameters
-intLogVerb     0     # LogVerb, log verbosity of the CPXMILPSolver
-intCutSepPar   7     # separate valid inequalities everywhere + lazy constraints
+intLogVerb    0 # LogVerb, log verbosity of the CPXMILPSolver
+intCutSepPar  7 # separate valid inequalities everywhere + lazy constraints
 
 ## All specific CPLEX parameter (uncomment based on Solver)
 #CPXPARAM_Threads      1 # avoid parallel
@@ -52,7 +52,7 @@ intCutSepPar   7     # separate valid inequalities everywhere + lazy constraints
 0 # number of string parameters
 
 # now all the string parameters
-#strOutputFile	NCoCube.lp
+#strOutputFile NCoCube.lp
 
 0 # number of vector-of-int parameters
 
