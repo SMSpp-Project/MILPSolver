@@ -9,9 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- native PolyhedralFunction path in all four backends, with the helper
+  `scatter_lf_to_csr` factoring CSR scatter logic across them
+
+- batched `add_dynamic_constraints` taking a CSR matrix, with the
+  base loop falling back to the per-row single-constraint API
+
+- ignore-sub-Blocks filter promoted from this module to the
+  `Solver` base class API (`Solver::set_excluded_blocks` /
+  `is_excluded`), so the legacy `vstrMILPIgnSBlks` parameter has
+  been retired and any Solver can now be told to skip a subset of
+  the Block tree
+
 ### Changed
 
+- relaxed-integer LP cut-separation loop (`intRelaxIntVars == 2`) is
+  now driven by the base `compute()`
+
 ### Fixed
+
+- HiGHSMILPSolver: `lhs = rhs;` → `lhs = con_lhs;` in batched row
+  addition (`add_dynamic_constraints`), which previously set the LHS
+  to zero on equality rows
 
 
 ## [0.8.0] - 2025-12-12
@@ -62,7 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - adapted to new CMake / makefile organisation
 
-- upcasted integer parameter intThrowReducedCostException to
+- promoted integer parameter intThrowReducedCostException to
   base class MILPSolver
 
 - MILPSolver::set\_par( double ) does nothing and it was not
