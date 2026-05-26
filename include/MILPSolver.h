@@ -53,13 +53,9 @@
 
 #include <FRowConstraint.h>
 
-#include <LinearFunction.h>
-
 #include <OneVarConstraint.h>
 
 #include <QuadFunction.h>
-
-#include <unordered_set>
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -245,12 +241,7 @@ class MILPSolver : public CDASolver
 
  /// enum for vector-of-string parameters
  enum vstr_par_type_MILP {
-  /// first allowed new vector-of-string parameter for derived classes
-  /// (MILPSolver itself defines none: the path-based sub-Block ignore
-  /// list previously here as vstrMILPIgnSBlks has been promoted to the
-  /// Solver base interface via Solver::set_excluded_blocks(), which
-  /// takes a typed std::unordered_set<Block*> instead of slash-separated
-  /// paths; see Solver.h)
+  /// first allowed new vector-of-double parameter for derived classes
   vstrLastAlgParMILP = vstrLastParCDAS
   };
 
@@ -853,9 +844,6 @@ class MILPSolver : public CDASolver
  /// sets a string parameter with the given value
  void set_par( idx_type par , std::string && value ) override;
 
- /// sets a vector-of-string parameter with the given value
- void set_par( idx_type par , std::vector< std::string > && value ) override;
-
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// gets the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par( void ) const override;
@@ -865,9 +853,6 @@ class MILPSolver : public CDASolver
 
  /// gets the number of string parameters
  [[nodiscard]] idx_type get_num_str_par( void ) const override;
-
- /// gets the number of vector-of-string parameters
- [[nodiscard]] idx_type get_num_vstr_par( void ) const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// gets the default value of the specified integer parameter
@@ -880,10 +865,6 @@ class MILPSolver : public CDASolver
  [[nodiscard]] const std::string & get_dflt_str_par( idx_type par )
   const override;
 
- /// returns the default value of the specified vector-of-string parameter
- [[nodiscard]] const std::vector< std::string > & get_dflt_vstr_par(
-  idx_type par ) const override;
-
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// returns the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
@@ -893,10 +874,6 @@ class MILPSolver : public CDASolver
 
  /// returns the value of the specified string parameter
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
-
- /// returns the value of the specified vector-of-string parameter
- [[nodiscard]] const std::vector< std::string > & get_vstr_par(
-  idx_type par ) const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// returns the index of the int parameter with the specified name
@@ -925,15 +902,6 @@ class MILPSolver : public CDASolver
  [[nodiscard]] const std::string & str_par_idx2str( idx_type idx )
   const override;
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// returns the index of the vstr parameter with the specified name
- [[nodiscard]] idx_type vstr_par_str2idx( const std::string & name )
-  const override;
-
- /// returns the name of the vstr parameter with the specified index
- [[nodiscard]] const std::string & vstr_par_idx2str( idx_type idx )
-  const override;
-
 /** @} ---------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
@@ -957,41 +925,6 @@ class MILPSolver : public CDASolver
   * Block (no actual optimisation is performed). */
 
  virtual int guts_of_compute( void ) { return( kOK ); }
-
-/*--------------------------------------------------------------------------*/
- /// scatter a LinearFunction into a CSR row of (index, value) buffers
- /** Iterate over the (variable, coefficient) pairs of \p lf and push,
-  * into the back of \p out_ind / \p out_val, the (back-end column
-  * index, coefficient) of every term whose variable is currently
-  * registered with the underlying model. The mapping from
-  * ColVariable * to back-end column index is provided by the callable
-  * \p idx_fn (typically the derived solver's `*_index_of_variable`
-  * member, wrapped in a lambda). Terms pointing at variables that are
-  * not registered (\p idx_fn returns Inf<int>()) are silently skipped:
-  * the back-end is then free to assume the row touches only declared
-  * columns, which mirrors the per-row handling that the legacy
-  * implementations of add_dynamic_constraint() were performing inline.
-  * \p out_ind and \p out_val are not cleared, so the helper can be
-  * called repeatedly to concatenate the rows of a batch into a single
-  * pair of buffers (in conjunction with a separate rmatbeg vector).
-  *
-  * The helper is inline so that the resulting code is identical to
-  * the hand-rolled loop the derived solvers were carrying around, and
-  * static / template so the LinearFunction-iteration boilerplate is
-  * stated once and the per-back-end idx_fn stays a zero-overhead
-  * abstraction. */
-
- template< typename IdxFn >
- static inline void scatter_lf_to_csr(
-                              const LinearFunction * lf , IdxFn && idx_fn ,
-                              std::vector< int > & out_ind ,
-                              std::vector< double > & out_val ) {
-  for( auto & el : lf->get_v_var() )
-   if( auto idx = idx_fn( el.first ) ; idx < Inf< int >() ) {
-    out_ind.push_back( idx );
-    out_val.push_back( el.second );
-    }
-  }
 
 /*--------------------------------------------------------------------------*/
 /*---------------- VARIABLE AND CONSTRAINT TRACKING VECTORS ----------------*/
@@ -1105,11 +1038,7 @@ class MILPSolver : public CDASolver
   * @{  */
 
  /** Pointers to the currently registered Block and all its descendants
-  * arranged along a BFS order. Sub-Blocks listed in
-  * Solver::get_excluded_blocks() are excluded from #v_BFS during
-  * load_problem() (along with their entire subtree, by virtue of the
-  * BFS naturally pruning at the excluded root): they are invisible to
-  * every method that traverses the attached Block through #v_BFS. */
+  * arranged along a BFS order. */
  std::vector< Block * > v_BFS;
 
  std::string prob_name;    ///< problem name
@@ -1288,9 +1217,9 @@ class MILPSolver : public CDASolver
  *      warm start solution (i.e. initial values for the specified set of
  *      variables).
  *
- *    If a filename follows the format "filename[idx]", only the indexed
- *    structure within the file will be used. Without an explicit index
- *    the loader picks the first structure in the file.
+ *    If a filename follows the format "filename[idx]", only the indexed 
+ *    structure within the file will be used. 
+ *    (Behavior for unspecified indices or other formats is TBD.)
  */
 
  std::string warmstart_variables; // warm start variables filename
@@ -1339,10 +1268,12 @@ class MILPSolver : public CDASolver
 
 /*--------------------------------------------------------------------------*/
  /// gets the active constraints for the specified variable
+ // TODO: This should be temporary
  std::vector< FRowConstraint * > get_active_constraints(
 					     const ColVariable & var ) const;
 
  /// gets the active bounds for the specified variable
+ // TODO: This should be temporary
  std::vector< OneVarConstraint * > get_active_bounds(
 					     const ColVariable & var ,
                bool first_scan = false ) const;
@@ -1415,30 +1346,6 @@ class MILPSolver : public CDASolver
   * @param con a reference to a FRowConstraint
   */
  virtual void add_dynamic_constraint( const FRowConstraint * con );
-
- /// batch-adds a sequence of new dynamic constraints
- /** Default implementation simply loops over \p cons calling
-  * add_dynamic_constraint() once per row, which keeps every derived
-  * :MILPSolver functionally correct. Derived classes whose back-end
-  * exposes a multi-row insertion entry point (e.g. CPLEX
-  * CPXaddrows( ..., nrows, ... ), Gurobi GRBaddconstrs, HiGHS
-  * Highs_addRows) override this method to push the whole batch in a
-  * single API call, which avoids the per-row overhead of repeatedly
-  * touching the back-end's internal data structures when a
-  * BlockModAdd<FRowConstraint> arrives with many rows at once (the
-  * typical case for a PolyhedralFunctionModAddd retraduced by the
-  * owning PolyhedralFunctionBlock into a single batched
-  * add_dynamic_constraints(f_const, newc, ...)). The contract is the
-  * same as add_dynamic_constraint() applied row-by-row: the order in
-  * \p cons is preserved, every row gets the next free slot in numrows,
-  * and the dictionaries (dcon_to_idx / idx_to_dcon) are updated
-  * accordingly. */
-
- virtual void add_dynamic_constraints(
-                       const std::vector< const FRowConstraint * > & cons ) {
-  for( auto * con : cons )
-   add_dynamic_constraint( con );
-  }
 
  /// adds a single new dynamic variable
  virtual void add_dynamic_variable( const ColVariable * var );

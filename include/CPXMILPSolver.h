@@ -602,16 +602,6 @@ class CPXMILPSolver : public MILPSolver {
  /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
 
- /// batch-adds a sequence of new dynamic FRowConstraints
- /** Override the default loop implementation by routing the whole
-  * batch through a single CPXaddrows call. Ranged rows (which need
-  * the separate CPXchgrngval post-step) and rows flagged as inverted
-  * (f_inverted_rows) are filtered out of the batch and added one by
-  * one via the base add_dynamic_constraint fallback. */
-
- void add_dynamic_constraints(
-          const std::vector< const FRowConstraint * > & cons ) override;
-
  /// adds a single new dynamic bound (OneVarConstraint)
  void add_dynamic_bound( const OneVarConstraint * con ) override;
 

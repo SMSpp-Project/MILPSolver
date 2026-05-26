@@ -612,17 +612,6 @@ void add_mip_starts(
  /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
 
- /// batch-adds a sequence of new dynamic FRowConstraints
- /** Override the default loop implementation by routing the whole
-  * batch through a single GRBaddconstrs call. Ranged rows (which
-  * require GRBaddrangeconstr and the bookkeeping in
-  * map_rng_con_aux_var) are filtered out of the batch and added one
-  * by one via the base add_dynamic_constraint fallback, mirroring the
-  * single-row code path. */
-
- void add_dynamic_constraints(
-          const std::vector< const FRowConstraint * > & cons ) override;
-
  /// adds a single new dynamic bound (OneVarConstraint)
  void add_dynamic_bound( const OneVarConstraint * con ) override;
 
@@ -729,7 +718,7 @@ void add_mip_starts(
   *                   is called. Since we only call it at the end of the loading phase,
   *                   we assume that all auxiliary ranged variables are located in
   *                   the last columns of the Gurobi matrix.
-  */
+  * */
  // the vector of pair ( ranged constraint - axiliary variable )
  std::vector<std::pair < int , int >> map_rng_con_aux_var;
 

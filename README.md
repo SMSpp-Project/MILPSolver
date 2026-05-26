@@ -2,8 +2,8 @@
 
 A generic MILP Solver meta-interface for SMS++, with modules for interfacing
 with some actual solvers. Supports `LinearFunction`, `DQuadFunction` (diagonal
-quadratic) and `QuadFunction` (general quadratic, the last two cases not
-necessarily convex) both in the `FRealObjective` and in the `FRowConstraint`,
+quadratic) and `QuadFunction` (general quadratic, both the last cases not
+necessariy convex) both in the `FRealObjective` and in the `FRowConstraint`,
 so it is actually an interface for MI-QCQP in its full generality.
 
 The `MILPSolver` base class (deriving from `CDASolver` for the case when the
@@ -20,7 +20,7 @@ i.e.:
 
 - all inner `Function` in the `FRealObjective` and `FRowConstraint` are
   `LinearFunction` or `DQuadFunction` (diagonal quadratic) or `QuadFunction`
-  (general quadratic, the last two cases not necessarily convex)
+  (general quadratic, both the last cases not necessariy convex)
 
 However, `MILPSolver` only reads the abstract representation and prepares
 data structures representing the classic (sparse) coefficient matrix of
@@ -43,7 +43,7 @@ Currently available derived classes are:
 - `SCIPMILPSolver`, providing the interface with the open-source
   [SCIP](https://www.scipopt.org) (note that since version 8.0.3 SCIP is
   "truly" FOSS by dint of being distributed under the Apache 2.0 License as
-  opposed to the previous academic license preventing royalty-free commercial
+  opposed to the previous academic license preventing roialty-free commercial
   use)
 
 - `GRBMILPSolver`, providing the interface with the commercial
@@ -52,11 +52,12 @@ Currently available derived classes are:
 - `HiGHSMILPSolver`, providing the interface with the open-source
   [HiGHS](https://highs.dev)
 
-Recent versions of every underlying solver are supported via a mechanism
-that auto-generates the `*_defs.h` and `*_maps.h` files for the version
-found on the system, both with CMake and with the makefiles (see below
-for details). Older versions may fail if the upstream API changed: should
-that happen, please upgrade.
+Basically all current versions of the underlying solvers should be supported
+due to a mechanism that automatically generate *\_defs.h and *\_maps.h files
+for the version found in the system either when installing with cmake or when
+compiling with make (see below for details). However, older versions may fail
+due to changes in the interface. Should this happen, just upgrade to newer
+versions.
 
 
 ## Getting started
@@ -106,9 +107,6 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_SCIP`    | Use SCIP    | ON            |
 | `MILPSolver_USE_GUROBI`  | Use GUROBI  | ON            |
 | `MILPSolver_USE_HiGHS`   | Use HiGHS   | ON            |
-
-At least one of the four backends must be enabled at build time for the
-library to be able to actually solve problems.
 
 Optionally, install the library in the system with:
 
@@ -189,10 +187,10 @@ write other `:MILPSolver`:
   (never to be given for granted, every LP solver seems to have a different
   idea about it)
 
-- [test_dynamic](test_dynamic/README.md) compares two `:MILPSolver` on
-  the repeated solution of LPs while changing everything that can be
-  changed, useful to test a new `:MILPSolver` against an old and
-  hopefully reliable one
+- [test_dynamic](test_dynamic/README.md) compares two `:MILPSolver` for
+  the repeted solution of LPs changing everything that can be changed,
+  useful to test a new `:MILPSolver` against an old an hopefully reliable
+  one
 
 
 ## Getting help
@@ -252,6 +250,6 @@ any way officially connected with IBM or Gurobi, or any of their subsidiaries
 or affiliates. The names IBM, ILOG, CPLEX and Gurobi as well as related
 names, marks, emblems and images are registered trademarks of their
 respective owners. The authors also do not claim any affiliation with the
-open-source projects developing SCIP and HiGHS: any fault in the code
-interfacing SMS++ with those is all and entirely ours.
+open-source projects developing SCIP and HiHGS: any fault in the code
+interfacing SMS++ with those is all and enturely ours.
 

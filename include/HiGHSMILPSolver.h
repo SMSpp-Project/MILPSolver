@@ -554,15 +554,6 @@ void add_mip_starts(
  /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
 
- /// batch-adds a sequence of new dynamic FRowConstraints
- /** Override the default loop implementation by routing the whole
-  * batch through a single Highs_addRows call, which avoids the
-  * per-row overhead of repeatedly touching the back-end's internal
-  * model when a BlockModAdd<FRowConstraint> arrives with many rows. */
-
- void add_dynamic_constraints(
-          const std::vector< const FRowConstraint * > & cons ) override;
-
  /// adds a single new dynamic bound (OneVarConstraint)
  void add_dynamic_bound( const OneVarConstraint * con ) override;
 
