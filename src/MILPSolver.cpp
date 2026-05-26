@@ -2006,7 +2006,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 						 obj->get_function() ) ) {
   /* Non separable Quadratic objective function */
 
-  // Firstly, fill the linear and diagonal part of the 
+  // Firstly, fill the linear and diagonal part of the
   // quadratic function.
   for( auto el : qf->get_v_var() ) {
    auto k = index_of_variable( std::get< 0 >( el ) );
@@ -2014,7 +2014,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
    q_objective[ k ] += std::get< 2 >( el );
    }
 
-  // Now get sparse matrix related to the off diagonal terms 
+  // Now get sparse matrix related to the off diagonal terms
   v_off_diag_term nd_terms; // vector of tuples in the form (Idx,Idx,value)
   qf->get_v_nd_var( nd_terms );
   numnnzq = nd_terms.size();
