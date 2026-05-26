@@ -640,12 +640,14 @@ bool SCIPMILPSolver::has_dual_solution( void )
 
 bool SCIPMILPSolver::is_dual_feasible( void )
 {
- // SCIP exposes a dual-feasible solution either when the LP/MIP reached
- // optimality or when it stopped on a gap limit with at least one feasible
- // solution found (both imply a valid lower bound)
- const auto status = SCIPgetStatus( scip );
- return( status == SCIP_STATUS_OPTIMAL ||
-         status == SCIP_STATUS_GAPLIMIT );
+ // The contract of is_dual_feasible() is to tell whether the CURRENT
+ // solution maintained by the solver (the one accessible during a
+ // callback) is provably dual-feasible. SCIP has no API equivalent to
+ // CPLEX's CPXsolninfo for this query, so the only safe answer is a
+ // conservative `false`: any attempt to derive dual-feasibility from
+ // the global status code would conflate primal feasibility with dual
+ // feasibility, which is unsound.
+ return( false );
  }
 
 /*--------------------------------------------------------------------------*/

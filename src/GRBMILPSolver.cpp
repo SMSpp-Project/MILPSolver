@@ -1326,34 +1326,14 @@ bool GRBMILPSolver::has_dual_solution( void )
 
 bool GRBMILPSolver::is_dual_feasible( void )
 {
- // Gurobi reports a dual-feasible solution when the optimization stops at
- // optimality or, for an MIP, with a sub-optimal incumbent that still
- // implies a valid lower bound (SOLUTION_LIMIT, ITERATION_LIMIT, ...).
- // We probe via the status code first and then double-check that a dual
- // value is actually available.
- int status;
- if( GRBgetintattr( model , GRB_INT_ATTR_STATUS , & status ) )
-  throw( std::runtime_error(
-             "GRBMILPSolver::is_dual_feasible: "
-             "GRBgetintattr( STATUS ) failed: " +
-             std::string( GRBgeterrormsg( env ) ) ) );
-
- switch( status ) {
-  case( GRB_OPTIMAL ):
-  case( GRB_SUBOPTIMAL ):
-  case( GRB_SOLUTION_LIMIT ):
-  case( GRB_ITERATION_LIMIT ):
-  case( GRB_NODE_LIMIT ):
-  case( GRB_TIME_LIMIT ):
-  case( GRB_USER_OBJ_LIMIT ):
-   {
-    int nsols;
-    if( GRBgetintattr( model , GRB_INT_ATTR_SOLCOUNT , & nsols ) )
-     return( false );
-    return( nsols > 0 );
-    }
-  default: return( false );
-  }
+ // The contract of is_dual_feasible() is to tell whether the CURRENT
+ // solution maintained by the solver (the one accessible during a
+ // callback) is provably dual-feasible. Gurobi has no API equivalent
+ // to CPLEX's CPXsolninfo for this query, so the only safe answer is
+ // a conservative `false`: any attempt to derive dual-feasibility
+ // from the global status code / solution count would conflate
+ // primal feasibility with dual feasibility, which is unsound.
+ return( false );
  }
 
 /*--------------------------------------------------------------------------*/
