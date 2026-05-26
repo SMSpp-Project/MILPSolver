@@ -17,6 +17,16 @@ set(MILPSolver_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
 add_custom_target(generate_headers)
 
+if (CMAKE_CROSSCOMPILING)
+    if (DEFINED ENV{CXX_FOR_BUILD} AND NOT "$ENV{CXX_FOR_BUILD}" STREQUAL "")
+        set(_native_cc "$ENV{CXX_FOR_BUILD}")
+    elseif (DEFINED ENV{CC_FOR_BUILD} AND NOT "$ENV{CC_FOR_BUILD}" STREQUAL "")
+        set(_native_cc "$ENV{CC_FOR_BUILD}")
+    else ()
+        set(_native_cc "c++")
+    endif ()
+endif ()
+
 # ----- Parameter generators ------------------------------------------------ #
 
 if (MILPSolver_USE_CPLEX)
@@ -31,8 +41,8 @@ if (MILPSolver_USE_CPLEX)
                 OUTPUT ${CPLEX_DEFS_FILE} ${CPLEX_MAPS_FILE}
                 COMMAND /bin/sh -c
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
-                        CC='\${CXX_FOR_BUILD:-\${CC_FOR_BUILD:-c++}}' \
-                        CPLEX_ROOT='${CPLEX_ROOT}' cpx_pars"
+                        CC='${_native_cc}' \
+                        CPLEX_ROOT='$$CPLEX_ROOT' cpx_pars"
                 COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/cpx_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native cpx_pars to generate necessary headers"
@@ -72,8 +82,8 @@ if (MILPSolver_USE_SCIP)
                 OUTPUT ${SCIP_DEFS_FILE} ${SCIP_MAPS_FILE}
                 COMMAND /bin/sh -c
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
-                        CC='\${CXX_FOR_BUILD:-\${CC_FOR_BUILD:-c++}}' \
-                        SCIP_ROOT='${SCIP_ROOT}' scip_pars"
+                        CC='${_native_cc}' \
+                        SCIP_ROOT='$$SCIP_ROOT' scip_pars"
                 COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/scip_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native scip_pars to generate necessary headers"
@@ -115,8 +125,8 @@ if (MILPSolver_USE_GUROBI)
                 OUTPUT ${GUROBI_DEFS_FILE} ${GUROBI_MAPS_FILE}
                 COMMAND /bin/sh -c
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
-                        CC='\${CXX_FOR_BUILD:-\${CC_FOR_BUILD:-c++}}' \
-                        GUROBI_ROOT='${GUROBI_ROOT}' grb_pars"
+                        CC='${_native_cc}' \
+                        GUROBI_ROOT='$$GUROBI_ROOT' grb_pars"
                 COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/grb_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native grb_pars to generate necessary headers"
@@ -156,7 +166,7 @@ if (MILPSolver_USE_HiGHS)
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
                 COMMAND /bin/sh -c
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
-                        CC='\${CXX_FOR_BUILD:-\${CC_FOR_BUILD:-c++}}' \
+                        CC='${_native_cc}' \
                         HiGHS_ROOT='$$BUILD_PREFIX' highs_pars"
                 COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/highs_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
