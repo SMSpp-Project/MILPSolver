@@ -637,7 +637,9 @@ int PIPSMILPSolver::guts_of_compute( void )
  // This method is only responsible for the actual PIPS-IPM++ call.
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
- // Not possible in PIPS
+ if( ! output_file.empty() )
+  pipsipmpp_options::set_parameter( "WRITE_ORIGINAL_PROBLEM_TO_LP" , 
+                                      output_file );
 
  // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
  sol_status = decode_pips_status( pips_interface->run() );
