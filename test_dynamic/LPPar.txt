@@ -34,19 +34,19 @@ ComputeConfig # exact type of the ComputeConfig object
 1  # number of integer parameters
 
 # now all the integer parameters
-intLogVerb 0
+intLogVerb    0
 
 2  # number of double parameters
 
 # now all the double parameters
-dblRelAcc		1e-08
+dblRelAcc     1e-08
 
 ## All specific CPLEX parameter (uncomment based on Solver)
-CPXPARAM_MIP_Tolerances_Integrality	1e-07
+CPXPARAM_MIP_Tolerances_Integrality     1e-07
 
 0  # number of string parameters
 # now all the double parameters
-#strOutputFile	bk.lp
+#strOutputFile bk.lp
 
 0  # number of vector-of-int parameters
 # now all the vector-of-int parameters
@@ -75,12 +75,12 @@ ComputeConfig # exact type of the ComputeConfig object
 1  # number of integer parameters
 
 # now all the integer parameters
-intLogVerb 0
+intLogVerb    0
 
 1  # number of double parameters
 
 # now all the double parameters
-dblRelAcc		1e-08
+dblRelAcc     1e-08
 
 ## All specific GUROBI parameter (uncomment based on Solver)
 #IntFeasTol  1e-07
@@ -88,7 +88,7 @@ dblRelAcc		1e-08
 0  # number of string parameters
 
 # now all the string parameters
-#strOutputFile	bk.lp
+#strOutputFile bk.lp
 
 0  # number of vector-of-int parameters
 

@@ -17,6 +17,16 @@ set(MILPSolver_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
 add_custom_target(generate_headers)
 
+if (CMAKE_CROSSCOMPILING)
+    if (DEFINED ENV{CXX_FOR_BUILD} AND NOT "$ENV{CXX_FOR_BUILD}" STREQUAL "")
+        set(_native_cc "$ENV{CXX_FOR_BUILD}")
+    elseif (DEFINED ENV{CC_FOR_BUILD} AND NOT "$ENV{CC_FOR_BUILD}" STREQUAL "")
+        set(_native_cc "$ENV{CC_FOR_BUILD}")
+    else ()
+        set(_native_cc "c++")
+    endif ()
+endif ()
+
 # ----- Parameter generators ------------------------------------------------ #
 
 if (MILPSolver_USE_CPLEX)
@@ -26,18 +36,32 @@ if (MILPSolver_USE_CPLEX)
     set(CPLEX_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/CPX${CPLEX_VERSION_NO_DOTS}_defs.h)
     set(CPLEX_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/CPX${CPLEX_VERSION_NO_DOTS}_maps.h)
 
-    add_executable(cpx_pars cpx_pars.cpp)
-    target_compile_features(cpx_pars PRIVATE cxx_std_17)
-    target_link_libraries(cpx_pars PRIVATE SMS++::SMS++ CPLEX::Cplex)
+    if (CMAKE_CROSSCOMPILING)
+        add_custom_command(
+                OUTPUT ${CPLEX_DEFS_FILE} ${CPLEX_MAPS_FILE}
+                COMMAND /bin/sh -c
+                        "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
+                        CC='${_native_cc}' \
+                        CPLEX_ROOT='$$CPLEX_ROOT' cpx_pars"
+                COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/cpx_pars'"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                COMMENT "Running native cpx_pars to generate necessary headers"
+                VERBATIM
+        )
+    else ()
+        add_executable(cpx_pars cpx_pars.cpp)
+        target_compile_features(cpx_pars PRIVATE cxx_std_17)
+        target_link_libraries(cpx_pars PRIVATE SMS++::SMS++ CPLEX::Cplex)
 
-    add_custom_command(
-            OUTPUT ${CPLEX_DEFS_FILE} ${CPLEX_MAPS_FILE}
-            COMMAND "$<TARGET_FILE:cpx_pars>"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-            DEPENDS cpx_pars
-            COMMENT "Running cpx_pars to generate necessary headers"
-            VERBATIM
-    )
+        add_custom_command(
+                OUTPUT ${CPLEX_DEFS_FILE} ${CPLEX_MAPS_FILE}
+                COMMAND "$<TARGET_FILE:cpx_pars>"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                DEPENDS cpx_pars
+                COMMENT "Running cpx_pars to generate necessary headers"
+                VERBATIM
+        )
+    endif ()
 
     add_custom_target(generate_cplex_headers
             DEPENDS ${CPLEX_DEFS_FILE} ${CPLEX_MAPS_FILE}
@@ -53,20 +77,34 @@ if (MILPSolver_USE_SCIP)
     set(SCIP_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/SCIP${SCIP_VERSION_NO_DOTS}_defs.h)
     set(SCIP_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/SCIP${SCIP_VERSION_NO_DOTS}_maps.h)
 
-    add_executable(scip_pars scip_pars.cpp)
-    target_compile_features(scip_pars PRIVATE cxx_std_17)
-    target_link_libraries(scip_pars PRIVATE SMS++::SMS++ SCIP::SCIP)
+    if (CMAKE_CROSSCOMPILING)
+        add_custom_command(
+                OUTPUT ${SCIP_DEFS_FILE} ${SCIP_MAPS_FILE}
+                COMMAND /bin/sh -c
+                        "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
+                        CC='${_native_cc}' \
+                        SCIP_ROOT='$$SCIP_ROOT' scip_pars"
+                COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/scip_pars'"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                COMMENT "Running native scip_pars to generate necessary headers"
+                VERBATIM
+        )
+    else ()
+        add_executable(scip_pars scip_pars.cpp)
+        target_compile_features(scip_pars PRIVATE cxx_std_17)
+        target_link_libraries(scip_pars PRIVATE SMS++::SMS++ SCIP::SCIP)
 
-    add_custom_command(
-            OUTPUT ${SCIP_DEFS_FILE} ${SCIP_MAPS_FILE}
-            COMMAND ${CMAKE_COMMAND} -E env
-            DYLD_LIBRARY_PATH=$<TARGET_FILE_DIR:SCIP::SCIP>:$<TARGET_FILE_DIR:SMS++::SMS++>:$ENV{DYLD_LIBRARY_PATH}
-            "$<TARGET_FILE:scip_pars>"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-            DEPENDS scip_pars
-            COMMENT "Running scip_pars to generate necessary headers"
-            VERBATIM
-    )
+        add_custom_command(
+                OUTPUT ${SCIP_DEFS_FILE} ${SCIP_MAPS_FILE}
+                COMMAND ${CMAKE_COMMAND} -E env
+                DYLD_LIBRARY_PATH=$<TARGET_FILE_DIR:SCIP::SCIP>:$<TARGET_FILE_DIR:SMS++::SMS++>:$ENV{DYLD_LIBRARY_PATH}
+                "$<TARGET_FILE:scip_pars>"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                DEPENDS scip_pars
+                COMMENT "Running scip_pars to generate necessary headers"
+                VERBATIM
+        )
+    endif ()
 
     add_custom_target(generate_scip_headers
             DEPENDS ${SCIP_DEFS_FILE} ${SCIP_MAPS_FILE}
@@ -82,18 +120,32 @@ if (MILPSolver_USE_GUROBI)
     set(GUROBI_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/GRB${GUROBI_VERSION_NO_DOTS}_defs.h)
     set(GUROBI_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/GRB${GUROBI_VERSION_NO_DOTS}_maps.h)
 
-    add_executable(grb_pars grb_pars.cpp)
-    target_compile_features(grb_pars PRIVATE cxx_std_17)
-    target_link_libraries(grb_pars PRIVATE SMS++::SMS++ GUROBI::Gurobi)
+    if (CMAKE_CROSSCOMPILING)
+        add_custom_command(
+                OUTPUT ${GUROBI_DEFS_FILE} ${GUROBI_MAPS_FILE}
+                COMMAND /bin/sh -c
+                        "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
+                        CC='${_native_cc}' \
+                        GUROBI_ROOT='$$GUROBI_ROOT' grb_pars"
+                COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/grb_pars'"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                COMMENT "Running native grb_pars to generate necessary headers"
+                VERBATIM
+        )
+    else ()
+        add_executable(grb_pars grb_pars.cpp)
+        target_compile_features(grb_pars PRIVATE cxx_std_17)
+        target_link_libraries(grb_pars PRIVATE SMS++::SMS++ GUROBI::Gurobi)
 
-    add_custom_command(
-            OUTPUT ${GUROBI_DEFS_FILE} ${GUROBI_MAPS_FILE}
-            COMMAND $<TARGET_FILE:grb_pars>
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-            DEPENDS grb_pars
-            COMMENT "Running grb_pars to generate necessary headers"
-            VERBATIM
-    )
+        add_custom_command(
+                OUTPUT ${GUROBI_DEFS_FILE} ${GUROBI_MAPS_FILE}
+                COMMAND $<TARGET_FILE:grb_pars>
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                DEPENDS grb_pars
+                COMMENT "Running grb_pars to generate necessary headers"
+                VERBATIM
+        )
+    endif ()
 
     add_custom_target(generate_gurobi_headers
             DEPENDS ${GUROBI_DEFS_FILE} ${GUROBI_MAPS_FILE}
@@ -114,7 +166,7 @@ if (MILPSolver_USE_HiGHS)
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
                 COMMAND /bin/sh -c
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
-                        CC='${CMAKE_CXX_COMPILER}' \
+                        CC='${_native_cc}' \
                         HiGHS_ROOT='$$BUILD_PREFIX' highs_pars"
                 COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/highs_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}

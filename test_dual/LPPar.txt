@@ -34,8 +34,8 @@ ComputeConfig # exact type of the ComputeConfig object
 3  # number of integer parameters
 
 # now all the integer parameters
-intLogVerb 0
-intSingleBound 1
+intLogVerb                   0
+intSingleBound               1
 intThrowReducedCostException 1
 
 ## All specific CPLEX parameter (uncomment based on Solver)
@@ -45,10 +45,10 @@ intThrowReducedCostException 1
 2  # number of double parameters
 
 # now all the double parameters
-dblRelAcc		1e-08
+dblRelAcc                    1e-08
 
 ## All specific CPLEX parameter (uncomment based on Solver)
-CPXPARAM_MIP_Tolerances_Integrality	1e-07
+CPXPARAM_MIP_Tolerances_Integrality     1e-07
 
 ## All specific HiGHS parameter (uncomment based on Solver)
 #mip_feasibility_tolerance     1e-07
@@ -56,7 +56,7 @@ CPXPARAM_MIP_Tolerances_Integrality	1e-07
 0  # number of string parameters
 
 # now all the string parameters
-#strOutputFile	bk.lp
+#strOutputFile               bk.lp
 
 0  # number of vector-of-int parameters
 
