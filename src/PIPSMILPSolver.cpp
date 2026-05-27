@@ -1371,6 +1371,7 @@ template< typename T >
     ( const ColVariable & c ) {
       n_varNode[ num_node ] += 1;
       varNode[ num_node ].push_back( &c );
+      var_to_node.emplace( &c , num_node );
   };
   un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
   }
@@ -1441,7 +1442,8 @@ template< typename T >
      auto push_var_toNode = [ this , num_node ]
        ( const ColVariable & c ) {
         n_varNode[ num_node ] += 1;
-         varNode[ num_node ].push_back( &c );
+        varNode[ num_node ].push_back( &c );
+        var_to_node.emplace( &c , num_node );
      };
      un_any_const_static( v , push_var_toNode , 
       un_any_type< ColVariable >() );
@@ -1505,7 +1507,8 @@ template< typename T >
      auto push_var_toNode = [ this , num_node ]
        ( const ColVariable & c ) {
         n_varNode[ num_node ] += 1;
-         varNode[ num_node ].push_back( &c );
+        varNode[ num_node ].push_back( &c );
+        var_to_node.emplace( &c , num_node );
      };
      un_any_const_static( v , push_var_toNode , 
       un_any_type< ColVariable >() );
@@ -1585,7 +1588,8 @@ template< typename T >
      auto push_var_toNode = [ this , num_node ]
        ( const ColVariable & c ) {
         n_varNode[ num_node ] += 1;
-         varNode[ num_node ].push_back( &c );
+        varNode[ num_node ].push_back( &c );
+        var_to_node.emplace( &c , num_node );
      };
      un_any_const_static( v , push_var_toNode , 
       un_any_type< ColVariable >() );
@@ -1655,7 +1659,8 @@ template< typename T >
      auto push_var_toNode = [ this , num_node ]
        ( const ColVariable & c ) {
         n_varNode[ num_node ] += 1;
-         varNode[ num_node ].push_back( &c );
+        varNode[ num_node ].push_back( &c );
+        var_to_node.emplace( &c , num_node );
      };
      un_any_const_static( v , push_var_toNode , 
       un_any_type< ColVariable >() );
