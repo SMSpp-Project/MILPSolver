@@ -637,9 +637,7 @@ int PIPSMILPSolver::guts_of_compute( void )
  // This method is only responsible for the actual PIPS-IPM++ call.
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
- if( ! output_file.empty() )
-  pipsipmpp_options::set_parameter( "WRITE_ORIGINAL_PROBLEM_TO_LP" , 
-                                      output_file );
+ // This should have already been done in set_par
 
  // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
  sol_status = decode_pips_status( pips_interface->run() );
@@ -800,6 +798,10 @@ void PIPSMILPSolver::set_par( idx_type par , std::string && value )
   pipsipmpp_options::set_parameter( pips_par , value );
   return;
   }
+
+ if( par == strOutputFile )
+  pipsipmpp_options::set_parameter( "WRITE_ORIGINAL_PROBLEM_TO_LP" , 
+                                      output_file );
 
  MILPSolver::set_par( par, std::move( value ) );
  }
