@@ -618,6 +618,8 @@ class PIPSMILPSolver : public MILPSolver {
 
  bool mpi_initialized_by_this_solver = false;
 
+ std::unordered_map< const ColVariable *, int > var_to_node;
+
 /*--------------------------------------------------------------------------*/
 /*----------------------------- OTHER DATA ---------------------------------*/
 /*--------------------------------------------------------------------------*/

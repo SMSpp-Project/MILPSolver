@@ -334,6 +334,8 @@ void PIPSMILPSolver::load_problem( void )
  delete pips_tree;
  pips_tree = nullptr;
 
+ var_to_node.clear();
+
  /* The strategy in PIPSMILPSolver will simply be to correctly store the
   * elements belonging to each node. After that, by simply calling 
   * extractNode_sub_matrix, we will be able to extract the portion of
@@ -386,6 +388,8 @@ void PIPSMILPSolver::load_problem( void )
  EqConsNode.resize( n_nodes );
  InEqConsNode.resize( n_nodes );
 
+ var_to_node.reserve( numcols );
+
  // First scan: scan all the variables and assign them to the correct node
  DEBUG_LOG( "First Scan: storing variables per node" << std::endl );
 
@@ -403,6 +407,7 @@ void PIPSMILPSolver::load_problem( void )
       ( const ColVariable & c ) {
       n_varNode[ num_node ] += 1;
       varNode[ num_node ].push_back( &c );
+      var_to_node.emplace( &var, num_node );
      };
 
      un_any_const_dynamic( i , push_var_toNode , 
@@ -1412,7 +1417,7 @@ template< typename T >
         scan_constraint( c , num_node );
      };
      // Scan all the constraints one at a time
-     un_any_const_static( gr , scan  , un_any_type< FRowConstraint >() );
+     un_any_const_static( v , scan  , un_any_type< FRowConstraint >() );
 
      // The linearization produced by ma->data() for the 2D multi_array
      // stores elements in row-major order. Therefore, we should increment
@@ -1438,7 +1443,7 @@ template< typename T >
         n_varNode[ num_node ] += 1;
          varNode[ num_node ].push_back( &c );
      };
-     un_any_const_static( gr , push_var_toNode , 
+     un_any_const_static( v , push_var_toNode , 
       un_any_type< ColVariable >() );
 
      // The linearization produced by ma->data() for the 2D multi_array
@@ -1476,7 +1481,7 @@ template< typename T >
         scan_constraint( c , num_node );
      };
      // Scan all the constraints one at a time
-     un_any_const_static( gr , scan  , un_any_type< FRowConstraint >() );
+     un_any_const_static( v , scan  , un_any_type< FRowConstraint >() );
 
      // The linearization produced by ma->data() for the 2D multi_array
      // stores elements in row-major order. Therefore, we should increment
@@ -1502,7 +1507,7 @@ template< typename T >
         n_varNode[ num_node ] += 1;
          varNode[ num_node ].push_back( &c );
      };
-     un_any_const_static( gr , push_var_toNode , 
+     un_any_const_static( v , push_var_toNode , 
       un_any_type< ColVariable >() );
 
      // The linearization produced by ma->data() for the 2D multi_array
@@ -1553,7 +1558,7 @@ template< typename T >
         scan_constraint( c , num_node );
      };
      // Scan all the constraints one at a time
-     un_any_const_static( gr , scan  , un_any_type< FRowConstraint >() );
+     un_any_const_static( v , scan  , un_any_type< FRowConstraint >() );
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
@@ -1582,7 +1587,7 @@ template< typename T >
         n_varNode[ num_node ] += 1;
          varNode[ num_node ].push_back( &c );
      };
-     un_any_const_static( gr , push_var_toNode , 
+     un_any_const_static( v , push_var_toNode , 
       un_any_type< ColVariable >() );
 
      // The linearization produced by ma->data() for the 3D multi_array
@@ -1623,7 +1628,7 @@ template< typename T >
         scan_constraint( c , num_node );
      };
      // Scan all the constraints one at a time
-     un_any_const_static( gr , scan  , un_any_type< FRowConstraint >() );
+     un_any_const_static( v , scan  , un_any_type< FRowConstraint >() );
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
@@ -1652,7 +1657,7 @@ template< typename T >
         n_varNode[ num_node ] += 1;
          varNode[ num_node ].push_back( &c );
      };
-     un_any_const_static( gr , push_var_toNode , 
+     un_any_const_static( v , push_var_toNode , 
       un_any_type< ColVariable >() );
 
      // The linearization produced by ma->data() for the 3D multi_array
@@ -1713,17 +1718,14 @@ void PIPSMILPSolver::scan_constraint( const FRowConstraint & con ,
    for( auto el : lf->get_v_var() ){
     auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
 
-    // Understand if v belongs to the same node
-    bool found_inNode = 
-      std::find( varNode[ num_node ].begin() , varNode[ num_node ].end() , v ) 
-        != varNode[ num_node ].end();
+    auto it = var_to_node.find( v );
 
-    // Understand if v belongs to the root
-    bool found_inRoot = 
-      std::find( varNode[ 0 ].begin() , varNode[ 0 ].end() , v ) 
-        != varNode[ 0 ].end();
+    if( it == var_to_node.end() )
+      throw std::runtime_error( "Variable not assigned to any PIPS node" );
 
-    if( ! found_inNode && ! found_inRoot ) {
+    int owner = it->second;
+
+    if( owner != num_node && owner != 0 ) {
      found_inOtherNode = true;
      break;
     }
