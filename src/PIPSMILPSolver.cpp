@@ -407,7 +407,7 @@ void PIPSMILPSolver::load_problem( void )
       ( const ColVariable & c ) {
       n_varNode[ num_node ] += 1;
       varNode[ num_node ].push_back( &c );
-      var_to_node.emplace( &var, num_node );
+      var_to_node.emplace( &c , num_node );
      };
 
      un_any_const_dynamic( i , push_var_toNode , 
