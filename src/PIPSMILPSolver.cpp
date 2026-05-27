@@ -801,7 +801,7 @@ void PIPSMILPSolver::set_par( idx_type par , std::string && value )
 
  if( par == strOutputFile )
   pipsipmpp_options::set_parameter( "WRITE_ORIGINAL_PROBLEM_TO_LP" , 
-                                      output_file );
+                                      value );
 
  MILPSolver::set_par( par, std::move( value ) );
  }
