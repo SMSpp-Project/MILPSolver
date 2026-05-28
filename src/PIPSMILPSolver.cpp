@@ -1569,16 +1569,16 @@ template< typename T >
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
-     if( idx_2 < ma->shape()[ 1 ] - 1 )
-      idx_2++; // Move third counter
+     if( idx_2 < ma->shape()[ 2 ] - 1 )
+      idx_2++;
      else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
-      idx_1++; // Move second counter
-      idx_2 = 0; // Reset third counter
+      idx_1++;
+      idx_2 = 0;
      }
      else {
-      idx_0++; // Move first counter
-      idx_1 = 0; // Reset second counter
-      idx_2 = 0; // Reset third counter
+      idx_0++;
+      idx_1 = 0;
+      idx_2 = 0;
      }
     }
    }
@@ -1600,16 +1600,16 @@ template< typename T >
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
-     if( idx_2 < ma->shape()[ 1 ] - 1 )
-      idx_2++; // Move third counter
+     if( idx_2 < ma->shape()[ 2 ] - 1 )
+      idx_2++;
      else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
-      idx_1++; // Move second counter
-      idx_2 = 0; // Reset third counter
+      idx_1++;
+      idx_2 = 0;
      }
      else {
-      idx_0++; // Move first counter
-      idx_1 = 0; // Reset second counter
-      idx_2 = 0; // Reset third counter
+      idx_0++;
+      idx_1 = 0;
+      idx_2 = 0;
      }
     }
    }
@@ -1640,16 +1640,16 @@ template< typename T >
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
-     if( idx_2 < ma->shape()[ 1 ] - 1 )
-      idx_2++; // Move third counter
+     if( idx_2 < ma->shape()[ 2 ] - 1 )
+      idx_2++;
      else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
-      idx_1++; // Move second counter
-      idx_2 = 0; // Reset third counter
+      idx_1++;
+      idx_2 = 0;
      }
      else {
-      idx_0++; // Move first counter
-      idx_1 = 0; // Reset second counter
-      idx_2 = 0; // Reset third counter
+      idx_0++;
+      idx_1 = 0;
+      idx_2 = 0;
      }
     }
    }
@@ -1671,16 +1671,16 @@ template< typename T >
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
-     if( idx_2 < ma->shape()[ 1 ] - 1 )
-      idx_2++; // Move third counter
+     if( idx_2 < ma->shape()[ 2 ] - 1 )
+      idx_2++;
      else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
-      idx_1++; // Move second counter
-      idx_2 = 0; // Reset third counter
+      idx_1++;
+      idx_2 = 0;
      }
      else {
-      idx_0++; // Move first counter
-      idx_1 = 0; // Reset second counter
-      idx_2 = 0; // Reset third counter
+      idx_0++;
+      idx_1 = 0;
+      idx_2 = 0;
      }
     }
    }
