@@ -3812,14 +3812,24 @@ void MILPSolver::write_var_solution( const std::vector< double > & x )
              "MILPSolver::write_var_solution: x too short" ) );
 
  int col = 0;
- int dcol = static_vars;
 
  auto set = [ & x , & col ]( ColVariable & v ) {
   v.set_value( x[ col++ ] );
   };
 
- auto setd = [ & x , & dcol ]( ColVariable & v ) {
-  v.set_value( x[ dcol++ ] );
+ // dynamic variables cannot be addressed by a sequential counter: their
+ // matrix columns follow the order in which they were *added* to the
+ // solver (initial dynamic variables one per sub-Block at load_problem(),
+ // then any variable appended at run time by an add-variable Modification),
+ // which in general differs from the breadth-first per-sub-Block traversal
+ // order used here. Using a running counter scrambles the values across
+ // sub-Blocks whenever variables are added incrementally to more than one
+ // dynamic group. Look up each variable's actual column via the
+ // dvar_to_idx map (index_of_dynamic_variable) instead
+ auto setd = [ & x , this ]( ColVariable & v ) {
+  const int idx = index_of_dynamic_variable( & v );
+  if( idx < int( x.size() ) )
+   v.set_value( x[ idx ] );
   };
 
  for( auto qb : v_BFS ) {
