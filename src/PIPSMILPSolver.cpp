@@ -372,51 +372,55 @@ void PIPSMILPSolver::load_problem( void )
 
  // TEMP
  nodes_subtrees.clear();
- blockToleaf.clear();
+blockToleaf.clear();
+var_to_node.clear();
 
- auto nested_blocks = f_Block->get_nested_Blocks();
+n_LinkEqCons = 0;
+n_LinkInEqCons = 0;
+LinkEqCons.clear();
+LinkInEqCons.clear();
 
- if( nested_blocks.empty() )
-  throw( std::runtime_error( "PIPSMILPSolver requires at least one nested Block "
+auto nested_blocks = f_Block->get_nested_Blocks();
+
+if( nested_blocks.empty() )
+ throw( std::runtime_error( "PIPSMILPSolver requires at least one nested Block "
                             "to promote as PIPS root." ) );
 
- // Choose which child becomes the PIPS root.
- // For now: promote the last nested Block (DesignNetworkBlock).
- Block * promoted_root = nested_blocks.back();
+// Choose which child becomes the PIPS root.
+// Change back() to front(), or another selection rule, if needed.
+Block * promoted_root = nested_blocks.back();
 
- // Set the first node (root) to be the promoted block
- n_nodes = 1;
- Index n_blocks = 1; 
- nodes_subtrees.push_back( { promoted_root } );
+n_nodes = 0;
+Index n_blocks = 0;
 
- // All the sub_blocks of the promoted root become leaves
- for( auto leaf : promoted_root->get_nested_Blocks(); ) {
-  std::vector< Block * > subtree;
+// Node 0: the whole subtree of the promoted child becomes the PIPS root
+{
+ std::vector< Block * > root_subtree;
 
-  n_blocks += collect_subtree( leaf , subtree , n_nodes );
+ n_blocks += collect_subtree( promoted_root , root_subtree , 0 );
 
-  subtree.shrink_to_fit();
-  nodes_subtrees.push_back( std::move( subtree ) );
+ root_subtree.shrink_to_fit();
+ nodes_subtrees.push_back( std::move( root_subtree ) );
 
-  n_nodes++;
- }
+ n_nodes++;
+}
 
- // Other children of f_Block become PIPS leaves
- for( auto leaf : nested_blocks ) {
-  if( leaf == promoted_root )
-   continue;
+// All other children of f_Block become PIPS children
+for( auto leaf : nested_blocks ) {
+ if( leaf == promoted_root )
+  continue;
 
-  std::vector< Block * > subtree;
+ std::vector< Block * > subtree;
 
-  n_blocks += collect_subtree( leaf , subtree , n_nodes );
+ n_blocks += collect_subtree( leaf , subtree , n_nodes );
 
-  subtree.shrink_to_fit();
-  nodes_subtrees.push_back( std::move( subtree ) );
+ subtree.shrink_to_fit();
+ nodes_subtrees.push_back( std::move( subtree ) );
 
-  n_nodes++;
- }
+ n_nodes++;
+}
 
- nodes_subtrees.shrink_to_fit();
+nodes_subtrees.shrink_to_fit();
  // END TEMP
 
  if( n_nodes == 1)
