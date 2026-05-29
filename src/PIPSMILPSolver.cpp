@@ -348,7 +348,7 @@ void PIPSMILPSolver::load_problem( void )
  // - then, there will be one leaf for each sub-block of the f_Block. All the 
  //   sub-sub-...-blocks will be stored in the corresponding leaf.
 
- nodes_subtrees.clear();
+ /*nodes_subtrees.clear();
 
  // Set the first node (root) to be the f_Block
  n_nodes = 1;
@@ -368,7 +368,56 @@ void PIPSMILPSolver::load_problem( void )
   nodes_subtrees.push_back( std::move( subtree ) );
   n_nodes++;
  }
+ nodes_subtrees.shrink_to_fit();*/
+
+ // TEMP
+ nodes_subtrees.clear();
+ blockToleaf.clear();
+
+ auto nested_blocks = f_Block->get_nested_Blocks();
+
+ if( nested_blocks.empty() )
+  throw( std::runtime_error( "PIPSMILPSolver requires at least one nested Block "
+                            "to promote as PIPS root." ) );
+
+ // Choose which child becomes the PIPS root.
+ // For now: promote the last nested Block (DesignNetworkBlock).
+ Block * promoted_root = nested_blocks.back();
+
+ // Set the first node (root) to be the promoted block
+ n_nodes = 1;
+ Index n_blocks = 1; 
+ nodes_subtrees.push_back( { promoted_root } );
+
+ // All the sub_blocks of the promoted root become leaves
+ for( auto leaf : promoted_root->get_nested_Blocks(); ) {
+  std::vector< Block * > subtree;
+
+  n_blocks += collect_subtree( leaf , subtree , n_nodes );
+
+  subtree.shrink_to_fit();
+  nodes_subtrees.push_back( std::move( subtree ) );
+
+  n_nodes++;
+ }
+
+ // Other children of f_Block become PIPS leaves
+ for( auto leaf : nested_blocks ) {
+  if( leaf == promoted_root )
+   continue;
+
+  std::vector< Block * > subtree;
+
+  n_blocks += collect_subtree( leaf , subtree , n_nodes );
+
+  subtree.shrink_to_fit();
+  nodes_subtrees.push_back( std::move( subtree ) );
+
+  n_nodes++;
+ }
+
  nodes_subtrees.shrink_to_fit();
+ // END TEMP
 
  if( n_nodes == 1)
   throw( std::runtime_error( "PIPSMILPSolver requires at least two blocks "
