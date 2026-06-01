@@ -88,6 +88,13 @@ if (NOT HiGHS_FOUND)
                 NO_DEFAULT_PATH
                 DOC "HiGHS debug library.")
 
+        # Release-only distributions (e.g. conda-forge) ship no debug build:
+        # fall back to the release library so a Release configure succeeds.
+        if (NOT HiGHS_LIBRARY_DEBUG)
+            set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
+                    CACHE FILEPATH "HiGHS debug library." FORCE)
+        endif ()
+
         # ----- Find the HiGHS runtime DLLs on Windows ---------------------- #
         find_file(HiGHS_DLL
                 NAMES highs.dll libhighs.dll
@@ -138,10 +145,11 @@ if (NOT HiGHS_FOUND)
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     if (WIN32)
+        # The debug library/DLL are optional (they fall back to the release ones
+        # above), so they are deliberately kept out of REQUIRED_VARS.
         find_package_handle_standard_args(
                 HiGHS
-                REQUIRED_VARS HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG
-                HiGHS_DLL HiGHS_DLL_DEBUG HiGHS_INCLUDE_DIR
+                REQUIRED_VARS HiGHS_LIBRARY HiGHS_DLL HiGHS_INCLUDE_DIR
                 VERSION_VAR HiGHS_VERSION)
     else ()
         find_package_handle_standard_args(
