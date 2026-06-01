@@ -323,29 +323,28 @@ class PIPSMILPSolver : public MILPSolver {
   const std::vector< int > & selectedRows ,
   const int nRows ,
   const std::vector< int > & selectedCols ,
-  const int nCols );
+  const int nCols ) const;
 
- /// Copies a selected matrix block into the arrays supplied by PIPS.
- int ExtractMatrix( int id , int * krowM , int * jcolM , double * M ,
-                    std::vector< const FRowConstraint * > node_cons ,
-                    const int nCons ,
-                    std::vector< const ColVariable * > vars ,
-                    const int nVars );
+ /// Extracts and validates a matrix block while building the callback cache.
+ CSRMatrix build_cached_matrix(
+  int id , const char * name ,
+  const std::vector< const FRowConstraint * > & rows ,
+  const std::vector< const ColVariable * > & cols ) const;
 
- /// Counts the nonzeros of a selected PIPS matrix block.
- int EvaluateNnz( int id , int * nnz ,
-                  std::vector< const FRowConstraint * > node_cons ,
-                  const int nCons ,
-                  std::vector< const ColVariable * > vars ,
-                  const int nVars );
+ /// Builds every matrix block requested by PIPS callbacks.
+ void build_matrix_cache();
+
+ /// Copies a cached matrix block into the arrays supplied by PIPS.
+ static int copy_cached_matrix( const CSRMatrix & matrix , int * krowM ,
+                                int * jcolM , double * M );
 
  /// Computes global MILPSolver row indices for a set of constraints.
  std::vector< int > compute_cons_global_idxs(
-  std::vector< const FRowConstraint * > cons , const int nCons );
+  const std::vector< const FRowConstraint * > & cons ) const;
 
  /// Computes global MILPSolver column indices for a set of variables.
  std::vector< int > compute_vars_global_idxs(
-  std::vector< const ColVariable * > vars , const int nVars );
+  const std::vector< const ColVariable * > & vars ) const;
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- TREE/SCAN HELPERS -----------------------------*/
@@ -378,54 +377,46 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Extracts equality RHS or inequality upper-bound values for selected rows.
  int ExtractRhsVector( int id , double * vec , int len ,
-                       std::vector< const FRowConstraint * > node_cons ,
-                       const int nCons ,
-                       std::vector< double > rhs ,
-                       std::vector< char > sense ,
-                       std::vector< double > ranges );
+                       const std::vector< const FRowConstraint * > & node_cons ,
+                       const std::vector< double > & rhs ,
+                       const std::vector< char > & sense ,
+                       const std::vector< double > & ranges );
 
  /// Extracts inequality lower-bound values for selected rows.
  int ExtractLhsVector( int id , double * vec , int len ,
-                       std::vector< const FRowConstraint * > node_cons ,
-                       const int nCons ,
-                       std::vector< double > rhs ,
-                       std::vector< char > sense ,
-                       std::vector< double > ranges );
+                       const std::vector< const FRowConstraint * > & node_cons ,
+                       const std::vector< double > & rhs ,
+                       const std::vector< char > & sense ,
+                       const std::vector< double > & ranges );
 
  /// Extracts active flags for selected row upper bounds.
  int ExtractRhsActiveFlag( int id , double * vec , int len ,
-                           std::vector< const FRowConstraint * > node_cons ,
-                           const int nCons ,
-                           std::vector< double > rhs ,
-                           std::vector< char > sense ,
-                           std::vector< double > ranges );
+                       const std::vector< const FRowConstraint * > & node_cons ,
+                       const std::vector< double > & rhs ,
+                       const std::vector< char > & sense ,
+                       const std::vector< double > & ranges );
 
  /// Extracts active flags for selected row lower bounds.
  int ExtractLhsActiveFlag( int id , double * vec , int len ,
-                           std::vector< const FRowConstraint * > node_cons ,
-                           const int nCons ,
-                           std::vector< double > rhs ,
-                           std::vector< char > sense ,
-                           std::vector< double > ranges );
+                       const std::vector< const FRowConstraint * > & node_cons ,
+                       const std::vector< double > & rhs ,
+                       const std::vector< char > & sense ,
+                       const std::vector< double > & ranges );
 
  /// Extracts variable bounds for a node.
  int ExtractVarBounds( int id , double * vec , int len ,
-                       std::vector< const ColVariable * > node_vars ,
-                       const int nVars ,
-                       std::vector< double > bounds );
+                       const std::vector< const ColVariable * > & node_vars ,
+                       const std::vector< double > & bounds );
 
  /// Extracts active flags for variable bounds.
  int ExtractFlagVarBounds( int id , double * vec , int len ,
-                            std::vector< const ColVariable * > node_vars ,
-                            const int nVars ,
-                            std::vector< double > bounds );
+                       const std::vector< const ColVariable * > & node_vars ,
+                       const std::vector< double > & bounds );
 
  /// Extracts variable objective coefficients.
  int ExtractObj( int id , double* vec , int len ,
-                                std::vector< const ColVariable * > node_vars ,
-                                const int nVars ,
-                                std::vector< double > obj_value ,
-                                int objsense );
+                  const std::vector< const ColVariable * > & node_vars ,
+                  const std::vector< double > & obj_value , int objsense );
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PIPS CALLBACKS -------------------------------*/
@@ -616,6 +607,18 @@ class PIPSMILPSolver : public MILPSolver {
  /// Global linking inequality constraints.
  std::vector< const FRowConstraint * > LinkInEqCons;
 
+ /// CSR blocks prepared once per load and copied by the PIPS callbacks.
+ struct NodeMatrixCache {
+  CSRMatrix eq_diag;
+  CSRMatrix eq_vert;
+  CSRMatrix ineq_diag;
+  CSRMatrix ineq_vert;
+  CSRMatrix link_eq;
+  CSRMatrix link_ineq;
+ };
+
+ std::vector< NodeMatrixCache > matrix_cache;
+
  bool mpi_initialized_by_this_solver = false;
 
  std::unordered_map< const ColVariable *, int > var_to_node;
@@ -642,6 +645,9 @@ class PIPSMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 
  private:
+
+ /// Clears all PIPS-owned objects and data derived from the current Block.
+ void reset_pips_data();
 
  /// Converts PIPS-IPM++ status codes into SMS++ solver status codes.
  static int decode_pips_status( TerminationStatus status );
