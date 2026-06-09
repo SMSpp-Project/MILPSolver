@@ -3853,25 +3853,15 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
    throw( std::invalid_argument(
               "MILPSolver::write_dual_solution: pi too short" ) );
 
-  // NOTE: pi is only written into linear FRowConstraint; quadratic
-  // constraints, if any, are skipped here.
-  int row = 0;
-  int row_dynamic = static_cons;
-
-  auto set = [ & pi , & row ]( FRowConstraint & c ) {
+  // NOTE: this only supports pi written for linear constraints!
+  // TODO: extend pi to quadratic constraints
+  auto set = [ this , & pi ]( FRowConstraint & c ) {
+    const int row = index_of_constraint( & c );
+    if( row >= get_numrows() )
+     throw( std::logic_error(
+       "MILPSolver::write_dual_solution: constraint not found" ) );
     if( dynamic_cast< LinearFunction * >( c.get_function() ) )
-      c.set_dual( - pi[ row++ ] );
-    else
-      // Skip quadratic rows
-      row++;
-   };
-
-  auto set_dynamic = [ & pi , & row_dynamic ]( FRowConstraint & c ) {
-    if( dynamic_cast< LinearFunction * >( c.get_function() ) )
-      c.set_dual( - pi[ row_dynamic++ ] );
-    else
-      // Skip quadratic rows
-      row_dynamic++;
+     c.set_dual( - pi[ row ] );
    };
 
   for( auto qb : v_BFS ) {
@@ -3879,7 +3869,7 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
     un_any_const_static( ci , set , un_any_type< FRowConstraint >() );
 
    for( const auto & ci : qb->get_dynamic_constraints() )
-    un_any_const_dynamic( ci, set_dynamic, un_any_type< FRowConstraint >() );
+    un_any_const_dynamic( ci , set , un_any_type< FRowConstraint >() );
    }
   }  // end( ! p.empty() )
 
