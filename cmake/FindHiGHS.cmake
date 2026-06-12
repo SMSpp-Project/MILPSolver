@@ -88,6 +88,13 @@ if (NOT HiGHS_FOUND)
                 NO_DEFAULT_PATH
                 DOC "HiGHS debug library.")
 
+        # Release-only distributions (e.g. conda-forge) ship no debug build:
+        # fall back to the release library so a Release configure succeeds.
+        if (NOT HiGHS_LIBRARY_DEBUG)
+            set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
+                    CACHE FILEPATH "HiGHS debug library." FORCE)
+        endif ()
+
         # ----- Find the HiGHS runtime DLLs on Windows ---------------------- #
         find_file(HiGHS_DLL
                 NAMES highs.dll libhighs.dll
@@ -138,10 +145,11 @@ if (NOT HiGHS_FOUND)
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
     if (WIN32)
+        # The debug library/DLL are optional (they fall back to the release ones
+        # above), so they are deliberately kept out of REQUIRED_VARS.
         find_package_handle_standard_args(
                 HiGHS
-                REQUIRED_VARS HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG
-                HiGHS_DLL HiGHS_DLL_DEBUG HiGHS_INCLUDE_DIR
+                REQUIRED_VARS HiGHS_LIBRARY HiGHS_DLL HiGHS_INCLUDE_DIR
                 VERSION_VAR HiGHS_VERSION)
     else ()
         find_package_handle_standard_args(
@@ -159,6 +167,18 @@ if (HiGHS_FOUND)
     if (UNIX)
         set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} dl)
     endif ()
+
+    # If HiGHS was built with the HiPO interior point solver (HIPO is then
+    # #define-d in its HConfig.h) it depends on a BLAS, which must be linked
+    # explicitly when libhighs is static; this mirrors the conditional
+    # find_dependency(BLAS) in the upstream highs-config.cmake.
+    file(STRINGS "${HiGHS_INCLUDE_DIR}/HConfig.h" _HiGHS_hipo_line
+            REGEX "^#define HIPO[ \t]*$")
+    if (_HiGHS_hipo_line)
+        find_package(BLAS REQUIRED QUIET)
+        set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} ${BLAS_LIBRARIES})
+    endif ()
+    unset(_HiGHS_hipo_line)
 
     if (NOT TARGET HiGHS::HiGHS)
         if (WIN32)

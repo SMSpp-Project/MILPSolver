@@ -45,18 +45,22 @@ dblRelAcc     1e-08
 CPXPARAM_MIP_Tolerances_Integrality     1e-07
 
 0  # number of string parameters
+
 # now all the double parameters
 #strOutputFile bk.lp
 
 0  # number of vector-of-int parameters
+
 # now all the vector-of-int parameters
 # [none]
 
 0  # number of vector-of-double parameters
+
 # now all the vector-of-double parameters
 # [none]
 
 0  # number of vector-of-string parameters
+
 # now all the vector-of-string parameters
 # [none]
 
