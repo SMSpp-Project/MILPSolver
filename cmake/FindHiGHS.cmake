@@ -168,6 +168,18 @@ if (HiGHS_FOUND)
         set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} dl)
     endif ()
 
+    # If HiGHS was built with the HiPO interior point solver (HIPO is then
+    # #define-d in its HConfig.h) it depends on a BLAS, which must be linked
+    # explicitly when libhighs is static; this mirrors the conditional
+    # find_dependency(BLAS) in the upstream highs-config.cmake.
+    file(STRINGS "${HiGHS_INCLUDE_DIR}/HConfig.h" _HiGHS_hipo_line
+            REGEX "^#define HIPO[ \t]*$")
+    if (_HiGHS_hipo_line)
+        find_package(BLAS REQUIRED QUIET)
+        set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} ${BLAS_LIBRARIES})
+    endif ()
+    unset(_HiGHS_hipo_line)
+
     if (NOT TARGET HiGHS::HiGHS)
         if (WIN32)
             add_library(HiGHS::HiGHS SHARED IMPORTED)

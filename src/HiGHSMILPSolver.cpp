@@ -420,6 +420,26 @@ int HiGHSMILPSolver::guts_of_compute( void )
   m_status = Highs_getModelStatus( highs );
   }
 
+ // On numerically difficult LPs, dual simplex can still return Unknown after
+ // being restarted from scratch. Retry once with IPM, which uses a genuinely
+ // different algorithm and can often recover a definite status. Keep this
+ // fallback LP-only, since "solver = ipm" is not valid for MIP models.
+ if( ( m_status == kHighsModelStatusUnknown ) && ( int_vars == 0 ) &&
+     q_obj_val.empty() ) {
+  std::array< char , kHighsMaximumStringLength > solver_option = {};
+  Highs_getStringOptionValue( highs , "solver" , solver_option.data() );
+
+  Highs_clearSolver( highs );
+  Highs_setStringOptionValue( highs , "solver" , "ipm" );
+
+  if( Highs_run( highs ) == kHighsStatusError )
+   std::cerr << "WARNING: An unmanaged error occurred during the execution "
+                "of HiGHS_run with the IPM fallback" << std::endl;
+
+  m_status = Highs_getModelStatus( highs );
+  Highs_setStringOptionValue( highs , "solver" , solver_option.data() );
+  }
+
  sol_status = decode_model_status( m_status );
  return( sol_status );
 
