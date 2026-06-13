@@ -169,7 +169,7 @@ support, respectively, CPLEX , SCIP , GUROBI and HiGHS parameter names in
 the `Configuration` files. To do so, they need header files *\_defs.h and
 *\_maps.h that depend on  the versions of CPLEX , SCIP , GUROBI and HiGHS
 currently installed on the system. Such headers can be generated with the
-`cpx_pars` , `scip_pars` , `grb_pars` and `high_pars` executables in the
+`cpx_pars` , `scip_pars` , `grb_pars` and `highs_pars` executables in the
 [tools](tools) folder. This is done automatically by cmake / make, so you
 should not bother about it. However, if you change the version of the
 underlying solver you may want to delete the corresponding *\_defs.h and
