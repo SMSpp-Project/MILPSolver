@@ -209,6 +209,15 @@ void HiGHSMILPSolver::load_problem( void )
  // Quadratic constrained problem
  bool is_qcp = ( numquadrows > 0 );
 
+ // HiGHS cannot solve quadratically-constrained models: bail out here with a
+ // clear message. This MUST come before Highs_passLp(): when quadratic
+ // constraints are present MILPSolver stores the coefficient matrix row-wise
+ // (matbeg has numrows+1 entries), so feeding it to Highs_passLp() with the
+ // column-wise format declared below would misread it and fail with a cryptic
+ // "duplicate index" error instead of this explanation.
+ if( is_qcp )
+  throw( std::runtime_error( "HiGHS cannot solve QCP models" ) );
+
  // HiGHS uses different function to instantiate a model based on
  // his type
  int status;
