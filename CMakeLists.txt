@@ -176,9 +176,7 @@ add_library(${modNamespace}::${modName} ALIAS ${modName})
 
 # ----- Subdirectories ------------------------------------------------------ #
 if (BUILD_TESTING)
-    add_subdirectory(test_cuts)
-    add_subdirectory(test_dual)
-    add_subdirectory(test_dynamic)
+    add_subdirectory(test)
 endif ()
 
 # ----- Install instructions ------------------------------------------------ #

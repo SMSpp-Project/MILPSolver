@@ -178,19 +178,17 @@ underlying solver you may want to delete the corresponding *\_defs.h and
 
 ## Testers
 
-The repo includes some testers that may be useful for someone willing to
-write other `:MILPSolver`:
+The [test](test/README.md) folder includes some testers that may be useful
+for someone willing to write other `:MILPSolver`:
 
-- [test_cuts](test_cuts/README.md) tests dynamic generation of constraints
+- `test_cuts` tests dynamic generation of constraints
 
-- [test_dual](test_dual/README.md) tests correct signs of dual variables
-  (never to be given for granted, every LP solver seems to have a different
-  idea about it)
+- `test_dual` tests correct signs of dual variables (never to be given for
+  granted, every LP solver seems to have a different idea about it)
 
-- [test_dynamic](test_dynamic/README.md) compares two `:MILPSolver` for
-  the repeated solution of LPs changing everything that can be changed,
-  useful to test a new `:MILPSolver` against an old and hopefully reliable
-  one
+- `test_dynamic` compares two `:MILPSolver` for the repeated solution of LPs
+  changing everything that can be changed, useful to test a new `:MILPSolver`
+  against an old and hopefully reliable one
 
 
 ## Getting help
