@@ -138,6 +138,9 @@ class PIPSMILPSolver : public MILPSolver {
  /// returns a valid upper bound on the optimal objective function value
  OFValue get_ub( void ) override;
 
+ /// writes the current solution in the Block
+ void get_var_solution( Configuration * solc = nullptr ) override;
+
  /// Clears the current PIPS tree/interface and the base MILPSolver data.
  void clear_problem( unsigned int what ) override;
 

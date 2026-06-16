@@ -599,6 +599,41 @@ Solver::OFValue PIPSMILPSolver::get_ub( void )
 
 /*--------------------------------------------------------------------------*/
 
+void PIPSMILPSolver::get_var_solution( Configuration * solc )
+{
+ if( ! pips_interface )
+  throw( std::runtime_error( "PIPS problem has not been loaded" ) );
+
+ auto primalSolVec = pips_interface->gatherPrimalSolution();
+ int rank = 0;
+ MPI_Comm_rank( MPI_COMM_WORLD , &rank );
+ if( rank != 0 )
+  return;
+
+ std::vector< double > x( numcols , 0.0 );
+ std::size_t pips_pos = 0;
+
+ for( Index id = 0 ; id < n_nodes ; ++id )
+  for( auto * var : varNode[ id ] ) {
+   if( pips_pos >= primalSolVec.size() )
+    throw( std::runtime_error( "PIPS primal solution vector is too short" ) );
+
+   auto col = index_of_variable( var );
+   if( col < 0 || col >= numcols )
+    throw( std::runtime_error( "PIPS primal solution variable has no column" ) );
+
+   x[ col ] = primalSolVec[ pips_pos++ ];
+  }
+
+ if( pips_pos != primalSolVec.size() )
+  throw( std::runtime_error( "PIPS primal solution vector has unexpected extra "
+                             "entries" ) );
+
+ MILPSolver::write_var_solution( x );
+}
+
+/*--------------------------------------------------------------------------*/
+
 void PIPSMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( what );
