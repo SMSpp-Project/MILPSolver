@@ -566,10 +566,10 @@ class PIPSMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 
  /// PIPS distributed problem tree owned by this solver.
- DistributedInputTree * pips_tree;
+ pipsipmpp::DistributedInputTree * pips_tree;
 
  /// PIPS solver interface owned by this solver.
- PIPSIPMppInterface * pips_interface;
+ pipsipmpp::PIPSIPMppInterface * pips_interface;
 
  /// Number of PIPS nodes: 0 is root, 1..n_nodes-1 are leaves.
  Index n_nodes = 0;
@@ -653,7 +653,7 @@ class PIPSMILPSolver : public MILPSolver {
  void reset_pips_data();
 
  /// Converts PIPS-IPM++ status codes into SMS++ solver status codes.
- static int decode_pips_status( TerminationStatus status );
+ static int decode_pips_status( pipsipmpp::TerminationStatus status );
 
  SMSpp_insert_in_factory_h;
 

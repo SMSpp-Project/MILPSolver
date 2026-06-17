@@ -30,6 +30,8 @@
 
 #include "PIPSMILPSolver.h"
 
+#include "mpi_debug.h"
+
 #include "PIPS_maps.h"
 
 #ifdef MILPSOLVER_DEBUG
@@ -43,6 +45,11 @@
 /*--------------------------------------------------------------------------*/
 
 using namespace SMSpp_di_unipi_it;
+
+using pipsipmpp::DistributedInputTree;
+using pipsipmpp::PIPSIPMppInterface;
+using pipsipmpp::TerminationStatus;
+using pipsipmpp::MPIErrorHandler;
 
 /*
  * Anonymous namespace for file-local debug/printing utilities.
@@ -699,7 +706,7 @@ int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
 
  switch( status ) {
   case( TerminationStatus::READ_ERROR ):
-  case( TerminationStatus::UNKNOWN ) :
+  case( TerminationStatus::SLOW_CONVERGENCE ) :
   case( TerminationStatus::DID_NOT_RUN ):
   case( TerminationStatus::NOT_FINISHED ):
   case( TerminationStatus::STOPPED_AFTER_PRESOLVE ):
@@ -777,7 +784,7 @@ void PIPSMILPSolver::set_par( idx_type par , int value )
   // that the SILENT parameter in PIPS has an opposite behaviour with respect
   // to the other solvers. So we must switch the value
   if( Pp == "SILENT" ){
-    pipsipmpp_options::set_parameter( Pp , value == 0 );
+    pipsipmpp::options::set_parameter( Pp , value == 0 );
     return;
   }
 
@@ -785,16 +792,16 @@ void PIPSMILPSolver::set_par( idx_type par , int value )
   // option could be a boolean one in PIPS.
   if( value == 0 || value == 1 ) {
    try {
-    pipsipmpp_options::set_parameter( Pp , value );
+    pipsipmpp::options::set_parameter( Pp , value );
     return;
    }
    catch( const std::runtime_error & ) {
-    pipsipmpp_options::set_parameter( Pp , value != 0 );
+    pipsipmpp::options::set_parameter( Pp , value != 0 );
     return;
    }
   }
 
-  pipsipmpp_options::set_parameter( Pp , value );
+  pipsipmpp::options::set_parameter( Pp , value );
   return;
   }
 
@@ -815,7 +822,7 @@ void PIPSMILPSolver::set_par( idx_type par , double value )
  Pp = pips_dbl_par_map( par );
 
  if( Pp.size() > 0 ) {
-  pipsipmpp_options::set_parameter( Pp , value );
+  pipsipmpp::options::set_parameter( Pp , value );
   return;
   }
 
@@ -835,12 +842,12 @@ void PIPSMILPSolver::set_par( idx_type par , std::string && value )
  // PIPS parameters
  if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
   std::string pips_par = SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ];
-  pipsipmpp_options::set_parameter( pips_par , value );
+  pipsipmpp::options::set_parameter( pips_par , value );
   return;
   }
 
  if( par == strOutputFile )
-  pipsipmpp_options::set_parameter( "WRITE_ORIGINAL_PROBLEM_TO_LP" , 
+  pipsipmpp::options::set_parameter( "WRITE_ORIGINAL_PROBLEM_TO_LP" , 
                                       value );
 
  MILPSolver::set_par( par, std::move( value ) );
@@ -875,7 +882,7 @@ int PIPSMILPSolver::get_dflt_int_par( idx_type par ) const
 
  std::string Pp = pips_int_par_map( par );
  if( Pp.size() > 0 ) {
-   int value = pipsipmpp_options::get_int_parameter( Pp );
+   int value = pipsipmpp::options::get_int_parameter( Pp );
    return( value );
   }
 
@@ -893,7 +900,7 @@ double PIPSMILPSolver::get_dflt_dbl_par( idx_type par ) const
 
  std::string Pp = pips_dbl_par_map( par );
  if( Pp.size() > 0 ) {
-   double value = pipsipmpp_options::get_double_parameter( Pp );
+   double value = pipsipmpp::options::get_double_parameter( Pp );
    return( value );
   }
 
@@ -909,7 +916,7 @@ const std::string & PIPSMILPSolver::get_dflt_str_par( idx_type par ) const
  if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
   std::string pips_par = SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ];
   value.reserve( 512 );
-  value = pipsipmpp_options::get_string_parameter( pips_par );
+  value = pipsipmpp::options::get_string_parameter( pips_par );
 
   return( value );
   }
@@ -925,7 +932,7 @@ int PIPSMILPSolver::get_int_par( idx_type par ) const
 
  std::string Pp = pips_int_par_map( par );
  if( Pp.size() > 0 ) {
-   int value = pipsipmpp_options::get_int_parameter( Pp );
+   int value = pipsipmpp::options::get_int_parameter( Pp );
    return( value );
   }
 
@@ -943,7 +950,7 @@ double PIPSMILPSolver::get_dbl_par( idx_type par ) const
 
  std::string Pp = pips_dbl_par_map( par );
  if( Pp.size() > 0 ) {
-   double value = pipsipmpp_options::get_double_parameter( Pp );
+   double value = pipsipmpp::options::get_double_parameter( Pp );
    return( value );
   }
 
@@ -959,7 +966,7 @@ const std::string & PIPSMILPSolver::get_str_par( idx_type par ) const
  if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
   std::string pips_par = SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ];
   value.reserve( 512 );
-  value = pipsipmpp_options::get_string_parameter( pips_par );
+  value = pipsipmpp::options::get_string_parameter( pips_par );
 
   return( value );
   }
