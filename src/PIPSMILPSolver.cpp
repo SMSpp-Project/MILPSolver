@@ -699,7 +699,8 @@ int PIPSMILPSolver::guts_of_compute( void )
 
 int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
 {
- DEBUG_LOG( "pips_interface.run() returned " << status << std::endl );
+ DEBUG_LOG( "pips_interface.run() returned " << static_cast< int >( status ) 
+              << std::endl );
 
  /* The following are the symbols that may represent the status of
  * a PIPS solution as returned by pips_interface.run(). */
