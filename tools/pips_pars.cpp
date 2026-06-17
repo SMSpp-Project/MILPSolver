@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <fstream>
@@ -104,6 +105,27 @@ std::string basename( const std::string & p )
 
 /*--------------------------------------------------------------------------*/
 
+/// Adds a non-empty path to a candidate list
+void add_candidate( std::vector< std::string > & candidates ,
+                    const std::string & candidate )
+{
+ if( ! candidate.empty() )
+  candidates.push_back( candidate );
+}
+
+/*--------------------------------------------------------------------------*/
+
+/// Adds an environment variable value to a candidate list, if it is defined
+void add_env_candidate( std::vector< std::string > & candidates ,
+                        const char * env )
+{
+ const char * value = std::getenv( env );
+ if( value && *value )
+  add_candidate( candidates , value );
+}
+
+/*--------------------------------------------------------------------------*/
+
 /// Finds the PIPS-IPM/Core/Options directory from a user-supplied path
 std::string normalize_source_path( const std::string & p )
 {
@@ -129,17 +151,43 @@ std::string normalize_source_path( const std::string & p )
 /// Finds the PIPS-IPM/Core/Options directory automatically
 std::string find_source_path()
 {
- const std::vector< std::string > candidates = {
+ std::vector< std::string > candidates;
+
+ add_env_candidate( candidates , "PIPSIPMPP_ROOT" );
+ add_env_candidate( candidates , "PIPS_ROOT" );
+ add_env_candidate( candidates , "PIPSIPM_ROOT" );
+
+ const char * home = std::getenv( "HOME" );
+ if( home && *home ) {
+  const std::string home_path = strip_trailing_slash( home );
+  add_candidate( candidates , home_path + "/pips-ipmpp" );
+  add_candidate( candidates , home_path + "/PIPS-IPMpp" );
+  add_candidate( candidates , home_path + "/PIPS-IPM++" );
+  add_candidate( candidates , home_path + "/smspp-project/pips-ipmpp" );
+  add_candidate( candidates , home_path + "/smspp-project/PIPS-IPMpp" );
+  add_candidate( candidates , home_path + "/smspp-project/PIPS-IPM++" );
+ }
+
+ const std::vector< std::string > local_candidates = {
   ".",
   "..",
   "../..",
   "PIPS-IPM/Core/Options",
   "../PIPS-IPM/Core/Options",
   "../../PIPS-IPM/Core/Options",
+  "pips-ipmpp/PIPS-IPM/Core/Options",
+  "../pips-ipmpp/PIPS-IPM/Core/Options",
+  "../../pips-ipmpp/PIPS-IPM/Core/Options",
   "PIPS-IPMpp/PIPS-IPM/Core/Options",
   "../PIPS-IPMpp/PIPS-IPM/Core/Options",
-  "../../PIPS-IPMpp/PIPS-IPM/Core/Options"
+  "../../PIPS-IPMpp/PIPS-IPM/Core/Options",
+  "PIPS-IPM++/PIPS-IPM/Core/Options",
+  "../PIPS-IPM++/PIPS-IPM/Core/Options",
+  "../../PIPS-IPM++/PIPS-IPM/Core/Options"
  };
+
+ candidates.insert( candidates.end() , local_candidates.begin() ,
+                    local_candidates.end() );
 
  for( const auto & c : candidates ) {
   try {
