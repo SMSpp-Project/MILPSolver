@@ -328,18 +328,15 @@ class PIPSMILPSolver : public MILPSolver {
   const std::vector< int > & selectedCols ,
   const int nCols ) const;
 
- /// Extracts and validates a matrix block while building the callback cache.
- CSRMatrix build_cached_matrix(
-  int id , const char * name ,
-  const std::vector< const FRowConstraint * > & rows ,
-  const std::vector< const ColVariable * > & cols ) const;
+ /// Copies a selected matrix block into the arrays supplied by PIPS.
+ int ExtractMatrix( int id , int * krowM , int * jcolM , double * M ,
+                    const std::vector< const FRowConstraint * > & node_cons ,
+                    const std::vector< const ColVariable * > & vars ) const;
 
- /// Builds every matrix block requested by PIPS callbacks.
- void build_matrix_cache();
-
- /// Copies a cached matrix block into the arrays supplied by PIPS.
- static int copy_cached_matrix( const CSRMatrix & matrix , int * krowM ,
-                                int * jcolM , double * M );
+ /// Counts the nonzeros of a selected PIPS matrix block.
+ int EvaluateNnz( int id , int * nnz ,
+                  const std::vector< const FRowConstraint * > & node_cons ,
+                  const std::vector< const ColVariable * > & vars ) const;
 
  /// Computes global MILPSolver row indices for a set of constraints.
  std::vector< int > compute_cons_global_idxs(
@@ -609,18 +606,6 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Global linking inequality constraints.
  std::vector< const FRowConstraint * > LinkInEqCons;
-
- /// CSR blocks prepared once per load and copied by the PIPS callbacks.
- struct NodeMatrixCache {
-  CSRMatrix eq_diag;
-  CSRMatrix eq_vert;
-  CSRMatrix ineq_diag;
-  CSRMatrix ineq_vert;
-  CSRMatrix link_eq;
-  CSRMatrix link_ineq;
- };
-
- std::vector< NodeMatrixCache > matrix_cache;
 
  bool mpi_initialized_by_this_solver = false;
 
