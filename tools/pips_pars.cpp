@@ -566,6 +566,47 @@ std::string extract_string_literal( const std::string & arg )
 
 /*--------------------------------------------------------------------------*/
 
+/// Returns true if the argument looks like a numeric floating-point literal
+bool is_floating_literal( const std::string & arg )
+{
+ const std::string value = trim( arg );
+
+ if( value.find( "std::numeric_limits<double>" ) != std::string::npos )
+  return( true );
+
+ static const std::regex floating_regex(
+  R"((^|[^A-Za-z0-9_])([+-]?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+))([^A-Za-z0-9_]|$))" );
+
+ if( std::regex_search( value , floating_regex ) )
+  return( true );
+
+ // Some PIPS defaults are expressions built from a double variable.
+ return( value.find( "feastol" ) != std::string::npos );
+}
+
+/*--------------------------------------------------------------------------*/
+
+/// Returns true if add_parameter's possible-values argument is string-valued
+bool has_string_possible_values( const std::string & arg )
+{
+ const std::string value = trim( arg );
+
+ if( value.empty() )
+  return( false );
+
+ // Inline initializer lists for string-valued enumerations look like
+ // {{"none", "..."}, {"iterref", "..."}}
+ if( value.find( "{{\"" ) != std::string::npos ||
+     value.find( "{ {\"" ) != std::string::npos )
+  return( true );
+
+ // PIPS stores the linear solver alternatives in a string-valued helper.
+ return( value == "possible_solvers" ||
+         value.find( "get_solver_possibles" ) != std::string::npos );
+}
+
+/*--------------------------------------------------------------------------*/
+
 /// Parses PIPS-IPM++ add_parameter(...) registrations.
 void parse_add_parameter_calls( const std::string & text ,
                             std::map< int , std::string > & int_parameters ,
@@ -611,11 +652,11 @@ void parse_add_parameter_calls( const std::string & text ,
 
    if( ! name.empty() ) {
     const bool is_string = default_value.find( "std::string" ) != std::string::npos ||
-                           ( ! default_value.empty() && default_value[ 0 ] == '"' );
+                           ( ! default_value.empty() && default_value[ 0 ] == '"' ) ||
+                           ( args.size() >= 5 &&
+                             has_string_possible_values( args[ 4 ] ) );
     const bool is_bool = default_value == "true" || default_value == "false";
-    const bool is_double = default_value.find( '.' ) != std::string::npos ||
-                           default_value.find( 'e' ) != std::string::npos ||
-                           default_value.find( 'E' ) != std::string::npos;
+    const bool is_double = is_floating_literal( default_value );
 
     if( is_string ) {
      if( str_seen.insert( name ).second )
