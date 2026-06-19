@@ -13,9 +13,9 @@ NAME = test_pips
 DIR = .
 
 # common stuff, following tests/TwoStageStochasticBlock
-include ../tests/makefile_common
+include ../../tests/makefile_common
 
-include ../extlib/makefile-default-paths-linux
+include ../../extlib/makefile-default-paths-linux
 
 # define input macros for SMS++ complete makefile, then include it
 SMS++SDR = ../../SMS++
