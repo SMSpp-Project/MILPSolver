@@ -42,7 +42,6 @@ Defaults:
 Example using the MUMPS-based PIPS configuration:
 
 ```bash
-LD_LIBRARY_PATH=/home/enrico/pips-ipmpp/ThirdPartyLibs/PARDISO/src \
 ./test_pips EC_CO_Test.nc4 BSCfg1-PIPS-MUMPS.txt primal_solution_mumps.txt \
 > test_pips_mumps_run.log 2>&1
 ```
