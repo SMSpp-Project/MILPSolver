@@ -49,7 +49,7 @@ include $(MILPSSDR)/../extlib/makefile-libSCIP
 include $(MILPSSDR)/../extlib/makefile-libHiGHS
 
 # include makefile for libPIPS
-include $(MILPSSDR)/../smspp-project/extlib/makefile-libPIPS
+include $(MILPSSDR)/../extlib/makefile-libPIPS
 
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
