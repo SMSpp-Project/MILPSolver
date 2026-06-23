@@ -15,11 +15,11 @@ DIR = .
 # local build flags: keep this test independent from tests/makefile_common,
 # whose default flags may be compiler-specific. PIPS needs MPI headers/libs, so
 # use the MPI C++ wrapper by default.
-CC ?= mpicxx
+CC = mpicxx
 
-COMMON_SW ?= -std=c++20 -Wno-enum-compare -Wno-deprecated-declarations
-SW_DEBUG ?= -g3 -ggdb -fno-inline $(COMMON_SW)
-SW_RELEASE ?= -O3 $(COMMON_SW) -DNDEBUG
+COMMON_SW = -std=c++20 -Wno-enum-compare -Wno-deprecated-declarations
+SW_DEBUG = -g3 -ggdb -fno-inline $(COMMON_SW)
+SW_RELEASE = -O3 $(COMMON_SW) -DNDEBUG
 
 # default target
 
