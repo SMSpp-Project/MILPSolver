@@ -9,7 +9,9 @@ The test:
 - runs the first solver registered on the root block;
 - prints the solver log and final status information to standard output;
 - asks the solver to write the primal solution back into the SMS++ variables;
-- dumps all `ColVariable` values in the block tree to a text file.
+- dumps all `ColVariable` values in the block tree to a text file;
+- asks the solver to write the dual solution back into the SMS++ constraints;
+- dumps all `FRowConstraint` dual values in the block tree to a text file.
 
 ## Build
 
@@ -30,19 +32,20 @@ currently `debug`. Use `make release` when measuring timings.
 General syntax:
 
 ```bash
-./test_pips [instance.nc4] [BlockSolverConfig.txt] [solution.txt]
+./test_pips [instance.nc4] [BlockSolverConfig.txt] [primal.txt] [dual.txt]
 ```
 
 Defaults:
 
 ```bash
-./test_pips EC_CO_Test.nc4 BSCfg1-PIPS.txt primal_solution.txt
+./test_pips EC_CO_Test.nc4 BSCfg1-PIPS.txt primal_solution.txt dual_solution.txt
 ```
 
 Example using the MUMPS-based PIPS configuration:
 
 ```bash
-./test_pips EC_CO_Test.nc4 BSCfg1-PIPS-MUMPS.txt primal_solution_mumps.txt \
+./test_pips EC_CO_Test.nc4 BSCfg1-PIPS-MUMPS.txt \
+  primal_solution_mumps.txt dual_solution_mumps.txt \
 > test_pips_mumps_run.log 2>&1
 ```
 
@@ -71,12 +74,18 @@ Upper_bound
 Objective
 ```
 
-The primal solution file is tab-separated and has the following columns:
+Both solution files are tab-separated. The primal solution file has the following columns:
 
 ```text
 block_path  kind  group  index  address  value
 ```
 
+The dual solution file has the following columns:
+
+```text
+block_path  kind  group  index  address  dual
+```
+
 `block_path` identifies the block in the nested SMS++ block tree. `kind` is
-`static` or `dynamic`, and `group`/`index` identify the variable location within
-that block.
+`static` or `dynamic`, and `group`/`index` identify the variable or constraint
+location within that block.
