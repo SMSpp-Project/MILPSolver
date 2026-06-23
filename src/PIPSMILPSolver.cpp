@@ -327,6 +327,11 @@ void PIPSMILPSolver::load_problem( void )
  if( numquadrows > 0 )
   throw( std::runtime_error( "PIPS cannot solve QCP models" ) );
 
+ if( int_vars > 0 )
+  throw( std::runtime_error(
+   "PIPSMILPSolver can only solve LP models: integer variables are present. "
+   "Set intRelaxIntVars to true to solve the continuous relaxation." ) );
+
  // Clear PIPS structures derived from any previously loaded Block.
  reset_pips_data();
 
