@@ -12,9 +12,9 @@ tools/pips_pars
 tools/.headers.stamp
 
 # Test binaries
-test_cuts/cuts_test
-test_dynamic/dynamic_test
-test_dual/dual_test
+test/test_cuts
+test/test_dual
+test/test_dynamic
 
 # Generated headers (from solver SDKs)
 include/*_defs.h
@@ -66,6 +66,7 @@ _deps/
 *.iml
 *.iws
 out/
+*.xcodeproj
 
 # --- OS junk ------------------------------------------------
 .DS_Store

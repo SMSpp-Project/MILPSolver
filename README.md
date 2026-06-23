@@ -3,7 +3,7 @@
 A generic MILP Solver meta-interface for SMS++, with modules for interfacing
 with some actual solvers. Supports `LinearFunction`, `DQuadFunction` (diagonal
 quadratic) and `QuadFunction` (general quadratic, both the last cases not
-necessariy convex) both in the `FRealObjective` and in the `FRowConstraint`,
+necessarily convex) both in the `FRealObjective` and in the `FRowConstraint`,
 so it is actually an interface for MI-QCQP in its full generality.
 
 The `MILPSolver` base class (deriving from `CDASolver` for the case when the
@@ -20,7 +20,7 @@ i.e.:
 
 - all inner `Function` in the `FRealObjective` and `FRowConstraint` are
   `LinearFunction` or `DQuadFunction` (diagonal quadratic) or `QuadFunction`
-  (general quadratic, both the last cases not necessariy convex)
+  (general quadratic, both the last cases not necessarily convex)
 
 However, `MILPSolver` only reads the abstract representation and prepares
 data structures representing the classic (sparse) coefficient matrix of
@@ -43,7 +43,7 @@ Currently available derived classes are:
 - `SCIPMILPSolver`, providing the interface with the open-source
   [SCIP](https://www.scipopt.org) (note that since version 8.0.3 SCIP is
   "truly" FOSS by dint of being distributed under the Apache 2.0 License as
-  opposed to the previous academic license preventing roialty-free commercial
+  opposed to the previous academic license preventing royalty-free commercial
   use)
 
 - `GRBMILPSolver`, providing the interface with the commercial
@@ -53,7 +53,7 @@ Currently available derived classes are:
   [HiGHS](https://highs.dev)
 
 Basically all current versions of the underlying solvers should be supported
-due to a mechanism that automatically generate *\_defs.h and *\_maps.h files
+due to a mechanism that automatically generates *\_defs.h and *\_maps.h files
 for the version found in the system either when installing with cmake or when
 compiling with make (see below for details). However, older versions may fail
 due to changes in the interface. Should this happen, just upgrade to newer
@@ -145,7 +145,7 @@ to include a "main makefile" of the module, which typically is either
 libraries but not the "core SMS++" one (for the common case in which this is
 used together with other modules that already include them). If you want to
 exclude some specific `:MILPSolver` from being compiled you have to go in
-[makefile](makefile), [makefile-c](makefile-c) and [makefile-](makefile-s)
+[makefile](makefile), [makefile-c](makefile-c) and [makefile-s](makefile-s)
 (depending on which one of the latter two is used) and comment out all the
 lines mentioning it. Don't bother about the `$(*H)`, `$(*INC)` etc. variables
 (assuming you would) since if they are not defined they are empty and
@@ -164,12 +164,12 @@ for further details.
 
 ## Tools
 
-`CPXMILPSolver` , `SCIPMILPSolver` , `GRBMILPSolver` and `HiGHSMILPSolver` 
-support, respectively, CPLEX , SCIP , GUROBI and HiGHS parameter names in 
+`CPXMILPSolver` , `SCIPMILPSolver` , `GRBMILPSolver` and `HiGHSMILPSolver`
+support, respectively, CPLEX , SCIP , GUROBI and HiGHS parameter names in
 the `Configuration` files. To do so, they need header files *\_defs.h and
 *\_maps.h that depend on  the versions of CPLEX , SCIP , GUROBI and HiGHS
 currently installed on the system. Such headers can be generated with the
-`cpx_pars` , `scip_pars` , `grb_pars` and `high_pars` executables in the
+`cpx_pars` , `scip_pars` , `grb_pars` and `highs_pars` executables in the
 [tools](tools) folder. This is done automatically by cmake / make, so you
 should not bother about it. However, if you change the version of the
 underlying solver you may want to delete the corresponding *\_defs.h and
@@ -178,19 +178,17 @@ underlying solver you may want to delete the corresponding *\_defs.h and
 
 ## Testers
 
-The repo includes some testers that may be useful for someone willing to
-write other `:MILPSolver`:
+The [test](test/README.md) folder includes some testers that may be useful
+for someone willing to write other `:MILPSolver`:
 
-- [test_cuts](test_cuts/README.md) tests dynamic generation of constraints
+- `test_cuts` tests dynamic generation of constraints
 
-- [test_dual](test_dual/README.md) tests correct signs of dual variables
-  (never to be given for granted, every LP solver seems to have a different
-  idea about it)
+- `test_dual` tests correct signs of dual variables (never to be given for
+  granted, every LP solver seems to have a different idea about it)
 
-- [test_dynamic](test_dynamic/README.md) compares two `:MILPSolver` for
-  the repeted solution of LPs changing everything that can be changed,
-  useful to test a new `:MILPSolver` against an old an hopefully reliable
-  one
+- `test_dynamic` compares two `:MILPSolver` for the repeated solution of LPs
+  changing everything that can be changed, useful to test a new `:MILPSolver`
+  against an old and hopefully reliable one
 
 
 ## Getting help

@@ -109,7 +109,7 @@ void test_lower( Objective::of_type sense , const bool frow_constraint ) {
  // Solver
 
  auto lpbsc = dynamic_cast< BlockSolverConfig * >(
-		     Configuration::deserialize( "LPPar.txt" ) );
+		     Configuration::deserialize( "LPPar-dual.txt" ) );
  if( ! lpbsc ) {
   std::cerr << "Error: configuration file not a BlockSolverConfig" << std::endl;
   exit( 1 );    
@@ -197,7 +197,7 @@ void test_upper( Objective::of_type sense , const bool frow_constraint ) {
  // Solver
 
  auto lpbsc = dynamic_cast< BlockSolverConfig * >(
-		     Configuration::deserialize( "LPPar.txt" ) );
+		     Configuration::deserialize( "LPPar-dual.txt" ) );
  if( ! lpbsc ) {
   std::cerr << "Error: configuration file not a BlockSolverConfig" << std::endl;
   exit( 1 );    
@@ -279,7 +279,7 @@ void test_equality( Objective::of_type sense , const bool frow_constraint ) {
  // Solver
 
  auto lpbsc = dynamic_cast< BlockSolverConfig * >(
-		     Configuration::deserialize( "LPPar.txt" ) );
+		     Configuration::deserialize( "LPPar-dual.txt" ) );
  if( ! lpbsc ) {
   std::cerr << "Error: configuration file not a BlockSolverConfig" << std::endl;
   exit( 1 );    

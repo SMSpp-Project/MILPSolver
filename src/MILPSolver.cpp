@@ -37,6 +37,10 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <map>
+
+#include <set>
+
 #include <LinearFunction.h>
 
 #include "MILPSolver.h"
@@ -271,10 +275,16 @@ void MILPSolver::load_problem( void )
    }
 
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
+   // count each constraint the variable is active in ONCE: a variable may
+   // appear more than once in the same constraint (so active_stuff() lists
+   // it more than once), but it contributes a single matrix entry (with the
+   // coefficients summed); see the matching coalescing in scan_variable()
+   std::set< const FRowConstraint * > seen;
    for( auto * i : var.active_stuff() )
     if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
       if( is_mine( row->get_Block() ) )
-       ++nzelements;
+       if( seen.insert( row ).second )
+        ++nzelements;
    };
 
   for( const auto & i : qb->get_static_variables() )
@@ -1571,67 +1581,50 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
 
  // Get linear active constraints
  auto active_constraints = get_active_constraints( var );
- int nz_elements = active_constraints.size();
 
  /* We have to check wheter we have quadratic constraints in the model or not.
   * If the model is LP, then matbeg, matcnt, ... store the matrix coefficients
   * grouped by column. */
  if( numquadrows == 0 ) {
-  matcnt[ col ] = nz_elements;
-
-  if( col == 0 )
-   matbeg[ col ] = 0;
-  else
-   matbeg[ col ] = matbeg[ col - 1 ] + matcnt[ col - 1 ];
-
-  for( int j = 0 ; j < nz_elements ; ++j ) {
-   auto * con = active_constraints[ j ];
+  // coalesce the column: one matrix entry per DISTINCT constraint the
+  // variable is active in, with coefficient = the SUM of all of the
+  // variable's coefficients in that constraint. A variable may legitimately
+  // appear more than once in a single LinearFunction (e.g. in some AC
+  // network formulations): emitting one (row, col) entry per occurrence is
+  // both wrong (the coefficients must add up, not repeat) and rejected by
+  // some backends (HiGHS >= 1.14 errors on duplicate row indices). The
+  // std::map keeps the entries sorted by row index, as the solvers expect;
+  // it stays consistent with the distinct count of the nzelements counter.
+  std::map< int , double > col_entries;
+  for( auto * con : active_constraints ) {
+   const int row = index_of_constraint( con );
+   if( col_entries.count( row ) )
+    continue;                  // this constraint has already been summed
    auto * f = static_cast< const LinearFunction * >( con->get_function() );
-   auto it = std::find_if( f->get_v_var().begin() , f->get_v_var().end() ,
-                          [ & ]( LinearFunction::coeff_pair pair ) {
-                           return( pair.first == &var );
-                           } );
-
-   if( it != f->get_v_var().end() ) {
-    matval[ matbeg[ col ] + j ] = it->second;
-    matind[ matbeg[ col ] + j ] = index_of_constraint( con );
-    }
-   else
-    // This should never happen since we are looping on the active contraints
+   double coeff = 0;
+   bool found = false;
+   for( const auto & pr : f->get_v_var() )
+    if( pr.first == & var ) {
+     coeff += pr.second;
+     found = true;
+     }
+   if( ! found )
+    // this should never happen since we loop on the active constraints
     throw( std::invalid_argument(
 	   "This ColVariable is not active in the examined FRowConstraint" ) );
-  }
-
-  /* If the DEBUG is activated, we can check wether a variable appears 
-   * multiple times in a single constraint, which will clearly produce
-   * an error in later stage of the process. */
-  #ifdef MILPSolver_DEBUG
-    if( nz_elements > 0 ){
-      // Create a vector containing only the indices of active constraints
-      std::vector<int> idx_ac(nz_elements); 
-      std::copy( matind.begin() + matbeg[ col ], 
-                  matind.begin() + matbeg[ col ] + nz_elements, idx_ac.begin());
-
-      // Now sort the vector with respect to the constraint indices
-      std::sort( idx_ac.begin(), idx_ac.end() );
-
-      // Now check there are no repeated indices
-      for( int j = 0 ; j < nz_elements - 1 ; ++j ){
-        if( idx_ac[ j ] == idx_ac[ j + 1 ] ){
-          // Error message
-          std::string msg = std::string("MILPSolver Error [")
-            + __func__ + "]: Variable with index " + std::to_string( col )
-            + " repeated multiple times in constraint with index " +
-            std::to_string( idx_ac[ j ] ) + ".\n"; 
-
-          // Print warning message in MILPSolver DEBUG
-          DEBUG_LOG( msg.c_str() );
-        }
-      }
+   col_entries[ row ] = coeff;
    }
-  #endif
 
- }
+  matcnt[ col ] = col_entries.size();
+  matbeg[ col ] = ( col == 0 ) ? 0 : matbeg[ col - 1 ] + matcnt[ col - 1 ];
+
+  Index j = 0;
+  for( const auto & [ row , coeff ] : col_entries ) {
+   matind[ matbeg[ col ] + j ] = row;
+   matval[ matbeg[ col ] + j ] = coeff;
+   ++j;
+   }
+  }
  ++col;
  }
 

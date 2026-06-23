@@ -1037,7 +1037,7 @@ int main( int argc , char **argv )
  // do it by using a single a BlockSolverConfig, read from file
  
  auto lpbsc = dynamic_cast< BlockSolverConfig * >(
-		     Configuration::deserialize( "LPPar.txt" ) );
+		     Configuration::deserialize( "LPPar-dynamic.txt" ) );
  if( ! lpbsc ) {
   cerr << "Error: configuration file not a BlockSolverConfig" << endl;
   exit( 1 );    
