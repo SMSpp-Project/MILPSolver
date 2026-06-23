@@ -10,7 +10,8 @@
  * - runs the first Solver registered on the root Block;
  * - prints status, time, iterations, and objective information;
  * - asks the Solver to write the primal solution back into the Block variables;
- * - dumps all ColVariable values in the Block tree to a text file.
+ * - dumps all ColVariable values in the Block tree to a text file;
+ * - optionally dumps all FRowConstraint dual values in the Block tree to a text file.
  */
 /*--------------------------------------------------------------------------*/
 
@@ -28,7 +29,9 @@
 #include <Block.h>
 #include <BlockInspection.h>
 #include <BlockSolverConfig.h>
+#include <CDASolver.h>
 #include <ColVariable.h>
+#include <FRowConstraint.h>
 #include <Configuration.h>
 #include <Solver.h>
 
@@ -184,15 +187,90 @@ std::size_t dump_primal_solution( const Block * block ,
 
 /*--------------------------------------------------------------------------*/
 
+void dump_block_constraints( const Block * block , const std::string & path ,
+                             std::ofstream & out , std::size_t & count )
+{
+ const auto & static_cons = block->get_static_constraints();
+ for( Block::Index group = 0 ; group < static_cons.size() ; ++group ) {
+  const auto size =
+   inspection::get_element_size< FRowConstraint >( block , true , group );
+  if( size == Inf< Block::Index >() )
+   continue;
+
+  for( Block::Index index = 0 ; index < size ; ++index ) {
+   auto * con =
+    inspection::get_element< FRowConstraint >( block , true , group , index );
+   if( ! con )
+    continue;
+
+   out << path << "\tstatic\t" << group << "\t" << index << "\t"
+       << static_cast< const void * >( con ) << "\t"
+       << std::setprecision( 17 ) << con->get_dual() << "\n";
+   ++count;
+   }
+  }
+
+ const auto & dynamic_cons = block->get_dynamic_constraints();
+ for( Block::Index group = 0 ; group < dynamic_cons.size() ; ++group ) {
+  const auto size =
+   inspection::get_element_size< FRowConstraint >( block , false , group );
+  if( size == Inf< Block::Index >() )
+   continue;
+
+  for( Block::Index index = 0 ; index < size ; ++index ) {
+   auto * con =
+    inspection::get_element< FRowConstraint >( block , false , group , index );
+   if( ! con )
+    continue;
+
+   out << path << "\tdynamic\t" << group << "\t" << index << "\t"
+       << static_cast< const void * >( con ) << "\t"
+       << std::setprecision( 17 ) << con->get_dual() << "\n";
+   ++count;
+   }
+  }
+
+ const auto & nested = block->get_nested_Blocks();
+ for( Block::Index index = 0 ; index < nested.size() ; ++index ) {
+  if( ! nested[ index ] )
+   continue;
+
+  dump_block_constraints( nested[ index ] ,
+                          path + "/" + std::to_string( index ) + ":" +
+                           nested[ index ]->classname() ,
+                          out , count );
+  }
+}
+
+/*--------------------------------------------------------------------------*/
+
+std::size_t dump_dual_solution( const Block * block ,
+                                const std::string & dual_solution_file )
+{
+ std::ofstream out( dual_solution_file );
+ if( ! out )
+  throw( std::runtime_error( "cannot open dual solution file " +
+                             dual_solution_file ) );
+
+ out << "# block_path\tkind\tgroup\tindex\taddress\tdual\n";
+
+ std::size_t count = 0;
+ dump_block_constraints( block , "root:" + block->classname() , out , count );
+ return( count );
+}
+
+/*--------------------------------------------------------------------------*/
+
 void usage( const char * exe )
 {
  std::cerr
   << "usage: " << exe
-  << " [instance.nc4] [BlockSolverConfig.txt] [solution.txt]\n\n"
+  << " [instance.nc4] [BlockSolverConfig.txt] [primal.txt] [dual.txt]\n\n"
   << "defaults:\n"
-  << "  instance.nc4           EC_CO_Test.nc4\n"
-  << "  BlockSolverConfig.txt  BSCfg1-PIPS.txt\n"
-  << "  solution.txt           primal_solution.txt\n";
+  << "  instance.nc4           TSSB_EC_CO_Test.nc4\n"
+  << "  BlockSolverConfig.txt  BSCfg1.txt\n"
+  << "  primal.txt             primal_solution.txt\n"
+  << "  dual.txt               dual_solution.txt\n";
 }
 
 /*--------------------------------------------------------------------------*/
@@ -211,13 +289,16 @@ int main( int argc , char ** argv )
    }
 
   const std::string instance_file = argc > 1 ? argv[ 1 ] : "EC_CO_Test.nc4";
-  const std::string config_file = argc > 2 ? argv[ 2 ] : "BSCfg1-PIPS.txt";
+  const std::string config_file = argc > 2 ? argv[ 2 ] : "BSCfg1.txt";
   const std::string solution_file =
    argc > 3 ? argv[ 3 ] : "primal_solution.txt";
+  const std::string dual_solution_file =
+   argc > 4 ? argv[ 4 ] : "dual_solution.txt";
 
   std::cout << "Instance:      " << instance_file << "\n"
             << "Solver config: " << config_file << "\n"
-            << "Solution file: " << solution_file << "\n";
+            << "Primal file:   " << solution_file << "\n"
+            << "Dual file:     " << dual_solution_file << "\n";
 
   std::unique_ptr< Block > block( Block::deserialize( instance_file ) );
   if( ! block )
@@ -262,9 +343,21 @@ int main( int argc , char ** argv )
    const auto n_values = dump_primal_solution( block.get() , solution_file );
    std::cout << "Wrote " << n_values << " primal variable values to "
              << solution_file << "\n";
+
+   auto * cda_solver = dynamic_cast< CDASolver * >( solver );
+   if( cda_solver && cda_solver->has_dual_solution() ) {
+    cda_solver->get_dual_solution();
+    const auto n_duals =
+     dump_dual_solution( block.get() , dual_solution_file );
+    std::cout << "Wrote " << n_duals << " row dual values to "
+              << dual_solution_file << "\n";
+    }
+   else {
+    std::cout << "No dual solution available; dual solution file not written.\n";
+    }
    }
   else {
-   std::cout << "No primal solution available; solution file not written.\n";
+   std::cout << "No primal solution available; solution files not written.\n";
    }
 
   block->unregister_Solvers( true );
