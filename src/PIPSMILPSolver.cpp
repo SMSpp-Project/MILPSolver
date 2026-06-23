@@ -639,6 +639,101 @@ void PIPSMILPSolver::get_var_solution( Configuration * solc )
 
 /*--------------------------------------------------------------------------*/
 
+bool PIPSMILPSolver::has_dual_solution( void )
+{
+ return( pips_interface && sol_status == kOK );
+}
+
+/*--------------------------------------------------------------------------*/
+
+bool PIPSMILPSolver::is_dual_feasible( void )
+{
+ return( has_dual_solution() );
+}
+
+/*--------------------------------------------------------------------------*/
+
+void PIPSMILPSolver::get_dual_solution( Configuration * solc )
+{
+ if( ! pips_interface )
+  throw( std::runtime_error( "PIPS problem has not been loaded" ) );
+
+ auto eq_dual = pips_interface->gatherDualSolutionEq();
+ auto ineq_dual = pips_interface->gatherDualSolutionIneq();
+ auto var_bound_dual = pips_interface->gatherDualSolutionVarBounds();
+
+ int rank = 0;
+ MPI_Comm_rank( MPI_COMM_WORLD , &rank );
+ if( rank != 0 )
+  return;
+
+ std::vector< double > pi( numrows , 0.0 );
+ std::vector< double > rc( numcols , 0.0 );
+ // PIPS always receives a minimization model; rescale duals back to the
+ // original SMS++ objective sense.
+ const double dual_scale = objsense;
+
+ auto scatter_rows = [ this , & pi , dual_scale ](
+  const std::vector< double > & source , std::size_t & pips_pos ,
+  const std::vector< const FRowConstraint * > & rows , const char * name ) {
+
+  const auto global_rows = compute_cons_global_idxs( rows );
+
+  for( auto row : global_rows ) {
+   if( pips_pos >= source.size() )
+    throw( std::runtime_error( std::string( "PIPS " ) + name +
+                               " dual vector is too short" ) );
+
+   if( row < 0 || row >= numrows )
+    throw( std::runtime_error( std::string( "PIPS " ) + name +
+                               " dual row has no MILPSolver row" ) );
+
+   pi[ row ] = dual_scale * source[ pips_pos++ ];
+  }
+ };
+
+ // PIPS gathers node-local rows first, then appends the global linking rows.
+ std::size_t pips_pos = 0;
+ for( Index id = 0 ; id < n_nodes ; ++id )
+  scatter_rows( eq_dual , pips_pos , EqConsNode[ id ] , "equality" );
+ scatter_rows( eq_dual , pips_pos , LinkEqCons , "linking equality" );
+
+ if( pips_pos != eq_dual.size() )
+  throw( std::runtime_error( "PIPS equality dual vector has unexpected extra "
+                             "entries" ) );
+
+ pips_pos = 0;
+ for( Index id = 0 ; id < n_nodes ; ++id )
+  scatter_rows( ineq_dual , pips_pos , InEqConsNode[ id ] , "inequality" );
+ scatter_rows( ineq_dual , pips_pos , LinkInEqCons , "linking inequality" );
+
+ if( pips_pos != ineq_dual.size() )
+  throw( std::runtime_error( "PIPS inequality dual vector has unexpected extra "
+                             "entries" ) );
+
+ pips_pos = 0;
+ for( Index id = 0 ; id < n_nodes ; ++id )
+  for( auto * var : varNode[ id ] ) {
+   if( pips_pos >= var_bound_dual.size() )
+    throw( std::runtime_error( "PIPS reduced-cost vector is too short" ) );
+
+   auto col = index_of_variable( var );
+   if( col < 0 || col >= numcols )
+    throw( std::runtime_error( "PIPS reduced-cost variable has no column" ) );
+
+   rc[ col ] = dual_scale * var_bound_dual[ pips_pos++ ];
+  }
+
+
+ if( pips_pos != var_bound_dual.size() )
+  throw( std::runtime_error( "PIPS reduced-cost vector has unexpected extra "
+                             "entries" ) );
+
+ MILPSolver::write_dual_solution( pi , rc );
+}
+
+/*--------------------------------------------------------------------------*/
+
 void PIPSMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( what );

@@ -141,6 +141,15 @@ class PIPSMILPSolver : public MILPSolver {
  /// writes the current solution in the Block
  void get_var_solution( Configuration * solc = nullptr ) override;
 
+ /// returns true if PIPS has a dual solution available
+ bool has_dual_solution( void ) override;
+
+ /// returns true if the current PIPS solution is dual feasible
+ bool is_dual_feasible( void ) override;
+
+ /// writes the current dual solution in the Block
+ void get_dual_solution( Configuration * solc = nullptr ) override;
+
  /// Clears the current PIPS tree/interface and the base MILPSolver data.
  void clear_problem( unsigned int what ) override;
 
