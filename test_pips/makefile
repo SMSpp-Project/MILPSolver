@@ -12,8 +12,35 @@ NAME = test_pips
 # basic directory
 DIR = .
 
-# common stuff, following tests/ structure
-include ../../tests/makefile_common
+# local build flags: keep this test independent from tests/makefile_common,
+# whose default flags may be compiler-specific. PIPS needs MPI headers/libs, so
+# use the MPI C++ wrapper by default.
+CC ?= mpicxx
+
+COMMON_SW ?= -std=c++20 -Wno-enum-compare -Wno-deprecated-declarations
+SW_DEBUG ?= -g3 -ggdb -fno-inline $(COMMON_SW)
+SW_RELEASE ?= -O3 $(COMMON_SW) -DNDEBUG
+
+# default target
+
+default: release
+
+# debug target
+
+debug: SW = $(SW_DEBUG)
+debug: $(DIR)/$(NAME)
+
+# release target
+
+release: SW = $(SW_RELEASE)
+release: $(DIR)/$(NAME)
+
+# clean target
+
+clean::
+	rm -f $(DIR)/*.o $(DIR)/*~ $(DIR)/$(NAME)
+
+.PHONY: default debug release clean
 
 # define input macros for SMS++ complete makefile, then include it
 SMS++SDR ?= ../../SMS++
