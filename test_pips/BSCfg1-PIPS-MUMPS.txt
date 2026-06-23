@@ -35,12 +35,13 @@ PARDISO_FOR_GLOBAL_SC  0    # do not use Panua PARDISO for global Schur compleme
 # now all the double parameters
 dblRelAcc  1e-8      # relative accuracy required to solution
 
-3 # number of string parameters
+4 # number of string parameters
 
 # now all the string parameters
 LINEAR_LEAF_SOLVER      mumps
 LINEAR_ROOT_SOLVER      mumps
 LINEAR_SUB_ROOT_SOLVER  mumps
+SCALER geometricmean
 
 0 # number of vector-of-int parameters
 
