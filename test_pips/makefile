@@ -12,13 +12,11 @@ NAME = test_pips
 # basic directory
 DIR = .
 
-# common stuff, following tests/TwoStageStochasticBlock
+# common stuff, following tests/ structure
 include ../../tests/makefile_common
 
-include ../../extlib/makefile-default-paths-linux
-
 # define input macros for SMS++ complete makefile, then include it
-SMS++SDR = ../../SMS++
+SMS++SDR ?= ../../SMS++
 include $(SMS++SDR)/lib/makefile-c
 
 # MILPSolver
@@ -26,7 +24,7 @@ MILPSSDR = ..
 include $(MILPSSDR)/makefile-s
 
 # UCBlock, needed to deserialize EC/UC nc4 instances through the Block factory
-UCBckDIR = ../../UCBlock
+UCBckDIR ?= ../../UCBlock
 include $(UCBckDIR)/lib/makefile
 
 # main module
