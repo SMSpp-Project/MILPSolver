@@ -48,7 +48,7 @@ include $(SMS++SDR)/lib/makefile-c
 
 # MILPSolver
 MILPSSDR = ..
-include $(MILPSSDR)/makefile-s
+include $(MILPSSDR)/makefile-s-pips.txt
 
 # UCBlock, needed to deserialize EC/UC nc4 instances through the Block factory
 UCBckDIR ?= ../../UCBlock

@@ -10,7 +10,7 @@
 include $(MILPSSDR)/../extlib/makefile-libPIPS
 
 # include the PIPS-only MILPSolver object rules
-include $(MILPSSDR)/makefile-pips
+include $(MILPSSDR)/makefile-pips.txt
 
 # append external PIPS include directives
 MILPSINC := $(MILPSINC) $(libPIPSINC)
