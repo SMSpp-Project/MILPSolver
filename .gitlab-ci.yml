@@ -36,9 +36,18 @@ build:
       - test_dynamic/*
       - tools/*
       - CMakeLists.txt
+      - .gitlab-ci.yml
 
 test:
   stage: test
+  before_script:
+    # write the Gurobi WLS license from the masked CI/CD variables, if set
+    - |
+      if [ -n "$GRB_WLSSECRET" ]; then
+        printf 'LICENSEID=%s\nWLSACCESSID=%s\nWLSSECRET=%s\n' \
+          "$GRB_LICENSEID" "$GRB_WLSACCESSID" "$GRB_WLSSECRET" > /tmp/gurobi.lic
+        export GRB_LICENSE_FILE=/tmp/gurobi.lic
+      fi
   script:
     - ctest -V -C Release -L "$CI_PROJECT_NAME" --test-dir smspp-project/build
   only:
@@ -54,6 +63,7 @@ test:
       - test_dynamic/*
       - tools/*
       - CMakeLists.txt
+      - .gitlab-ci.yml
 
 deploy:
   stage: deploy

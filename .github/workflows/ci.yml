@@ -46,6 +46,18 @@ jobs:
       - name: Build
         run: cmake --build smspp-project/build --target install -- -j$(nproc)
 
+      - name: Write the Gurobi WLS license, if the secrets are set
+        env:
+          GRB_LICENSEID: ${{ secrets.GRB_LICENSEID }}
+          GRB_WLSACCESSID: ${{ secrets.GRB_WLSACCESSID }}
+          GRB_WLSSECRET: ${{ secrets.GRB_WLSSECRET }}
+        run: |
+          if [ -n "$GRB_WLSSECRET" ]; then
+            printf 'LICENSEID=%s\nWLSACCESSID=%s\nWLSSECRET=%s\n' \
+              "$GRB_LICENSEID" "$GRB_WLSACCESSID" "$GRB_WLSSECRET" > /tmp/gurobi.lic
+            echo "GRB_LICENSE_FILE=/tmp/gurobi.lic" >> "$GITHUB_ENV"
+          fi
+
       - name: Test
         # Mirror the GitLab CI, single-sourced: if this module's .gitlab-ci.yml
         # runs a labelled ctest (ctest ... -L ...), run exactly that set here,
