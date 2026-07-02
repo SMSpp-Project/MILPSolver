@@ -49,7 +49,7 @@ test:
         export GRB_LICENSE_FILE=/tmp/gurobi.lic
       fi
   script:
-    - ctest -V -C Release -L "$CI_PROJECT_NAME" --test-dir smspp-project/build
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" --test-dir smspp-project/build --no-tests=error
   only:
     refs:
       - develop
