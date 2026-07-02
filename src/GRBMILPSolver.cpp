@@ -2067,7 +2067,10 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
 
-   //GRBupdatemodel( model );
+   // flush the pending attribute changes: attribute queries only see the
+   // model as of the last update, so a later read-modify-write of the same
+   // coefficients would otherwise fetch stale values and lose this change
+   GRBupdatemodel( model );
    return;
    }
 
@@ -2126,12 +2129,12 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      auto cidx = grb_index_of_variable( static_cast< const ColVariable * >( v ) );
      *(cidxit++) = cidx ;
-      
+
      // Retrieve old linear coefficient
      double oldlinval;
      GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit ); 
+     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
 
      // quadratic coefficients need be changed one at a time
      double q_delta = std::get< 1 >( *dcoeffit );
@@ -2144,8 +2147,11 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    nval.resize( nsz );
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidxs.size() , cidxs.data() , nval.data());
-   
-   //GRBupdatemodel( model );
+
+   // flush the pending attribute changes: attribute queries only see the
+   // model as of the last update, so a later read-modify-write of the same
+   // coefficients would otherwise fetch stale values and lose this change
+   GRBupdatemodel( model );
    return;
    }
   else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
@@ -2169,12 +2175,12 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      int cidx = grb_index_of_variable( dynamic_cast< ColVariable * >( v ) );
      *(cidxit++) = cidx;
-      
+
      // Retrieve old linear coefficient
      double oldlinval;
      GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit ); 
+     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
 
      // quadratic coefficients need be changed one at a time
      double q_delta = std::get< 1 >( *dcoeffit );
