@@ -7,7 +7,12 @@
  * PIPSMILPSolver is an SMS++ MILPSolver interface for PIPS-IPM++.
  * The solver builds a two-level PIPS DistributedInputTree from an SMS++ Block
  * hierarchy and provides all matrix/vector data to PIPS through callbacks.
+ *
+ * NOTE: PIPS-IPM++ currently does not support modifications to any model
+ * elements. Therefore, if any modification is issued in SMS++, the model is
+ * cleared and reconstructed from scratch.
  */
+
 /*--------------------------------------------------------------------------*/
 
 #ifndef __PIPSMILPSOLVER_H
@@ -152,6 +157,17 @@ class PIPSMILPSolver : public MILPSolver {
 
  /// Clears the current PIPS tree/interface and the base MILPSolver data.
  void clear_problem( unsigned int what ) override;
+
+ /// marks the PIPS model for a full rebuild after any Modification
+ void var_modification( const VariableMod * mod ) override;
+ void objective_modification( const ObjectiveMod * mod ) override;
+ void const_modification( const ConstraintMod * mod ) override;
+ void bound_modification( const OneVarConstraintMod * mod ) override;
+ void objective_function_modification( const FunctionMod * mod ) override;
+ void constraint_function_modification( const FunctionMod * mod ) override;
+ void objective_fvars_modification( const FunctionModVars * mod ) override;
+ void constraint_fvars_modification( const FunctionModVars * mod ) override;
+ void dynamic_modification( const BlockModAD * mod ) override;
 
  /** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/

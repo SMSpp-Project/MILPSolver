@@ -287,6 +287,43 @@ PIPSMILPSolver::~PIPSMILPSolver()
 }
 
 /*--------------------------------------------------------------------------*/
+
+void PIPSMILPSolver::reset_pips_data()
+{
+ delete pips_interface;
+ pips_interface = nullptr;
+
+ delete pips_tree;
+ pips_tree = nullptr;
+
+ n_nodes = 0;
+ nodes_subtrees.clear();
+ blockToleaf.clear();
+
+ n_varNode.clear();
+ varNode.clear();
+ n_EqConsNode.clear();
+ EqConsNode.clear();
+ n_InEqConsNode.clear();
+ InEqConsNode.clear();
+
+ n_LinkEqCons = 0;
+ LinkEqCons.clear();
+ n_LinkInEqCons = 0;
+ LinkInEqCons.clear();
+
+ var_to_node.clear();
+}
+
+/*--------------------------------------------------------------------------*/
+
+void PIPSMILPSolver::clear_problem( unsigned int what )
+{
+ MILPSolver::clear_problem( what );
+ reset_pips_data();
+}
+
+/*--------------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -321,6 +358,18 @@ void PIPSMILPSolver::set_Block( Block * block )
 
 void PIPSMILPSolver::load_problem( void )
 {
+ // PIPS keeps the MILPSolver arrays alive for callbacks, so clear any
+ // previous generated representation before rebuilding it from the Block.
+ reset_pips_data();
+ MILPSolver::clear_problem( 15 );
+ constant_value = 0;
+ int_vars = 0;
+ numnnzq = 0;
+ q_part.clear();
+ ndq_objective.clear();
+ ndq_rowind.clear();
+ ndq_colind.clear();
+
  // Call MILPSolver to generate the entire LP problem
  MILPSolver::load_problem();
 
@@ -609,6 +658,63 @@ Solver::OFValue PIPSMILPSolver::get_ub( void )
 
 /*--------------------------------------------------------------------------*/
 
+int PIPSMILPSolver::guts_of_compute( void )
+{
+ // Note: locking, process_modifications() and the LP cut separation loop
+ // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
+ // This method is only responsible for the actual PIPS-IPM++ call.
+
+ // if required, write the problem to file- - - - - - - - - - - - - - - - - -
+ // This should have already been done in set_par
+
+ // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ sol_status = decode_pips_status( pips_interface->run() );
+
+ return( sol_status );
+
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
+{
+ DEBUG_LOG( "pips_interface.run() returned " << static_cast< int >( status ) 
+              << std::endl );
+
+ /* The following are the symbols that may represent the status of
+ * a PIPS solution as returned by pips_interface.run(). */
+
+ switch( status ) {
+  case( TerminationStatus::READ_ERROR ):
+  case( TerminationStatus::SLOW_CONVERGENCE ) :
+  case( TerminationStatus::DID_NOT_RUN ):
+  case( TerminationStatus::NOT_FINISHED ):
+  case( TerminationStatus::STOPPED_AFTER_PRESOLVE ):
+   // Some error happened.
+   return( kError );
+  case( TerminationStatus::TIMELIMIT ):
+   // Time limit exceeded
+   return( kStopTime );
+  case( TerminationStatus::INFEASIBLE ):
+   // Problem is infeasible.
+   return( kInfeasible );
+  case( TerminationStatus::UNBOUNDED ):
+   // Problem has been proven unbounded.
+   return( kUnbounded );
+  case( TerminationStatus::MAX_ITS_EXCEEDED ):
+   // Iteration limit has been reached;
+   return( kStopIter );
+  case( TerminationStatus::SUCCESSFUL_TERMINATION ):
+   // Compilation terminated succesfully
+   return( kOK );
+  default:;
+  }
+
+ throw( std::runtime_error( "pips_interface.run() returned unknown status." ) );
+}
+
+/*--------------------------------------------------------------------------*/
+
 void PIPSMILPSolver::get_var_solution( Configuration * solc )
 {
  if( ! pips_interface )
@@ -739,96 +845,65 @@ void PIPSMILPSolver::get_dual_solution( Configuration * solc )
 
 /*--------------------------------------------------------------------------*/
 
-void PIPSMILPSolver::clear_problem( unsigned int what )
+void PIPSMILPSolver::var_modification( const VariableMod * )
 {
- MILPSolver::clear_problem( what );
- reset_pips_data();
+ f_reset = true;
 }
 
 /*--------------------------------------------------------------------------*/
 
-void PIPSMILPSolver::reset_pips_data()
+void PIPSMILPSolver::objective_modification( const ObjectiveMod * )
 {
- delete pips_interface;
- pips_interface = nullptr;
-
- delete pips_tree;
- pips_tree = nullptr;
-
- n_nodes = 0;
- nodes_subtrees.clear();
- blockToleaf.clear();
-
- n_varNode.clear();
- varNode.clear();
- n_EqConsNode.clear();
- EqConsNode.clear();
- n_InEqConsNode.clear();
- InEqConsNode.clear();
-
- n_LinkEqCons = 0;
- LinkEqCons.clear();
- n_LinkInEqCons = 0;
- LinkInEqCons.clear();
-
- var_to_node.clear();
+ f_reset = true;
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::guts_of_compute( void )
+void PIPSMILPSolver::const_modification( const ConstraintMod * )
 {
- // Note: locking, process_modifications() and the LP cut separation loop
- // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
- // This method is only responsible for the actual PIPS-IPM++ call.
-
- // if required, write the problem to file- - - - - - - - - - - - - - - - - -
- // This should have already been done in set_par
-
- // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
- sol_status = decode_pips_status( pips_interface->run() );
-
- return( sol_status );
-
-}  
+ f_reset = true;
+}
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
+void PIPSMILPSolver::bound_modification( const OneVarConstraintMod * )
 {
- DEBUG_LOG( "pips_interface.run() returned " << static_cast< int >( status ) 
-              << std::endl );
+ f_reset = true;
+}
 
- /* The following are the symbols that may represent the status of
- * a PIPS solution as returned by pips_interface.run(). */
+/*--------------------------------------------------------------------------*/
 
- switch( status ) {
-  case( TerminationStatus::READ_ERROR ):
-  case( TerminationStatus::SLOW_CONVERGENCE ) :
-  case( TerminationStatus::DID_NOT_RUN ):
-  case( TerminationStatus::NOT_FINISHED ):
-  case( TerminationStatus::STOPPED_AFTER_PRESOLVE ):
-   // Some error happened.
-   return( kError );
-  case( TerminationStatus::TIMELIMIT ):
-   // Time limit exceeded
-   return( kStopTime );
-  case( TerminationStatus::INFEASIBLE ):
-   // Problem is infeasible.
-   return( kInfeasible );
-  case( TerminationStatus::UNBOUNDED ):
-   // Problem has been proven unbounded.
-   return( kUnbounded );
-  case( TerminationStatus::MAX_ITS_EXCEEDED ):
-   // Iteration limit has been reached;
-   return( kStopIter );
-  case( TerminationStatus::SUCCESSFUL_TERMINATION ):
-   // Compilation terminated succesfully
-   return( kOK );
-  default:;
-  }
+void PIPSMILPSolver::objective_function_modification( const FunctionMod * )
+{
+ f_reset = true;
+}
 
- throw( std::runtime_error( "pips_interface.run() returned unknown status." ) );
+/*--------------------------------------------------------------------------*/
+
+void PIPSMILPSolver::constraint_function_modification( const FunctionMod * )
+{
+ f_reset = true;
+}
+
+/*--------------------------------------------------------------------------*/
+
+void PIPSMILPSolver::objective_fvars_modification( const FunctionModVars * )
+{
+ f_reset = true;
+}
+
+/*--------------------------------------------------------------------------*/
+
+void PIPSMILPSolver::constraint_fvars_modification( const FunctionModVars * )
+{
+ f_reset = true;
+}
+
+/*--------------------------------------------------------------------------*/
+
+void PIPSMILPSolver::dynamic_modification( const BlockModAD * )
+{
+ f_reset = true;
 }
 
 /*--------------------------------------------------------------------------*/

@@ -1163,6 +1163,12 @@ class MILPSolver : public CDASolver
  *  to guarantee a direct link between variables and bound. */
  bool single_bound = false;
 
+ /* if true, the model should be cleared and re-loaded. This parameter
+  * can be useful when some Modifications are issued but they are not
+  * handled by the specialized *MILPSolver. In this case, the model
+  * should be reconstructed from scratch. */
+ bool f_reset = false;
+
   /* if true, modification on constraints are enabled. This parameter can
   *  be useful when dealing with quadratic constraint, where Modification 
   * from some Solver (e.g. CPLEX) are not allowed. */
