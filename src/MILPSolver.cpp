@@ -112,6 +112,7 @@ void MILPSolver::clear_problem( unsigned int what )
   matind.clear();
   matval.clear();
   xctype.clear();
+  q_part.clear();
 
   for( auto & i: colname )
    delete[] i;
@@ -124,6 +125,9 @@ void MILPSolver::clear_problem( unsigned int what )
  if( what & 2u ) {
   objective.clear();
   q_objective.clear();
+  ndq_objective.clear();
+  ndq_rowind.clear();
+  ndq_colind.clear();
   }
 
  if( what & 4u ) {
@@ -142,6 +146,9 @@ void MILPSolver::clear_problem( unsigned int what )
 
 void MILPSolver::load_problem( void )
 {
+ // Clean any left-up structures
+ clear_problem( 15 );
+ 
  numrows = 0;
  numcols = 0;
  static_vars = 0;
@@ -152,6 +159,12 @@ void MILPSolver::load_problem( void )
  Index nst_quadrow = 0;
  Index ndy_linrow = 0;
  Index ndy_quadrow = 0;
+
+ constant_value = 0;
+ int_vars = 0;
+ numquadrows = 0;
+ numnnzq = 0;
+ objsense = 0;
 
  // locking the Block
  bool owned = f_Block->is_owned_by( f_id );
