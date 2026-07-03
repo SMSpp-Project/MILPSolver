@@ -67,6 +67,11 @@ std::string log_vector( const std::vector< T > & v, int limit = 10 );
 template<>
 std::string log_vector( const std::vector< char > & v, int limit );
 
+static bool is_PIPSMILPSolver( const MILPSolver * solver )
+{
+ return( solver->classname() == "PIPSMILPSolver" );
+}
+
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- SET_BLOCK -------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -2118,8 +2123,13 @@ void MILPSolver::process_modifications( void )
  for( ; ; )                 // process all the Modification loop
   if( auto mod = pop() ) {  // get next Modification, if any
    auto pmod = mod.get();   // down to regular Modification *
-   if( dynamic_cast< const NBModification * >( pmod ) ) {
-    load_problem();         // an NBModification: reload everything
+   const bool nbmod = dynamic_cast< const NBModification * >( pmod );
+   if( nbmod || is_PIPSMILPSolver( this ) ) {
+    if( ( ! nbmod ) && f_log && ( log_verbosity >= 1 ) )
+     *f_log << "PIPSMILPSolver: Modification handled by reconstructing "
+            << "the entire problem from scratch, as PIPS is an interior "
+            << "point solver." << std::endl;
+    load_problem();         // reload everything
     mod_clear();            // all the remaining Modification must be ignored
     break;                  // all done
     }
