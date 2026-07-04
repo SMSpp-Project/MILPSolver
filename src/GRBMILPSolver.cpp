@@ -81,6 +81,10 @@ GRBMILPSolver::GRBMILPSolver( void ) :
 
  GRBsetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , 0 );
  // suppress Gurobi logging
+
+ // always have Farkas / unbounded-ray certificates available,
+ // mirroring CPLEX where CPXdualfarkas() needs no prior opt-in
+ GRBsetintparam( env , GRB_INT_PAR_INFUNBDINFO , 1 );
  
  status = GRBstartenv( env );
  if( status != 0 )
@@ -1471,8 +1475,30 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  if( status_proof != 0 || status_y != 0 )
   throw( std::runtime_error( "an error occurred in getting Farkas certificate" ) );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , tot_grb_vars , dj_grb.data() ) )
-  throw( std::runtime_error( "Unable to get reduced costs querying the attribute GBL_RC") );
+ // TEMP-PATCH: Farkas-consistent reduced costs dj = c - A' y (same as
+ // CPXdjfrompi() in CPXMILPSolver): the RC attribute refers to the last
+ // simplex iterate w.r.t. the original objective and is unrelated to the
+ // Farkas certificate.
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_OBJ , 0 , tot_grb_vars , dj_grb.data() ) )
+  throw( std::runtime_error( "Unable to get objective coefficients (GRB_DBL_ATTR_OBJ)") );
+
+ {
+  int nnz = 0;
+  if( GRBgetvars( model , & nnz , nullptr , nullptr , nullptr , 0 , tot_grb_vars ) )
+   throw( std::runtime_error( "GRBgetvars (count) failed" ) );
+  std::vector< int > vbeg( tot_grb_vars , 0 );
+  std::vector< int > vind( nnz , 0 );
+  std::vector< double > vval( nnz , 0 );
+  if( nnz > 0 &&
+      GRBgetvars( model , & nnz , vbeg.data() , vind.data() , vval.data() ,
+                  0 , tot_grb_vars ) )
+   throw( std::runtime_error( "GRBgetvars failed" ) );
+  for( int j = 0 ; j < tot_grb_vars ; ++j ) {
+   int end = ( j + 1 < tot_grb_vars ) ? vbeg[ j + 1 ] : nnz;
+   for( int k = vbeg[ j ] ; k < end ; ++k )
+    dj_grb[ j ] -= vval[ k ] * y[ vind[ k ] ];
+   }
+  }
 
  if( tot_grb_vars == numcols ) // there are no auxiliary variables in Gurobi
   dj = dj_grb;
