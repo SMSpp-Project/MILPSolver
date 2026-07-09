@@ -18,7 +18,12 @@ build:
     - ssh-add <(echo "$SMSPP_DEPLOY_KEY")
     - mkdir -p ~/.ssh && ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
     - if [ -d smspp-project ]; then (cd smspp-project && git pull && git submodule update --recursive); else git clone --branch develop git@gitlab.com:smspp/smspp-project.git; fi
-    - cmake -S smspp-project -B smspp-project/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MILPSolver=ON -DBUILD_tests=ON
+    # BundleSolver is explicitly OFF because the cached umbrella clone may have
+    # it initialized from an earlier run, and the umbrella auto-enables any
+    # already-present submodule; MILPSolver must stay agnostic and not build it.
+    # Once the runner cache is refreshed (BundleSolver de-initialized) this
+    # explicit -DBUILD_BundleSolver=OFF can be dropped again.
+    - cmake -S smspp-project -B smspp-project/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MILPSolver=ON -DBUILD_BundleSolver=OFF -DBUILD_tests=ON
     - cmake --build smspp-project/build --target install
   artifacts:
     paths:
