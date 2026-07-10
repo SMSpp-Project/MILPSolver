@@ -45,6 +45,12 @@ build:
 
 test:
   stage: test
+  # the academic Gurobi WLS license caps concurrent sessions: a test job may
+  # abort at startup with "GRBstartenv returned with status 10030" when other
+  # Gurobi-heavy pipelines hold the sessions. Retry to ride out the contention.
+  retry:
+    max: 2
+    when: script_failure
   timeout: 24h
   before_script:
     # write the Gurobi WLS license from the masked CI/CD variables, if set
