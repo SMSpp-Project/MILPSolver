@@ -17,14 +17,20 @@
 # --------------------------------------------------------------------------- #
 cmake_minimum_required(VERSION 3.21)
 cmake_policy(VERSION 3.15)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DeriveVersion.cmake)
+smspp_derive_version(SMSPP_MODULE_VERSION)
+
 project(MILPSolver
-        VERSION 0.8.0
+        VERSION ${SMSPP_MODULE_VERSION}
         DESCRIPTION "SMS++ MILPSolver module"
         HOMEPAGE_URL https://gitlab.com/smspp/milpsolver
         LANGUAGES C CXX)
 
 # These variables make the code harder to read but easier to change.
 set(modName ${PROJECT_NAME})
+
+# C-safe form of modName for the preprocessor macros in <modName>Config.h
+string(MAKE_C_IDENTIFIER "${modName}" modMacro)
 set(modNamespace "SMS++")
 
 # Find out if it's being called by the umbrella.
@@ -137,6 +143,7 @@ target_sources(${modName} PRIVATE src/MILPSolver.cpp)
 target_include_directories(
         ${modName} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
         $<INSTALL_INTERFACE:include/${modNamespace}>)
 
 # When linking other targets to the library with target_link_libraries(),

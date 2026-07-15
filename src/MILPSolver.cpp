@@ -149,6 +149,7 @@ void MILPSolver::load_problem( void )
  static_vars = 0;
  static_cons = 0;
  static_quadcons = 0;
+ constant_value = 0;
  Index nzelements = 0;
  Index nst_linrow = 0;
  Index nst_quadrow = 0;

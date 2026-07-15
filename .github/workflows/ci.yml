@@ -67,9 +67,28 @@ jobs:
         # every repo and never needs per-module changes: the recipe lives in
         # .gitlab-ci.yml.
         run: |
-          if grep -qE 'ctest .* -L ' .gitlab-ci.yml; then
-            ctest --test-dir smspp-project/build -L "${GITHUB_REPOSITORY##*/}" \
-                  -V -C Release --no-tests=error
-          else
-            echo "no labelled tests for ${GITHUB_REPOSITORY##*/}; build-only CI"
-          fi
+          run_tests() {
+            if grep -qE 'ctest .* -L ' .gitlab-ci.yml; then
+              ctest --test-dir smspp-project/build -L "${GITHUB_REPOSITORY##*/}" \
+                    -V -C Release --no-tests=error
+            else
+              echo "no labelled tests for ${GITHUB_REPOSITORY##*/}; build-only CI"
+            fi
+          }
+          # the academic Gurobi WLS license caps concurrent sessions; during a
+          # push wave a job can abort with "GRBstartenv ... status 10030". Retry
+          # ONLY on that transient cap (a real test failure fails immediately, so
+          # no re-runs are wasted). GitHub Actions has no native job retry.
+          log=smspp-project/build/Testing/Temporary/LastTest.log
+          for attempt in 1 2 3 4 5 6; do
+            if run_tests; then exit 0; fi
+            rc=$?
+            if [ -f "$log" ] && grep -qE 'status 10030|too many sessions|cannot initialize Gurobi' "$log"; then
+              echo "Gurobi WLS session cap hit (attempt $attempt/6); retrying after backoff..."
+              sleep 90
+              continue
+            fi
+            exit $rc
+          done
+          echo "Gurobi WLS session cap still hit after 6 attempts"
+          exit 1
