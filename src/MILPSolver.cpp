@@ -3755,7 +3755,11 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
    if( rhs_con && ( rc[ col ] <= 0 ) )
     rhs_con->set_dual( - rc[ col ] );
    else
-    if( lhs_con || rhs_con )
+    // interior-point solutions carry sign noise up to the dual feasibility
+    // tolerance on reduced costs: a tiny value of the "wrong" sign for the
+    // only existing bound means 0, which the duals of all the active bounds
+    // have just been set to, so only complain on a significant mismatch
+    if( ( lhs_con || rhs_con ) && ( std::abs( rc[ col ] ) > 1e-6 ) )
      throw( std::logic_error(
 	       "MILPSolver::write_dual_solution: invalid dual value" ) );
 
