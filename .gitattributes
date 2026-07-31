@@ -1,2 +1,2 @@
 *.py text eol=lf
-VERSION export-subst
+VERSION.txt export-subst

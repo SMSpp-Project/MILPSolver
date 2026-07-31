@@ -3571,23 +3571,25 @@ void MILPSolver::write_var_solution( const std::vector< double > & x )
   throw( std::invalid_argument( "write_var_solution: x too short" ) );
 
  int col = 0;
- int dcol = static_vars;
 
  auto set = [ & x , & col ]( ColVariable & v ) {
   v.set_value( x[ col++ ] );
   };
 
- auto setd = [ & x , & dcol ]( ColVariable & v ) {
-  v.set_value( x[ dcol++ ] );
-  };
-
  for( auto qb : v_BFS ) {
   for( const auto & vi : qb->get_static_variables() )
    un_any_const_static( vi , set , un_any_type< ColVariable >() );
-
-  for( const auto & vi : qb->get_dynamic_variables() )
-   un_any_const_dynamic( vi , setd , un_any_type< ColVariable >() );
   }
+
+ // Dynamic columns are appended to the solver in modification-arrival order,
+ // which is generally different from the block/BFS order above (for example,
+ // when bundle cuts are added to different PolyhedralFunctionBlock-s over
+ // time). idx_to_dvar is maintained in the actual solver-column order by
+ // add_dynamic_variable() / remove_dynamic_variable(), so it is the only
+ // reliable map for writing the dynamic part of the solution back.
+ for( std::size_t i = 0 ; i < idx_to_dvar.size() ; ++i )
+  const_cast< ColVariable * >( idx_to_dvar[ i ] )->set_value(
+                                                x[ static_vars + i ] );
  }  // end( MILPSolver::write_var_solution )
 
 /*--------------------------------------------------------------------------*/
@@ -3692,7 +3694,11 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
    if( rhs_con && ( rc[ col ] <= 0 ) )
     rhs_con->set_dual( - rc[ col ] );
    else
-    if( lhs_con || rhs_con )
+    // interior-point solutions carry sign noise up to the dual feasibility
+    // tolerance on reduced costs: a tiny value of the "wrong" sign for the
+    // only existing bound means 0, which the duals of all the active bounds
+    // have just been set to, so only complain on a significant mismatch
+    if( ( lhs_con || rhs_con ) && ( std::abs( rc[ col ] ) > 1e-6 ) )
      throw( std::logic_error(
 	       "MILPSolver::write_dual_solution: invalid dual value" ) );
 
