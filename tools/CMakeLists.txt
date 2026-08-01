@@ -196,4 +196,48 @@ if (MILPSolver_USE_HiGHS)
 
 endif ()
 
+if (MILPSolver_USE_PIPS)
+    set(PIPS_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/PIPS_defs.h)
+    set(PIPS_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/PIPS_maps.h)
+    set(PIPS_OPTIONS_SOURCE
+            ${PIPS_SOURCE_ROOT}/Core/Options/PIPSIPMppOptions.C)
+
+    if (CMAKE_CROSSCOMPILING)
+        add_custom_command(
+                OUTPUT ${PIPS_DEFS_FILE} ${PIPS_MAPS_FILE}
+                COMMAND /bin/sh -c
+                        "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
+                        CC='${_native_cc}' pips_pars"
+                COMMAND /bin/sh -c
+                        "'${CMAKE_CURRENT_SOURCE_DIR}/pips_pars' \
+                        -s '${PIPSIPMPP_ROOT}' '${MILPSolver_INCLUDE_DIR}'"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                DEPENDS ${PIPS_OPTIONS_SOURCE}
+                COMMENT "Running native pips_pars to generate necessary headers"
+                VERBATIM
+        )
+    else ()
+        # pips_pars parses the PIPS-IPM++ option sources directly and does not
+        # need to link against PIPS-IPM++ or SMS++.
+        add_executable(pips_pars pips_pars.cpp)
+        target_compile_features(pips_pars PRIVATE cxx_std_17)
+
+        add_custom_command(
+                OUTPUT ${PIPS_DEFS_FILE} ${PIPS_MAPS_FILE}
+                COMMAND "$<TARGET_FILE:pips_pars>"
+                        -s "${PIPSIPMPP_ROOT}" "${MILPSolver_INCLUDE_DIR}"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                DEPENDS pips_pars ${PIPS_OPTIONS_SOURCE}
+                COMMENT "Running pips_pars to generate necessary headers"
+                VERBATIM
+        )
+    endif ()
+
+    add_custom_target(generate_pips_headers
+            DEPENDS ${PIPS_DEFS_FILE} ${PIPS_MAPS_FILE}
+    )
+
+    add_dependencies(generate_headers generate_pips_headers)
+endif ()
+
 # --------------------------------------------------------------------------- #
