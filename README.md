@@ -82,7 +82,7 @@ These instructions will let you build MILPSolver on your system.
 
 - for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev)
 
-- for `PIPSMILPSolver` you will need [PIPS](https://pips-ipmpp.gitlab.io/index.html)
+- for `PIPSMILPSolver` you will need [PIPS-IPM++](https://pips-ipmpp.gitlab.io/index.html)
 
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
