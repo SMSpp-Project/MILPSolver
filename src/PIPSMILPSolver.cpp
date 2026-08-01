@@ -1541,9 +1541,8 @@ template< typename T >
 			      "unsupported multi_array type" ) );
   }
  else
-  throw( std::runtime_error(
-	  "PIPSMILPSolver::scan_multiarray_group: unsupported multi_array "
-	  "dimensionality " + std::to_string( ma_dim ) ) );
+  // Handle invalid or unsupported ma_dim 
+  return; 
 }
 
 /*--------------------------------------------------------------------------*/
