@@ -52,8 +52,11 @@ Currently available derived classes are:
 - `HiGHSMILPSolver`, providing the interface with the open-source
   [HiGHS](https://highs.dev)
 
-- `PIPSMILPSolver`, providing the interface with the open-source
-  [PIPS-IPM++](https://pips-ipmpp.gitlab.io/index.html)
+- `PIPSMILPSolver`, providing the interface with the open-source parallel
+  interior-point solver
+  [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp) (LP problems
+  only, Linux only; see also its
+  [website](https://pips-ipmpp.gitlab.io/index.html))
 
 Basically all current versions of the underlying solvers should be supported
 due to a mechanism that automatically generates *\_defs.h and *\_maps.h files
@@ -82,7 +85,12 @@ These instructions will let you build MILPSolver on your system.
 
 - for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev)
 
-- for `PIPSMILPSolver` you will need [PIPS-IPM++](https://pips-ipmpp.gitlab.io/index.html)
+- for `PIPSMILPSolver` you will need
+  [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp), which is only
+  available under Linux and requires an MPI implementation (note that
+  PIPS-IPM++ also needs a sparse linear solver: the fully open-source
+  route is MUMPS, while other backends, e.g. PARDISO or MA57, are
+  subject to licensing)
 
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
@@ -170,15 +178,16 @@ for further details.
 
 ## Tools
 
-All the available `*MILPSolvers` support the corresponding solver parameter
-names in the `Configuration` files. To do so, they need header files 
-*\_defs.h and *\_maps.h that depend on  the versions of the solver currently
-installed on the system. Such headers can be generated with the
-`cpx_pars` , `scip_pars` , `grb_pars`, `highs_pars` and `pips_pars` executables 
-in the [tools](tools) folder. This is done automatically by cmake / make, so you
-should not bother about it. However, if you change the version of the
-underlying solver you may want to delete the corresponding *\_defs.h and
-*\_maps.h header files so that they are rebuilt for the new one.
+All the available `:MILPSolver`s support the parameter names of the
+corresponding solver in the `Configuration` files. To do so, they need
+header files *\_defs.h and *\_maps.h that depend on the versions of the
+solver currently installed on the system. Such headers can be generated
+with the `cpx_pars` , `scip_pars` , `grb_pars` , `highs_pars` and
+`pips_pars` executables in the [tools](tools) folder. This is done
+automatically by cmake / make, so you should not bother about it. However,
+if you change the version of the underlying solver you may want to delete
+the corresponding *\_defs.h and *\_maps.h header files so that they are
+rebuilt for the new one.
 
 
 ## Testers

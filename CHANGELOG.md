@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- PIPSMILPSolver, providing the interface with the parallel
+  interior-point solver PIPS-IPM++ (LP problems, Linux only),
+  plus the pips\_pars header-generator tool
+
 ### Changed
 
 ### Fixed

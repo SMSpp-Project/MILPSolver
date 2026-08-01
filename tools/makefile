@@ -78,13 +78,13 @@ ifeq ($(strip $(MAKECMDGOALS)),)
     include $(DIR)/makefile_grb
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
-	include $(DIR)/makefile_pips
+    include $(DIR)/makefile_pips
 else ifneq ($(filter default debug release,$(MAKECMDGOALS)),)
     include $(DIR)/makefile_cpx
     include $(DIR)/makefile_grb
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
-	include $(DIR)/makefile_pips
+    include $(DIR)/makefile_pips
 else
     ifneq ($(filter cpx_pars,$(MAKECMDGOALS)),)
 		include $(DIR)/makefile_cpx

@@ -61,10 +61,16 @@ include $(MILPSSDR)/makefile
 # by the makefile, thus the := assignment has to be used (use GNU make)
 MILPSOBJ := $(MILPSOBJ) $(SMS++OBJ)
 MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libGUROBIINC) \
-	$(libHiGHSINC) $(libSCIPINC) $(libPIPSINC)
+	$(libHiGHSINC) $(libSCIPINC)
 
 # external libraries for MILPSolver
 MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB) \
-	$(libSCIPLIB) $(libPIPSLIB)
+	$(libSCIPLIB)
+
+# append PIPS-IPM++ flags only when its source tree is available
+ifneq ($(wildcard $(PIPSROOT)/Core/Interface/PIPSIPMppInterface.hpp),)
+    MILPSINC := $(MILPSINC) $(libPIPSINC)
+    MILPSLIB := $(MILPSLIB) $(libPIPSLIB)
+endif
 
 ############################ End of makefile #################################

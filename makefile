@@ -6,12 +6,12 @@
 #                                                                            #
 #   The makefile takes in input the -I directives for all the external       #
 #   libraries needed by MILPSolver, i.e., core SMS++ and those of all the    #
-#   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS). These are #
-#   *not* copied into $(MILPSINC): adding those -I directives to the compile #
-#   commands will have to done by whatever "main" makefile is using this.    #
-#   Analogously, any external library and the corresponding -L< libdirs >    #
-#   will have to be added to the final linking command by  whatever "main"   #
-#   makefile is using this.                                                  #
+#   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS and, on     #
+#   Linux, PIPS-IPM++). These are *not* copied into $(MILPSINC): adding      #
+#   those -I directives to the compile commands will have to done by         #
+#   whatever "main" makefile is using this. Analogously, any external        #
+#   library and the corresponding -L< libdirs > will have to be added to     #
+#   the final linking command by whatever "main" makefile is using this.     #
 #                                                                            #
 #   Note that, conversely, $(SMS++INC) is also assumed to include any        #
 #   -I directive corresponding to external libraries needed by SMS++, at     #
@@ -26,6 +26,7 @@
 #           $(libGUROBIINC) = the -I$( Gurobi library )                      #
 #           $(libSCIPINC)   = the -I$( SCIP library )                        #
 #           $(libHiGHSINC)  = the -I$( HiGHS library )                       #
+#           $(libPIPSINC)   = the -I$( PIPS-IPM++ library ), Linux only      #
 #           $(MILPSSDR)     = the directory where the source is              #
 #                                                                            #
 #   Output: $(MILPSOBJ)     = the final object(s) / library                  #
@@ -42,10 +43,15 @@
 TOOLSSDR := ./$(MILPSSDR)/tools
 STAMP := $(TOOLSSDR)/.headers.stamp
 
-# PIPS-IPM++ source tree, needed only by tools/pips_pars.
-# Override from the command line if your layout differs, e.g.
-#   make PIPSIPM_ROOT=/absolute/path/to/PIPS-IPMpp
-PIPSIPM_ROOT ?= $(PIPS_ROOT)
+# PIPS-IPM++ source tree, needed only by PIPSMILPSolver and tools/pips_pars;
+# $(PIPSIPMPP_ROOT) is set by extlib/makefile-libPIPS, override it from the
+# command line if your layout differs
+
+# non-empty if and only if the PIPS-IPM++ source tree is available; all the
+# PIPS-IPM++ additions below are only active in that case, so that builds
+# without a PIPS-IPM++ checkout are unaffected
+PIPS_PRESENT := $(wildcard \
+	$(PIPSIPMPP_ROOT)/PIPS-IPM/Core/Interface/PIPSIPMppInterface.hpp)
 
 .PHONY: tools
 tools: $(STAMP)
@@ -62,7 +68,7 @@ $(STAMP):
 	    grb_pars)   p=GRB ;; \
 	    scip_pars)  p=SCIP ;; \
 	    highs_pars) p=HiGHS ;; \
-		pips_pars)  p=PIPS ;; \
+	    pips_pars)  p=PIPS ;; \
 	    *)          p= ;; \
 	  esac; \
 	  if [ -n "$$p" ] && \
@@ -70,10 +76,15 @@ $(STAMP):
 	     find ../include -maxdepth 1 -name "$${p}*_maps.h" -print -quit | grep -q . ; then \
 	    echo " -> $$base (skip: headers already present)"; \
 	  else \
-	    echo " -> $$base"; \
 	    if [ "$$base" = "pips_pars" ]; then \
-	      "./$$base" -s "$(PIPSIPM_ROOT)" ../include; \
+	      if [ -d "$(PIPSIPMPP_ROOT)/PIPS-IPM" ]; then \
+	        echo " -> $$base"; \
+	        "./$$base" -s "$(PIPSIPMPP_ROOT)" ../include; \
+	      else \
+	        echo " -> $$base (skip: PIPS-IPM++ not found)"; \
+	      fi; \
 	    else \
+	      echo " -> $$base"; \
 	      "./$$base"; \
 	    fi; \
 	  fi; \
@@ -87,8 +98,7 @@ MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
 	$(MILPSSDR)/obj/CPXMILPSolver.o \
 	$(MILPSSDR)/obj/GRBMILPSolver.o \
 	$(MILPSSDR)/obj/SCIPMILPSolver.o \
-	$(MILPSSDR)/obj/HiGHSMILPSolver.o \
-	$(MILPSSDR)/obj/PIPSMILPSolver.o
+	$(MILPSSDR)/obj/HiGHSMILPSolver.o
 
 MILPSINC = -I$(MILPSSDR)/include
 
@@ -96,8 +106,12 @@ MILPSH = $(MILPSSDR)/include/MILPSolver.h \
 	$(MILPSSDR)/include/CPXMILPSolver.h \
 	$(MILPSSDR)/include/GRBMILPSolver.h \
 	$(MILPSSDR)/include/SCIPMILPSolver.h \
-	$(MILPSSDR)/include/HiGHSMILPSolver.h \
-	$(MILPSSDR)/include/PIPSMILPSolver.h
+	$(MILPSSDR)/include/HiGHSMILPSolver.h
+
+ifneq ($(PIPS_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/PIPSMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/PIPSMILPSolver.h
+endif
 
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -126,7 +140,10 @@ $(MILPSSDR)/obj/CPXMILPSolver.o:   | $(STAMP)
 $(MILPSSDR)/obj/SCIPMILPSolver.o:  | $(STAMP)
 $(MILPSSDR)/obj/GRBMILPSolver.o:   | $(STAMP)
 $(MILPSSDR)/obj/HiGHSMILPSolver.o: | $(STAMP)
+
+ifneq ($(PIPS_PRESENT),)
 $(MILPSSDR)/obj/PIPSMILPSolver.o:  | $(STAMP)
+endif
 
 $(MILPSSDR)/obj/MILPSolver.o: $(MILPSSDR)/src/MILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
@@ -157,10 +174,12 @@ $(MILPSSDR)/obj/HiGHSMILPSolver.o: $(MILPSSDR)/src/HiGHSMILPSolver.cpp \
 	$(CC) -c $(MILPSSDR)/src/HiGHSMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libHiGHSINC) $(SW)
 
+ifneq ($(PIPS_PRESENT),)
 $(MILPSSDR)/obj/PIPSMILPSolver.o: $(MILPSSDR)/src/PIPSMILPSolver.cpp \
 	$(MILPSSDR)/include/PIPSMILPSolver.h \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/PIPSMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libPIPSINC) $(SW)
+endif
 
 ########################## End of makefile ###################################

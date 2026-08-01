@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------*/
-/*------------------------- File PIPSMILPSolver.cpp -------------------------*/
+/*------------------------ File PIPSMILPSolver.cpp -------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
  * Implementation of the PIPSMILPSolver class.
@@ -22,20 +22,22 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <cstdlib>
+
 #include <queue>
 
 #include <LinearFunction.h>
 
 #include <QuadFunction.h>
 
-#include "PIPSMILPSolver.h"
+#include <mpi_debug.h>
 
-#include "mpi_debug.h"
+#include "PIPSMILPSolver.h"
 
 #include "PIPS_maps.h"
 
 #ifdef MILPSOLVER_DEBUG
- #define DEBUG_LOG( stuff ) std::cout << "[MILPSolver DEBUG] " << stuff
+ #define DEBUG_LOG( stuff ) std::cout << "[PIPSMILPSolver DEBUG] " << stuff
 #else
  #define DEBUG_LOG( stuff )
 #endif
@@ -51,204 +53,6 @@ using pipsipmpp::PIPSIPMppInterface;
 using pipsipmpp::TerminationStatus;
 using pipsipmpp::MPIErrorHandler;
 
-/*
- * Anonymous namespace for file-local debug/printing utilities.
- * These helpers are used to inspect callback inputs and reconstructed
- * PIPS data structures while debugging the PIPSMILPSolver interface.
- */
-
-#ifndef PIPS_CALLBACK_SANITY
- #define PIPS_CALLBACK_SANITY 0
-#endif
-
-namespace {
-
-struct PIPSCallbackNullStream {
- template< class T >
- const PIPSCallbackNullStream & operator<<( const T & ) const { return *this; }
-
- const PIPSCallbackNullStream & operator<<( std::ostream & ( * )
-        ( std::ostream & ) ) const
- {
-  return *this;
- }
-};
-
-static const PIPSCallbackNullStream pips_callback_null_stream;
-
-#if PIPS_CALLBACK_SANITY
- #define PIPS_CALLBACK_COUT std::cout
-#else
- #define PIPS_CALLBACK_COUT pips_callback_null_stream
-#endif
-
-#if PIPS_CALLBACK_SANITY
-
-void sanity_print_indices( const char * what , const std::vector< int > & idxs )
-{
- PIPS_CALLBACK_COUT << "  " << what << ":";
- for( int idx : idxs )
-  PIPS_CALLBACK_COUT << " " << idx;
- PIPS_CALLBACK_COUT << std::endl;
-}
-
-void sanity_check_id( const char * cb , int id , int n_nodes )
-{
- PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK] " << cb << " id=" << id << std::endl;
- if( id < 0 || id >= n_nodes )
-  PIPS_CALLBACK_COUT << "  [SANITY ERROR] id outside [0," << n_nodes << ")" 
-    << std::endl;
-}
-
-void sanity_check_count( const char * cb , int id , int value , 
-                          int expected_min = 0 )
-{
- PIPS_CALLBACK_COUT << "[PIPS CALLBACK] " << cb
-           << " id=" << id
-           << " returns " << value << std::endl;
- if( value < expected_min )
-  PIPS_CALLBACK_COUT << "  [SANITY ERROR] negative/invalid count" 
-    << std::endl;
-}
-
-template< class CSR >
-void sanity_check_csr( const char * cb , int id , int nRows , int nCols ,
-                       const CSR & mat ,
-                       const std::vector< int > & globalRows ,
-                       const std::vector< int > & globalCols )
-{
- PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK MATRIX] " << cb
-           << " id=" << id
-           << " nRows=" << nRows
-           << " nCols=" << nCols
-           << " nnz=" << mat.val.size() << std::endl;
-
- sanity_print_indices( "global rows", globalRows );
- sanity_print_indices( "global cols", globalCols );
-
- bool ok = true;
-
- if( static_cast< int >( mat.krow.size() ) != nRows + 1 ) {
-  PIPS_CALLBACK_COUT << "  [SANITY ERROR] krow.size()=" << mat.krow.size()
-            << " but expected " << nRows + 1 << std::endl;
-  ok = false;
- }
-
- if( mat.jcol.size() != mat.val.size() ) {
-  PIPS_CALLBACK_COUT << "  [SANITY ERROR] jcol.size()=" << mat.jcol.size()
-            << " differs from val.size()=" << mat.val.size() << std::endl;
-  ok = false;
- }
-
- if( ! mat.krow.empty() && mat.krow.front() != 0 ) {
-  PIPS_CALLBACK_COUT << "  [SANITY ERROR] krow[0]=" << mat.krow.front()
-            << " but expected 0" << std::endl;
-  ok = false;
- }
-
- if( ! mat.krow.empty() &&
-     mat.krow.back() != static_cast< int >( mat.val.size() ) ) {
-  PIPS_CALLBACK_COUT << "  [SANITY ERROR] krow.back()=" << mat.krow.back()
-            << " but nnz=" << mat.val.size() << std::endl;
-  ok = false;
- }
-
- for( int i = 0 ; i + 1 < static_cast< int >( mat.krow.size() ) ; ++i ) {
-  if( mat.krow[ i ] > mat.krow[ i + 1 ] ) {
-   PIPS_CALLBACK_COUT << "  [SANITY ERROR] krow is decreasing at row " << i
-             << ": " << mat.krow[ i ] << " > " << mat.krow[ i + 1 ]
-             << std::endl;
-   ok = false;
-  }
- }
-
- std::vector< int > col_nnz( std::max( nCols , 0 ) , 0 );
-
- for( int i = 0 ; i < nRows && i + 1 < static_cast< int >( mat.krow.size() ) ; ++i ) {
-  const int row_start = mat.krow[ i ];
-  const int row_end = mat.krow[ i + 1 ];
-
-  if( row_start < 0 || row_end < 0 ||
-      row_start > static_cast< int >( mat.val.size() ) ||
-      row_end > static_cast< int >( mat.val.size() ) ) {
-   PIPS_CALLBACK_COUT << "  [SANITY ERROR] row " << i
-             << " has invalid pointer range [" << row_start
-             << "," << row_end << ")" << std::endl;
-   ok = false;
-   continue;
-  }
-
-  for( int k = row_start ; k < row_end ; ++k ) {
-   if( mat.jcol[ k ] < 0 || mat.jcol[ k ] >= nCols ) {
-    PIPS_CALLBACK_COUT << "  [SANITY ERROR] entry k=" << k
-              << " has invalid local column " << mat.jcol[ k ]
-              << " outside [0," << nCols << ")" << std::endl;
-    ok = false;
-   }
-   else if( mat.jcol[ k ] < static_cast< int >( col_nnz.size() ) )
-    ++col_nnz[ mat.jcol[ k ] ];
-
-   if( ! std::isfinite( mat.val[ k ] ) ) {
-    PIPS_CALLBACK_COUT << "  [SANITY ERROR] entry k=" << k
-              << " is not finite: " << mat.val[ k ] << std::endl;
-    ok = false;
-   }
-  }
- }
-
- for( int i = 0 ; i < nRows && i + 1 < static_cast< int >( mat.krow.size() ) ; ++i )
-  PIPS_CALLBACK_COUT << "  row " << i << " nnz=" << mat.krow[ i + 1 ] - mat.krow[ i ]
-            << std::endl;
-
- for( int j = 0 ; j < static_cast< int >( col_nnz.size() ) ; ++j )
-  PIPS_CALLBACK_COUT << "  col " << j << " nnz=" << col_nnz[ j ] << std::endl;
-
- for( int i = 0 ; i < nRows && i + 1 < static_cast< int >( mat.krow.size() ) ; ++i ) {
-  for( int k = mat.krow[ i ] ; k < mat.krow[ i + 1 ] ; ++k ) {
-   PIPS_CALLBACK_COUT << "    localRow=" << i
-             << " localCol=" << mat.jcol[ k ]
-             << " val=" << mat.val[ k ] << std::endl;
-  }
- }
-
- if( ok )
-  PIPS_CALLBACK_COUT << "  [SANITY OK] CSR structure is consistent" << std::endl;
-}
-
-void sanity_check_vector( const char * cb , int id , const double * vec ,
-                          int len , int expected_len )
-{
- PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK VECTOR] " << cb
-           << " id=" << id
-           << " len=" << len
-           << " expected_len=" << expected_len << std::endl;
-
- if( len != expected_len )
-  PIPS_CALLBACK_COUT << "  [SANITY WARNING] PIPS requested len=" << len
-            << " but local expected length is " << expected_len << std::endl;
-
- for( int i = 0 ; i < len ; ++i ) {
-  PIPS_CALLBACK_COUT << "  [" << i << "]=" << vec[ i ] << std::endl;
-  if( std::isnan( vec[ i ] ) )
-   PIPS_CALLBACK_COUT << "  [SANITY ERROR] NaN at position " << i << std::endl;
- }
-}
-
-#else
-
-void sanity_check_id( const char * , int , int ) {}
-void sanity_check_count( const char * , int , int , int = 0 ) {}
-template< class CSR >
-void sanity_check_csr( const char * , int , int , int ,
-                       const CSR & ,
-                       const std::vector< int > & ,
-                       const std::vector< int > & ) {}
-void sanity_check_vector( const char * , int , const double * , int , int ) {}
-
-#endif
-
-} // end anonymous namespace
-
 /*--------------------------------------------------------------------------*/
 /*-------------------------- FACTORY MANAGEMENT ----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -260,30 +64,13 @@ SMSpp_insert_in_factory_cpp_0( PIPSMILPSolver );
 /*--------------------------------------------------------------------------*/
 
 PIPSMILPSolver::PIPSMILPSolver( void ) :
- MILPSolver() ,
- UpCutOff( Inf< double >() ) ,
- LwCutOff( -Inf< double >() ) ,
-
- /* Pips problem handling structures */
- pips_tree( nullptr ) ,
- pips_interface( nullptr ) { }
+ MILPSolver() , pips_tree( nullptr ) , pips_interface( nullptr ) { }
 
 /*--------------------------------------------------------------------------*/
 
 PIPSMILPSolver::~PIPSMILPSolver()
 {
- for( auto el : v_ConfigDB )
-  delete el;
-
  reset_pips_data();
-
- int finalized = 0;
- MPI_Finalized(&finalized);
-
- if (mpi_initialized_by_this_solver && !finalized) {
-  MPI_Finalize();
- }
-
 }
 
 /*--------------------------------------------------------------------------*/
@@ -298,19 +85,19 @@ void PIPSMILPSolver::reset_pips_data()
 
  n_nodes = 0;
  nodes_subtrees.clear();
- blockToleaf.clear();
+ block_to_leaf.clear();
 
- n_varNode.clear();
- varNode.clear();
- n_EqConsNode.clear();
- EqConsNode.clear();
- n_InEqConsNode.clear();
- InEqConsNode.clear();
+ n_var_node.clear();
+ var_node.clear();
+ n_eq_cons_node.clear();
+ eq_cons_node.clear();
+ n_ineq_cons_node.clear();
+ ineq_cons_node.clear();
 
- n_LinkEqCons = 0;
- LinkEqCons.clear();
- n_LinkInEqCons = 0;
- LinkInEqCons.clear();
+ n_link_eq_cons = 0;
+ link_eq_cons.clear();
+ n_link_ineq_cons = 0;
+ link_ineq_cons.clear();
 
  var_to_node.clear();
 }
@@ -332,93 +119,93 @@ void PIPSMILPSolver::set_Block( Block * block )
  if( block == f_Block )
   return;
 
+ // MPI is initialised on demand: if the application has not done it already,
+ // it is done here (funneled threading level) and finalised at program exit;
+ // it is never finalised while any PIPSMILPSolver may still be constructed
+ int finalized = 0;
+ MPI_Finalized( & finalized );
+ if( finalized )
+  throw( std::runtime_error(
+		   "PIPSMILPSolver::set_Block: MPI has been finalized" ) );
+
  int initialized = 0;
- MPI_Initialized( &initialized );
-
+ MPI_Initialized( & initialized );
  if( ! initialized ) {
-  int err = MPI_Init( nullptr , nullptr );
+  int provided = 0;
+  if( MPI_Init_thread( nullptr , nullptr , MPI_THREAD_FUNNELED ,
+		       & provided ) != MPI_SUCCESS )
+   throw( std::runtime_error(
+		    "PIPSMILPSolver::set_Block: MPI_Init_thread failed" ) );
 
-  int initialized = 0;
-  MPI_Initialized( &initialized );
+  MPIErrorHandler::init();  // install the MPI error handler
 
-  if( err != MPI_SUCCESS || ! initialized ) {
-      throw std::runtime_error("MPI_Init failed");
+  std::atexit( []( void ) {
+		int f = 0;
+		MPI_Finalized( & f );
+		if( ! f )
+		 MPI_Finalize();
+		} );
   }
-  MPIErrorHandler::init();  // Important: set error handlr
-  mpi_initialized_by_this_solver = true;
- }
 
  MILPSolver::set_Block( block );
-
- UpCutOff = Inf< double >();
- LwCutOff = -Inf< double >();
 }
 
 /*--------------------------------------------------------------------------*/
 
 void PIPSMILPSolver::load_problem( void )
 {
- // PIPS keeps the MILPSolver arrays alive for callbacks, so clear any
- // previous generated representation before rebuilding it from the Block.
+ // clear the PIPS structures derived from any previously loaded Block; the
+ // base class representation is kept alive by the PIPS callbacks, so it is
+ // rebuilt from scratch as well
  reset_pips_data();
- MILPSolver::clear_problem( 15 );
- constant_value = 0;
- int_vars = 0;
- numnnzq = 0;
- q_part.clear();
- ndq_objective.clear();
- ndq_rowind.clear();
- ndq_colind.clear();
 
- // Call MILPSolver to generate the entire LP problem
+ // call MILPSolver to generate the entire LP problem
  MILPSolver::load_problem();
 
  if( numquadrows > 0 )
-  throw( std::runtime_error( "PIPS cannot solve QCP models" ) );
+  throw( std::runtime_error( "PIPSMILPSolver::load_problem: PIPS-IPM++ "
+			     "cannot solve quadratically constrained models"
+			     ) );
+
+ if( numnnzq > 0 )
+  throw( std::runtime_error( "PIPSMILPSolver::load_problem: PIPS-IPM++ "
+			     "cannot solve models with a quadratic objective"
+			     ) );
 
  if( int_vars > 0 )
-  throw( std::runtime_error(
-   "PIPSMILPSolver can only solve LP models: integer variables are present. "
-   "Set intRelaxIntVars to true to solve the continuous relaxation." ) );
+  throw( std::runtime_error( "PIPSMILPSolver::load_problem: only LP models "
+	  "can be solved, but integer variables are present; set "
+	  "intRelaxIntVars to solve the continuous relaxation" ) );
 
- // Clear PIPS structures derived from any previously loaded Block.
- reset_pips_data();
+ /* Each node of the PIPS tree stores the elements (Variable and Constraint)
+  * belonging to it; the callbacks then extract the portion of the base class
+  * matrix corresponding to the rows and columns of the node and pass it to
+  * PIPS. The Block is mapped to the PIPS tree as follows:
+  * - f_Block is the root of the PIPS model;
+  * - there is one leaf for each nested Block of f_Block, holding the whole
+  *   subtree of Block rooted there. */
 
- /* The strategy in PIPSMILPSolver will simply be to correctly store the
-  * elements belonging to each node. After that, by simply calling 
-  * extractNode_sub_matrix, we will be able to extract the portion of
-  * matrix for the set of constraints and variables that are involved in the
-  * node, and pass it to PIPS. */
-
- // construct the set of involved Block - - - - - - - - - - - - - - - - - - -
- // At the moment, we will store the Blocks in the following way:
- // - The f_Block will be the root of the PIPS model;
- // - then, there will be one leaf for each sub-block of the f_Block. All the 
- //   sub-sub-...-blocks will be stored in the corresponding leaf.
-
- // Set the first node (root) to be the f_Block
+ // set the first node (root) to be the f_Block
  n_nodes = 1;
- Index n_blocks = 1; 
+ Index n_blocks = 1;
  nodes_subtrees.push_back( { f_Block } );
 
- // Collect all the Blocks representing the leaves of the PIPS tree
- for( auto leaf : f_Block->get_nested_Blocks() ){
-  // Collect the subtree data
+ // collect all the Blocks representing the leaves of the PIPS tree
+ for( auto leaf : f_Block->get_nested_Blocks() ) {
   std::vector< Block * > subtree;
 
-  // recursively collect all the sub-tree;
+  // recursively collect the whole subtree
   n_blocks += collect_subtree( leaf , subtree , n_nodes );
   subtree.shrink_to_fit();
 
-  // Add to the global structure
   nodes_subtrees.push_back( std::move( subtree ) );
   n_nodes++;
- }
+  }
  nodes_subtrees.shrink_to_fit();
 
- if( n_nodes == 1)
-  throw( std::runtime_error( "PIPSMILPSolver requires at least two blocks "
-    "in order to work." ) );
+ if( n_nodes == 1 )
+  throw( std::runtime_error( "PIPSMILPSolver::load_problem: the Block needs "
+	  "at least one nested Block" ) );
 
  DEBUG_LOG( "Number of blocks      = " << n_blocks << std::endl );
  DEBUG_LOG( "Number of nodes      = " << n_nodes << std::endl );
@@ -426,13 +213,13 @@ void PIPSMILPSolver::load_problem( void )
  // PIPMILPSolver vectors allocation - - - - - - - - - - - -  - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- n_varNode.assign( n_nodes, 0 );
- n_EqConsNode.assign( n_nodes, 0 );
- n_InEqConsNode.assign( n_nodes, 0 );
+ n_var_node.assign( n_nodes , 0 );
+ n_eq_cons_node.assign( n_nodes , 0 );
+ n_ineq_cons_node.assign( n_nodes , 0 );
 
- varNode.assign( n_nodes, {} );
- EqConsNode.assign( n_nodes, {} );
- InEqConsNode.assign( n_nodes, {} );
+ var_node.assign( n_nodes , {} );
+ eq_cons_node.assign( n_nodes , {} );
+ ineq_cons_node.assign( n_nodes , {} );
 
  var_to_node.reserve( numcols );
 
@@ -449,21 +236,21 @@ void PIPSMILPSolver::load_problem( void )
 
     for( const auto & i : qb->get_dynamic_variables() ){
      // Call specific function to scan the new group of Variables
-     auto push_var_toNode = [ this , num_node ]
+     auto push_var_to_node = [ this , num_node ]
       ( const ColVariable & c ) {
-      n_varNode[ num_node ] += 1;
-      varNode[ num_node ].push_back( &c );
+      n_var_node[ num_node ] += 1;
+      var_node[ num_node ].push_back( &c );
       var_to_node.emplace( &c , num_node );
      };
 
-     un_any_const_dynamic( i , push_var_toNode , 
+     un_any_const_dynamic( i , push_var_to_node ,
                             un_any_type< ColVariable >() );
     }
   }
   num_node++;
  }
 
- // Second scan: scan all the constraints and assign them to the correct 
+ // Second scan: scan all the constraints and assign them to the correct
  // group in the correct node
  DEBUG_LOG( "Second Scan: assigning constraints per group" << std::endl );
 
@@ -482,203 +269,129 @@ void PIPSMILPSolver::load_problem( void )
       ( const FRowConstraint & c ) {
         scan_constraint( c , num_node );
      };
-     
+
      un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
     }
   }
   num_node++;
  }
 
- // Now set all the callbacks - - - - - - - - - - - - - - - - - - - - - - - - 
+ // build the PIPS input tree- - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // every node registers the same set of callbacks, which dispatch on the
+ // node id; the quadratic objective callbacks are identically zero, since
+ // only LP models are supported
 
- // Number of elements
- FNNZ fNo_VarinNode = &No_VarinNode; // Number of variables
- FNNZ fNo_EqConsinNode = &No_EqConsinNode; 
-              // Number of equality constraints per node
- FNNZ fNo_InEqConsinNode = &No_InEqConsinNode; 
-              // Number of inequality constraints per node
- FNNZ fNo_LinkEqCons = &No_LinkEqCons; 
-              // Number of global linking equality constraints
- FNNZ fNo_LinkInEqCons = &No_LinkInEqCons; 
-              // Number of global linking inequality constraints
+ auto make_node = [ this ]( int id ) {
+  return( std::make_unique< DistributedInputTree::DistributedInputNode >(
+	   this , id ,
+	   & no_var_in_node , & no_eq_cons_in_node , & no_link_eq_cons ,
+	   & no_ineq_cons_in_node , & no_link_ineq_cons ,
+	   & mat_all_zero , & nnz_all_zero , & obj_vars ,
+	   & mat_eq_cons_vert , & nnz_eq_cons_vert ,
+	   & mat_eq_cons_diag , & nnz_eq_cons_diag ,
+	   & mat_link_eq_cons , & nnz_link_eq_cons ,
+	   & rhs_eq_cons , & rhs_link_eq_cons ,
+	   & mat_ineq_cons_vert , & nnz_ineq_cons_vert ,
+	   & mat_ineq_cons_diag , & nnz_ineq_cons_diag ,
+	   & mat_link_ineq_cons , & nnz_link_ineq_cons ,
+	   & lhs_ineq_cons , & flag_lhs_ineq_cons ,
+	   & rhs_ineq_cons , & flag_rhs_ineq_cons ,
+	   & lhs_link_ineq_cons , & flag_lhs_link_ineq_cons ,
+	   & rhs_link_ineq_cons , & flag_rhs_link_ineq_cons ,
+	   & lb_vars , & flag_lb_vars , & ub_vars , & flag_ub_vars ,
+	   nullptr , nullptr , false ) );
+  };
 
- // Nonzeros
- FNNZ fnnzQ = &nnzAllZero; 
-              // TBD: number of quadratic nonzero terms in objective
- 
- FNNZ fnnzEqConsDiag = &nnzEqConsDiag; 
-              // Number of nonzeros in the diagonal matrices
- FNNZ fnnzEqConsVert = &nnzEqConsVert; 
-              // Number of nonzeros in the vertical root matrices
- FNNZ fnnzInEqConsDiag = &nnzInEqConsDiag; 
-              // Number of nonzeros in the equality diagonal matrices
- FNNZ fnnzInEqConsVert = &nnzInEqConsVert; 
-              // Number of nonzeros in the inequality vertical root matrices
- FNNZ fnnzLinkEqCons = &nnzLinkEqCons; 
-              // Number of nonzeros in the equality linking matrices
- FNNZ fnnzLinkInEqCons = &nnzLinkInEqCons;
-              // Number of nonzeros in the inequality linking matrices
-   
- // Vectors
- FVEC fRhsEqCons = &RhsEqCons; // rhs of equality constraints per node
- FVEC fRhsInEqCons = &RhsInEqCons; 
-              // rhs of linking inequality constraints per node
- FVEC fLhsInEqCons = &LhsInEqCons; 
-              // lhs of linking inequality constraints per node
- FVEC fRhsLinkEqCons = &RhsLinkEqCons; 
-              // rhs of linking equality constraints
- FVEC fRhsLinkInEqCons = &RhsLinkInEqCons; 
-              // rhs of linking inequality constraints
- FVEC fLhsLinkInEqCons = &LhsLinkInEqCons; 
-              // lhs of linking inequality constraints
+ // the root is node 0, with one child per leaf
+ auto * root = new DistributedInputTree( make_node( 0 ) );
 
- FVEC fFlagRhsInEqCons = &FlagRhsInEqCons; 
-              // active rhs of linking inequality constraints per node
- FVEC fFlagLhsInEqCons = &FlagLhsInEqCons; 
-              // active lhs of linking inequality constraints per node
- FVEC fFlagRhsLinkInEqCons = &FlagRhsLinkInEqCons; 
-              // active rhs of linking inequality constraints
- FVEC fFlagLhsLinkInEqCons = &FlagLhsLinkInEqCons; 
-              // active lhs of linking inequality constraints
+ for( int id = 1 ; id < static_cast< int >( n_nodes ) ; ++id )
+  root->add_child(
+	 std::make_unique< DistributedInputTree >( make_node( id ) ) );
 
- FVEC fUBVars = &UBVars; // Upper bounds on the variables
- FVEC fLBVars = &LBVars; // Lower bounds on the variables
- FVEC fFlagUBVars = &FlagUBVars; // Upper bound flags on the variables
- FVEC fFlagLBVars = &FlagLBVars; // Lower bound flag on the variables
-
- FVEC fObjVars = &ObjVars; // Objective value
-
- // Matrices
- FMAT fMatEqConsDiag = &MatEqConsDiag; // Diagonal equality matrices
- FMAT fMatEqConsVert = &MatEqConsVert; // Vertical equality matrices
- FMAT fMatInEqConsDiag = &MatInEqConsDiag; // Diagonal inequality matrices
- FMAT fMatInEqConsVert = &MatInEqConsVert; // Vertical inequality matrices
- FMAT fMatLinkEqCons = &MatLinkEqCons; // Equality linking matrices
- FMAT fMatLinkInEqCons = &MatLinkInEqCons; // Inequality linking matrices
-
- FMAT fQ = &matAllZero; // TBD Quadratic objective matrix
-
- // Build the problem tree
-
- // Create the root node (depth = 0)
- std::unique_ptr<DistributedInputTree::DistributedInputNode> data_root = 
-  std::make_unique<DistributedInputTree::DistributedInputNode>( this, 0, 
-    fNo_VarinNode, fNo_EqConsinNode, fNo_LinkEqCons, fNo_InEqConsinNode, 
-    fNo_LinkInEqCons, fQ, fnnzQ, fObjVars, fMatEqConsVert , fnnzEqConsVert , 
-    fMatEqConsDiag, fnnzEqConsDiag, fMatLinkEqCons , fnnzLinkEqCons, 
-    fRhsEqCons , fRhsLinkEqCons , fMatInEqConsVert , fnnzInEqConsVert , 
-    fMatInEqConsDiag , fnnzInEqConsDiag , fMatLinkInEqCons , 
-    fnnzLinkInEqCons , fLhsInEqCons , fFlagLhsInEqCons , fRhsInEqCons , 
-    fFlagRhsInEqCons , fLhsLinkInEqCons , fFlagLhsLinkInEqCons , 
-    fRhsLinkInEqCons ,fFlagRhsLinkInEqCons , fLBVars , fFlagLBVars , 
-    fUBVars , fFlagUBVars , nullptr, nullptr, false );
-
- auto* root = new DistributedInputTree( std::move( data_root ) );
-
- for(int id = 1; id < n_nodes ; ++id ) {
-  // Create the leaves (depth = id)
-  std::unique_ptr<DistributedInputTree::DistributedInputNode> data_child = 
-    std::make_unique<DistributedInputTree::DistributedInputNode>( this, id, 
-      fNo_VarinNode, fNo_EqConsinNode, fNo_LinkEqCons, fNo_InEqConsinNode, 
-      fNo_LinkInEqCons, fQ, fnnzQ, fObjVars, fMatEqConsVert , fnnzEqConsVert , 
-      fMatEqConsDiag, fnnzEqConsDiag, fMatLinkEqCons , fnnzLinkEqCons, 
-      fRhsEqCons , fRhsLinkEqCons , fMatInEqConsVert , fnnzInEqConsVert , 
-      fMatInEqConsDiag , fnnzInEqConsDiag , fMatLinkInEqCons , 
-      fnnzLinkInEqCons , fLhsInEqCons , fFlagLhsInEqCons , fRhsInEqCons , 
-      fFlagRhsInEqCons , fLhsLinkInEqCons , fFlagLhsLinkInEqCons , 
-      fRhsLinkInEqCons ,fFlagRhsLinkInEqCons , fLBVars , fFlagLBVars , 
-      fUBVars , fFlagUBVars , nullptr, nullptr, false );
-
-   // Add the child to the root
-   root->add_child( 
-    std::make_unique<DistributedInputTree>( std::move( data_child ) ) );
- }
-
- // Store the constructed elements in the SMS++ structure
  pips_tree = root;
- pips_interface = new PIPSIPMppInterface( pips_tree, MPI_COMM_WORLD );
-
- return;
+ pips_interface = new PIPSIPMppInterface( pips_tree , MPI_COMM_WORLD );
 }
 
 /*--------------------------------------------------------------------------*/
 
 Solver::OFValue PIPSMILPSolver::get_lb( void )
 {
- OFValue lower_bound = constant_value;
-
- // PIPS only admits minimization problems, so we need to convert the result
- // based on the expected MILPSolver objective sense.
- if( objsense == 1 ){ // Minimization
+ // PIPS-IPM++ only solves minimization problems, hence the objective value
+ // is converted back to the original objective sense of the Block; a valid
+ // bound is only available upon (possibly approximate) successful
+ // termination, since the iterate at which an interior-point method stops
+ // early need not be dual (or primal) feasible
+ if( objsense == 1 ) {  // minimization: lower bound = dual bound
   switch( sol_status ) {
-   case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
-   case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
-   default:             lower_bound += pips_interface->getObjective();
-    // TBD: Here we should retrieve a bound
+   case( kOK ):
+    return( constant_value + pips_interface->getObjective() );
+   case( kInfeasible ):
+    return( Inf< OFValue >() );
+   default:  // kUnbounded, early stops, errors: no valid lower bound
+    return( -Inf< OFValue >() );
+   }
   }
- }
- else{
-  switch( sol_status ) {
-   case( kUnbounded ):  lower_bound = Inf< OFValue >();  break;
-   case( kInfeasible ): lower_bound = -Inf< OFValue >(); break;
-   default:             lower_bound -= pips_interface->getObjective();
-  }
- }
 
- return( lower_bound );
+ // maximization: lower bound = value of the best feasible solution
+ switch( sol_status ) {
+  case( kOK ):
+  case( kLowPrecision ):
+   return( constant_value - pips_interface->getObjective() );
+  case( kUnbounded ):
+   return( Inf< OFValue >() );
+  default:  // kInfeasible, early stops, errors: no feasible solution
+   return( -Inf< OFValue >() );
+  }
  }
 
 /*--------------------------------------------------------------------------*/
 
 Solver::OFValue PIPSMILPSolver::get_ub( void )
 {
- OFValue upper_bound = constant_value;
-
- // PIPS only admits minimization problems, so we need to convert the result
- // based on the expected MILPSolver objective sense.
- if( objsense == 1 ){ // Minimization
+ // see the comment in get_lb()
+ if( objsense == 1 ) {  // minimization: upper bound = value of the best
+			// feasible solution
   switch( sol_status ) {
-   case( kUnbounded ):  upper_bound = -Inf< OFValue >(); break;
-   case( kInfeasible ): upper_bound = Inf< OFValue >();  break;
-   default:             upper_bound += pips_interface->getObjective();
+   case( kOK ):
+   case( kLowPrecision ):
+    return( constant_value + pips_interface->getObjective() );
+   case( kUnbounded ):
+    return( -Inf< OFValue >() );
+   default:  // kInfeasible, early stops, errors: no feasible solution
+    return( Inf< OFValue >() );
+   }
+  }
+
+ // maximization: upper bound = dual bound
+ switch( sol_status ) {
+  case( kOK ):
+   return( constant_value - pips_interface->getObjective() );
+  case( kInfeasible ):
+   return( -Inf< OFValue >() );
+  default:  // kUnbounded, early stops, errors: no valid upper bound
+   return( Inf< OFValue >() );
   }
  }
- else{
-  switch( sol_status ) {
-   case( kUnbounded ):  upper_bound = Inf< OFValue >();  break;
-   case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
-   default:             upper_bound -= pips_interface->getObjective();
-   // TBD: Here we should retrieve a bound
-  }
- }
-
- return( upper_bound );
-}
 
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::guts_of_compute( void )
 {
- // Note: locking, process_modifications() and the LP cut separation loop
- // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
- // This method is only responsible for the actual PIPS-IPM++ call.
-
- // if required, write the problem to file- - - - - - - - - - - - - - - - - -
- // This should have already been done in set_par
-
- // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // locking, process_modifications() and the LP cut separation loop (when
+ // intRelaxIntVars == 2) are all handled by MILPSolver::compute(); this
+ // method is only responsible for the actual PIPS-IPM++ call
  sol_status = decode_pips_status( pips_interface->run() );
 
  return( sol_status );
-
 }
 
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
 {
- DEBUG_LOG( "pips_interface.run() returned " << static_cast< int >( status ) 
+ DEBUG_LOG( "pips_interface.run() returned " << static_cast< int >( status )
               << std::endl );
 
  /* The following are the symbols that may represent the status of
@@ -686,31 +399,35 @@ int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
 
  switch( status ) {
   case( TerminationStatus::READ_ERROR ):
-  case( TerminationStatus::SLOW_CONVERGENCE ) :
   case( TerminationStatus::DID_NOT_RUN ):
   case( TerminationStatus::NOT_FINISHED ):
   case( TerminationStatus::STOPPED_AFTER_PRESOLVE ):
-   // Some error happened.
+   // some error happened
    return( kError );
+  case( TerminationStatus::SLOW_CONVERGENCE ):
+   // terminated with a usable, but not fully accurate, solution
+   return( kLowPrecision );
   case( TerminationStatus::TIMELIMIT ):
-   // Time limit exceeded
+   // time limit exceeded
    return( kStopTime );
   case( TerminationStatus::INFEASIBLE ):
-   // Problem is infeasible.
+   // problem is infeasible
    return( kInfeasible );
   case( TerminationStatus::UNBOUNDED ):
-   // Problem has been proven unbounded.
+   // problem has been proven unbounded
    return( kUnbounded );
   case( TerminationStatus::MAX_ITS_EXCEEDED ):
-   // Iteration limit has been reached;
+   // iteration limit has been reached
    return( kStopIter );
   case( TerminationStatus::SUCCESSFUL_TERMINATION ):
-   // Compilation terminated succesfully
+   // solve terminated successfully
    return( kOK );
   default:;
   }
 
- throw( std::runtime_error( "pips_interface.run() returned unknown status." ) );
+ throw( std::runtime_error(
+	 "PIPSMILPSolver::decode_pips_status: unknown termination status " +
+	 std::to_string( static_cast< int >( status ) ) ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -718,7 +435,8 @@ int PIPSMILPSolver::decode_pips_status( TerminationStatus status )
 void PIPSMILPSolver::get_var_solution( Configuration * solc )
 {
  if( ! pips_interface )
-  throw( std::runtime_error( "PIPS problem has not been loaded" ) );
+  throw( std::runtime_error( "PIPSMILPSolver::get_var_solution: the PIPS "
+			     "problem has not been loaded" ) );
 
  auto primalSolVec = pips_interface->gatherPrimalSolution();
  int rank = 0;
@@ -730,20 +448,22 @@ void PIPSMILPSolver::get_var_solution( Configuration * solc )
  std::size_t pips_pos = 0;
 
  for( Index id = 0 ; id < n_nodes ; ++id )
-  for( auto * var : varNode[ id ] ) {
+  for( auto * var : var_node[ id ] ) {
    if( pips_pos >= primalSolVec.size() )
-    throw( std::runtime_error( "PIPS primal solution vector is too short" ) );
+    throw( std::runtime_error( "PIPSMILPSolver::get_var_solution: the PIPS "
+			       "primal solution vector is too short" ) );
 
    auto col = index_of_variable( var );
    if( col < 0 || col >= numcols )
-    throw( std::runtime_error( "PIPS primal solution variable has no column" ) );
+    throw( std::runtime_error( "PIPSMILPSolver::get_var_solution: a variable "
+			       "in the PIPS primal solution has no column" ) );
 
    x[ col ] = primalSolVec[ pips_pos++ ];
   }
 
  if( pips_pos != primalSolVec.size() )
-  throw( std::runtime_error( "PIPS primal solution vector has unexpected extra "
-                             "entries" ) );
+  throw( std::runtime_error( "PIPSMILPSolver::get_var_solution: the PIPS "
+			     "primal solution vector has extra entries" ) );
 
  MILPSolver::write_var_solution( x );
 }
@@ -752,14 +472,15 @@ void PIPSMILPSolver::get_var_solution( Configuration * solc )
 
 bool PIPSMILPSolver::has_dual_solution( void )
 {
- return( pips_interface && sol_status == kOK );
+ return( pips_interface &&
+	 ( ( sol_status == kOK ) || ( sol_status == kLowPrecision ) ) );
 }
 
 /*--------------------------------------------------------------------------*/
 
 bool PIPSMILPSolver::is_dual_feasible( void )
 {
- return( has_dual_solution() );
+ return( pips_interface && ( sol_status == kOK ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -767,7 +488,8 @@ bool PIPSMILPSolver::is_dual_feasible( void )
 void PIPSMILPSolver::get_dual_solution( Configuration * solc )
 {
  if( ! pips_interface )
-  throw( std::runtime_error( "PIPS problem has not been loaded" ) );
+  throw( std::runtime_error( "PIPSMILPSolver::get_dual_solution: the PIPS "
+			     "problem has not been loaded" ) );
 
  auto eq_dual = pips_interface->gatherDualSolutionEq();
  auto ineq_dual = pips_interface->gatherDualSolutionIneq();
@@ -792,12 +514,14 @@ void PIPSMILPSolver::get_dual_solution( Configuration * solc )
 
   for( auto row : global_rows ) {
    if( pips_pos >= source.size() )
-    throw( std::runtime_error( std::string( "PIPS " ) + name +
-                               " dual vector is too short" ) );
+    throw( std::runtime_error(
+	    std::string( "PIPSMILPSolver::get_dual_solution: PIPS " ) + name +
+	    " dual vector is too short" ) );
 
    if( row < 0 || row >= numrows )
-    throw( std::runtime_error( std::string( "PIPS " ) + name +
-                               " dual row has no MILPSolver row" ) );
+    throw( std::runtime_error(
+	    std::string( "PIPSMILPSolver::get_dual_solution: PIPS " ) + name +
+	    " dual row has no MILPSolver row" ) );
 
    pi[ row ] = dual_scale * source[ pips_pos++ ];
   }
@@ -806,39 +530,43 @@ void PIPSMILPSolver::get_dual_solution( Configuration * solc )
  // PIPS gathers node-local rows first, then appends the global linking rows.
  std::size_t pips_pos = 0;
  for( Index id = 0 ; id < n_nodes ; ++id )
-  scatter_rows( eq_dual , pips_pos , EqConsNode[ id ] , "equality" );
- scatter_rows( eq_dual , pips_pos , LinkEqCons , "linking equality" );
+  scatter_rows( eq_dual , pips_pos , eq_cons_node[ id ] , "equality" );
+ scatter_rows( eq_dual , pips_pos , link_eq_cons , "linking equality" );
 
  if( pips_pos != eq_dual.size() )
-  throw( std::runtime_error( "PIPS equality dual vector has unexpected extra "
-                             "entries" ) );
+  throw( std::runtime_error( "PIPSMILPSolver::get_dual_solution: PIPS "
+			     "equality dual vector has unexpected extra "
+			     "entries" ) );
 
  pips_pos = 0;
  for( Index id = 0 ; id < n_nodes ; ++id )
-  scatter_rows( ineq_dual , pips_pos , InEqConsNode[ id ] , "inequality" );
- scatter_rows( ineq_dual , pips_pos , LinkInEqCons , "linking inequality" );
+  scatter_rows( ineq_dual , pips_pos , ineq_cons_node[ id ] , "inequality" );
+ scatter_rows( ineq_dual , pips_pos , link_ineq_cons , "linking inequality" );
 
  if( pips_pos != ineq_dual.size() )
-  throw( std::runtime_error( "PIPS inequality dual vector has unexpected extra "
-                             "entries" ) );
+  throw( std::runtime_error( "PIPSMILPSolver::get_dual_solution: PIPS "
+			     "inequality dual vector has unexpected extra "
+			     "entries" ) );
 
  pips_pos = 0;
  for( Index id = 0 ; id < n_nodes ; ++id )
-  for( auto * var : varNode[ id ] ) {
+  for( auto * var : var_node[ id ] ) {
    if( pips_pos >= var_bound_dual.size() )
-    throw( std::runtime_error( "PIPS reduced-cost vector is too short" ) );
+    throw( std::runtime_error( "PIPSMILPSolver::get_dual_solution: PIPS "
+			       "reduced-cost vector is too short" ) );
 
    auto col = index_of_variable( var );
    if( col < 0 || col >= numcols )
-    throw( std::runtime_error( "PIPS reduced-cost variable has no column" ) );
+    throw( std::runtime_error( "PIPSMILPSolver::get_dual_solution: PIPS "
+			       "reduced-cost variable has no column" ) );
 
    rc[ col ] = dual_scale * var_bound_dual[ pips_pos++ ];
   }
 
-
  if( pips_pos != var_bound_dual.size() )
-  throw( std::runtime_error( "PIPS reduced-cost vector has unexpected extra "
-                             "entries" ) );
+  throw( std::runtime_error( "PIPSMILPSolver::get_dual_solution: PIPS "
+			     "reduced-cost vector has unexpected extra "
+			     "entries" ) );
 
  MILPSolver::write_dual_solution( pi , rc );
 }
@@ -953,47 +681,37 @@ void PIPSMILPSolver::set_par( idx_type par , int value )
 
  std::string Pp = pips_int_par_map( par );
  if( Pp.size() > 0 ) {
-  // Firstly, if we are setting the output verbosity, we have to be careful 
-  // that the SILENT parameter in PIPS has an opposite behaviour with respect
-  // to the other solvers. So we must switch the value
-  if( Pp == "SILENT" ){
-    pipsipmpp::options::set_parameter( Pp , value == 0 );
-    return;
-  }
+  // the PIPS SILENT option has the opposite meaning of intLogVerb, hence
+  // the value is inverted
+  if( Pp == "SILENT" ) {
+   pipsipmpp::options::set_parameter( Pp , value == 0 );
+   return;
+   }
 
-  // Now, we can set normally the other parameters but considering that the 
-  // option could be a boolean one in PIPS.
-  if( value == 0 || value == 1 ) {
+  // the mapped option may be a bool one in PIPS, in which case setting it
+  // as an int throws: retry setting it as a bool
+  if( ( value == 0 ) || ( value == 1 ) ) {
    try {
     pipsipmpp::options::set_parameter( Pp , value );
-    return;
-   }
+    }
    catch( const std::runtime_error & ) {
     pipsipmpp::options::set_parameter( Pp , value != 0 );
-    return;
+    }
+   return;
    }
-  }
 
   pipsipmpp::options::set_parameter( Pp , value );
   return;
   }
 
- MILPSolver::set_par( par, value );
+ MILPSolver::set_par( par , value );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
 void PIPSMILPSolver::set_par( idx_type par , double value )
 {
- // Solver parameters explicitly mapped in PIPS
- switch( par ) {
-  case( dblUpCutOff ): UpCutOff = value; return;
-  case( dblLwCutOff ): LwCutOff = value; return;
-  }
-
- std::string Pp;
- Pp = pips_dbl_par_map( par );
-
+ std::string Pp = pips_dbl_par_map( par );
  if( Pp.size() > 0 ) {
   pipsipmpp::options::set_parameter( Pp , value );
   return;
@@ -1006,12 +724,6 @@ void PIPSMILPSolver::set_par( idx_type par , double value )
 
 void PIPSMILPSolver::set_par( idx_type par , std::string && value )
 {
- // set the solver log to a specific file
- if( par == strLogFileName ) {
-  // No currect option in PIPS
-  return;
- }
-
  // PIPS parameters
  if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
   std::string pips_par = SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ];
@@ -1019,11 +731,14 @@ void PIPSMILPSolver::set_par( idx_type par , std::string && value )
   return;
   }
 
+ // PIPS has no log-file option, but strLogFileName is still forwarded to
+ // the base class so that the standard bookkeeping is performed; the
+ // problem can be written to file via strOutputFile
  if( par == strOutputFile )
-  pipsipmpp::options::set_parameter( "WRITE_ORIGINAL_PROBLEM_TO_LP" , 
-                                      value );
+  pipsipmpp::options::set_parameter( "WRITE_ORIGINAL_PROBLEM_TO_LP" ,
+				     value );
 
- MILPSolver::set_par( par, std::move( value ) );
+ MILPSolver::set_par( par , std::move( value ) );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -1051,13 +766,12 @@ Solver::idx_type PIPSMILPSolver::get_num_str_par( void ) const {
 
 int PIPSMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- // intCutSepPar is now handled by MILPSolver base
-
- std::string Pp = pips_int_par_map( par );
- if( Pp.size() > 0 ) {
-   int value = pipsipmpp::options::get_int_parameter( Pp );
-   return( value );
-  }
+ // note: for parameters mapped into PIPS options the current value of the
+ // (process-global) option is returned, as PIPS does not expose defaults
+ if( ( par >= intFirstPIPSPar ) && ( par < intLastAlgParPIPS ) )
+  return( pipsipmpp::options::get_int_parameter(
+			     SMSpp_to_PIPS_int_pars[ par - intFirstPIPSPar ]
+			     ) );
 
  return( MILPSolver::get_dflt_int_par( par ) );
  }
@@ -1066,16 +780,11 @@ int PIPSMILPSolver::get_dflt_int_par( idx_type par ) const
 
 double PIPSMILPSolver::get_dflt_dbl_par( idx_type par ) const
 {
- switch( par ) {
-  case( dblUpCutOff ): return( Inf< double >() );
-  case( dblLwCutOff ): return( -Inf< double >() );
-  }
-
- std::string Pp = pips_dbl_par_map( par );
- if( Pp.size() > 0 ) {
-   double value = pipsipmpp::options::get_double_parameter( Pp );
-   return( value );
-  }
+ // see the comment in get_dflt_int_par()
+ if( ( par >= dblFirstPIPSPar ) && ( par < dblLastAlgParPIPS ) )
+  return( pipsipmpp::options::get_double_parameter(
+			     SMSpp_to_PIPS_dbl_pars[ par - dblFirstPIPSPar ]
+			     ) );
 
  return( MILPSolver::get_dflt_dbl_par( par ) );
  }
@@ -1084,30 +793,30 @@ double PIPSMILPSolver::get_dflt_dbl_par( idx_type par ) const
 
 const std::string & PIPSMILPSolver::get_dflt_str_par( idx_type par ) const
 {
+ // see the comment in get_dflt_int_par(); note that this is not thread safe
  static std::string value;
 
  if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
-  std::string pips_par = SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ];
-  value.reserve( 512 );
-  value = pipsipmpp::options::get_string_parameter( pips_par );
-
+  value = pipsipmpp::options::get_string_parameter(
+			     SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ] );
   return( value );
   }
 
- return( MILPSolver::get_str_par( par ) );
+ return( MILPSolver::get_dflt_str_par( par ) );
  }
 
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::get_int_par( idx_type par ) const
 {
- // intCutSepPar is now handled by MILPSolver base
+ // intLogVerb is mirrored into the (inverted) PIPS SILENT option by
+ // set_par(), hence the value kept in the base class is returned
+ if( par == intLogVerb )
+  return( log_verbosity );
 
  std::string Pp = pips_int_par_map( par );
- if( Pp.size() > 0 ) {
-   int value = pipsipmpp::options::get_int_parameter( Pp );
-   return( value );
-  }
+ if( Pp.size() > 0 )
+  return( pipsipmpp::options::get_int_parameter( Pp ) );
 
  return( MILPSolver::get_int_par( par ) );
  }
@@ -1116,16 +825,9 @@ int PIPSMILPSolver::get_int_par( idx_type par ) const
 
 double PIPSMILPSolver::get_dbl_par( idx_type par ) const
 {
- switch( par ) {
-  case( dblUpCutOff ): return( UpCutOff );
-  case( dblLwCutOff ): return( LwCutOff );
-  }
-
  std::string Pp = pips_dbl_par_map( par );
- if( Pp.size() > 0 ) {
-   double value = pipsipmpp::options::get_double_parameter( Pp );
-   return( value );
-  }
+ if( Pp.size() > 0 )
+  return( pipsipmpp::options::get_double_parameter( Pp ) );
 
  return( MILPSolver::get_dbl_par( par ) );
  }
@@ -1134,13 +836,12 @@ double PIPSMILPSolver::get_dbl_par( idx_type par ) const
 
 const std::string & PIPSMILPSolver::get_str_par( idx_type par ) const
 {
+ // note: static buffer, not thread safe
  static std::string value;
 
  if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
-  std::string pips_par = SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ];
-  value.reserve( 512 );
-  value = pipsipmpp::options::get_string_parameter( pips_par );
-
+  value = pipsipmpp::options::get_string_parameter(
+			     SMSpp_to_PIPS_str_pars[ par - strFirstPIPSPar ] );
   return( value );
   }
 
@@ -1152,24 +853,18 @@ const std::string & PIPSMILPSolver::get_str_par( idx_type par ) const
 Solver::idx_type PIPSMILPSolver::int_par_str2idx(
 					     const std::string & name ) const
 {
- // intCutSepPar is now handled by MILPSolver::int_par_str2idx()
-
- /* In PIPSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
-
+ // check with MILPSolver first
  idx_type idx = MILPSolver::int_par_str2idx( name );
  if( idx < Inf< idx_type >() )
   return( idx );
 
  // PIPS parameters
- std::string pips_par = name;
  auto array_pos = std::find( SMSpp_to_PIPS_int_pars.begin() ,
-                        SMSpp_to_PIPS_int_pars.end() ,
-                        pips_par);
+			     SMSpp_to_PIPS_int_pars.end() , name );
 
  if( array_pos != SMSpp_to_PIPS_int_pars.end() ) {
-  int pos = std::distance( SMSpp_to_PIPS_int_pars.begin(), array_pos );
-  auto idx_par = PIPS_to_SMSpp_int_pars[ pos ].second;
-  return( idx_par );
+  int pos = std::distance( SMSpp_to_PIPS_int_pars.begin() , array_pos );
+  return( PIPS_to_SMSpp_int_pars[ pos ].second );
   }
 
  return( Inf< idx_type >() );
@@ -1179,14 +874,10 @@ Solver::idx_type PIPSMILPSolver::int_par_str2idx(
 
 const std::string & PIPSMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
- // fall-through at the end of this method)
-
- // note: this implementation is not thread safe, and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
+ // note: static buffer, not thread safe; the result must be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str()), this may have to be improved upon
  static std::string par_name;
- par_name.reserve( 512 );
 
  if( ( idx >= intFirstPIPSPar ) && ( idx < intLastAlgParPIPS ) ) {
   par_name = SMSpp_to_PIPS_int_pars[ idx - intFirstPIPSPar ];
@@ -1196,28 +887,23 @@ const std::string & PIPSMILPSolver::int_par_idx2str( idx_type idx ) const
  return( MILPSolver::int_par_idx2str( idx ) );
  }
 
-
 /*--------------------------------------------------------------------------*/
 
 Solver::idx_type PIPSMILPSolver::dbl_par_str2idx( const std::string & name )
  const
 {
- /* In PIPSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
-
+ // check with MILPSolver first
  idx_type idx = MILPSolver::dbl_par_str2idx( name );
  if( idx < Inf< idx_type >() )
   return( idx );
 
  // PIPS parameters
- std::string pips_par = name;
  auto array_pos = std::find( SMSpp_to_PIPS_dbl_pars.begin() ,
-                        SMSpp_to_PIPS_dbl_pars.end() ,
-                        pips_par);
+			     SMSpp_to_PIPS_dbl_pars.end() , name );
 
  if( array_pos != SMSpp_to_PIPS_dbl_pars.end() ) {
-  int pos = std::distance( SMSpp_to_PIPS_dbl_pars.begin(), array_pos );
-  auto idx_par = PIPS_to_SMSpp_dbl_pars[ pos ].second;
-  return( idx_par );
+  int pos = std::distance( SMSpp_to_PIPS_dbl_pars.begin() , array_pos );
+  return( PIPS_to_SMSpp_dbl_pars[ pos ].second );
   }
 
  return( Inf< idx_type >() );
@@ -1227,11 +913,10 @@ Solver::idx_type PIPSMILPSolver::dbl_par_str2idx( const std::string & name )
 
 const std::string & PIPSMILPSolver::dbl_par_idx2str( idx_type idx ) const
 {
- // note: this implementation is not thread safe, and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
+ // note: static buffer, not thread safe; the result must be used
+ //       immediately after the call (prior to any other call to
+ //       dbl_par_idx2str()), this may have to be improved upon
  static std::string par_name;
- par_name.reserve( 512 );
 
  if( ( idx >= dblFirstPIPSPar ) && ( idx < dblLastAlgParPIPS ) ) {
   par_name = SMSpp_to_PIPS_dbl_pars[ idx - dblFirstPIPSPar ];
@@ -1246,22 +931,18 @@ const std::string & PIPSMILPSolver::dbl_par_idx2str( idx_type idx ) const
 Solver::idx_type PIPSMILPSolver::str_par_str2idx( const std::string & name )
  const
 {
- /* In PIPSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
-
+ // check with MILPSolver first
  idx_type idx = MILPSolver::str_par_str2idx( name );
  if( idx < Inf< idx_type >() )
   return( idx );
 
  // PIPS parameters
- std::string pips_par = name;
  auto array_pos = std::find( SMSpp_to_PIPS_str_pars.begin() ,
-                        SMSpp_to_PIPS_str_pars.end() ,
-                        pips_par);
+			     SMSpp_to_PIPS_str_pars.end() , name );
 
  if( array_pos != SMSpp_to_PIPS_str_pars.end() ) {
-  int pos = std::distance( SMSpp_to_PIPS_str_pars.begin(), array_pos );
-  auto idx_par = PIPS_to_SMSpp_str_pars[ pos ].second;
-  return( idx_par );
+  int pos = std::distance( SMSpp_to_PIPS_str_pars.begin() , array_pos );
+  return( PIPS_to_SMSpp_str_pars[ pos ].second );
   }
 
  return( Inf< idx_type >() );
@@ -1271,11 +952,10 @@ Solver::idx_type PIPSMILPSolver::str_par_str2idx( const std::string & name )
 
 const std::string & PIPSMILPSolver::str_par_idx2str( idx_type idx ) const
 {
- // note: this implementation is not thread safe, and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
+ // note: static buffer, not thread safe; the result must be used
+ //       immediately after the call (prior to any other call to
+ //       str_par_idx2str()), this may have to be improved upon
  static std::string par_name;
- par_name.reserve( 512 );
 
  if( ( idx >= strFirstPIPSPar ) && ( idx < strLastAlgParPIPS ) ) {
   par_name = SMSpp_to_PIPS_str_pars[ idx - strFirstPIPSPar ];
@@ -1286,7 +966,7 @@ const std::string & PIPSMILPSolver::str_par_idx2str( idx_type idx ) const
  }
 
 /*--------------------------------------------------------------------------*/
-/*----------------------- PIPS CALLBACKS METHODS----------------------------*/
+/*----------------------- PIPS CALLBACKS METHODS ---------------------------*/
 /*--------------------------------------------------------------------------*/
 
 PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extract_block_matrix(
@@ -1329,104 +1009,75 @@ PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extract_block_matrix(
 
 /*--------------------------------------------------------------------------*/
 
-PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extractSubmatrixToCRS(
- const std::vector< int > & selectedRows ,
- const int nRows ,
- const std::vector< int > & selectedCols ,
- const int nCols ) const
+PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extract_submatrix_to_csr(
+ const std::vector< int > & selected_rows ,
+ const int n_rows ,
+ const std::vector< int > & selected_cols ,
+ const int n_cols ) const
 {
  CSRMatrix result;
 
- std::unordered_map< int , int > rowMap;
- rowMap.reserve( nRows );
+ std::unordered_map< int , int > row_map;
+ row_map.reserve( n_rows );
 
- for( int i = 0 ; i < nRows ; ++i )
-  rowMap[ selectedRows[ i ] ] = i;
+ for( int i = 0 ; i < n_rows ; ++i )
+  row_map[ selected_rows[ i ] ] = i;
 
- std::vector< std::vector< std::pair< int , double > > > rows( nRows );
+ std::vector< std::vector< std::pair< int , double > > > rows( n_rows );
 
- for( int localCol = 0 ; localCol < nCols ; ++localCol ) {
-  const int originalCol = selectedCols[ localCol ];
+ for( int local_col = 0 ; local_col < n_cols ; ++local_col ) {
+  const int original_col = selected_cols[ local_col ];
 
-  for( int k = matbeg[ originalCol ] ;
-       k < matbeg[ originalCol ] + matcnt[ originalCol ] ;
-       ++k ) {
+  for( int k = matbeg[ original_col ] ;
+       k < matbeg[ original_col ] + matcnt[ original_col ] ; ++k ) {
+   const int original_row = matind[ k ];
+   auto it = row_map.find( original_row );
 
-   const int originalRow = matind[ k ];
-   auto it = rowMap.find( originalRow );
-
-   if( it != rowMap.end() )
-    rows[ it->second ].push_back( { localCol , matval[ k ] } );
+   if( it != row_map.end() )
+    rows[ it->second ].push_back( { local_col , matval[ k ] } );
+   }
   }
- }
 
- result.krow.reserve( nRows + 1 );
+ result.krow.reserve( n_rows + 1 );
  result.krow.push_back( 0 );
 
- for( int i = 0 ; i < nRows ; ++i ) {
+ for( int i = 0 ; i < n_rows ; ++i ) {
   for( const auto & el : rows[ i ] ) {
    result.jcol.push_back( el.first );
    result.val.push_back( el.second );
-  }
+   }
 
   result.krow.push_back( result.val.size() );
- }
-
- PIPS_CALLBACK_COUT << "\n[DEBUG extractSubmatrixToCRS]" << std::endl;
- PIPS_CALLBACK_COUT << "nRows = " << nRows
-           << ", nCols = " << nCols
-           << ", nnz = " << result.val.size()
-           << std::endl;
-
- PIPS_CALLBACK_COUT << "selectedRows: ";
- for( int r : selectedRows )
-  PIPS_CALLBACK_COUT << r << " ";
- PIPS_CALLBACK_COUT << std::endl;
-
- PIPS_CALLBACK_COUT << "selectedCols: ";
- for( int c : selectedCols )
-  PIPS_CALLBACK_COUT << c << " ";
- PIPS_CALLBACK_COUT << std::endl;
-
- for( int i = 0 ; i < nRows ; ++i ) {
-  for( int k = result.krow[ i ] ; k < result.krow[ i + 1 ] ; ++k ) {
-   PIPS_CALLBACK_COUT << "  localRow = " << i
-             << ", localCol = " << result.jcol[ k ]
-             << ", val = " << result.val[ k ]
-             << std::endl;
   }
- }
 
- return result;
+ return( result );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::ExtractMatrix(
+int PIPSMILPSolver::extract_matrix(
  int id , int * krowM , int * jcolM , double * M ,
  const std::vector< const FRowConstraint * > & node_cons ,
  const std::vector< const ColVariable * > & vars ) const
 {
- if( id < 0 || id >= n_nodes )
-  throw( std::runtime_error( "Node ID outside the expected range" ) );
+ if( ( id < 0 ) || ( id >= static_cast< int >( n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::extract_matrix: node ID "
+			     "outside the expected range" ) );
 
- const auto nCons = static_cast< int >( node_cons.size() );
- const auto nVars = static_cast< int >( vars.size() );
+ const auto n_cons = static_cast< int >( node_cons.size() );
+ const auto n_vars = static_cast< int >( vars.size() );
 
- if( nCons == 0 || nVars == 0 ) {
-  for( int i = 0 ; i <= nCons ; ++i )
+ if( ( n_cons == 0 ) || ( n_vars == 0 ) ) {
+  for( int i = 0 ; i <= n_cons ; ++i )
    krowM[ i ] = 0;
 
   return( 0 );
- }
+  }
 
  auto global_idxs_cons = compute_cons_global_idxs( node_cons );
  auto global_idxs_vars = compute_vars_global_idxs( vars );
- auto sub_matrix = extractSubmatrixToCRS( global_idxs_cons , nCons ,
-                                          global_idxs_vars , nVars );
-
- sanity_check_csr( "ExtractMatrix" , id , nCons , nVars , sub_matrix ,
-                   global_idxs_cons , global_idxs_vars );
+ auto sub_matrix = extract_submatrix_to_csr( global_idxs_cons , n_cons ,
+					     global_idxs_vars , n_vars );
 
  std::copy( sub_matrix.krow.begin() , sub_matrix.krow.end() , krowM );
  std::copy( sub_matrix.jcol.begin() , sub_matrix.jcol.end() , jcolM );
@@ -1437,32 +1088,30 @@ int PIPSMILPSolver::ExtractMatrix(
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::EvaluateNnz(
+int PIPSMILPSolver::evaluate_nnz(
  int id , int * nnz ,
  const std::vector< const FRowConstraint * > & node_cons ,
  const std::vector< const ColVariable * > & vars ) const
 {
- if( id < 0 || id >= n_nodes )
-  throw( std::runtime_error( "Node ID outside the expected range" ) );
+ if( ( id < 0 ) || ( id >= static_cast< int >( n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::evaluate_nnz: node ID "
+			     "outside the expected range" ) );
 
- const auto nCons = static_cast< int >( node_cons.size() );
- const auto nVars = static_cast< int >( vars.size() );
+ const auto n_cons = static_cast< int >( node_cons.size() );
+ const auto n_vars = static_cast< int >( vars.size() );
 
- if( nCons == 0 || nVars == 0 ) {
+ if( ( n_cons == 0 ) || ( n_vars == 0 ) ) {
   *nnz = 0;
   return( 0 );
- }
+  }
 
  auto global_idxs_cons = compute_cons_global_idxs( node_cons );
  auto global_idxs_vars = compute_vars_global_idxs( vars );
- auto sub_matrix = extractSubmatrixToCRS( global_idxs_cons , nCons ,
-                                          global_idxs_vars , nVars );
-
- sanity_check_csr( "EvaluateNnz" , id , nCons , nVars , sub_matrix ,
-                   global_idxs_cons , global_idxs_vars );
+ auto sub_matrix = extract_submatrix_to_csr( global_idxs_cons , n_cons ,
+					     global_idxs_vars , n_vars );
 
  *nnz = sub_matrix.nnz();
- sanity_check_count( "EvaluateNnz" , id , *nnz );
+
  return( 0 );
 }
 
@@ -1471,27 +1120,27 @@ int PIPSMILPSolver::EvaluateNnz(
 std::vector< int > PIPSMILPSolver::compute_cons_global_idxs(
  const std::vector< const FRowConstraint * > & cons ) const
 {
- // Initialize vector to -1
  std::vector< int > global_idxs( cons.size() , -1 );
  Index row = 0;
 
- for( auto con : cons ){
+ for( auto con : cons ) {
   Index static_idx = index_of_static_constraint( con );
 
-  if( static_idx < Inf< int >() ){
-    global_idxs[ row ] = static_idx;
-  }
-  else{
-    Index dynamic_idx = index_of_dynamic_constraint( con );
-    if( dynamic_idx < Inf< int >() )
-     global_idxs[ row ] = dynamic_idx;
-    else
-     throw( std::runtime_error( "The required constraint has no available "
-      "index" ) );
-  }
+  if( static_idx < Inf< Index >() )
+   global_idxs[ row ] = static_idx;
+  else {
+   Index dynamic_idx = index_of_dynamic_constraint( con );
+   if( dynamic_idx < Inf< Index >() )
+    global_idxs[ row ] = dynamic_idx;
+   else
+    throw( std::runtime_error(
+	    "PIPSMILPSolver::compute_cons_global_idxs: the required "
+	    "constraint has no available index" ) );
+   }
   row++;
- }      
- return global_idxs;                            
+  }
+
+ return( global_idxs );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1499,1352 +1148,1375 @@ std::vector< int > PIPSMILPSolver::compute_cons_global_idxs(
 std::vector< int > PIPSMILPSolver::compute_vars_global_idxs(
  const std::vector< const ColVariable * > & vars ) const
 {
- // Initialize vector to -1
  std::vector< int > global_idxs( vars.size() , -1 );
  Index col = 0;
 
- for( auto var : vars ){
+ for( auto var : vars ) {
   Index static_idx = index_of_static_variable( var );
 
-  if( static_idx < Inf< int >() ){
-    global_idxs[ col ] = static_idx;
-  }
-  else{
-    Index dynamic_idx = index_of_dynamic_variable( var );
-    if( dynamic_idx < Inf< int >() )
-     global_idxs[ col ] = dynamic_idx;
-    else
-     throw( std::runtime_error( "The required variable has no available "
-      "index" ) );
-  }
+  if( static_idx < Inf< Index >() )
+   global_idxs[ col ] = static_idx;
+  else {
+   Index dynamic_idx = index_of_dynamic_variable( var );
+   if( dynamic_idx < Inf< Index >() )
+    global_idxs[ col ] = dynamic_idx;
+   else
+    throw( std::runtime_error(
+	    "PIPSMILPSolver::compute_vars_global_idxs: the required "
+	    "variable has no available index" ) );
+   }
   col++;
- }      
- return global_idxs;                    
+  }
+
+ return( global_idxs );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::collect_subtree(
- Block * block ,
- std::vector< Block * > & subtree ,
- Index parent_leaf
- )
+Block::Index PIPSMILPSolver::collect_subtree( Block * block ,
+					      std::vector< Block * > & subtree ,
+					      Index parent_leaf )
 {
- // Set the map from the block to the father leaf
- blockToleaf[ block ] = parent_leaf;
+ // map the Block to its father leaf
+ block_to_leaf[ block ] = parent_leaf;
 
  Index tree_size = 1;
  subtree.push_back( block );
 
- for( auto * child : block->get_nested_Blocks() ){
-  Index subtree_size = collect_subtree( child , subtree , parent_leaf );
-  tree_size += subtree_size;
- }
- return tree_size;
+ for( auto * child : block->get_nested_Blocks() )
+  tree_size += collect_subtree( child , subtree , parent_leaf );
+
+ return( tree_size );
 }
 
 /*--------------------------------------------------------------------------*/
 
 template< typename T >
  void PIPSMILPSolver::scan_group( const boost::any & gr , Block * qb ,
-                              Index num_node , un_any_type< T > )
+				  Index num_node , un_any_type< T > )
 {
- // Search for the group type
- if( gr.type() == typeid( T * ) ||
-      gr.type() == typeid( std::vector< T > * ) ||
-      gr.type() == typeid( std::vector< std::vector< T > > * ) ) {
-  // "Simple" group
+ // search for the group type
+ if( ( gr.type() == typeid( T * ) ) ||
+     ( gr.type() == typeid( std::vector< T > * ) ) ||
+     ( gr.type() == typeid( std::vector< std::vector< T > > * ) ) ) {
+  // "simple" group
   scan_simple_group( gr , qb , num_node , un_any_type< T >() );
   }
  else {
-  // "Complex" group
+  // "complex" group
   scan_multiarray_group( gr , qb , num_node , un_any_type< T >() );
   }
- } 
+ }
 
 /*--------------------------------------------------------------------------*/
 
 template< typename T >
- void PIPSMILPSolver::scan_simple_group( const boost::any & gr , Block * qb , 
-                                Index num_node , un_any_type< T > )
+ void PIPSMILPSolver::scan_simple_group( const boost::any & gr , Block * qb ,
+					 Index num_node , un_any_type< T > )
 {
  if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-  // Scanning a group of Constraints
-  auto scan = [ this , num_node ]
-   ( const FRowConstraint & c ) {
-    scan_constraint( c , num_node );
-  };
-  // Scan all the constraints one at a time
-  un_any_const_static( gr , scan  , un_any_type< FRowConstraint >() );
- }
+  // constraint group
+  auto scan = [ this , num_node ]( const FRowConstraint & c ) {
+   scan_constraint( c , num_node );
+   };
+  // scan all the constraints one at a time
+  un_any_const_static( gr , scan , un_any_type< FRowConstraint >() );
+  }
  else if( typeid( T * ) == typeid( ColVariable * ) ) {
-  // Scanning a group of Variables
-  // in this case we simply add the variable to the corresponding node
-  auto push_var_toNode = [ this , num_node ]
-    ( const ColVariable & c ) {
-      n_varNode[ num_node ] += 1;
-      varNode[ num_node ].push_back( &c );
-      var_to_node.emplace( &c , num_node );
-  };
-  un_any_const_static( gr , push_var_toNode , un_any_type< ColVariable >() );
+  // variable group: simply add each variable to the corresponding node
+  auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
+   n_var_node[ num_node ] += 1;
+   var_node[ num_node ].push_back( & c );
+   var_to_node.emplace( & c , num_node );
+   };
+  un_any_const_static( gr , push_var_to_node , un_any_type< ColVariable >() );
   }
  else
-  throw( std::runtime_error( "Unsupported group type" ) );
-} 
+  throw( std::runtime_error( "PIPSMILPSolver::scan_simple_group: "
+			     "unsupported group type" ) );
+}
 
 /*--------------------------------------------------------------------------*/
 
 template< typename T >
  void PIPSMILPSolver::scan_multiarray_group( const boost::any & gr ,
-            Block * qb , Index num_node , un_any_type< T > )
+	    Block * qb , Index num_node , un_any_type< T > )
 {
- // Get multi array number of dimension
- int ma_dim = get_multi_array_dim( gr , un_any_type< T >() , 
-                                    un_any_int< 2 >() );
+ // get the multi_array dimensionality
+ int ma_dim = get_multi_array_dim( gr , un_any_type< T >() ,
+				   un_any_int< 2 >() );
 
  if( ma_dim == 2 ) {
-  // Use the 2D multi_array
+  // 2D multi_array
 
-  // Get type of multi array. See MILPSolver.h:1256 for further details.
+  // get the multi_array type: see get_multi_array_type() in MILPSolver.h
   int type = get_multi_array_type( gr , un_any_type< T >() ,
-                                  un_any_int< 2 >() );
+				   un_any_int< 2 >() );
 
-  // Indices of the 2 dimensions
+  // indices of the 2 dimensions
   int idx_0 = 0;
   int idx_1 = 0;
 
   if( type == 1 ) {
-   // Multi arrays of type 1 (i.e. multi_array< std::vector < T * > >).
-   // In this case elements are not stored in sequential cells. Thus, 
-   // we have to "unpack" each std::vector and store them separately.
+   // multi_arrays of type 1 (i.e. multi_array< std::vector< T * > >) do not
+   // store elements in sequential cells: each std::vector is "unpacked" and
+   // stored separately
    auto ma = get_multi_array1( gr , un_any_type< T >() ,
-                            un_any_int< 2 >() );
+			       un_any_int< 2 >() );
+
+   const auto dim_0 = static_cast< int >( ma->shape()[ 0 ] );
+   const auto dim_1 = static_cast< int >( ma->shape()[ 1 ] );
+
+   if( ( dim_0 == 0 ) || ( dim_1 == 0 ) )
+    return;  // empty multi_array: nothing to scan
 
    if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-    // Constraint group
+    // constraint group
 
-    // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
-     // Scanning a group of Constraints
-     auto scan = [ this , num_node ]
-      ( const FRowConstraint & c ) {
-        scan_constraint( c , num_node );
-     };
-     // Scan all the constraints one at a time
-     un_any_const_static( v , scan  , un_any_type< FRowConstraint >() );
+    // scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
+     auto scan = [ this , num_node ]( const FRowConstraint & c ) {
+      scan_constraint( c , num_node );
+      };
+     // scan all the constraints one at a time
+     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
 
-     // The linearization produced by ma->data() for the 2D multi_array
-     // stores elements in row-major order. Therefore, we should increment
-     // the column index first, and when it exceeds the number of columns,
-     // reset it and increment the row index.
-     if( idx_1 < ma->shape()[ 1 ] - 1 )
+     // the linearization produced by ma->data() for the 2D multi_array
+     // stores elements in row-major order: increment the column index
+     // first, and when it exceeds the number of columns reset it and
+     // increment the row index
+     if( idx_1 < dim_1 - 1 )
       idx_1++;
      else {
       idx_1 = 0;
       idx_0++;
+      }
      }
     }
-   }
    else if( typeid( T * ) == typeid( ColVariable * ) ) {
-    // Variable group
+    // variable group
 
-    // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
-     // Scanning a group of Variables
-     // in this case we simply add the variable to the corresponding node
-     auto push_var_toNode = [ this , num_node ]
-       ( const ColVariable & c ) {
-        n_varNode[ num_node ] += 1;
-        varNode[ num_node ].push_back( &c );
-        var_to_node.emplace( &c , num_node );
-     };
-     un_any_const_static( v , push_var_toNode , 
-      un_any_type< ColVariable >() );
+    // scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
+     // simply add each variable to the corresponding node
+     auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
+      n_var_node[ num_node ] += 1;
+      var_node[ num_node ].push_back( & c );
+      var_to_node.emplace( & c , num_node );
+      };
+     un_any_const_static( v , push_var_to_node ,
+			  un_any_type< ColVariable >() );
 
-     // The linearization produced by ma->data() for the 2D multi_array
-     // stores elements in row-major order. Therefore, we should increment
-     // the column index first, and when it exceeds the number of columns,
-     // reset it and increment the row index.
-     if( idx_1 < ma->shape()[ 1 ] - 1 )
+     // row-major order, see above
+     if( idx_1 < dim_1 - 1 )
       idx_1++;
      else {
       idx_1 = 0;
       idx_0++;
+      }
      }
     }
-   }
    else
-    throw( std::runtime_error( "Unsupported group type" ) );
-  }
+    throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
+			       "unsupported group type" ) );
+   }
   else if( type == 0 ) {
-   // Multi arrays of type 0 (i.e. multi_array< T >) store
-   // elements in sequential cells. Thus, we can store them
-   // as usually done for std::vector< T > by only keeping track
-   // of the first element and storing the number of non empty
-   // cells in the structure.
+   // multi_arrays of type 0 (i.e. multi_array< T >) store elements in
+   // sequential cells, hence they can be stored as done for
+   // std::vector< T > by only keeping track of the first element and
+   // storing the number of non-empty cells in the structure
    auto ma = get_multi_array0( gr , un_any_type< T >() ,
-                              un_any_int< 2 >() );
+			       un_any_int< 2 >() );
+
+   const auto dim_0 = static_cast< int >( ma->shape()[ 0 ] );
+   const auto dim_1 = static_cast< int >( ma->shape()[ 1 ] );
+
+   if( ( dim_0 == 0 ) || ( dim_1 == 0 ) )
+    return;  // empty multi_array: nothing to scan
 
    if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-    // Constraint group
+    // constraint group
 
-    // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
-     // Scanning a group of Constraints
-     auto scan = [ this , num_node ]
-      ( const FRowConstraint & c ) {
-        scan_constraint( c , num_node );
-     };
-     // Scan all the constraints one at a time
-     un_any_const_static( v , scan  , un_any_type< FRowConstraint >() );
+    // scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
+     auto scan = [ this , num_node ]( const FRowConstraint & c ) {
+      scan_constraint( c , num_node );
+      };
+     // scan all the constraints one at a time
+     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
 
-     // The linearization produced by ma->data() for the 2D multi_array
-     // stores elements in row-major order. Therefore, we should increment
-     // the column index first, and when it exceeds the number of columns,
-     // reset it and increment the row index.
-     if( idx_1 < ma->shape()[ 1 ] - 1 )
+     // row-major order, see above
+     if( idx_1 < dim_1 - 1 )
       idx_1++;
      else {
       idx_1 = 0;
       idx_0++;
+      }
      }
     }
-   }
    else if( typeid( T * ) == typeid( ColVariable * ) ) {
-    // Variable group
+    // variable group
 
-    // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
-     // Scanning a group of Variables
-     // in this case we simply add the variable to the corresponding node
-     auto push_var_toNode = [ this , num_node ]
-       ( const ColVariable & c ) {
-        n_varNode[ num_node ] += 1;
-        varNode[ num_node ].push_back( &c );
-        var_to_node.emplace( &c , num_node );
-     };
-     un_any_const_static( v , push_var_toNode , 
-      un_any_type< ColVariable >() );
+    // scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
+     // simply add each variable to the corresponding node
+     auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
+      n_var_node[ num_node ] += 1;
+      var_node[ num_node ].push_back( & c );
+      var_to_node.emplace( & c , num_node );
+      };
+     un_any_const_static( v , push_var_to_node ,
+			  un_any_type< ColVariable >() );
 
-     // The linearization produced by ma->data() for the 2D multi_array
-     // stores elements in row-major order. Therefore, we should increment
-     // the column index first, and when it exceeds the number of columns,
-     // reset it and increment the row index.
-     if( idx_1 < ma->shape()[ 1 ] - 1 )
+     // row-major order, see above
+     if( idx_1 < dim_1 - 1 )
       idx_1++;
      else {
       idx_1 = 0;
       idx_0++;
+      }
      }
     }
-   }
    else
-    throw( std::runtime_error( "Unsupported group type" ) );
-  }
+    throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
+			       "unsupported group type" ) );
+   }
   else
-   throw( std::runtime_error( "Unsupported multi-array type" ) );
- }
+   throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
+			      "unsupported multi_array type" ) );
+  }
  else if( ma_dim == 3 ) {
-  // Use the 3D multi_array
+  // 3D multi_array
 
-  // Get type of multi array. See MILPSolver.h:1256 for further details.
+  // get the multi_array type: see get_multi_array_type() in MILPSolver.h
   int type = get_multi_array_type( gr , un_any_type< T >() ,
-                un_any_int< 3 >() );
+				   un_any_int< 3 >() );
 
-  // Indices of the 3 dimensions
+  // indices of the 3 dimensions
   int idx_0 = 0;
   int idx_1 = 0;
   int idx_2 = 0;
 
   if( type == 1 ) {
-   // Multi arrays of type 1 (i.e. multi_array< std::vector < T * > >).
-   // In this case elements are not stored in sequential cells. Thus, 
-   // we have to "unpack" each std::vector and store them separately.
+   // multi_arrays of type 1, see above
    auto ma = get_multi_array1( gr , un_any_type< T >() ,
-                            un_any_int< 3 >() );
+			       un_any_int< 3 >() );
+
+   const auto dim_0 = static_cast< int >( ma->shape()[ 0 ] );
+   const auto dim_1 = static_cast< int >( ma->shape()[ 1 ] );
+   const auto dim_2 = static_cast< int >( ma->shape()[ 2 ] );
+
+   if( ( dim_0 == 0 ) || ( dim_1 == 0 ) || ( dim_2 == 0 ) )
+    return;  // empty multi_array: nothing to scan
 
    if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-    // Constraint group
+    // constraint group
 
-    // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
-     // Scanning a group of Constraints
-     auto scan = [ this , num_node ]
-      ( const FRowConstraint & c ) {
-        scan_constraint( c , num_node );
-     };
-     // Scan all the constraints one at a time
-     un_any_const_static( v , scan  , un_any_type< FRowConstraint >() );
+    // scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
+     auto scan = [ this , num_node ]( const FRowConstraint & c ) {
+      scan_constraint( c , num_node );
+      };
+     // scan all the constraints one at a time
+     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
 
-     // The linearization produced by ma->data() for the 3D multi_array
-     // stores elements in row-major order.
-     if( idx_2 < ma->shape()[ 2 ] - 1 )
+     // the linearization produced by ma->data() for the 3D multi_array
+     // stores elements in row-major order
+     if( idx_2 < dim_2 - 1 )
       idx_2++;
-     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+     else if( idx_1 < dim_1 - 1 ) {
       idx_1++;
       idx_2 = 0;
-     }
+      }
      else {
       idx_0++;
       idx_1 = 0;
       idx_2 = 0;
+      }
      }
     }
-   }
    else if( typeid( T * ) == typeid( ColVariable * ) ) {
-    // Variable group
+    // variable group
 
-    // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
-     // Scanning a group of Variables
-     // in this case we simply add the variable to the corresponding node
-     auto push_var_toNode = [ this , num_node ]
-       ( const ColVariable & c ) {
-        n_varNode[ num_node ] += 1;
-        varNode[ num_node ].push_back( &c );
-        var_to_node.emplace( &c , num_node );
-     };
-     un_any_const_static( v , push_var_toNode , 
-      un_any_type< ColVariable >() );
+    // scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
+     // simply add each variable to the corresponding node
+     auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
+      n_var_node[ num_node ] += 1;
+      var_node[ num_node ].push_back( & c );
+      var_to_node.emplace( & c , num_node );
+      };
+     un_any_const_static( v , push_var_to_node ,
+			  un_any_type< ColVariable >() );
 
-     // The linearization produced by ma->data() for the 3D multi_array
-     // stores elements in row-major order.
-     if( idx_2 < ma->shape()[ 2 ] - 1 )
+     // row-major order, see above
+     if( idx_2 < dim_2 - 1 )
       idx_2++;
-     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+     else if( idx_1 < dim_1 - 1 ) {
       idx_1++;
       idx_2 = 0;
-     }
+      }
      else {
       idx_0++;
       idx_1 = 0;
       idx_2 = 0;
+      }
      }
     }
-   }
    else
-    throw( std::runtime_error( "Unsupported group type" ) );
-  }
+    throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
+			       "unsupported group type" ) );
+   }
   else if( type == 0 ) {
-   // Multi arrays of type 0 (i.e., multi_array< T >) store
-   // elements in sequential cells. Thus, we can store them
-   // as usually done for std::vector< T > by only keeping track
-   // of the first element and storing the number of non-empty
-   // cells in the structure.
+   // multi_arrays of type 0, see above
    auto ma = get_multi_array0( gr , un_any_type< T >() ,
-                              un_any_int< 3 >() );
+			       un_any_int< 3 >() );
+
+   const auto dim_0 = static_cast< int >( ma->shape()[ 0 ] );
+   const auto dim_1 = static_cast< int >( ma->shape()[ 1 ] );
+   const auto dim_2 = static_cast< int >( ma->shape()[ 2 ] );
+
+   if( ( dim_0 == 0 ) || ( dim_1 == 0 ) || ( dim_2 == 0 ) )
+    return;  // empty multi_array: nothing to scan
 
    if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-    // Constraint group
+    // constraint group
 
-    // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
-     // Scanning a group of Constraints
-     auto scan = [ this , num_node ]
-      ( const FRowConstraint & c ) {
-        scan_constraint( c , num_node );
-     };
-     // Scan all the constraints one at a time
-     un_any_const_static( v , scan  , un_any_type< FRowConstraint >() );
+    // scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
+     auto scan = [ this , num_node ]( const FRowConstraint & c ) {
+      scan_constraint( c , num_node );
+      };
+     // scan all the constraints one at a time
+     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
 
-     // The linearization produced by ma->data() for the 3D multi_array
-     // stores elements in row-major order.
-     if( idx_2 < ma->shape()[ 2 ] - 1 )
+     // row-major order, see above
+     if( idx_2 < dim_2 - 1 )
       idx_2++;
-     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+     else if( idx_1 < dim_1 - 1 ) {
       idx_1++;
       idx_2 = 0;
-     }
+      }
      else {
       idx_0++;
       idx_1 = 0;
       idx_2 = 0;
+      }
      }
     }
-   }
    else if( typeid( T * ) == typeid( ColVariable * ) ) {
-    // Variable group
+    // variable group
 
-    // Scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < ma->shape()[ 0 ] ; ++v ) {
-     // Scanning a group of Variables
-     // in this case we simply add the variable to the corresponding node
-     auto push_var_toNode = [ this , num_node ]
-       ( const ColVariable & c ) {
-        n_varNode[ num_node ] += 1;
-        varNode[ num_node ].push_back( &c );
-        var_to_node.emplace( &c , num_node );
-     };
-     un_any_const_static( v , push_var_toNode , 
-      un_any_type< ColVariable >() );
+    // scan the linearization of the array
+    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
+     // simply add each variable to the corresponding node
+     auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
+      n_var_node[ num_node ] += 1;
+      var_node[ num_node ].push_back( & c );
+      var_to_node.emplace( & c , num_node );
+      };
+     un_any_const_static( v , push_var_to_node ,
+			  un_any_type< ColVariable >() );
 
-     // The linearization produced by ma->data() for the 3D multi_array
-     // stores elements in row-major order.
-     if( idx_2 < ma->shape()[ 2 ] - 1 )
+     // row-major order, see above
+     if( idx_2 < dim_2 - 1 )
       idx_2++;
-     else if( idx_1 < ma->shape()[ 1 ] - 1 ) {
+     else if( idx_1 < dim_1 - 1 ) {
       idx_1++;
       idx_2 = 0;
-     }
+      }
      else {
       idx_0++;
       idx_1 = 0;
       idx_2 = 0;
+      }
      }
     }
-   }
    else
-    throw( std::runtime_error( "Unsupported group type" ) );
-  }
+    throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
+			       "unsupported group type" ) );
+   }
   else
-   throw( std::runtime_error( "Unsupported multi-array type" ) );
- }
+   throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
+			      "unsupported multi_array type" ) );
+  }
  else
-    // Handle invalid or unsupported ma_dim 
-    return; 
-
-} 
+  throw( std::runtime_error(
+	  "PIPSMILPSolver::scan_multiarray_group: unsupported multi_array "
+	  "dimensionality " + std::to_string( ma_dim ) ) );
+}
 
 /*--------------------------------------------------------------------------*/
 
-void PIPSMILPSolver::scan_constraint( const FRowConstraint & con , 
-                                      Index num_node )
+void PIPSMILPSolver::scan_constraint( const FRowConstraint & con ,
+				      Index num_node )
 {
- // Check if the Constraint is not empty
+ // check that the Constraint is not empty
  if( con.get_Block() == nullptr )
-  throw( std::invalid_argument( "The provided constraint is empty" ) );
+  throw( std::invalid_argument( "PIPSMILPSolver::scan_constraint: the "
+				"provided constraint is empty" ) );
 
- // First of all we can categorize the constraint into equality/inequality
- bool is_eq;
+ // categorize the constraint into equality/inequality
  auto con_lhs = con.get_lhs();
  auto con_rhs = con.get_rhs();
+ bool is_eq = ( con_lhs == con_rhs );
 
- if( con_lhs == con_rhs )
-  is_eq = true;
- else
-  is_eq = false;
+ // a row with lhs == rhs == +/- infinity is no equality: reject it
+ if( is_eq && ( ( con_lhs == Inf< double >() ) ||
+		( con_lhs == -Inf< double >() ) ) )
+  throw( std::invalid_argument( "PIPSMILPSolver::scan_constraint: the "
+				"provided constraint has lhs == rhs == "
+				"+/- infinity" ) );
 
- // Now we need to understand if the constraint involves only variables of the 
- // same node (accepting also root node) or also variables coming from 
- // multiple leaves
-
- // Initialize boolean variable to understand if exists any variable in the
- // constraint that belongs to another node (excluding root)
- bool found_inOtherNode = false;
+ // check whether the constraint involves only variables of the same node
+ // (accepting also the root node) or also variables coming from other
+ // leaves
+ bool found_in_other_node = false;
  if( auto f = con.get_function() ) {
   if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
-   for( auto el : lf->get_v_var() ){
+   for( auto el : lf->get_v_var() ) {
     auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
 
     auto it = var_to_node.find( v );
 
     if( it == var_to_node.end() )
-      throw std::runtime_error( "Variable not assigned to any PIPS node" );
+     throw( std::runtime_error( "PIPSMILPSolver::scan_constraint: variable "
+				"not assigned to any PIPS node" ) );
 
-    int owner = it->second;
+    auto owner = static_cast< Index >( it->second );
 
-    if( owner != num_node && owner != 0 ) {
-     found_inOtherNode = true;
+    if( ( owner != num_node ) && ( owner != 0 ) ) {
+     found_in_other_node = true;
      break;
-    }
-   }
-  }
-  else
-      throw( std::invalid_argument( "Unexpected constraint type" ) );
- }
- 
- // Now add the constraint to the correct group
- if( found_inOtherNode && is_eq ){
-  // Add to the equality linking constraints
-  n_LinkEqCons++;
-  LinkEqCons.push_back( &con );
- }
- else if( found_inOtherNode && !is_eq ){
-  // Add to the inequality linking constraints
-  n_LinkInEqCons++;
-  LinkInEqCons.push_back( &con );
- }
- else if( ! found_inOtherNode && is_eq ){
-  // Add to the node equality constraints
-  n_EqConsNode[ num_node ]++;
-  EqConsNode[ num_node ].push_back( &con );
- }
- else{
-  // Add to the node inequality constraints
-  n_InEqConsNode[ num_node ]++;
-  InEqConsNode[ num_node ].push_back( &con );
- }
-}
-
-/*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::ExtractRhsVector( int id , double* vec , int len ,
-              const std::vector< const FRowConstraint * > & node_cons ,
-              const std::vector< double > & rhs ,
-              const std::vector< char > & sense ,
-              const std::vector< double > & ranges ){
-  const int nCons = node_cons.size();
-
-  if( id < n_nodes ){
-   // Check if the node has own constraint
-   if( nCons == 0 ){
-    if( len > 0 ){
-    // Strange, but we fill the expected vector with zeros
-     for (int i = 0; i < len; i++)
-      vec[i] = 0.0;
-    }
-    // Nothing to do
-    return 0;
-   }
-
-   // Extract the global indices of constraints
-   std::vector< int > global_idxs_cons = compute_cons_global_idxs( node_cons );
-   
-   // Extract the corresponding elements and store them
-   std::vector< double > sub_rhs;
-   sub_rhs.reserve( global_idxs_cons.size() );
-
-   if( sense.empty() ){
-    // We are asking the rhs for equality constraints, just select them
-    for( auto idx : global_idxs_cons )
-     if( idx < rhs.size() )
-      sub_rhs.push_back( rhs[ idx ] );
-   }
-   else{
-    // Inequality constraints, we have to distinguish several cases
-    for( int i = 0 ; i < global_idxs_cons.size() ; i++ ){
-     int idx = global_idxs_cons[ i ]; // true constraint index
-     if( idx < rhs.size() ){ 
-      if( sense[ idx ] == 'L' )
-       // <= RHS, store the element
-       sub_rhs.push_back( rhs[ idx ] );
-      else if( sense[ idx ] == 'G' )
-       // >= LHS, so no elements to store
-       sub_rhs.push_back( 0.0 );
-      else if( sense[ idx ] == 'R' ){
-       // LHS <= f <= RHS, we have to evaluate the sign of the range
-       if( ranges[ idx ] > 0 )
-        sub_rhs.push_back( rhs[ idx ] + ranges[ idx ] );
-       else
-        sub_rhs.push_back( rhs[ idx ] );
-      }
-      else
-       throw( std::runtime_error( "Unexpected inequality sense" ) );
      }
     }
    }
-   if( static_cast< int >( sub_rhs.size() ) != len )
-    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractRhsVector id=" << id
-              << " built " << sub_rhs.size()
-              << " values but PIPS requested len=" << len << std::endl;
-   std::copy( sub_rhs.begin(), sub_rhs.end(), vec );
-   sanity_check_vector( "ExtractRhsVector", id, vec, len, nCons );
-   return 0;
-  }
   else
-   throw( std::runtime_error( "Node ID outside the expected range" ) );
+   throw( std::invalid_argument( "PIPSMILPSolver::scan_constraint: "
+				 "unexpected constraint type" ) );
+  }
+
+ // add the constraint to the correct group
+ if( found_in_other_node && is_eq ) {
+  // equality linking constraints
+  n_link_eq_cons++;
+  link_eq_cons.push_back( & con );
+  }
+ else if( found_in_other_node && ( ! is_eq ) ) {
+  // inequality linking constraints
+  n_link_ineq_cons++;
+  link_ineq_cons.push_back( & con );
+  }
+ else if( ( ! found_in_other_node ) && is_eq ) {
+  // node equality constraints
+  n_eq_cons_node[ num_node ]++;
+  eq_cons_node[ num_node ].push_back( & con );
+  }
+ else {
+  // node inequality constraints
+  n_ineq_cons_node[ num_node ]++;
+  ineq_cons_node[ num_node ].push_back( & con );
+  }
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::ExtractLhsVector( int id , double* vec , int len ,
-              const std::vector< const FRowConstraint * > & node_cons ,
-              const std::vector< double > & rhs ,
-              const std::vector< char > & sense ,
-              const std::vector< double > & ranges ){
-  const int nCons = node_cons.size();
+int PIPSMILPSolver::extract_rhs_vector( int id , double * vec , int len ,
+	      const std::vector< const FRowConstraint * > & node_cons ,
+	      const std::vector< double > & rhs ,
+	      const std::vector< char > & sense ,
+	      const std::vector< double > & ranges )
+{
+ if( ( id < 0 ) || ( id >= static_cast< int >( n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::extract_rhs_vector: node ID "
+			     "outside the expected range" ) );
 
-  if( id < n_nodes ){
-   // Check if the node has own constraint
-   if( nCons == 0 ){
-    if( len > 0 ){
-    // Strange, but we fill the expected vector with zeros
-     for (int i = 0; i < len; i++)
-      vec[i] = 0.0;
-    }
-    // Nothing to do
-    return 0;
-   }
+ if( node_cons.empty() ) {
+  // PIPS may query nodes with no local entries: return a zero vector
+  for( int i = 0 ; i < len ; ++i )
+   vec[ i ] = 0.0;
 
-   // Extract the global indices of constraints
-   std::vector< int > global_idxs_cons = compute_cons_global_idxs( node_cons );
-   
-   // Extract the corresponding elements and store them
-   std::vector< double > sub_rhs;
-   sub_rhs.reserve( global_idxs_cons.size() );
-
-   for( int i = 0 ; i < global_idxs_cons.size() ; i++ ){
-    int idx = global_idxs_cons[ i ]; // true constraint index
-    if( idx < rhs.size() ){ 
-     if( sense[ idx ] == 'G' )
-      // >= LHS, store the element
-      sub_rhs.push_back( rhs[ idx ] );
-     else if( sense[ idx ] == 'L' )
-      // <= RHS, so no elements to store
-      sub_rhs.push_back( 0.0 );
-     else if( sense[ idx ] == 'R' ){
-      // LHS <= f <= RHS, we have to evaluate the sign of the range
-      if( ranges[ idx ] > 0 )
-       sub_rhs.push_back( rhs[ idx ] );
-      else
-       sub_rhs.push_back( rhs[ idx ] + ranges[ idx ] );
-     }
-     else
-      throw( std::runtime_error( "Unexpected inequality sense" ) );
-    }
-   }
-   if( static_cast< int >( sub_rhs.size() ) != len )
-    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractLhsVector id=" << id
-              << " built " << sub_rhs.size()
-              << " values but PIPS requested len=" << len << std::endl;
-   std::copy( sub_rhs.begin(), sub_rhs.end(), vec );
-   sanity_check_vector( "ExtractLhsVector", id, vec, len, nCons );
-   return 0;
+  return( 0 );
   }
+
+ // extract the global indices of the constraints
+ std::vector< int > global_idxs_cons = compute_cons_global_idxs( node_cons );
+
+ // extract the corresponding elements and store them
+ std::vector< double > sub_rhs;
+ sub_rhs.reserve( global_idxs_cons.size() );
+
+ if( sense.empty() ) {
+  // equality constraints: just select the corresponding rhs entries
+  for( auto idx : global_idxs_cons ) {
+   if( static_cast< std::size_t >( idx ) >= rhs.size() )
+    throw( std::runtime_error( "PIPSMILPSolver::extract_rhs_vector: "
+			       "constraint index outside the row data" ) );
+
+   sub_rhs.push_back( rhs[ idx ] );
+   }
+  }
+ else {
+  // inequality constraints: distinguish among the several senses
+  for( auto idx : global_idxs_cons ) {
+   if( static_cast< std::size_t >( idx ) >= rhs.size() )
+    throw( std::runtime_error( "PIPSMILPSolver::extract_rhs_vector: "
+			       "constraint index outside the row data" ) );
+
+   if( sense[ idx ] == 'L' )
+    // <= RHS, store the element
+    sub_rhs.push_back( rhs[ idx ] );
+   else if( sense[ idx ] == 'G' )
+    // >= LHS, so no elements to store
+    sub_rhs.push_back( 0.0 );
+   else if( sense[ idx ] == 'R' ) {
+    // LHS <= f <= RHS, evaluate the sign of the range
+    if( ranges[ idx ] > 0 )
+     sub_rhs.push_back( rhs[ idx ] + ranges[ idx ] );
+    else
+     sub_rhs.push_back( rhs[ idx ] );
+    }
+   else
+    throw( std::runtime_error( "PIPSMILPSolver::extract_rhs_vector: "
+			       "unexpected inequality sense" ) );
+   }
+  }
+
+ if( static_cast< int >( sub_rhs.size() ) != len )
+  throw( std::runtime_error(
+	  "PIPSMILPSolver::extract_rhs_vector: node " +
+	  std::to_string( id ) + " built " +
+	  std::to_string( sub_rhs.size() ) +
+	  " values but PIPS requested length " + std::to_string( len ) ) );
+
+ std::copy( sub_rhs.begin() , sub_rhs.end() , vec );
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::extract_lhs_vector( int id , double * vec , int len ,
+	      const std::vector< const FRowConstraint * > & node_cons ,
+	      const std::vector< double > & rhs ,
+	      const std::vector< char > & sense ,
+	      const std::vector< double > & ranges )
+{
+ if( ( id < 0 ) || ( id >= static_cast< int >( n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::extract_lhs_vector: node ID "
+			     "outside the expected range" ) );
+
+ if( node_cons.empty() ) {
+  // zero-fill
+  for( int i = 0 ; i < len ; ++i )
+   vec[ i ] = 0.0;
+
+  return( 0 );
+  }
+
+ // extract the global indices of the constraints
+ std::vector< int > global_idxs_cons = compute_cons_global_idxs( node_cons );
+
+ // extract the corresponding elements and store them
+ std::vector< double > sub_rhs;
+ sub_rhs.reserve( global_idxs_cons.size() );
+
+ for( auto idx : global_idxs_cons ) {
+  if( static_cast< std::size_t >( idx ) >= rhs.size() )
+   throw( std::runtime_error( "PIPSMILPSolver::extract_lhs_vector: "
+			      "constraint index outside the row data" ) );
+
+  if( sense[ idx ] == 'G' )
+   // >= LHS, store the element
+   sub_rhs.push_back( rhs[ idx ] );
+  else if( sense[ idx ] == 'L' )
+   // <= RHS, so no elements to store
+   sub_rhs.push_back( 0.0 );
+  else if( sense[ idx ] == 'R' ) {
+   // LHS <= f <= RHS, evaluate the sign of the range
+   if( ranges[ idx ] > 0 )
+    sub_rhs.push_back( rhs[ idx ] );
+   else
+    sub_rhs.push_back( rhs[ idx ] + ranges[ idx ] );
+   }
   else
-   throw( std::runtime_error( "Node ID outside the expected range" ) );
+   throw( std::runtime_error( "PIPSMILPSolver::extract_lhs_vector: "
+			      "unexpected inequality sense" ) );
+  }
+
+ if( static_cast< int >( sub_rhs.size() ) != len )
+  throw( std::runtime_error(
+	  "PIPSMILPSolver::extract_lhs_vector: node " +
+	  std::to_string( id ) + " built " +
+	  std::to_string( sub_rhs.size() ) +
+	  " values but PIPS requested length " + std::to_string( len ) ) );
+
+ std::copy( sub_rhs.begin() , sub_rhs.end() , vec );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::ExtractRhsActiveFlag( int id , double* vec , int len ,
-              const std::vector< const FRowConstraint * > & node_cons ,
-              const std::vector< double > & rhs ,
-              const std::vector< char > & sense ,
-              const std::vector< double > & ranges ){
-  const int nCons = node_cons.size();
+int PIPSMILPSolver::extract_rhs_active_flag( int id , double * vec , int len ,
+	      const std::vector< const FRowConstraint * > & node_cons ,
+	      const std::vector< double > & rhs ,
+	      const std::vector< char > & sense ,
+	      const std::vector< double > & ranges )
+{
+ if( ( id < 0 ) || ( id >= static_cast< int >( n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::extract_rhs_active_flag: node "
+			     "ID outside the expected range" ) );
 
-  if( id < n_nodes ){
-   // Check if the node has own constraint
-   if( nCons == 0 ){
-    if( len > 0 ){
-    // Strange, but we fill the expected vector with zeros
-     for (int i = 0; i < len; i++)
-      vec[i] = 0.0;
-    }
-    // Nothing to do
-    return 0;
+ if( node_cons.empty() ) {
+  // zero-fill
+  for( int i = 0 ; i < len ; ++i )
+   vec[ i ] = 0.0;
+
+  return( 0 );
+  }
+
+ // extract the global indices of the constraints
+ std::vector< int > global_idxs_cons = compute_cons_global_idxs( node_cons );
+
+ // extract the corresponding elements and store them
+ std::vector< double > sub_rhs;
+ sub_rhs.reserve( global_idxs_cons.size() );
+
+ if( sense.empty() ) {
+  // equality constraints: just set the flag to true
+  for( auto idx : global_idxs_cons ) {
+   if( static_cast< std::size_t >( idx ) >= rhs.size() )
+    throw( std::runtime_error( "PIPSMILPSolver::extract_rhs_active_flag: "
+			       "constraint index outside the row data" ) );
+
+   sub_rhs.push_back( 1.0 );
    }
+  }
+ else {
+  // inequality constraints: distinguish among the several senses
+  for( auto idx : global_idxs_cons ) {
+   if( static_cast< std::size_t >( idx ) >= rhs.size() )
+    throw( std::runtime_error( "PIPSMILPSolver::extract_rhs_active_flag: "
+			       "constraint index outside the row data" ) );
 
-   // Extract the global indices of constraints
-   std::vector< int > global_idxs_cons = compute_cons_global_idxs( node_cons );
-   
-   // Extract the corresponding elements and store them
-   std::vector< double > sub_rhs;
-   sub_rhs.reserve( global_idxs_cons.size() );
-
-   if( sense.empty() ){
-    // We are asking the rhs for equality constraints, just set flag to true
-    for( auto idx : global_idxs_cons )
-     if( idx < rhs.size() )
-      sub_rhs.push_back( 1.0 );
+   if( sense[ idx ] == 'G' )
+    // >= LHS, set false
+    sub_rhs.push_back( 0.0 );
+   else
+    // in all the other cases set true
+    sub_rhs.push_back( 1.0 );
    }
-   else{
-    // Inequality constraints, we have to distinguish several cases
-    for( int i = 0 ; i < global_idxs_cons.size() ; i++ ){
-     int idx = global_idxs_cons[ i ]; // true constraint index
-     if( idx < rhs.size() ){ 
-      if( sense[ idx ] == 'G' )
-       // >= LHS, set false
-       sub_rhs.push_back( 0.0 );
-      else 
-       // In all the other cases set rue
-       sub_rhs.push_back( 1.0 );
-     }
-    }
-   }
-   if( static_cast< int >( sub_rhs.size() ) != len )
-    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractRhsActiveFlag id=" << id
-              << " built " << sub_rhs.size()
-              << " values but PIPS requested len=" << len << std::endl;
-   std::copy( sub_rhs.begin(), sub_rhs.end(), vec );
-   sanity_check_vector( "ExtractRhsActiveFlag", id, vec, len, nCons );
-   return 0;
   }
+
+ if( static_cast< int >( sub_rhs.size() ) != len )
+  throw( std::runtime_error(
+	  "PIPSMILPSolver::extract_rhs_active_flag: node " +
+	  std::to_string( id ) + " built " +
+	  std::to_string( sub_rhs.size() ) +
+	  " values but PIPS requested length " + std::to_string( len ) ) );
+
+ std::copy( sub_rhs.begin() , sub_rhs.end() , vec );
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::extract_lhs_active_flag( int id , double * vec , int len ,
+	      const std::vector< const FRowConstraint * > & node_cons ,
+	      const std::vector< double > & rhs ,
+	      const std::vector< char > & sense ,
+	      const std::vector< double > & ranges )
+{
+ if( ( id < 0 ) || ( id >= static_cast< int >( n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::extract_lhs_active_flag: node "
+			     "ID outside the expected range" ) );
+
+ if( node_cons.empty() ) {
+  // zero-fill
+  for( int i = 0 ; i < len ; ++i )
+   vec[ i ] = 0.0;
+
+  return( 0 );
+  }
+
+ // extract the global indices of the constraints
+ std::vector< int > global_idxs_cons = compute_cons_global_idxs( node_cons );
+
+ // extract the corresponding elements and store them
+ std::vector< double > sub_rhs;
+ sub_rhs.reserve( global_idxs_cons.size() );
+
+ for( auto idx : global_idxs_cons ) {
+  if( static_cast< std::size_t >( idx ) >= rhs.size() )
+   throw( std::runtime_error( "PIPSMILPSolver::extract_lhs_active_flag: "
+			      "constraint index outside the row data" ) );
+
+  if( sense[ idx ] == 'L' )
+   // <= RHS, set false
+   sub_rhs.push_back( 0.0 );
   else
-   throw( std::runtime_error( "Node ID outside the expected range" ) );
+   // in all the other cases set true
+   sub_rhs.push_back( 1.0 );
+  }
+
+ if( static_cast< int >( sub_rhs.size() ) != len )
+  throw( std::runtime_error(
+	  "PIPSMILPSolver::extract_lhs_active_flag: node " +
+	  std::to_string( id ) + " built " +
+	  std::to_string( sub_rhs.size() ) +
+	  " values but PIPS requested length " + std::to_string( len ) ) );
+
+ std::copy( sub_rhs.begin() , sub_rhs.end() , vec );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::ExtractLhsActiveFlag( int id , double* vec , int len ,
-              const std::vector< const FRowConstraint * > & node_cons ,
-              const std::vector< double > & rhs ,
-              const std::vector< char > & sense ,
-              const std::vector< double > & ranges ){
-  const int nCons = node_cons.size();
+int PIPSMILPSolver::extract_var_bounds( int id , double * vec , int len ,
+	      const std::vector< const ColVariable * > & node_vars ,
+	      const std::vector< double > & bounds )
+{
+ if( ( id < 0 ) || ( id >= static_cast< int >( n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::extract_var_bounds: node ID "
+			     "outside the expected range" ) );
 
-  if( id < n_nodes ){
-   // Check if the node has own constraint
-   if( nCons == 0 ){
-    if( len > 0 ){
-    // Strange, but we fill the expected vector with zeros
-     for (int i = 0; i < len; i++)
-      vec[i] = 0.0;
-    }
-    // Nothing to do
-    return 0;
-   }
+ if( node_vars.empty() ) {
+  // zero-fill
+  for( int i = 0 ; i < len ; ++i )
+   vec[ i ] = 0.0;
 
-   // Extract the global indices of constraints
-   std::vector< int > global_idxs_cons = compute_cons_global_idxs( node_cons );
-   
-   // Extract the corresponding elements and store them
-   std::vector< double > sub_rhs;
-   sub_rhs.reserve( global_idxs_cons.size() );
-
-   for( int i = 0 ; i < global_idxs_cons.size() ; i++ ){
-    int idx = global_idxs_cons[ i ]; // true constraint index
-    if( idx < rhs.size() ){ 
-     if( sense[ idx ] == 'L' )
-      // <= RHS, set to false
-      sub_rhs.push_back( 0.0 );
-     else 
-      // In all the other cases, set true
-      sub_rhs.push_back( 1.0 );
-    }
-   }
-   if( static_cast< int >( sub_rhs.size() ) != len )
-    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractLhsActiveFlag id=" << id
-              << " built " << sub_rhs.size()
-              << " values but PIPS requested len=" << len << std::endl;
-   std::copy( sub_rhs.begin(), sub_rhs.end(), vec );
-   sanity_check_vector( "ExtractLhsActiveFlag", id, vec, len, nCons );
-   return 0;
+  return( 0 );
   }
+
+ // extract the global indices of the variables
+ std::vector< int > global_idxs_vars = compute_vars_global_idxs( node_vars );
+
+ // extract the corresponding elements and store them
+ std::vector< double > sub_bounds;
+ sub_bounds.reserve( global_idxs_vars.size() );
+
+ for( auto idx : global_idxs_vars ) {
+  if( static_cast< std::size_t >( idx ) >= bounds.size() )
+   throw( std::runtime_error( "PIPSMILPSolver::extract_var_bounds: variable "
+			      "index outside the column data" ) );
+
+  if( ( bounds[ idx ] == -Inf< double >() ) ||
+      ( bounds[ idx ] == Inf< double >() ) )
+   sub_bounds.push_back( 0.0 );
   else
-   throw( std::runtime_error( "Node ID outside the expected range" ) );
+   sub_bounds.push_back( bounds[ idx ] );
+  }
+
+ if( static_cast< int >( sub_bounds.size() ) != len )
+  throw( std::runtime_error(
+	  "PIPSMILPSolver::extract_var_bounds: node " +
+	  std::to_string( id ) + " built " +
+	  std::to_string( sub_bounds.size() ) +
+	  " values but PIPS requested length " + std::to_string( len ) ) );
+
+ std::copy( sub_bounds.begin() , sub_bounds.end() , vec );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::ExtractVarBounds( int id , double* vec , int len ,
-              const std::vector< const ColVariable * > & node_vars ,
-              const std::vector< double > & bounds ){
-  const int nVars = node_vars.size();
+int PIPSMILPSolver::extract_flag_var_bounds( int id , double * vec , int len ,
+	      const std::vector< const ColVariable * > & node_vars ,
+	      const std::vector< double > & bounds )
+{
+ if( ( id < 0 ) || ( id >= static_cast< int >( n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::extract_flag_var_bounds: node "
+			     "ID outside the expected range" ) );
 
-  if( id < n_nodes ){
-   // Check if the node has own constraint
-   if( nVars == 0 ){
-    if( len > 0 ){
-    // Strange, but we fill the expected vector with zeros
-     for (int i = 0; i < len; i++)
-      vec[i] = 0.0;
-    }
-    // Nothing to do
-    return 0;
-   }
+ if( node_vars.empty() ) {
+  // zero-fill
+  for( int i = 0 ; i < len ; ++i )
+   vec[ i ] = 0.0;
 
-   // Extract the global indices of variables
-   std::vector< int > global_idxs_vars = compute_vars_global_idxs( node_vars );
-   
-   // Extract the corresponding elements and store them
-   std::vector< double > sub_bounds;
-   sub_bounds.reserve( global_idxs_vars.size() );
-    
-   for( auto idx : global_idxs_vars )
-    if( idx < bounds.size() ){
-     if( bounds[ idx ] == -Inf< double >() || 
-          bounds[ idx ] == Inf< double >() )
-      sub_bounds.push_back( 0.0 );
-     else
-      sub_bounds.push_back( bounds[ idx ] );
-    }
-   
-   if( static_cast< int >( sub_bounds.size() ) != len )
-    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractVarBounds id=" << id
-              << " built " << sub_bounds.size()
-              << " values but PIPS requested len=" << len << std::endl;
-   std::copy( sub_bounds.begin(), sub_bounds.end(), vec );
-   sanity_check_vector( "ExtractVarBounds", id, vec, len, nVars );
-   return 0;
+  return( 0 );
   }
+
+ // extract the global indices of the variables
+ std::vector< int > global_idxs_vars = compute_vars_global_idxs( node_vars );
+
+ // extract the corresponding elements and store them
+ std::vector< double > sub_bounds;
+ sub_bounds.reserve( global_idxs_vars.size() );
+
+ for( auto idx : global_idxs_vars ) {
+  if( static_cast< std::size_t >( idx ) >= bounds.size() )
+   throw( std::runtime_error( "PIPSMILPSolver::extract_flag_var_bounds: "
+			      "variable index outside the column data" ) );
+
+  if( ( bounds[ idx ] == -Inf< double >() ) ||
+      ( bounds[ idx ] == Inf< double >() ) )
+   sub_bounds.push_back( 0.0 );
   else
-   throw( std::runtime_error( "Node ID outside the expected range" ) );
-}
-
-/*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::ExtractFlagVarBounds( int id , double* vec , int len ,
-              const std::vector< const ColVariable * > & node_vars ,
-              const std::vector< double > & bounds ){
-  const int nVars = node_vars.size();
-
-  if( id < n_nodes ){
-   // Check if the node has own constraint
-   if( nVars == 0 ){
-    if( len > 0 ){
-    // Strange, but we fill the expected vector with zeros
-     for (int i = 0; i < len; i++)
-      vec[i] = 0.0;
-    }
-    // Nothing to do
-    return 0;
-   }
-
-   // Extract the global indices of variables
-   std::vector< int > global_idxs_vars = compute_vars_global_idxs( node_vars );
-   
-   // Extract the corresponding elements and store them
-   std::vector< double > sub_bounds;
-   sub_bounds.reserve( global_idxs_vars.size() );
-    
-   for( auto idx : global_idxs_vars )
-    if( idx < bounds.size() ){
-     if( bounds[ idx ] == -Inf< double >() || 
-          bounds[ idx ] == Inf< double >() )
-      sub_bounds.push_back( 0.0 );
-     else
-      sub_bounds.push_back( 1.0 );
-    }
-   
-   if( static_cast< int >( sub_bounds.size() ) != len )
-    PIPS_CALLBACK_COUT << "[SANITY WARNING] ExtractFlagVarBounds id=" << id
-              << " built " << sub_bounds.size()
-              << " values but PIPS requested len=" << len << std::endl;
-   std::copy( sub_bounds.begin(), sub_bounds.end(), vec );
-   sanity_check_vector( "ExtractFlagVarBounds", id, vec, len, nVars );
-   return 0;
+   sub_bounds.push_back( 1.0 );
   }
-  else
-   throw( std::runtime_error( "Node ID outside the expected range" ) );
+
+ if( static_cast< int >( sub_bounds.size() ) != len )
+  throw( std::runtime_error(
+	  "PIPSMILPSolver::extract_flag_var_bounds: node " +
+	  std::to_string( id ) + " built " +
+	  std::to_string( sub_bounds.size() ) +
+	  " values but PIPS requested length " + std::to_string( len ) ) );
+
+ std::copy( sub_bounds.begin() , sub_bounds.end() , vec );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::ExtractObj( int id , double* vec , int len ,
-              const std::vector< const ColVariable * > & node_vars ,
-              const std::vector< double > & obj_value , int objsense ){
-  const int nVars = node_vars.size();
+int PIPSMILPSolver::extract_obj( int id , double * vec , int len ,
+	      const std::vector< const ColVariable * > & node_vars ,
+	      const std::vector< double > & obj_value , int objsense )
+{
+ if( ( id < 0 ) || ( id >= static_cast< int >( n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::extract_obj: node ID outside "
+			     "the expected range" ) );
 
-  if( id < n_nodes ){
-   // Check if the node has own constraint
-   if( nVars == 0 ){
-    if( len > 0 ){
-    // Strange, but we fill the expected vector with zeros
-     for (int i = 0; i < len; i++)
-      vec[i] = 0.0;
-    }
-    // Nothing to do
-    return 0;
-   }
+ if( node_vars.empty() ) {
+  // zero-fill
+  for( int i = 0 ; i < len ; ++i )
+   vec[ i ] = 0.0;
 
-   // Extract the global indices of variables
-   std::vector< int > global_idxs_vars = compute_vars_global_idxs( node_vars );
-   
-   // Extract the corresponding elements and store them
-   std::vector< double > sub_obj;
-   sub_obj.reserve( global_idxs_vars.size() );
-    
-   for( auto idx : global_idxs_vars )
-    if( idx < obj_value.size() )
-     // PIPS always assume to work with a minimization model, so we must
-     // approprtiately convert MILPSolver objective values
-     sub_obj.push_back( obj_value[ idx ] * objsense );
-   
-   std::copy( sub_obj.begin(), sub_obj.end(), vec );
-   sanity_check_vector( "ExtractObj", id, vec, len, nVars );
-   return 0;
+  return( 0 );
   }
-  else
-   throw( std::runtime_error( "Node ID outside the expected range" ) );
-}
 
-/*--------------------------------------------------------------------------*/
+ // extract the global indices of the variables
+ std::vector< int > global_idxs_vars = compute_vars_global_idxs( node_vars );
 
-int PIPSMILPSolver::No_VarinNode( void * user_data, int id, int* nnz){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-  sanity_check_id( "No_VarinNode", id, solver->n_nodes );
-  if( id < solver->n_nodes ){
-    *nnz = solver->n_varNode[ id ];
-    sanity_check_count( "No_VarinNode", id, *nnz );
-    return 0;
+ // extract the corresponding elements and store them
+ std::vector< double > sub_obj;
+ sub_obj.reserve( global_idxs_vars.size() );
+
+ for( auto idx : global_idxs_vars ) {
+  if( static_cast< std::size_t >( idx ) >= obj_value.size() )
+   throw( std::runtime_error( "PIPSMILPSolver::extract_obj: variable index "
+			      "outside the objective data" ) );
+
+  // PIPS always assumes to work with a minimization model, so the
+  // MILPSolver objective values must be appropriately converted
+  sub_obj.push_back( obj_value[ idx ] * objsense );
   }
-  else
-    throw( std::runtime_error( "Tried to query number of variables outside"
-      " the current node count" ) );
+
+ if( static_cast< int >( sub_obj.size() ) != len )
+  throw( std::runtime_error(
+	  "PIPSMILPSolver::extract_obj: node " +
+	  std::to_string( id ) + " built " +
+	  std::to_string( sub_obj.size() ) +
+	  " values but PIPS requested length " + std::to_string( len ) ) );
+
+ std::copy( sub_obj.begin() , sub_obj.end() , vec );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::No_EqConsinNode( void * user_data, int id, int* nnz){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-  sanity_check_id( "No_EqConsinNode", id, solver->n_nodes );
-  if( id < solver->n_nodes ){
-    *nnz = solver->n_EqConsNode[ id ];
-    sanity_check_count( "No_EqConsinNode", id, *nnz );
-    return 0;
+int PIPSMILPSolver::no_var_in_node( void * user_data , int id , int * nnz )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ if( id >= static_cast< int >( solver->n_nodes ) )
+  throw( std::runtime_error( "PIPSMILPSolver::no_var_in_node: tried to "
+			     "query number of variables outside the current "
+			     "node count" ) );
+
+ *nnz = solver->n_var_node[ id ];
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::no_eq_cons_in_node( void * user_data , int id , int * nnz )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ if( id >= static_cast< int >( solver->n_nodes ) )
+  throw( std::runtime_error( "PIPSMILPSolver::no_eq_cons_in_node: tried to "
+			     "query number of equality constraints outside "
+			     "the current node count" ) );
+
+ *nnz = solver->n_eq_cons_node[ id ];
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::no_ineq_cons_in_node( void * user_data , int id ,
+					  int * nnz )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ if( id >= static_cast< int >( solver->n_nodes ) )
+  throw( std::runtime_error( "PIPSMILPSolver::no_ineq_cons_in_node: tried "
+			     "to query number of inequality constraints "
+			     "outside the current node count" ) );
+
+ *nnz = solver->n_ineq_cons_node[ id ];
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::no_link_eq_cons( void * user_data , int id , int * nnz )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ *nnz = solver->n_link_eq_cons;
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::no_link_ineq_cons( void * user_data , int id , int * nnz )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ *nnz = solver->n_link_ineq_cons;
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::nnz_eq_cons_diag( void * user_data , int id , int * nnz )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->evaluate_nnz( id , nnz , solver->eq_cons_node[ id ] ,
+		       solver->var_node[ id ] );
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::nnz_eq_cons_vert( void * user_data , int id , int * nnz )
+{
+ // extract the sub-matrix for a particular node, but considering the root
+ // variables (i.e. T_1, T_2, ..., T_n)
+ if( id == 0 ) {
+  // T_0 can already be obtained through nnz_eq_cons_diag( node_id = 0 )
+  *nnz = 0;
+  return( 0 );
   }
-  else
-    throw( std::runtime_error( "Tried to query number of equality constraints"
-      " outside the current node count" ) );
+
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->evaluate_nnz( id , nnz , solver->eq_cons_node[ id ] ,
+		       solver->var_node[ 0 ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::No_InEqConsinNode( void * user_data, int id, int* nnz){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-  sanity_check_id( "No_InEqConsinNode", id, solver->n_nodes );
-  if( id < solver->n_nodes ){
-    *nnz = solver->n_InEqConsNode[ id ];
-    sanity_check_count( "No_InEqConsinNode", id, *nnz );
-    return 0;
+int PIPSMILPSolver::nnz_ineq_cons_diag( void * user_data , int id , int * nnz )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->evaluate_nnz( id , nnz , solver->ineq_cons_node[ id ] ,
+		       solver->var_node[ id ] );
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::nnz_ineq_cons_vert( void * user_data , int id , int * nnz )
+{
+ // extract the sub-matrix for a particular node, but considering the root
+ // variables (i.e. T_1, T_2, ..., T_n)
+ if( id == 0 ) {
+  // T_0 can already be obtained through nnz_ineq_cons_diag( node_id = 0 )
+  *nnz = 0;
+  return( 0 );
   }
-  else
-    throw( std::runtime_error( "Tried to query number of equality constraints"
-      " outside the current node count" ) );
+
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->evaluate_nnz( id , nnz , solver->ineq_cons_node[ id ] ,
+		       solver->var_node[ 0 ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::No_LinkEqCons( void * user_data, int id, int* nnz){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-  sanity_check_id( "No_LinkEqCons", id, solver->n_nodes );
-  *nnz = solver->n_LinkEqCons;
-  sanity_check_count( "No_LinkEqCons", id, *nnz );
-  return 0;
+int PIPSMILPSolver::nnz_link_eq_cons( void * user_data , int id , int * nnz )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->evaluate_nnz( id , nnz , solver->link_eq_cons ,
+		       solver->var_node[ id ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::No_LinkInEqCons( void * user_data, int id, int* nnz){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-  sanity_check_id( "No_LinkInEqCons", id, solver->n_nodes );
-  *nnz = solver->n_LinkInEqCons;
-  sanity_check_count( "No_LinkInEqCons", id, *nnz );
-  return 0;
+int PIPSMILPSolver::nnz_link_ineq_cons( void * user_data , int id , int * nnz )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->evaluate_nnz( id , nnz , solver->link_ineq_cons ,
+		       solver->var_node[ id ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::nnzEqConsDiag( void * user_data, int id , int* nnz ){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-  solver->EvaluateNnz( id , nnz , solver->EqConsNode[ id ] ,
-                       solver->varNode[ id ] );
-  sanity_check_count( "nnzEqConsDiag", id, *nnz );
-  return 0;
+int PIPSMILPSolver::nnz_all_zero( void * , int , int * nnz )
+{
+ *nnz = 0;
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::nnzEqConsVert( void * user_data, int id , int* nnz ){
-  // In this case we are extracting the sub-matrix for a particular Node but
-  // considering the root variables (i.e. T_1, T_2, ..., T_n)
-  if( id == 0 ){
-    // T_0 can already be obtained through nnzEqConsDiag( node_id = 0 )
-    *nnz = 0;
-    return 0;
-  }
-  else{
-   // Use the current class in the callback
-   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-   solver->EvaluateNnz( id , nnz , solver->EqConsNode[ id ] ,
-                        solver->varNode[ 0 ] );
-  sanity_check_count( "nnzEqConsVert", id, *nnz );
-   return 0;
-  }
+int PIPSMILPSolver::mat_eq_cons_diag( void * user_data , int id , int * krowM ,
+				      int * jcolM , double * M )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->extract_matrix( id , krowM , jcolM , M ,
+			 solver->eq_cons_node[ id ] , solver->var_node[ id ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::nnzInEqConsDiag( void * user_data, int id , int* nnz ){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-  solver->EvaluateNnz( id , nnz , solver->InEqConsNode[ id ] ,
-                       solver->varNode[ id ] );
-  sanity_check_count( "nnzInEqConsDiag", id, *nnz );
-  return 0;
+int PIPSMILPSolver::mat_eq_cons_vert( void * user_data , int id , int * krowM ,
+				      int * jcolM , double * M )
+{
+ // extract the sub-matrix for a particular node, but considering the root
+ // variables (i.e. T_1, T_2, ..., T_n)
+ if( id == 0 )
+  // T_0 can already be obtained through mat_eq_cons_diag( node_id = 0 )
+  return( 0 );
+
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->extract_matrix( id , krowM , jcolM , M ,
+			 solver->eq_cons_node[ id ] , solver->var_node[ 0 ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::nnzInEqConsVert( void * user_data, int id , int* nnz ){
-  // In this case we are extracting the sub-matrix for a particular Node but
-  // considering the root variables (i.e. T_1, T_2, ..., T_n)
-  if( id == 0 ){
-    // T_0 can already be obtained through nnzEqConsDiag( node_id = 0 )
-    *nnz = 0;
-    return 0;
-  }
-  else{
-   // Use the current class in the callback
-   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-   solver->EvaluateNnz( id , nnz , solver->InEqConsNode[ id ] ,
-                        solver->varNode[ 0 ] );
-  sanity_check_count( "nnzInEqConsVert", id, *nnz );
-   return 0;
-  }
+int PIPSMILPSolver::mat_ineq_cons_diag( void * user_data , int id ,
+					int * krowM , int * jcolM , double * M )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->extract_matrix( id , krowM , jcolM , M ,
+			 solver->ineq_cons_node[ id ] ,
+			 solver->var_node[ id ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::nnzLinkEqCons( void * user_data, int id , int* nnz ){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-  solver->EvaluateNnz( id , nnz , solver->LinkEqCons ,
-                       solver->varNode[ id ] );
-  sanity_check_count( "nnzLinkEqCons", id, *nnz );
-  return 0;
+int PIPSMILPSolver::mat_ineq_cons_vert( void * user_data , int id ,
+					int * krowM , int * jcolM , double * M )
+{
+ // extract the sub-matrix for a particular node, but considering the root
+ // variables (i.e. T_1, T_2, ..., T_n)
+ if( id == 0 )
+  // T_0 can already be obtained through mat_ineq_cons_diag( node_id = 0 )
+  return( 0 );
+
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->extract_matrix( id , krowM , jcolM , M ,
+			 solver->ineq_cons_node[ id ] ,
+			 solver->var_node[ 0 ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::nnzLinkInEqCons( void * user_data, int id , int* nnz ){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-  solver->EvaluateNnz( id , nnz , solver->LinkInEqCons ,
-                       solver->varNode[ id ] );
-  sanity_check_count( "nnzLinkInEqCons", id, *nnz );
-  return 0;
+int PIPSMILPSolver::mat_link_eq_cons( void * user_data , int id , int * krowM ,
+				      int * jcolM , double * M )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->extract_matrix( id , krowM , jcolM , M ,
+			 solver->link_eq_cons , solver->var_node[ id ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::nnzAllZero(void*, int, int* nnz) {
-   *nnz = 0;
-   return 0;
+int PIPSMILPSolver::mat_link_ineq_cons( void * user_data , int id ,
+					int * krowM , int * jcolM , double * M )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->extract_matrix( id , krowM , jcolM , M ,
+			 solver->link_ineq_cons , solver->var_node[ id ] );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::MatEqConsDiag( void * user_data, int id , int* krowM, 
-                                    int* jcolM, double* M ){
-
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatEqConsDiag id=" << id
-    << std::endl;
-  solver->ExtractMatrix( id , krowM , jcolM , M ,
-                         solver->EqConsNode[ id ] , solver->varNode[ id ] );
-  return 0;
+int PIPSMILPSolver::mat_all_zero( void * , int , int * , int * , double * )
+{
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::MatEqConsVert( void * user_data, int id , int* krowM, 
-                                    int* jcolM, double* M ){
-  // In this case we are extracting the sub-matrix for a particular Node but
-  // considering the root variables (i.e. T_1, T_2, ..., T_n)
-  if( id == 0 ){
-    // T_0 can already be obtained through nnzEqConsDiag( node_id = 0 )
-    // Nothing to do
-    return 0;
-  }
-  else{
-   // Use the current class in the callback
-   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-   PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatEqConsVert id=" << id
-    << std::endl;
-   solver->ExtractMatrix( id , krowM , jcolM , M ,
-                          solver->EqConsNode[ id ] , solver->varNode[ 0 ] );
-   return 0;
-  }
+int PIPSMILPSolver::obj_vars( void * user_data , int id , double * vec ,
+			      int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->extract_obj( id , vec , len , solver->var_node[ id ] ,
+		      solver->objective , solver->objsense );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::MatInEqConsDiag( void * user_data, int id , int* krowM, 
-                                    int* jcolM, double* M ){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+int PIPSMILPSolver::rhs_eq_cons( void * user_data , int id , double * vec ,
+				 int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatInEqConsDiag id=" << id
-    << std::endl;
-  solver->ExtractMatrix( id , krowM , jcolM , M ,
-                         solver->InEqConsNode[ id ] , solver->varNode[ id ] );
-  return 0;
+ solver->extract_rhs_vector( id , vec , len , solver->eq_cons_node[ id ] ,
+			     solver->rhs , {} , {} );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::MatInEqConsVert( void * user_data, int id , int* krowM, 
-                                    int* jcolM, double* M ){
-  // In this case we are extracting the sub-matrix for a particular Node but
-  // considering the root variables (i.e. T_1, T_2, ..., T_n)
-  if( id == 0 ){
-    // T_0 can already be obtained through nnzEqConsDiag( node_id = 0 )
-    // Nothing to do
-    return 0;
-  }
-  else{
-   // Use the current class in the callback
-   auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+int PIPSMILPSolver::rhs_ineq_cons( void * user_data , int id , double * vec ,
+				   int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-   PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatInEqConsVert id=" << id
-    << std::endl;
-   solver->ExtractMatrix( id , krowM , jcolM , M ,
-                          solver->InEqConsNode[ id ] , solver->varNode[ 0 ] );
-   return 0;
-  }
+ solver->extract_rhs_vector( id , vec , len , solver->ineq_cons_node[ id ] ,
+			     solver->rhs , solver->sense , solver->rngval );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::MatLinkEqCons( void * user_data, int id , int* krowM, 
-                                    int* jcolM, double* M ){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+int PIPSMILPSolver::lhs_ineq_cons( void * user_data , int id , double * vec ,
+				   int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatLinkEqCons id=" << id
-    << std::endl;
-  solver->ExtractMatrix( id , krowM , jcolM , M ,
-                         solver->LinkEqCons , solver->varNode[ id ] );
-  return 0;
+ solver->extract_lhs_vector( id , vec , len , solver->ineq_cons_node[ id ] ,
+			     solver->rhs , solver->sense , solver->rngval );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::MatLinkInEqCons( void * user_data, int id , int* krowM, 
-                                    int* jcolM, double* M ){
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+int PIPSMILPSolver::rhs_link_eq_cons( void * user_data , int id ,
+				      double * vec , int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] MatLinkInEqCons id=" << id
-    << std::endl;
-  solver->ExtractMatrix( id , krowM , jcolM , M ,
-                         solver->LinkInEqCons , solver->varNode[ id ] );
-  return 0;
+ solver->extract_rhs_vector( id , vec , len , solver->link_eq_cons ,
+			     solver->rhs , {} , {} );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::matAllZero(void*, int, int*, int*, double*) {
-   return 0;
+int PIPSMILPSolver::rhs_link_ineq_cons( void * user_data , int id ,
+					double * vec , int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ solver->extract_rhs_vector( id , vec , len , solver->link_ineq_cons ,
+			     solver->rhs , solver->sense , solver->rngval );
+
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::ObjVars( void * user_data, int id , double* vec,
-                                int len ){
+int PIPSMILPSolver::lhs_link_ineq_cons( void * user_data , int id ,
+					double * vec , int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] ObjVars id=" << id << " len=" 
-    << len << std::endl;
+ solver->extract_lhs_vector( id , vec , len , solver->link_ineq_cons ,
+			     solver->rhs , solver->sense , solver->rngval );
 
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-
-  solver->ExtractObj( id , vec, len , solver->varNode[ id ] ,
-                      solver->objective , solver->objsense );
-  return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::RhsEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsEqCons id=" << id 
-    << " len=" << len << std::endl;
+int PIPSMILPSolver::flag_rhs_ineq_cons( void * user_data , int id ,
+					double * vec , int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+ solver->extract_rhs_active_flag( id , vec , len ,
+				  solver->ineq_cons_node[ id ] ,
+				  solver->rhs , solver->sense ,
+				  solver->rngval );
 
-  solver->ExtractRhsVector( id , vec, len , solver->EqConsNode[ id ] ,
-                            solver->rhs , {} , {} );
-  return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::RhsInEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsInEqCons id=" << id 
-    << " len=" << len << std::endl;
+int PIPSMILPSolver::flag_lhs_ineq_cons( void * user_data , int id ,
+					double * vec , int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+ solver->extract_lhs_active_flag( id , vec , len ,
+				  solver->ineq_cons_node[ id ] ,
+				  solver->rhs , solver->sense ,
+				  solver->rngval );
 
-  solver->ExtractRhsVector( id , vec, len , solver->InEqConsNode[ id ] ,
-                            solver->rhs , solver->sense , solver->rngval );
-  return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::LhsInEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LhsInEqCons id=" << id 
-    << " len=" << len << std::endl;
+int PIPSMILPSolver::flag_rhs_link_ineq_cons( void * user_data , int id ,
+					     double * vec , int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+ solver->extract_rhs_active_flag( id , vec , len , solver->link_ineq_cons ,
+				  solver->rhs , solver->sense ,
+				  solver->rngval );
 
-  solver->ExtractLhsVector( id , vec, len , solver->InEqConsNode[ id ] ,
-                            solver->rhs , solver->sense , solver->rngval );
-  return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::RhsLinkEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsLinkEqCons id=" << id 
-    << " len=" << len << std::endl;
+int PIPSMILPSolver::flag_lhs_link_ineq_cons( void * user_data , int id ,
+					     double * vec , int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+ solver->extract_lhs_active_flag( id , vec , len , solver->link_ineq_cons ,
+				  solver->rhs , solver->sense ,
+				  solver->rngval );
 
-  solver->ExtractRhsVector( id , vec, len , solver->LinkEqCons ,
-                            solver->rhs , {} , {} );
-  return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::RhsLinkInEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] RhsLinkInEqCons id=" << id 
-    << " len=" << len << std::endl;
+int PIPSMILPSolver::ub_vars( void * user_data , int id , double * vec ,
+			     int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+ solver->extract_var_bounds( id , vec , len , solver->var_node[ id ] ,
+			     solver->ub );
 
-  solver->ExtractRhsVector( id , vec, len , solver->LinkInEqCons ,
-                            solver->rhs , solver->sense , solver->rngval );
-  return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::LhsLinkInEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LhsLinkInEqCons id=" << id 
-    << " len=" << len << std::endl;
+int PIPSMILPSolver::lb_vars( void * user_data , int id , double * vec ,
+			     int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+ solver->extract_var_bounds( id , vec , len , solver->var_node[ id ] ,
+			     solver->lb );
 
-  solver->ExtractLhsVector( id , vec, len , solver->LinkInEqCons ,
-                            solver->rhs , solver->sense , solver->rngval );
-  return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::FlagRhsInEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagRhsInEqCons id=" << id 
-    << " len=" << len << std::endl;
+int PIPSMILPSolver::flag_ub_vars( void * user_data , int id , double * vec ,
+				  int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+ solver->extract_flag_var_bounds( id , vec , len , solver->var_node[ id ] ,
+				  solver->ub );
 
-  solver->ExtractRhsActiveFlag( id , vec, len , solver->InEqConsNode[ id ] ,
-                                solver->rhs , solver->sense , solver->rngval );
-  return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::FlagLhsInEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLhsInEqCons id=" << id 
-    << " len=" << len << std::endl;
+int PIPSMILPSolver::flag_lb_vars( void * user_data , int id , double * vec ,
+				  int len )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
 
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+ solver->extract_flag_var_bounds( id , vec , len , solver->var_node[ id ] ,
+				  solver->lb );
 
-  solver->ExtractLhsActiveFlag( id , vec, len , solver->InEqConsNode[ id ] ,
-                                solver->rhs , solver->sense , solver->rngval );
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::FlagRhsLinkInEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagRhsLinkInEqCons id=" 
-    << id << " len=" << len << std::endl;
-
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-
-  solver->ExtractRhsActiveFlag( id , vec, len , solver->LinkInEqCons ,
-                                solver->rhs , solver->sense , solver->rngval );
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::FlagLhsLinkInEqCons( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLhsLinkInEqCons id=" 
-    << id << " len=" << len << std::endl;
-
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-
-  solver->ExtractLhsActiveFlag( id , vec, len , solver->LinkInEqCons ,
-                                solver->rhs , solver->sense , solver->rngval );
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::UBVars( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] UBVars id=" << id << " len=" 
-    << len << std::endl;
-
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-
-  solver->ExtractVarBounds( id , vec, len , solver->varNode[ id ] ,
-                            solver->ub );
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::LBVars( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] LBVars id=" << id << " len=" 
-    << len << std::endl;
-
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-
-  solver->ExtractVarBounds( id , vec, len , solver->varNode[ id ] ,
-                            solver->lb );
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::FlagUBVars( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagUBVars id=" << id 
-    << " len=" << len << std::endl;
-
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-
-  solver->ExtractFlagVarBounds( id , vec, len , solver->varNode[ id ] ,
-                                solver->ub );
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::FlagLBVars( void * user_data, int id , double* vec,
-                                int len ){
-  PIPS_CALLBACK_COUT << "\n[PIPS CALLBACK ENTER] FlagLBVars id=" << id 
-    << " len=" << len << std::endl;
-
-  // Use the current class in the callback
-  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
-
-  solver->ExtractFlagVarBounds( id , vec, len , solver->varNode[ id ] ,
-                                solver->lb );
-  return 0;
+ return( 0 );
 }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- End File PIPSMILPSolver.cpp ------------------------*/
-/*--------------------------------------------------------------------------*/

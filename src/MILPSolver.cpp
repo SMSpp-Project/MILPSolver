@@ -156,7 +156,6 @@ void MILPSolver::load_problem( void )
  Index ndy_linrow = 0;
  Index ndy_quadrow = 0;
 
- constant_value = 0;
  int_vars = 0;
  numquadrows = 0;
  numnnzq = 0;

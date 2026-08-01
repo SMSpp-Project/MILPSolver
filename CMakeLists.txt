@@ -103,6 +103,7 @@ endif ()
 
 if (MILPSolver_USE_PIPS)
     # Needed for PIPSMILPSolver
+    # PIPS-IPM++ exposes no version number, so none can be checked here
     find_package(PIPS)
     if (NOT PIPS_FOUND)
         set(MILPSolver_USE_PIPS OFF)

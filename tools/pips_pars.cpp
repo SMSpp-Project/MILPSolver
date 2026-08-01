@@ -9,25 +9,21 @@
  * specified path.  The path should be the include directory of the MILPSolver
  * source tree.
  *
- * PIPS-IPM++ does not expose a C API to enumerate options like CPLEX, Gurobi,
- * SCIP, or HiGHS.  Its parameters are registered as assignments to
- * bool_options, int_options, double_options, and string_options in
- * PIPS-IPM/Core/Options.
- * Therefore, this generator parses those source files directly.
- *
- * By default bool PIPS-IPM++ options are mapped to SMS++ int parameters, as in
- * the other generators where boolean solver options are handled as integer
- * SMS++ parameters.
+ * PIPS-IPM++ exposes no C API to enumerate options; this generator parses
+ * the option-registration assignments in PIPS-IPM/Core/Options, and bool
+ * options are mapped to SMS++ int parameters.
  *
  * \author Enrico Calandrini \n
  *         Dipartimento di Matematica \n
  *         Universita' di Pisa \n
+ *
+ * \copyright &copy; by Enrico Calandrini
  */
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#include <algorithm>
+#include <cctype>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -69,7 +65,8 @@ std::string get_filename( const std::string & fullpath )
 bool file_exists( const std::string & filename )
 {
  struct stat buffer;
- return( stat( filename.c_str() , &buffer ) == 0 && S_ISREG( buffer.st_mode ) );
+ return( stat( filename.c_str() , &buffer ) == 0 &&
+         S_ISREG( buffer.st_mode ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -131,9 +128,7 @@ std::string normalize_source_path( const std::string & p )
 {
  const std::string pp = strip_trailing_slash( p );
 
- if( file_exists( pp + "/PIPSIPMppOptions.C" ) &&
-     file_exists( pp + "/Options.C" ) &&
-     file_exists( pp + "/AbstractOptions.C" ) )
+ if( file_exists( pp + "/PIPSIPMppOptions.C" ) )
   return( pp );
 
  if( file_exists( pp + "/Core/Options/PIPSIPMppOptions.C" ) )
@@ -156,38 +151,6 @@ std::string find_source_path()
  add_env_candidate( candidates , "PIPSIPMPP_ROOT" );
  add_env_candidate( candidates , "PIPS_ROOT" );
  add_env_candidate( candidates , "PIPSIPM_ROOT" );
-
- const char * home = std::getenv( "HOME" );
- if( home && *home ) {
-  const std::string home_path = strip_trailing_slash( home );
-  add_candidate( candidates , home_path + "/pips-ipmpp" );
-  add_candidate( candidates , home_path + "/PIPS-IPMpp" );
-  add_candidate( candidates , home_path + "/PIPS-IPM++" );
-  add_candidate( candidates , home_path + "/smspp-project/pips-ipmpp" );
-  add_candidate( candidates , home_path + "/smspp-project/PIPS-IPMpp" );
-  add_candidate( candidates , home_path + "/smspp-project/PIPS-IPM++" );
- }
-
- const std::vector< std::string > local_candidates = {
-  ".",
-  "..",
-  "../..",
-  "PIPS-IPM/Core/Options",
-  "../PIPS-IPM/Core/Options",
-  "../../PIPS-IPM/Core/Options",
-  "pips-ipmpp/PIPS-IPM/Core/Options",
-  "../pips-ipmpp/PIPS-IPM/Core/Options",
-  "../../pips-ipmpp/PIPS-IPM/Core/Options",
-  "PIPS-IPMpp/PIPS-IPM/Core/Options",
-  "../PIPS-IPMpp/PIPS-IPM/Core/Options",
-  "../../PIPS-IPMpp/PIPS-IPM/Core/Options",
-  "PIPS-IPM++/PIPS-IPM/Core/Options",
-  "../PIPS-IPM++/PIPS-IPM/Core/Options",
-  "../../PIPS-IPM++/PIPS-IPM/Core/Options"
- };
-
- candidates.insert( candidates.end() , local_candidates.begin() ,
-                    local_candidates.end() );
 
  for( const auto & c : candidates ) {
   try {
@@ -251,7 +214,7 @@ void process_args( int argc , char ** argv )
 
  // Options
  while( true ) {
-  const auto opt = getopt_long( argc , argv , short_opts , long_opts , 
+  const auto opt = getopt_long( argc , argv , short_opts , long_opts ,
                                 nullptr );
 
   if( -1 == opt )
@@ -318,7 +281,6 @@ std::string read_file( const std::string & filename )
  return( std::string( std::istreambuf_iterator< char >( file ) ,
                       std::istreambuf_iterator< char >() ) );
 }
-
 
 /*--------------------------------------------------------------------------*/
 
@@ -423,7 +385,8 @@ std::string remove_comments( const std::string & text )
 /*--------------------------------------------------------------------------*/
 
 /// Splits a function argument list at top-level commas
-std::vector< std::string > split_top_level_arguments( const std::string & args )
+std::vector< std::string > split_top_level_arguments(
+ const std::string & args )
 {
  std::vector< std::string > result;
  std::string current;
@@ -625,8 +588,8 @@ void parse_add_parameter_calls( const std::string & text ,
 
  while( ( pos = clean.find( needle , pos ) ) != std::string::npos ) {
   // Avoid matching the add_parameter function declarations/definitions.
-  const std::size_t prev = clean.find_last_not_of( " \t\r\n" , pos == 0 ? 
-                              0 : pos - 1 );
+  const std::size_t prev =
+   clean.find_last_not_of( " \t\r\n" , pos == 0 ? 0 : pos - 1 );
   if( prev != std::string::npos &&
       ( std::isalnum( static_cast< unsigned char >( clean[ prev ] ) ) ||
         clean[ prev ] == '_' || clean[ prev ] == ':' ) ) {
@@ -643,18 +606,17 @@ void parse_add_parameter_calls( const std::string & text ,
    break;
 
   const std::vector< std::string > args =
-   split_top_level_arguments( clean.substr( open + 1 , 
-                                close - open - 1 ) );
+   split_top_level_arguments( clean.substr( open + 1 , close - open - 1 ) );
 
   if( args.size() >= 4 ) {
    const std::string name = extract_string_literal( args[ 1 ] );
    const std::string default_value = trim( args[ 3 ] );
 
    if( ! name.empty() ) {
-    const bool is_string = default_value.find( "std::string" ) != std::string::npos ||
-                           ( ! default_value.empty() && default_value[ 0 ] == '"' ) ||
-                           ( args.size() >= 5 &&
-                             has_string_possible_values( args[ 4 ] ) );
+    const bool is_string =
+     default_value.find( "std::string" ) != std::string::npos ||
+     ( ! default_value.empty() && default_value[ 0 ] == '"' ) ||
+     ( args.size() >= 5 && has_string_possible_values( args[ 4 ] ) );
     const bool is_bool = default_value == "true" || default_value == "false";
     const bool is_double = is_floating_literal( default_value );
 
@@ -710,7 +672,8 @@ void parse_options( const std::string & text ,
  };
 
  for( const auto & option_regex : regexes ) {
-  auto begin = std::sregex_iterator( text.begin() , text.end() , option_regex );
+  auto begin = std::sregex_iterator( text.begin() , text.end() ,
+                                     option_regex );
   auto end = std::sregex_iterator();
 
   for( auto it = begin ; it != end ; ++it ) {
@@ -813,43 +776,32 @@ int main( int argc , char ** argv )
  int dbl_counter = 0;
  int str_counter = 0;
 
- const std::vector< std::string > option_sources = {
-  "PIPSIPMppOptions.C"
- };
+ const std::string filename = source_path + "/PIPSIPMppOptions.C";
 
- for( const auto & file : option_sources ) {
-  const std::string filename = source_path + "/" + file;
-  if( ! file_exists( filename ) ) {
-   if( verbose )
-    std::cout << "Skipping missing file " << filename << std::endl;
-   continue;
-  }
+ if( verbose )
+  std::cout << "Parsing " << filename << std::endl;
 
-  if( verbose )
-   std::cout << "Parsing " << filename << std::endl;
+ const std::string text = read_file( filename );
 
-  const std::string text = read_file( filename );
+ // SMS++ represents boolean parameters as int parameters.
+ parse_options( text , "bool_options" , int_parameters , int_seen ,
+                int_counter );
+ parse_options( text , "int_options" , int_parameters , int_seen ,
+                int_counter );
+ parse_options( text , "double_options" , dbl_parameters , dbl_seen ,
+                dbl_counter );
+ parse_options( text , "string_options" , str_parameters , str_seen ,
+                str_counter );
 
-  // SMS++ represents boolean parameters as int parameters.
-  parse_options( text , "bool_options" , int_parameters , int_seen ,
-                 int_counter );
-  parse_options( text , "int_options" , int_parameters , int_seen ,
-                 int_counter );
-  parse_options( text , "double_options" , dbl_parameters , dbl_seen ,
-                 dbl_counter );
-  parse_options( text , "string_options" , str_parameters , str_seen ,
-                 str_counter );
-
-  parse_add_parameter_calls( text , int_parameters , dbl_parameters ,
-                             str_parameters , int_seen , dbl_seen , str_seen ,
-                             int_counter , dbl_counter , str_counter );
- }
+ parse_add_parameter_calls( text , int_parameters , dbl_parameters ,
+                            str_parameters , int_seen , dbl_seen , str_seen ,
+                            int_counter , dbl_counter , str_counter );
 
  if( int_counter + dbl_counter + str_counter == 0 )
   throw std::runtime_error(
    "No PIPS-IPM++ options were found. Check that -s points to the source "
-   "tree containing Core/Options/PIPSIPMppOptions.C, Options.C and "
-   "AbstractOptions.C, and run with -v to see which files are parsed." );
+   "tree containing Core/Options/PIPSIPMppOptions.C, and run with -v to see "
+   "which file is parsed." );
 
  // Generate defs file
  std::ofstream defs_file;
