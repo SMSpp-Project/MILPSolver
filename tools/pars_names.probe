@@ -1,0 +1,44 @@
+/*--------------------------------------------------------------------------*/
+/*-------------------------- File pars_names.probe -------------------------*/
+/*--------------------------------------------------------------------------*/
+/* This is not a compilable source: it is only fed to the preprocessor by the
+ * makefile of MILPSolver, which asks it for the names of the parameter
+ * headers that the *MILPSolver.h will look for. Every back-end available on
+ * the system contributes one line
+ *
+ *     SMSpp_pars < name of its _defs.h >
+ *
+ * assembled out of the very same version macros used by the corresponding
+ * *MILPSolver.h, so that the two can never disagree; a back-end that is not
+ * installed contributes nothing. The makefile turns each name into a target,
+ * hence upgrading a back-end regenerates its parameter headers instead of
+ * leaving the stale ones behind.
+ *
+ * Each block must be kept aligned with the #include of the corresponding
+ * *MILPSolver.h whenever the latter changes the way it builds the name.
+ */
+/*--------------------------------------------------------------------------*/
+
+#if __has_include( <ilcplex/cpxconst.h> )
+ #include <ilcplex/cpxconst.h>
+ SMSpp_pars CPX CPX_VERSION _defs.h
+#endif
+
+#if __has_include( <gurobi_c.h> )
+ #include <gurobi_c.h>
+ SMSpp_pars GRB GRB_VERSION_MAJOR GRB_VERSION_MINOR GRB_VERSION_TECHNICAL _defs.h
+#endif
+
+#if __has_include( <scip/def.h> )
+ #include <scip/def.h>
+ SMSpp_pars SCIP SCIP_VERSION_MAJOR SCIP_VERSION_MINOR SCIP_VERSION_PATCH _defs.h
+#endif
+
+#if __has_include( <HConfig.h> )
+ #include <HConfig.h>
+ SMSpp_pars HiGHS HIGHS_VERSION_MAJOR HIGHS_VERSION_MINOR HIGHS_VERSION_PATCH _defs.h
+#endif
+
+/*--------------------------------------------------------------------------*/
+/*---------------------- End File pars_names.probe -------------------------*/
+/*--------------------------------------------------------------------------*/
