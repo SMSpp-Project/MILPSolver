@@ -772,8 +772,10 @@ int GRBMILPSolver::decode_model_status( int status )
    // difficulties
    return( kError );
   case( GRB_SUBOPTIMAL ):
-   // Unable to satisfy optimality tolerances; a sub-optimal solution is available
-   return( kOK );
+   // Unable to satisfy optimality tolerances; a sub-optimal solution is
+   // available, which is exactly what kLowPrecision says: a solution, and
+   // no promise about how far it is from the optimum
+   return( kLowPrecision );
   case( GRB_INPROGRESS ):
    // An asynchronous optimization call was made, but the 
    // associated optimization run is not yet complete
@@ -858,6 +860,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
     case( kOK ):
+    case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
@@ -872,9 +875,19 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
 
       if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) )
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
-      else
+      else {
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &lower_bound );
-      
+        // OBJBOUND belongs to the branch-and-bound: a model solved without
+        // one, which is the case of a continuous problem whenever the
+        // NonConvex parameter is not explicitly 0, publishes no bound at
+        // all. Where the solve ended optimal the optimal value *is* the
+        // bound, and reporting -infinity instead throws away what the
+        // Solver has proved
+        if( ( m_status == GRB_OPTIMAL ) &&
+            ( lower_bound <= - GRB_INFINITY ) )
+         GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
+        }
+
       lower_bound += constant_value;
       break;
 
@@ -902,6 +915,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
+    case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -960,6 +974,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
+    case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -1001,6 +1016,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
 
     case( kOK ):
+    case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );

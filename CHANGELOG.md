@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- GRBMILPSolver reported GRB_SUBOPTIMAL, i.e. a solution that GUROBI could
+  not prove to satisfy the optimality tolerances, as kOK: it now returns
+  kLowPrecision, which is what "here is what I have, with no promise
+  attached" means, while the bounds and the solution keep being reported
+  as before
+
+- GRBMILPSolver::get_lb() returned minus infinity for a continuous problem
+  that GUROBI solved without a branch-and-bound, OBJBOUND being undefined
+  there: where the solve ended optimal, the optimal value is the bound
+
 - the callback of GRBMILPSolver read the solution into a buffer as long as
   the columns of the Block, while the model also has the auxiliary variables
   of the ranged constraints and of the quadratic terms and GUROBI writes all
