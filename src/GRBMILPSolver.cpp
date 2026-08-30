@@ -2963,11 +2963,16 @@ int GRBMILPSolver::callback( GRBmodel *model,
     if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
      throw( std::runtime_error( "Unable to lock the Block" ) );
 
-    // get the solution of the relaxation
-    std::vector< double > x( numcols );
-    if( GRBcbget( cbdata , where, GRB_CB_MIPNODE_REL , x.data() ) )
+    // get the solution of the relaxation: on top of the columns of the
+    // Block the model has the auxiliary variables of the ranged constraints
+    // and of the quadratic terms, and GUROBI writes all of them, so the
+    // buffer has to be as long as the model and not as the Block
+    std::vector< double > x_grb( numcols + map_rng_con_aux_var.size()
+                                 + grb_idx_aux_qvar.size() );
+    if( GRBcbget( cbdata , where, GRB_CB_MIPNODE_REL , x_grb.data() ) )
      throw( std::runtime_error(
         "Unable to get the solution with GRB_CB_MIPNODE_REL" ) );
+    std::vector< double > x( x_grb.begin() , x_grb.begin() + numcols );
     // GRBcbsolution( cbdata, x.data() , nullptr);
 
     // write it in the Variable of the Block
@@ -3022,11 +3027,14 @@ int GRBMILPSolver::callback( GRBmodel *model,
    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
     throw( std::runtime_error( "Unable to lock the Block" ) );
 
-   // get the feasible solution
-   std::vector< double > x( numcols );
-   if( GRBcbget( cbdata , where , GRB_CB_MIPSOL_SOL, x.data() ) )
+   // get the feasible solution, in a buffer as long as the model: see the
+   // MIPNODE case above for why the columns of the Block are not enough
+   std::vector< double > x_grb( numcols + map_rng_con_aux_var.size()
+                                + grb_idx_aux_qvar.size() );
+   if( GRBcbget( cbdata , where , GRB_CB_MIPSOL_SOL, x_grb.data() ) )
     throw( std::runtime_error(
        "Unable to get the solution with GRB_CB_MIPSOL_SOL" ) );
+   std::vector< double > x( x_grb.begin() , x_grb.begin() + numcols );
 
    // write it in the Variable of the Block
    MILPSolver::write_var_solution( x );

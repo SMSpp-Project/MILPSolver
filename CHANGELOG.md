@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the callback of GRBMILPSolver read the solution into a buffer as long as
+  the columns of the Block, while the model also has the auxiliary variables
+  of the ranged constraints and of the quadratic terms and GUROBI writes all
+  of them: the heap was corrupted past the end of the buffer, which then
+  crashed inside GUROBI itself. It only showed with the integer variables
+  on, the callback being called only in a MIP context
+
 
 ## [0.8.0] - 2025-12-12
 
