@@ -3605,7 +3605,6 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
   // NOTE: this only supports pi written for linear constraints!
   // TODO: extend pi to quadratic constraints
   int row = 0;
-  int row_dynamic = static_cons;
 
   auto set = [ & pi , & row ]( FRowConstraint & c ) {
     if( dynamic_cast< LinearFunction * >( c.get_function() ) )
@@ -3615,12 +3614,20 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
       row++;
    };
 
-  auto set_dynamic = [ & pi , & row_dynamic ]( FRowConstraint & c ) {
-    if( dynamic_cast< LinearFunction * >( c.get_function() ) )
-      c.set_dual( - pi[ row_dynamic++ ] );
-    else
-      // Skip quadratic rows
-      row_dynamic++;
+  /* The dynamic rows are appended to the solver in modification-arrival
+   * order, which is generally different from the block/BFS order the static
+   * ones are written in: a running counter would therefore scramble the
+   * duals across the dynamic groups, exactly as it did for the dynamic
+   * columns [see write_var_solution()]. The row of each of them is asked
+   * for instead. */
+
+  auto set_dynamic = [ this , & pi ]( FRowConstraint & c ) {
+    if( ! dynamic_cast< LinearFunction * >( c.get_function() ) )
+     return;   // skip quadratic rows
+
+    const int row = index_of_constraint( & c );
+    if( row < int( get_numrows() ) )
+     c.set_dual( - pi[ row ] );
    };
 
   for( auto qb : v_BFS ) {
