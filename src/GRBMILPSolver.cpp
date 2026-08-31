@@ -3717,8 +3717,9 @@ int GRBMILPSolver::get_dflt_int_par( idx_type par ) const
 
  std::string gp = grb_int_par_map( par );
  if( gp.size() > 0 ) {
-   int value;
-   GRBgetintparam( env , gp.data() , & value );
+  int value;
+  // see the note in the double overload
+  if( ! GRBgetintparam( env , gp.data() , & value ) )
    return( value );
   }
 
@@ -3737,8 +3738,10 @@ double GRBMILPSolver::get_dflt_dbl_par( idx_type par ) const
  std::string gp = grb_dbl_par_map( par );
  if( gp.size() > 0 ) {
   double value;
-  GRBgetdblparam( env , gp.data() , & value );
-  return( value );
+  // only the value of a call that succeeded means anything: GUROBI leaves
+  // it untouched otherwise, and using it would set the parameter to garbage
+  if( ! GRBgetdblparam( env , gp.data() , & value ) )
+   return( value );
   }
 
  return( MILPSolver::get_dflt_dbl_par( par ) );
@@ -3799,9 +3802,10 @@ int GRBMILPSolver::get_int_par( idx_type par ) const
  // intCutSepPar is now handled by MILPSolver base
 
  std::string gp = grb_int_par_map( par );
-  if( gp.size() > 0 ) {
-   int value;
-   GRBgetintparam( env , gp.data() , & value );
+ if( gp.size() > 0 ) {
+  int value;
+  // see the note in get_dflt_dbl_par()
+  if( ! GRBgetintparam( env , gp.data() , & value ) )
    return( value );
   }
 
@@ -3820,8 +3824,9 @@ double GRBMILPSolver::get_dbl_par( idx_type par ) const
  std::string gp = grb_dbl_par_map( par );
  if( gp.size() > 0 ) {
   double value;
-  GRBgetdblparam( env , gp.data() , & value );
-  return( value );
+  // see the note in get_dflt_dbl_par()
+  if( ! GRBgetdblparam( env , gp.data() , & value ) )
+   return( value );
   }
 
  return( MILPSolver::get_dbl_par( par ) );
