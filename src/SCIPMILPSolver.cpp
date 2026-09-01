@@ -672,25 +672,45 @@ void SCIPMILPSolver::get_dual_solution( Configuration * solc )
 
 bool SCIPMILPSolver::has_dual_direction( void )
 {
-return(false);
- /*std::vector< double > y( numrows , 0 );
+ /* The Farkas certificate is the dual solution of the infeasible LP, and it
+  * only exists if the infeasibility was proved by the LP: if the presolve
+  * found it first, or if the problem is a MILP whose infeasibility comes
+  * from the branching, SCIP has nothing to give. A certificate is a nonzero
+  * vector, so this is what it is recognised by. */
+
+ if( ( SCIPgetStage( scip ) != SCIP_STAGE_SOLVED ) ||
+     ( SCIPgetStatus( scip ) != SCIP_STATUS_INFEASIBLE ) )
+  return( false );
 
  for( int i = 0 ; i < numrows ; ++i )
-   SCIP_CALL_ABORT( SCIPgetColFarkasCoef ( scip , )
+  if( SCIPgetDualfarkasLinear( scip , cons[ i ] ) )
+   return( true );
 
- return( ! bool( CPXdualfarkas( env , lp , y.data() , & proof ) ) );
- }*/
+ return( false );
  }
+
 /*--------------------------------------------------------------------------*/
 
 void SCIPMILPSolver::get_dual_direction( Configuration * dirc )
 {
- // SCIP does not expose a Farkas certificate through a stable public API;
- // until a portable extraction is wired in, fail loudly so callers don't
- // silently consume a stale dual direction.
- throw( std::logic_error(
-            "SCIPMILPSolver::get_dual_direction: "
-            "not available with the current SCIP API" ) );
+ std::vector< double > y( numrows , 0 );
+ std::vector< double > dj( numcols , 0 );
+
+ // the Farkas certificate y is such that y' A x >= y' b holds for no x,
+ // with y[ i ] <= 0 for a <= constraint and y[ i ] >= 0 for a >= one, which
+ // is the sign convention of the other :MILPSolver; SCIP has the opposite
+ // one, whence the sign
+
+ for( int i = 0 ; i < numrows ; ++i )
+  y[ i ] = - SCIPgetDualfarkasLinear( scip , cons[ i ] );
+
+ for( int j = 0 ; j < numcols ; ++j ) {
+  const double fj = SCIPgetVarFarkasCoef( scip , vars[ j ] );
+  dj[ j ] = ( fj == SCIP_INVALID ) ? 0 : - fj;
+  }
+
+ // Call the method of the base class
+ MILPSolver::write_dual_solution( y , dj );
  }
 
 /*--------------------------------------------------------------------------*/

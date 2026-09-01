@@ -747,9 +747,13 @@ int CPXMILPSolver::decode_lqp_status( int status )
    return( kStopIter );
   case( CPX_STAT_ABORT_OBJ_LIM ):
    // Stopped due to an objective limit.
-  case( CPX_STAT_ABORT_PRIM_OBJ_LIM ):
-   // Stopped due to a limit on the primal objective.
    return( kError );
+  case( CPX_STAT_ABORT_PRIM_OBJ_LIM ):
+   // A feasible primal sequence reached the objective limit. This is the
+   // threshold-based unboundedness certificate described by Solver::
+   // set_unbounded_threshold(), even when CPLEX stops before constructing an
+   // explicit unbounded ray (notably for unbounded convex QPs).
+   return( kUnbounded );
   case( CPX_STAT_ABORT_TIME_LIM ):
    // Stopped due to a time limit.
    return( kStopTime );

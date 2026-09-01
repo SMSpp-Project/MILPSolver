@@ -1,0 +1,94 @@
+# Generic SMS++ module CI for GitHub: identical in every module repository.
+#
+# The per-module build recipe is single-sourced from this repo's
+# .gitlab-ci.yml: the -DBUILD_* flags are extracted from it, so adding or
+# changing a module only ever touches that file, never this workflow.
+#
+# It runs inside the prebuilt image ghcr.io/smspp-project/smspp-project (the
+# same dependencies as the GitLab CI, produced by .github/workflows/
+# docker-image.yml in the umbrella), clones the umbrella, then configures,
+# builds and tests with CTest.
+
+name: CI
+
+on:
+  push:
+    branches: [develop, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/smspp-project/smspp-project:latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Extract the -DBUILD_* flags from .gitlab-ci.yml
+        id: flags
+        run: |
+          flags=$(grep -oE '\-DBUILD_[A-Za-z_]+=(ON|OFF)' .gitlab-ci.yml \
+                  | grep -v '^-DBUILD_TESTING=' | sort -u | tr '\n' ' ')
+          echo "flags=$flags" >> "$GITHUB_OUTPUT"
+          echo "Using: $flags"
+
+      - name: Clone the umbrella
+        run: git clone --branch develop https://gitlab.com/smspp/smspp-project.git
+
+      - name: Configure
+        run: |
+          cmake -S smspp-project -B smspp-project/build \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+            ${{ steps.flags.outputs.flags }}
+
+      - name: Build
+        run: cmake --build smspp-project/build --target install -- -j$(nproc)
+
+      - name: Write the Gurobi WLS license, if the secrets are set
+        env:
+          GRB_LICENSEID: ${{ secrets.GRB_LICENSEID }}
+          GRB_WLSACCESSID: ${{ secrets.GRB_WLSACCESSID }}
+          GRB_WLSSECRET: ${{ secrets.GRB_WLSSECRET }}
+        run: |
+          if [ -n "$GRB_WLSSECRET" ]; then
+            printf 'LICENSEID=%s\nWLSACCESSID=%s\nWLSSECRET=%s\n' \
+              "$GRB_LICENSEID" "$GRB_WLSACCESSID" "$GRB_WLSSECRET" > /tmp/gurobi.lic
+            echo "GRB_LICENSE_FILE=/tmp/gurobi.lic" >> "$GITHUB_ENV"
+          fi
+
+      - name: Test
+        # Mirror the GitLab CI, single-sourced: if this module's .gitlab-ci.yml
+        # runs a labelled ctest (ctest ... -L ...), run exactly that set here,
+        # selecting by the repo-name label (each test is tagged in tests/ with
+        # its owning module). Otherwise the module has no integration tests, so
+        # this is a build-only (compile-check) CI. This workflow is identical in
+        # every repo and never needs per-module changes: the recipe lives in
+        # .gitlab-ci.yml.
+        run: |
+          run_tests() {
+            if grep -qE 'ctest .* -L ' .gitlab-ci.yml; then
+              ctest --test-dir smspp-project/build -L "${GITHUB_REPOSITORY##*/}" \
+                    -V -C Release --no-tests=error
+            else
+              echo "no labelled tests for ${GITHUB_REPOSITORY##*/}; build-only CI"
+            fi
+          }
+          # the academic Gurobi WLS license caps concurrent sessions; during a
+          # push wave a job can abort with "GRBstartenv ... status 10030". Retry
+          # ONLY on that transient cap (a real test failure fails immediately, so
+          # no re-runs are wasted). GitHub Actions has no native job retry.
+          log=smspp-project/build/Testing/Temporary/LastTest.log
+          for attempt in 1 2 3 4 5 6; do
+            if run_tests; then exit 0; fi
+            rc=$?
+            if [ -f "$log" ] && grep -qE 'status 10030|too many sessions|cannot initialize Gurobi' "$log"; then
+              echo "Gurobi WLS session cap hit (attempt $attempt/6); retrying after backoff..."
+              sleep 90
+              continue
+            fi
+            exit $rc
+          done
+          echo "Gurobi WLS session cap still hit after 6 attempts"
+          exit 1

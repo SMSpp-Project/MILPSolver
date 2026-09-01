@@ -52,6 +52,12 @@ Currently available derived classes are:
 - `HiGHSMILPSolver`, providing the interface with the open-source
   [HiGHS](https://highs.dev)
 
+- `PIPSMILPSolver`, providing the interface with the open-source parallel
+  interior-point solver
+  [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp) (LP problems
+  only, Linux only; see also its
+  [website](https://pips-ipmpp.gitlab.io/index.html))
+
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
 found on the system, both with CMake and with the makefiles (see below
@@ -78,6 +84,13 @@ These instructions will let you build MILPSolver on your system.
 
 - for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev)
 
+- for `PIPSMILPSolver` you will need
+  [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp), which is only
+  available under Linux and requires an MPI implementation (note that
+  PIPS-IPM++ also needs a sparse linear solver: the fully open-source
+  route is MUMPS, while other backends, e.g. PARDISO or MA57, are
+  subject to licensing)
+
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
@@ -100,12 +113,13 @@ The library has the same configuration options of
 [SMS++](https://gitlab.com/smspp/smspp-project/-/wikis/Customize-the-configuration).
 Moreover, you can use the following configuration options:
 
-| Variable                 | Description | Default value |
-| ------------------------ | ----------- | ------------- |
-| `MILPSolver_USE_CPLEX`   | Use CPLEX   | ON            |
-| `MILPSolver_USE_SCIP`    | Use SCIP    | ON            |
-| `MILPSolver_USE_GUROBI`  | Use GUROBI  | ON            |
-| `MILPSolver_USE_HiGHS`   | Use HiGHS   | ON            |
+| Variable                 | Description    | Default value |
+| ------------------------ | -------------- | ------------- |
+| `MILPSolver_USE_CPLEX`   | Use CPLEX      | ON            |
+| `MILPSolver_USE_SCIP`    | Use SCIP       | ON            |
+| `MILPSolver_USE_GUROBI`  | Use GUROBI     | ON            |
+| `MILPSolver_USE_HiGHS`   | Use HiGHS      | ON            |
+| `MILPSolver_USE_PIPS`    | Use PIPS-IPM++ | ON            |
 
 At least one of the four backends must be enabled at build time for the
 library to be able to actually solve problems.
@@ -147,7 +161,7 @@ to include a "main makefile" of the module, which typically is either
 libraries but not the "core SMS++" one (for the common case in which this is
 used together with other modules that already include them). If you want to
 exclude some specific `:MILPSolver` from being compiled you have to go in
-[makefile](makefile), [makefile-c](makefile-c) and [makefile-](makefile-s)
+[makefile](makefile), [makefile-c](makefile-c) and [makefile-s](makefile-s)
 (depending on which one of the latter two is used) and comment out all the
 lines mentioning it. Don't bother about the `$(*H)`, `$(*INC)` etc. variables
 (assuming you would) since if they are not defined they are empty and
@@ -166,33 +180,31 @@ for further details.
 
 ## Tools
 
-`CPXMILPSolver` , `SCIPMILPSolver` , `GRBMILPSolver` and `HiGHSMILPSolver` 
-support, respectively, CPLEX , SCIP , GUROBI and HiGHS parameter names in 
-the `Configuration` files. To do so, they need header files *\_defs.h and
-*\_maps.h that depend on  the versions of CPLEX , SCIP , GUROBI and HiGHS
-currently installed on the system. Such headers can be generated with the
-`cpx_pars` , `scip_pars` , `grb_pars` and `high_pars` executables in the
-[tools](tools) folder. This is done automatically by cmake / make, so you
-should not bother about it. However, if you change the version of the
-underlying solver you may want to delete the corresponding *\_defs.h and
-*\_maps.h header files so that they are rebuilt for the new one.
+All the available `:MILPSolver`s support the parameter names of the
+corresponding solver in the `Configuration` files. To do so, they need
+header files *\_defs.h and *\_maps.h that depend on the versions of the
+solver currently installed on the system. Such headers can be generated
+with the `cpx_pars` , `scip_pars` , `grb_pars` , `highs_pars` and
+`pips_pars` executables in the [tools](tools) folder. This is done
+automatically by cmake / make, so you should not bother about it. However,
+if you change the version of the underlying solver you may want to delete
+the corresponding *\_defs.h and *\_maps.h header files so that they are
+rebuilt for the new one.
 
 
 ## Testers
 
-The repo includes some testers that may be useful for someone willing to
-write other `:MILPSolver`:
+The [test](test/README.md) folder includes some testers that may be useful
+for someone willing to write other `:MILPSolver`:
 
-- [test_cuts](test_cuts/README.md) tests dynamic generation of constraints
+- `test_cuts` tests dynamic generation of constraints
 
-- [test_dual](test_dual/README.md) tests correct signs of dual variables
-  (never to be given for granted, every LP solver seems to have a different
-  idea about it)
+- `test_dual` tests correct signs of dual variables (never to be given for
+  granted, every LP solver seems to have a different idea about it)
 
-- [test_dynamic](test_dynamic/README.md) compares two `:MILPSolver` on
-  the repeated solution of LPs while changing everything that can be
-  changed, useful to test a new `:MILPSolver` against an old and
-  hopefully reliable one
+- `test_dynamic` compares two `:MILPSolver` for the repeated solution of LPs
+  changing everything that can be changed, useful to test a new `:MILPSolver`
+  against an old and hopefully reliable one
 
 
 ## Getting help

@@ -37,6 +37,10 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <map>
+
+#include <set>
+
 #include <LinearFunction.h>
 #include <PolyhedralFunction.h>
 #include <C05Function.h>
@@ -108,6 +112,7 @@ void MILPSolver::clear_problem( unsigned int what )
   matind.clear();
   matval.clear();
   xctype.clear();
+  q_part.clear();
 
   for( auto & i: colname )
    delete[] i;
@@ -120,6 +125,9 @@ void MILPSolver::clear_problem( unsigned int what )
  if( what & 2u ) {
   objective.clear();
   q_objective.clear();
+  ndq_objective.clear();
+  ndq_rowind.clear();
+  ndq_colind.clear();
   }
 
  if( what & 4u ) {
@@ -138,16 +146,25 @@ void MILPSolver::clear_problem( unsigned int what )
 
 void MILPSolver::load_problem( void )
 {
+ // Clean any left-up structures
+ clear_problem( 15 );
+ 
  numrows = 0;
  numcols = 0;
  static_vars = 0;
  static_cons = 0;
  static_quadcons = 0;
+ constant_value = 0;
  Index nzelements = 0;
  Index nst_linrow = 0;
  Index nst_quadrow = 0;
  Index ndy_linrow = 0;
  Index ndy_quadrow = 0;
+
+ int_vars = 0;
+ numquadrows = 0;
+ numnnzq = 0;
+ objsense = 0;
 
  // locking the Block
  bool owned = f_Block->is_owned_by( f_id );
@@ -291,10 +308,16 @@ void MILPSolver::load_problem( void )
    }
 
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
+   // count each constraint the variable is active in ONCE: a variable may
+   // appear more than once in the same constraint (so active_stuff() lists
+   // it more than once), but it contributes a single matrix entry (with the
+   // coefficients summed); see the matching coalescing in scan_variable()
+   std::set< const FRowConstraint * > seen;
    for( auto * i : var.active_stuff() )
     if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
       if( is_mine( row->get_Block() ) )
-       ++nzelements;
+       if( seen.insert( row ).second )
+        ++nzelements;
    };
 
   for( const auto & i : qb->get_static_variables() )
@@ -1607,69 +1630,52 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
 
  // Get linear active constraints
  auto active_constraints = get_active_constraints( var );
- int nz_elements = active_constraints.size();
 
  /* We have to check wheter we have quadratic constraints in the model or not.
   * If the model is LP, then matbeg, matcnt, ... store the matrix coefficients
   * grouped by column. */
  if( numquadrows == 0 ) {
-  matcnt[ col ] = nz_elements;
-
-  if( col == 0 )
-   matbeg[ col ] = 0;
-  else
-   matbeg[ col ] = matbeg[ col - 1 ] + matcnt[ col - 1 ];
-
-  for( int j = 0 ; j < nz_elements ; ++j ) {
-   auto * con = active_constraints[ j ];
+  // coalesce the column: one matrix entry per DISTINCT constraint the
+  // variable is active in, with coefficient = the SUM of all of the
+  // variable's coefficients in that constraint. A variable may legitimately
+  // appear more than once in a single LinearFunction (e.g. in some AC
+  // network formulations): emitting one (row, col) entry per occurrence is
+  // both wrong (the coefficients must add up, not repeat) and rejected by
+  // some backends (HiGHS >= 1.14 errors on duplicate row indices). The
+  // std::map keeps the entries sorted by row index, as the solvers expect;
+  // it stays consistent with the distinct count of the nzelements counter.
+  std::map< int , double > col_entries;
+  for( auto * con : active_constraints ) {
+   const int row = index_of_constraint( con );
+   if( col_entries.count( row ) )
+    continue;                  // this constraint has already been summed
    auto * f = static_cast< const LinearFunction * >( con->get_function() );
-   auto it = std::find_if( f->get_v_var().begin() , f->get_v_var().end() ,
-                          [ & ]( LinearFunction::coeff_pair pair ) {
-                           return( pair.first == &var );
-                           } );
-
-   if( it != f->get_v_var().end() ) {
-    matval[ matbeg[ col ] + j ] = it->second;
-    matind[ matbeg[ col ] + j ] = index_of_constraint( con );
-    }
-   else
-    // This should never happen since we are looping on the active contraints
+   double coeff = 0;
+   bool found = false;
+   for( const auto & pr : f->get_v_var() )
+    if( pr.first == & var ) {
+     coeff += pr.second;
+     found = true;
+     }
+   if( ! found )
+    // this should never happen since we loop on the active constraints
     throw( std::invalid_argument(
                "MILPSolver::scan_variable: "
                "this ColVariable is not active in the examined "
                "FRowConstraint" ) );
-  }
-
-  /* If the DEBUG is activated, we can check wether a variable appears 
-   * multiple times in a single constraint, which will clearly produce
-   * an error in later stage of the process. */
-  #ifdef MILPSolver_DEBUG
-    if( nz_elements > 0 ){
-      // Create a vector containing only the indices of active constraints
-      std::vector<int> idx_ac(nz_elements); 
-      std::copy( matind.begin() + matbeg[ col ], 
-                  matind.begin() + matbeg[ col ] + nz_elements, idx_ac.begin());
-
-      // Now sort the vector with respect to the constraint indices
-      std::sort( idx_ac.begin(), idx_ac.end() );
-
-      // Now check there are no repeated indices
-      for( int j = 0 ; j < nz_elements - 1 ; ++j ){
-        if( idx_ac[ j ] == idx_ac[ j + 1 ] ){
-          // Error message
-          std::string msg = std::string("MILPSolver Error [")
-            + __func__ + "]: Variable with index " + std::to_string( col )
-            + " repeated multiple times in constraint with index " +
-            std::to_string( idx_ac[ j ] ) + ".\n"; 
-
-          // Print warning message in MILPSolver DEBUG
-          DEBUG_LOG( msg.c_str() );
-        }
-      }
+   col_entries[ row ] = coeff;
    }
-  #endif
 
- }
+  matcnt[ col ] = col_entries.size();
+  matbeg[ col ] = ( col == 0 ) ? 0 : matbeg[ col - 1 ] + matcnt[ col - 1 ];
+
+  Index j = 0;
+  for( const auto & [ row , coeff ] : col_entries ) {
+   matind[ matbeg[ col ] + j ] = row;
+   matval[ matbeg[ col ] + j ] = coeff;
+   ++j;
+   }
+  }
  ++col;
  }
 
@@ -2061,88 +2067,6 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
  }
 
 /*--------------------------------------------------------------------------*/
-
-template< typename T , unsigned short K >
- int MILPSolver::get_multi_array_dim(
-                        const boost::any & any ,
-                        un_any_type< T > , 
-                        un_any_int< K > )
-{
- if( any.type() == typeid( boost::multi_array< T , K > * ) ||
-    any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
-  return K;
- else
-  return( get_multi_array_dim( any , un_any_type< T >() ,
-                              un_any_int< K + 1 >() ) );
- }
-
-/*--------------------------------------------------------------------------*/
-
-template< typename T , unsigned short K >
- int MILPSolver::get_multi_array_type( 
-                         const boost::any & any ,
-                         un_any_type< T > , 
-                         un_any_int< K > )
-{
- if( any.type() == typeid( boost::multi_array< T , K > * ) )
-  return 0;
- else if( any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
-  return 1;
- else
-  return( -1 );
- }
-
-/*--------------------------------------------------------------------------*/
-
-template< typename T >
- boost::multi_array< T , 2 > * MILPSolver::get_multi_array0( 
-                           const boost::any & any,
-                           un_any_type< T > , 
-                           un_any_int< 2 > )
-{
- auto & var = * boost::any_cast< boost::multi_array< T , 2 > * >( any );
-  return &var;
- }
-
-/*--------------------------------------------------------------------------*/
-
-template< typename T >
- boost::multi_array< std::vector< T >, 2 > * MILPSolver::get_multi_array1( 
-                          const boost::any & any,
-                          un_any_type< T > , 
-                          un_any_int< 2 > )
-{
- auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 2 > * >
-    ( any );
- return &var;
- }
-
-/*--------------------------------------------------------------------------*/
-
-template< typename T >
- boost::multi_array< T , 3 > * MILPSolver::get_multi_array0( 
-                           const boost::any & any,
-                           un_any_type< T > , 
-                           un_any_int< 3 > )
-{
- auto & var = * boost::any_cast< boost::multi_array< T , 3 > * >( any );
-  return &var;
- }
-
-/*--------------------------------------------------------------------------*/
-
-template< typename T >
- boost::multi_array< std::vector< T >, 3 > * MILPSolver::get_multi_array1( 
-                          const boost::any & any,
-                          un_any_type< T > , 
-                          un_any_int< 3 > )
-{
- auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 3 > * >
-    ( any );
- return &var;
- }
-
-/*--------------------------------------------------------------------------*/
 /*----------------------------- MODIFICATIONS ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -2254,12 +2178,20 @@ void MILPSolver::process_modifications( void )
   if( auto mod = pop() ) {  // get next Modification, if any
    auto pmod = mod.get();   // down to regular Modification *
    if( dynamic_cast< const NBModification * >( pmod ) ) {
+    f_reset = false;
     load_problem();         // an NBModification: reload everything
     mod_clear();            // all the remaining Modification must be ignored
     break;                  // all done
     }
 
    guts_of_process_modifications( pmod );  // process the Modification
+
+   if( f_reset ) {
+    f_reset = false;
+    load_problem();         // reload everything
+    mod_clear();            // all the remaining Modification must be ignored
+    break;                  // all done
+    }
    }
   else                      // no more Modification to process
    break;                   // all done
@@ -3817,28 +3749,20 @@ void MILPSolver::write_var_solution( const std::vector< double > & x )
   v.set_value( x[ col++ ] );
   };
 
- // dynamic variables cannot be addressed by a sequential counter: their
- // matrix columns follow the order in which they were *added* to the
- // solver (initial dynamic variables one per sub-Block at load_problem(),
- // then any variable appended at run time by an add-variable Modification),
- // which in general differs from the breadth-first per-sub-Block traversal
- // order used here. Using a running counter scrambles the values across
- // sub-Blocks whenever variables are added incrementally to more than one
- // dynamic group. Look up each variable's actual column via the
- // dvar_to_idx map (index_of_dynamic_variable) instead
- auto setd = [ & x , this ]( ColVariable & v ) {
-  const int idx = index_of_dynamic_variable( & v );
-  if( idx < int( x.size() ) )
-   v.set_value( x[ idx ] );
-  };
-
  for( auto qb : v_BFS ) {
   for( const auto & vi : qb->get_static_variables() )
    un_any_const_static( vi , set , un_any_type< ColVariable >() );
-
-  for( const auto & vi : qb->get_dynamic_variables() )
-   un_any_const_dynamic( vi , setd , un_any_type< ColVariable >() );
   }
+
+ // Dynamic columns are appended to the solver in modification-arrival order,
+ // which is generally different from the block/BFS order above (for example,
+ // when bundle cuts are added to different PolyhedralFunctionBlock-s over
+ // time). idx_to_dvar is maintained in the actual solver-column order by
+ // add_dynamic_variable() / remove_dynamic_variable(), so it is the only
+ // reliable map for writing the dynamic part of the solution back.
+ for( std::size_t i = 0 ; i < idx_to_dvar.size() ; ++i )
+  const_cast< ColVariable * >( idx_to_dvar[ i ] )->set_value(
+                                                x[ static_vars + i ] );
  }  // end( MILPSolver::write_var_solution )
 
 /*--------------------------------------------------------------------------*/
@@ -3855,12 +3779,29 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
 
   // NOTE: this only supports pi written for linear constraints!
   // TODO: extend pi to quadratic constraints
-  auto set = [ this , & pi ]( FRowConstraint & c ) {
-    const int row = index_of_constraint( & c );
-    if( row >= get_numrows() )
-     throw( std::logic_error(
-       "MILPSolver::write_dual_solution: constraint not found" ) );
+  int row = 0;
+
+  auto set = [ & pi , & row ]( FRowConstraint & c ) {
     if( dynamic_cast< LinearFunction * >( c.get_function() ) )
+      c.set_dual( - pi[ row++ ] );
+    else
+      // Skip quadratic rows
+      row++;
+   };
+
+  /* The dynamic rows are appended to the solver in modification-arrival
+   * order, which is generally different from the block/BFS order the static
+   * ones are written in: a running counter would therefore scramble the
+   * duals across the dynamic groups, exactly as it did for the dynamic
+   * columns [see write_var_solution()]. The row of each of them is asked
+   * for instead. */
+
+  auto set_dynamic = [ this , & pi ]( FRowConstraint & c ) {
+    if( ! dynamic_cast< LinearFunction * >( c.get_function() ) )
+     return;   // skip quadratic rows
+
+    const int row = index_of_constraint( & c );
+    if( row < int( get_numrows() ) )
      c.set_dual( - pi[ row ] );
    };
 
@@ -3935,7 +3876,11 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
    if( rhs_con && ( rc[ col ] <= 0 ) )
     rhs_con->set_dual( - rc[ col ] );
    else
-    if( lhs_con || rhs_con )
+    // interior-point solutions carry sign noise up to the dual feasibility
+    // tolerance on reduced costs: a tiny value of the "wrong" sign for the
+    // only existing bound means 0, which the duals of all the active bounds
+    // have just been set to, so only complain on a significant mismatch
+    if( ( lhs_con || rhs_con ) && ( std::abs( rc[ col ] ) > 1e-6 ) )
      throw( std::logic_error(
 	       "MILPSolver::write_dual_solution: invalid dual value" ) );
 

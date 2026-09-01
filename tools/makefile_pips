@@ -1,0 +1,34 @@
+##############################################################################
+############################## makefile_pips #################################
+##############################################################################
+#                                                                            #
+#   makefile of pips_pars                                                    #
+#                                                                            #
+#                              Antonio Frangioni                             #
+#                          Dipartimento di Informatica                       #
+#                              Universita' di Pisa                           #
+#                                                                            #
+#                              Enrico Calandrini                             #
+#                          Dipartimento di Matematica                        #
+#                              Universita' di Pisa                           #
+#                                                                            #
+##############################################################################
+
+# module name
+PIPS_PARS = pips_pars
+
+# define & include the necessary modules- - - - - - - - - - - - - - - - - - -
+# pips_pars is a standalone source parser: it does not link PIPS-IPM++.
+# It only needs the standard C++ library and the usual project compiler flags.
+
+# main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(PIPS_PARS): $(DIR)/$(PIPS_PARS).o
+	$(CC) -o $(PIPS_PARS) $(DIR)/$(PIPS_PARS).o $(SW)
+
+# compile command - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(DIR)/$(PIPS_PARS).o: $(DIR)/$(PIPS_PARS).cpp
+	$(CC) -c $*.cpp -o $@ $(SW)
+
+########################## End of makefile_pips ##############################

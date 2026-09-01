@@ -17,8 +17,8 @@ build:
     - eval $(ssh-agent -s)
     - ssh-add <(echo "$SMSPP_DEPLOY_KEY")
     - mkdir -p ~/.ssh && ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
-    - if [ -d smspp-project ]; then (cd smspp-project && git pull); else git clone --branch develop git@gitlab.com:smspp/smspp-project.git; fi
-    - cmake -S smspp-project -B smspp-project/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MILPSolver=ON
+    - if [ -d smspp-project ]; then (cd smspp-project && git pull && git submodule update --recursive); else git clone --branch develop git@gitlab.com:smspp/smspp-project.git; fi
+    - cmake -S smspp-project -B smspp-project/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MILPSolver=ON -DBUILD_tests=ON
     - cmake --build smspp-project/build --target install
   artifacts:
     paths:
@@ -36,11 +36,27 @@ build:
       - test_dynamic/*
       - tools/*
       - CMakeLists.txt
+      - .gitlab-ci.yml
 
 test:
   stage: test
+  # the academic Gurobi WLS license caps concurrent sessions: a test job may
+  # abort at startup with "GRBstartenv returned with status 10030" when other
+  # Gurobi-heavy pipelines hold the sessions. Retry to ride out the contention.
+  retry:
+    max: 2
+    when: script_failure
+  timeout: 24h
+  before_script:
+    # write the Gurobi WLS license from the masked CI/CD variables, if set
+    - |
+      if [ -n "$GRB_WLSSECRET" ]; then
+        printf 'LICENSEID=%s\nWLSACCESSID=%s\nWLSSECRET=%s\n' \
+          "$GRB_LICENSEID" "$GRB_WLSACCESSID" "$GRB_WLSSECRET" > /tmp/gurobi.lic
+        export GRB_LICENSE_FILE=/tmp/gurobi.lic
+      fi
   script:
-    - ctest -V -C Release --test-dir smspp-project/build
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" --test-dir smspp-project/build --no-tests=error
   only:
     refs:
       - develop
@@ -54,6 +70,7 @@ test:
       - test_dynamic/*
       - tools/*
       - CMakeLists.txt
+      - .gitlab-ci.yml
 
 deploy:
   stage: deploy
