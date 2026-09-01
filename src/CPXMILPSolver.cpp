@@ -773,13 +773,15 @@ int CPXMILPSolver::decode_lqp_status( int status )
   case( CPX_STAT_NUM_BEST ):
    // Solution is available, but not proved optimal,
    // due to numeric difficulties during optimization.
+   return( kLowPrecision );
   case( CPX_STAT_OPTIMAL ):
    // Optimal solution is available.
   case( CPX_STAT_OPTIMAL_FACE_UNBOUNDED ):
    // Model has an unbounded optimal face.
+   return( kOK );
   case( CPX_STAT_OPTIMAL_INFEAS ):
    // Optimal solution is available, but with infeasibilities after unscaling.
-   return( kOK );
+   return( kLowPrecision );
   case( CPX_STAT_UNBOUNDED ):
    // Problem has an unbounded ray.
    return( kUnbounded );
