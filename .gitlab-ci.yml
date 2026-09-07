@@ -34,9 +34,7 @@ build:
       - cmake/*
       - include/*
       - src/*
-      - test_cuts/*
-      - test_dual/*
-      - test_dynamic/*
+      - test/*
       - tools/*
       - CMakeLists.txt
       - .gitlab-ci.yml
@@ -68,9 +66,7 @@ test:
       - cmake/*
       - include/*
       - src/*
-      - test_cuts/*
-      - test_dual/*
-      - test_dynamic/*
+      - test/*
       - tools/*
       - CMakeLists.txt
       - .gitlab-ci.yml
