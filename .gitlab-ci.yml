@@ -9,6 +9,7 @@ cache:
 stages:
   - build
   - test
+  - test-miqp
   - deploy
 
 build:
@@ -39,8 +40,12 @@ build:
       - CMakeLists.txt
       - .gitlab-ci.yml
 
-test:
-  stage: test
+# the suite is 170 minutes against the 3h cap a job has on the GitLab.com
+# shared runners, and the quadratic objective over integer variables is 75 of
+# them, so it is split into two SEQUENTIAL stages of comparable weight. It
+# also makes the retry affordable: a session cap hit by one of the two
+# second-long tests then costs the lighter half, not the whole suite.
+.test_template:
   # the academic Gurobi WLS license caps concurrent sessions: a test job may
   # abort at startup with "GRBstartenv returned with status 10030" when other
   # Gurobi-heavy pipelines hold the sessions. Retry to ride out the contention.
@@ -56,8 +61,6 @@ test:
           "$GRB_LICENSEID" "$GRB_WLSACCESSID" "$GRB_WLSSECRET" > /tmp/gurobi.lic
         export GRB_LICENSE_FILE=/tmp/gurobi.lic
       fi
-  script:
-    - ctest -V -C Release -L "$CI_PROJECT_TITLE" --test-dir smspp-project/build --no-tests=error
   only:
     refs:
       - develop
@@ -70,6 +73,18 @@ test:
       - tools/*
       - CMakeLists.txt
       - .gitlab-ci.yml
+
+test:
+  extends: .test_template
+  stage: test
+  script:
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -E "quad_test/batches/batchQL_I" --test-dir smspp-project/build --no-tests=error
+
+test-miqp:
+  extends: .test_template
+  stage: test-miqp
+  script:
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -R "quad_test/batches/batchQL_I" --test-dir smspp-project/build --no-tests=error
 
 deploy:
   stage: deploy
