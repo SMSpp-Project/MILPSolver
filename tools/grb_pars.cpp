@@ -209,6 +209,50 @@ int main( int argc , char ** argv )
   }
  }
 
+ // some parameters the library accepts by name are not returned by
+ // GRBgetparamname(), so the loop above cannot see them: probe them by name
+ // and add the ones this version knows about, skipping any that it does not
+ // recognise and any that the enumeration has already found
+
+ static const char * const extra_pars[] = {
+  "GURO_PAR_BARDENSETHRESH" ,
+  "GURO_PAR_DUMP" ,
+  "GURO_PAR_ISVNAME"
+  };
+
+ auto known = [ & ]( const std::string & nm ) -> bool {
+  for( const auto & i : int_parameters ) if( i.second == nm ) return( true );
+  for( const auto & i : dbl_parameters ) if( i.second == nm ) return( true );
+  for( const auto & i : str_parameters ) if( i.second == nm ) return( true );
+  return( false );
+  };
+
+ for( const auto extra : extra_pars ) {
+  const std::string nm( extra );
+  if( known( nm ) )
+   continue;
+
+  switch( GRBgetparamtype( envptr , extra ) ) {
+   case( GRB_PARAMTYPE_INT ):
+    int_parameters.insert( { int_counter++ , nm } );
+    break;
+
+   case( GRB_PARAMTYPE_DBL ):
+    dbl_parameters.insert( { dbl_counter++ , nm } );
+    break;
+
+   case( GRB_PARAMTYPE_STR ):
+    str_parameters.insert( { str_counter++ , nm } );
+    break;
+
+   default:  // this version does not have it
+    if( verbose )
+     std::cout << nm << " not available in this version" << std::endl;
+    break;
+
+  }
+ }
+
  // Generate defs file
  defs_file.open( defs_path );
 
