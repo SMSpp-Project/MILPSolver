@@ -147,6 +147,19 @@ void GRBMILPSolver::clear_problem( unsigned int what )
 
  /*--------------------------------------------------------------------------*/
 
+GRBmodel * GRBMILPSolver::updated_model( void ) const
+{
+ if( f_model_dirty ) {
+  f_model_dirty = false;
+  GRBupdatemodel( model );
+  }
+
+ return( model );
+
+ }  // end( GRBMILPSolver::updated_model )
+
+/*--------------------------------------------------------------------------*/
+
 void GRBMILPSolver::load_problem( void )
 {
  MILPSolver::load_problem();
@@ -548,6 +561,7 @@ void GRBMILPSolver::load_problem( void )
              "GRBMILPSolver::load_problem: "
              "GRBupdatemodel returned with status " +
              std::to_string( status ) ) );
+ f_model_dirty = false;
 
  // the base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
@@ -603,16 +617,16 @@ int GRBMILPSolver::guts_of_compute( void )
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() ) {
-  GRBwrite( model , output_file.c_str() );
+  GRBwrite( updated_model() , output_file.c_str() );
  }
 
  // figure out which API function is to be called - - - - - - - - - - - - - -
  bool is_qp = false;
  int qp;
- GRBgetintattr( model , GRB_INT_ATTR_IS_QP , &qp );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_QP , &qp );
 
  int qcp;
- GRBgetintattr( model , GRB_INT_ATTR_IS_QCP , &qcp );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_QCP , &qcp );
 
  if( qp == 1 ) {
   DEBUG_LOG( "GUROBI problem type: QP" << std::endl );
@@ -658,14 +672,14 @@ int GRBMILPSolver::guts_of_compute( void )
     }
   }
 
-  if( int status = GRBoptimize( model ) ) { //error
+  if( int status = GRBoptimize( updated_model() ) ) { //error
 
    sol_status = decode_grb_error( status );
    return( sol_status );
    }
 
   int m_status;
-  GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
 
   sol_status = decode_model_status( m_status );
   return( sol_status );
@@ -681,13 +695,13 @@ int GRBMILPSolver::guts_of_compute( void )
   f_callback_set = false;
   }
 
- if( int status = GRBoptimize( model ) ) {
+ if( int status = GRBoptimize( updated_model() ) ) {
   sol_status = decode_grb_error( status );
   return( sol_status );
   }
 
  int m_status;
- GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
 
  // If Gurobi's presolve returned INF_OR_UNBD it can't tell whether the
  // model is infeasible or unbounded. Per Gurobi documentation, the way
@@ -702,12 +716,12 @@ int GRBMILPSolver::guts_of_compute( void )
   int saved;
   GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , & saved );
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , 0 );
-  if( int status = GRBoptimize( model ) ) {
+  if( int status = GRBoptimize( updated_model() ) ) {
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
    sol_status = decode_grb_error( status );
    return( sol_status );
    }
-  GRBgetintattr( model , GRB_INT_ATTR_STATUS , & m_status );
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , & m_status );
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
   }
 
@@ -864,7 +878,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
 {
  OFValue lower_bound = 0;
  int sense;
- GRBgetintattr( model , GRB_INT_ATTR_MODELSENSE , & sense );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_MODELSENSE , & sense );
 
  int m_status;
 
@@ -877,7 +891,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
-     GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+     GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
      if( m_status == GRB_CUTOFF )
@@ -889,9 +903,10 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       GRBgetintparam( env , GRB_INT_PAR_NONCONVEX , &convexity );
 
       if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) )
-        GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
+        GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &lower_bound );
       else {
-        GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &lower_bound );
+        GRBgetdblattr( updated_model() ,
+                       GRB_DBL_ATTR_OBJBOUND , &lower_bound );
         // OBJBOUND belongs to the branch-and-bound: a model solved without
         // one, which is the case of a continuous problem whenever the
         // NonConvex parameter is not explicitly 0, publishes no bound at
@@ -900,7 +915,8 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
         // Solver has proved
         if( ( m_status == GRB_OPTIMAL ) &&
             ( lower_bound <= - GRB_INFINITY ) )
-         GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
+         GRBgetdblattr( updated_model() ,
+                        GRB_DBL_ATTR_OBJVAL , &lower_bound );
         }
 
       lower_bound += constant_value;
@@ -939,14 +955,14 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       }
 
     case( kOK ):
-     GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+     GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
      if( m_status == GRB_CUTOFF )
       throw( std::runtime_error(
                  "GRBMILPSolver: no solution information is available "
                  "with GRB_CUTOFF status" ) );
-     GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
+     GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &lower_bound );
      lower_bound += constant_value;
      break;
 
@@ -979,7 +995,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
 {
  OFValue upper_bound = 0;
  int sense;
- GRBgetintattr( model , GRB_INT_ATTR_MODELSENSE , &sense );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_MODELSENSE , &sense );
 
  int m_status;
 
@@ -1000,14 +1016,14 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
       }
 
     case( kOK ):
-     GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+     GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
      if( m_status == GRB_CUTOFF )
       throw( std::runtime_error(
                  "GRBMILPSolver: no solution information is available "
                  "with GRB_CUTOFF status" ) );
-     GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &upper_bound );
+     GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &upper_bound );
      upper_bound += constant_value;
      break;
 
@@ -1037,7 +1053,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
-     GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+     GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
      if( m_status == GRB_CUTOFF )
@@ -1049,9 +1065,10 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
      GRBgetintparam( env , GRB_INT_PAR_NONCONVEX , &convexity );
 
      if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) )
-        GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &upper_bound );
+        GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &upper_bound );
       else
-        GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &upper_bound );
+        GRBgetdblattr( updated_model() ,
+                       GRB_DBL_ATTR_OBJBOUND , &upper_bound );
      upper_bound += constant_value;
      break;
 
@@ -1084,7 +1101,8 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
 bool GRBMILPSolver::has_var_solution( void )
 {
  int n_solution;
- int status = GRBgetintattr( model , GRB_INT_ATTR_SOLCOUNT , & n_solution );
+ int status = GRBgetintattr( updated_model() ,
+                             GRB_INT_ATTR_SOLCOUNT , & n_solution );
 
  if( status )
   throw( std::runtime_error(
@@ -1102,7 +1120,7 @@ bool GRBMILPSolver::has_var_solution( void )
 Solver::OFValue GRBMILPSolver::get_var_value( void )
 {
  int objsense;
- GRBgetintattr( model , GRB_INT_ATTR_MODELSENSE , & objsense );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_MODELSENSE , & objsense );
 
  switch( objsense ) {
   case( GRB_MINIMIZE ): return( get_ub() );
@@ -1124,7 +1142,7 @@ void GRBMILPSolver::get_var_solution( Configuration * solc )
  std::vector< double > x( numcols , 0 );
  std::vector< double > x_grb( tot_grb_vars, 0 );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_X , 0 , tot_grb_vars , x_grb.data() ) )
+ if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_X , 0 , tot_grb_vars , x_grb.data() ) )
   throw( std::runtime_error(
              "GRBMILPSolver::get_var_solution: "
              "unable to get the solution with GRB_DBL_ATTR_X" ) );
@@ -1166,7 +1184,7 @@ void GRBMILPSolver::get_var_solution( Configuration * solc )
 bool GRBMILPSolver::has_var_direction( void )
 {
  int isMIP = 1;
- GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_MIP , &isMIP );
 
  if( ( isMIP ) ) {
  // The model is a MIP
@@ -1187,7 +1205,7 @@ bool GRBMILPSolver::has_var_direction( void )
  // Sometimes we could be interested in retrieveing dual values also for 
  // unfeasible model to prove dual unboundness
  int m_status;
- GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
 
  int infunbd_info = 0;
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
@@ -1220,7 +1238,7 @@ void GRBMILPSolver::get_var_direction( Configuration * dirc )
  std::vector< double > x( numcols , 0 );
  std::vector< double > x_grb( tot_grb_vars, 0 );
  
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_UNBDRAY , 0 , tot_grb_vars , x_grb.data() ) )
+ if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_UNBDRAY , 0 , tot_grb_vars , x_grb.data() ) )
   throw( std::runtime_error(
              "GRBMILPSolver::get_var_direction: "
              "unable to get the unbounded direction "
@@ -1263,7 +1281,7 @@ void GRBMILPSolver::get_var_direction( Configuration * dirc )
 bool GRBMILPSolver::has_dual_solution( void )
 {
  int isMIP = 1;
- GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_MIP , &isMIP );
 
  if( ( isMIP ) ) {
     // The model is a MIP
@@ -1282,7 +1300,7 @@ bool GRBMILPSolver::has_dual_solution( void )
   // Sometimes we could be interested in retrieveing dual values also for 
   // unfeasible model to prove dual unboundness
  int m_status;
- GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
 
  int infunbd_info = 0;
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
@@ -1327,7 +1345,7 @@ bool GRBMILPSolver::has_dual_solution( void )
  // numerical issue the Pi and Rc attributes are not available even when 
  // properly setting all the parameters.
  std::vector< double > small_pi( 1 , 0 );
- if( int status = GRBgetdblattrarray( model , GRB_DBL_ATTR_PI , 0 , 
+ if( int status = GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_PI , 0 , 
                     1 , small_pi.data() ) ) {
   // Warning message
   std::string msg = std::string("GRBMILPSolver Warning [")
@@ -1377,13 +1395,14 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
  std::vector< double > dj_grb( numcols + n_ranged_con + grb_idx_aux_qvar.size(), 0 );
 
  if( numrows > 0 )
-  if( int status = GRBgetdblattrarray( model , GRB_DBL_ATTR_PI , 0 , 
+  if( int status = GRBgetdblattrarray( updated_model() ,
+                                       GRB_DBL_ATTR_PI , 0 , 
                       numrows - nq_linnull , pi_grb.data() ) )
    throw( std::runtime_error(
               "GRBMILPSolver::get_dual_solution: "
               "unable to get dual values querying GRB_PI" ) );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , 
+ if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_RC , 0 , 
           numcols + n_ranged_con + grb_idx_aux_qvar.size() , dj_grb.data() ) )
   throw( std::runtime_error(
              "GRBMILPSolver::get_dual_solution: "
@@ -1427,7 +1446,7 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
  }
  else{
   std::vector< double > pi_quad( numquadrows , 0 );
-  if( GRBgetdblattrarray( model , GRB_DBL_ATTR_QCPI , 0 , numquadrows , pi_quad.data() ) )
+  if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_QCPI , 0 , numquadrows , pi_quad.data() ) )
     throw( std::runtime_error(
                "GRBMILPSolver::get_dual_solution: "
                "unable to get quadratic dual values querying GRB_QCPI" ) );
@@ -1465,7 +1484,7 @@ bool GRBMILPSolver::has_dual_direction( void )
  std::vector< double > y( numrows , 0 );
 
  int model_status;
- GRBgetintattr( model , GRB_INT_ATTR_STATUS , & model_status );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , & model_status );
 
  switch( model_status ) {
   case( GRB_INFEASIBLE ):
@@ -1524,8 +1543,8 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  //   If it is a <= constraint then y[ i ] <= 0 holds;
  //   If it is a >= constraint then y[ i ] >= 0 holds.
 
- int status_proof = GRBgetdblattr( model , GRB_DBL_ATTR_FARKASPROOF , & proof );
- int status_y = GRBgetdblattrarray( model , GRB_DBL_ATTR_FARKASDUAL , 0 , numrows , y.data() );
+ int status_proof = GRBgetdblattr( updated_model() , GRB_DBL_ATTR_FARKASPROOF , & proof );
+ int status_y = GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_FARKASDUAL , 0 , numrows , y.data() );
 
  // reverse the sign of y due to Gurobi approach
  for( auto i = y.begin() ; i != y.end() ; ++i  )
@@ -1560,14 +1579,16 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
   // the model is genuinely infeasible with an empty column domain; any other
   // failure is a real error and is re-thrown.
   int model_status = -1;
-  GRBgetintattr( model , GRB_INT_ATTR_STATUS , & model_status );
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , & model_status );
 
   bool empty_domain = false;
   if( model_status == GRB_INFEASIBLE ) {
    std::vector< double > lbnd( tot_grb_vars , 0 ) , ubnd( tot_grb_vars , 0 );
-   if( ( GRBgetdblattrarray( model , GRB_DBL_ATTR_LB , 0 , tot_grb_vars ,
+   if( ( GRBgetdblattrarray( updated_model() ,
+                             GRB_DBL_ATTR_LB , 0 , tot_grb_vars ,
                              lbnd.data() ) == 0 ) &&
-       ( GRBgetdblattrarray( model , GRB_DBL_ATTR_UB , 0 , tot_grb_vars ,
+       ( GRBgetdblattrarray( updated_model() ,
+                             GRB_DBL_ATTR_UB , 0 , tot_grb_vars ,
                              ubnd.data() ) == 0 ) )
     for( int j = 0 ; j < tot_grb_vars ; ++j )
      if( lbnd[ j ] > ubnd[ j ] ) { empty_domain = true; break; }
@@ -1586,14 +1607,14 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  // CPXdjfrompi() in CPXMILPSolver): the RC attribute refers to the last
  // simplex iterate w.r.t. the original objective and is unrelated to the
  // Farkas certificate.
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_OBJ , 0 , tot_grb_vars , dj_grb.data() ) )
+ if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_OBJ , 0 , tot_grb_vars , dj_grb.data() ) )
   throw( std::runtime_error(
              "GRBMILPSolver::get_dual_direction: "
              "unable to get objective coefficients querying GRB_OBJ" ) );
 
  {
   int nnz = 0;
-  if( GRBgetvars( model , & nnz , nullptr , nullptr , nullptr , 0 , tot_grb_vars ) )
+  if( GRBgetvars( updated_model() , & nnz , nullptr , nullptr , nullptr , 0 , tot_grb_vars ) )
    throw( std::runtime_error(
               "GRBMILPSolver::get_dual_direction: "
               "GRBgetvars (count) failed" ) );
@@ -1601,7 +1622,8 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
   std::vector< int > vind( nnz , 0 );
   std::vector< double > vval( nnz , 0 );
   if( nnz > 0 &&
-      GRBgetvars( model , & nnz , vbeg.data() , vind.data() , vval.data() ,
+      GRBgetvars( updated_model() ,
+                  & nnz , vbeg.data() , vind.data() , vval.data() ,
                   0 , tot_grb_vars ) )
    throw( std::runtime_error(
               "GRBMILPSolver::get_dual_direction: GRBgetvars failed" ) );
@@ -1651,7 +1673,7 @@ void GRBMILPSolver::write_lp( const std::string & filename )
  std::stringstream X(output_file);
  std::getline( X , output_file_lp , '.');
  output_file_lp = output_file_lp.append(".lp");
- GRBwrite( model , output_file_lp.c_str() );
+ GRBwrite( updated_model() , output_file_lp.c_str() );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1982,8 +2004,8 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
      // UB = rngval). Add that slack, give it a +1 coefficient in this row,
      // and record the ( constraint , aux var ) pair so that the solution and
      // dual extraction keep skipping the slack column.
-     GRBupdatemodel( model );  // so that NUMVARS is current
-     GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , & idx_aux_var );
+     f_model_dirty = true;
+     GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMVARS , & idx_aux_var );
      GRBaddvar( model , 0 , nullptr , nullptr , 0.0 , 0.0 , rngval ,
                 GRB_CONTINUOUS , nullptr );
      double one = 1.0;
@@ -2114,7 +2136,8 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
       
      // Retrieve old coefficient
      double oldval;
-     GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , vidx , &oldval  );
+     GRBgetdblattrelement( updated_model() ,
+                           GRB_DBL_ATTR_OBJ , vidx , &oldval  );
 
      // Update new coefficient
      *(nvit++) = oldval + modl->delta()[ i ];
@@ -2127,7 +2150,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
 
-   GRBupdatemodel( model );
+   f_model_dirty = true;
    return;
   }
 
@@ -2164,7 +2187,8 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
       
      // Retrieve old coefficient
      double oldval;
-     GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , vidx , &oldval  );
+     GRBgetdblattrelement( updated_model() ,
+                           GRB_DBL_ATTR_OBJ , vidx , &oldval  );
 
      // Update new coefficient
      *(nvit++) = oldval + modl->delta()[ i ];
@@ -2178,7 +2202,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    // flush the pending attribute changes: attribute queries only see the
    // model as of the last update, so a later read-modify-write of the same
    // coefficients would otherwise fetch stale values and lose this change
-   GRBupdatemodel( model );
+   f_model_dirty = true;
    return;
    }
 
@@ -2243,7 +2267,8 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
       
      // Retrieve old linear coefficient
      double oldlinval;
-     GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
+     GRBgetdblattrelement( updated_model() ,
+                           GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
      // Update new linear coefficient
      *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit ); 
 
@@ -2262,7 +2287,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    // flush the pending attribute changes: attribute queries only see the
    // model as of the last update, so a later read-modify-write of the same
    // coefficients would otherwise fetch stale values and lose this change
-   GRBupdatemodel( model );
+   f_model_dirty = true;
    return;
    }
   else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
@@ -2289,7 +2314,8 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
       
      // Retrieve old linear coefficient
      double oldlinval;
-     GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
+     GRBgetdblattrelement( updated_model() ,
+                           GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
      // Update new linear coefficient
      *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit ); 
 
@@ -2306,7 +2332,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data());
 
-   GRBupdatemodel( model );
+   f_model_dirty = true;
    return;
    }
   else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
@@ -2462,7 +2488,8 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
       // Retrieve old coefficient
       double oldval;
-      GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , idx , &oldval  );
+      GRBgetdblattrelement( updated_model() ,
+                            GRB_DBL_ATTR_OBJ , idx , &oldval  );
 
       indices.push_back( idx );
       if( mod->added() ) {
@@ -2478,7 +2505,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
     indices.data() , values.data() );
 
-  GRBupdatemodel( model );
+  f_model_dirty = true;
    return;
  }
 
@@ -2489,13 +2516,13 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // and then add the difference between the new and the old ones. In this case if 
   // we want to delete a quadratic coefficient, we can just subtract its old value
   int nqz;
-  GRBgetintattr( model , GRB_INT_ATTR_NUMQNZS , & nqz );
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMQNZS , & nqz );
 
   std::vector< int > oldind_row ( nqz );
   std::vector< int > oldind_col ( nqz );
   std::vector< double > oldval ( nqz );
 
-  int status = GRBgetq( model, & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
+  int status = GRBgetq( updated_model() , & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
   if( status != 0 )
     throw( std::runtime_error(
                "GRBMILPSolver: error while querying quadratic "
@@ -2535,7 +2562,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
     indices.data() , values.data() );
 
-    GRBupdatemodel( model );
+    f_model_dirty = true;
     return;
   }
 
@@ -2578,13 +2605,13 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // and then add the difference between the new and the old ones. In this case if 
   // we want to delete a quadratic coefficient, we can just subtract its old value
   int nqz;
-  GRBgetintattr( model , GRB_INT_ATTR_NUMQNZS , & nqz );
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMQNZS , & nqz );
 
   std::vector< int > oldind_row ( nqz );
   std::vector< int > oldind_col ( nqz );
   std::vector< double > oldval ( nqz );
 
-  int status = GRBgetq( model, & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
+  int status = GRBgetq( updated_model() , & nqz , oldind_row.data() , oldind_col.data() , oldval.data() );
   if( status != 0 )
     throw( std::runtime_error(
                "GRBMILPSolver: error while querying quadratic "
@@ -2622,7 +2649,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
     indices.data() , values.data() );
 
-    GRBupdatemodel( model );
+    f_model_dirty = true;
     return;
   }
 
@@ -2646,7 +2673,8 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
       // Retrieve old coefficient
       double oldval;
-      GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , idx , &oldval  );
+      GRBgetdblattrelement( updated_model() ,
+                            GRB_DBL_ATTR_OBJ , idx , &oldval  );
 
       indices.push_back( idx );
       double nqval;
@@ -2662,7 +2690,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
     indices.data() , values.data() );
 
-  GRBupdatemodel( model );
+  f_model_dirty = true;
   return;
  }
 
@@ -2742,7 +2770,7 @@ void GRBMILPSolver::constraint_fvars_modification(
  // update the coefficients
  GRBchgcoeffs( model , indices.size() , rows.data() , 
                 indices.data() , values.data() );
- GRBupdatemodel( model );
+ f_model_dirty = true;
 
  }  // end( GRBMILPSolver::constraint_fvars_modification )
 
@@ -2814,7 +2842,7 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
   GRBaddconstr( model , rmatind.size() , rmatind.data() ,
                 rmatval.data() , sense , rhs , nullptr );
  else {
-  GRBaddrangeconstr( model , rmatind.size() , rmatind.data() ,
+  GRBaddrangeconstr( updated_model() , rmatind.size() , rmatind.data() ,
                      rmatval.data() , lhs , rhs , nullptr );
   // record the row -> auxiliary slack column pairing; see GRBMILPSolver.h
   // for the role of map_rng_con_aux_var in ranged-row bookkeeping. The aux
@@ -2822,16 +2850,16 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
   // GRBaddrangeconstr appends it ) rather than derived from
   // numcols + n_ranged_con, which is fragile once the column layout has
   // been perturbed by deletions or runtime conversions
-  GRBupdatemodel( model );
+  f_model_dirty = true;
   int aux_idx;
-  GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , & aux_idx );
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMVARS , & aux_idx );
   --aux_idx;
   // the new aux var has the largest column index, so the map stays sorted
   // ascending by .second when the entry is appended at the back
   map_rng_con_aux_var.push_back( { numrows - 1 , aux_idx } );
   }
 
- GRBupdatemodel( model );
+ f_model_dirty = true;
 
  }  // end( GRBMILPSolver::add_dynamic_constraint )
 
@@ -2968,7 +2996,7 @@ void GRBMILPSolver::add_dynamic_variable( const ColVariable * var )
  GRBaddvar( model , 0 , nullptr , nullptr , 0.0 , 
             bd[ 0 ] , bd[ 1 ] , new_ctype , nullptr );
  
- GRBupdatemodel( model );
+ f_model_dirty = true;
 
  }  // end( GRBMILPSolver::add_dynamic_variable )
 
@@ -3046,7 +3074,7 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  }
 
  GRBdelconstrs( model , 1 , &index );
- GRBupdatemodel( model );
+ f_model_dirty = true;
 
  // NOTE: at the moment there is no need of checking the quadratic structures,
  // as we only allow quadratic static constraints. Hence, all the modification
@@ -3071,7 +3099,7 @@ void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
    --elem.second;
 
  GRBdelvars( model , 1 , &index );
- GRBupdatemodel( model );
+ f_model_dirty = true;
 
  // NOTE: at the moment there is no need of checking the quadratic structures,
  // as we only allow quadratic static constraints. Hence, all the modification
@@ -3401,7 +3429,7 @@ Solver::OFValue GRBMILPSolver::get_bestbound_callback( void ) {
 int GRBMILPSolver::get_nodes( void ) const
 {
  double nodecnt;
- GRBgetdblattr( model , GRB_DBL_ATTR_NODECOUNT , & nodecnt );
+ GRBgetdblattr( updated_model() , GRB_DBL_ATTR_NODECOUNT , & nodecnt );
  return( nodecnt );
  }
 
@@ -3479,7 +3507,7 @@ long GRBMILPSolver::get_left_nodes( void ) const
   case( kOK ):
   case( kStopIter ):
   case( kStopTime ):
-    GRBgetdblattr( model , GRB_DBL_ATTR_OPENNODECOUNT , & n_nodes );
+    GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OPENNODECOUNT , & n_nodes );
     break;
   
   case( kUnEval ): 
@@ -3495,7 +3523,8 @@ long GRBMILPSolver::get_left_nodes( void ) const
             break;
 
           default:
-            GRBgetdblattr( model , GRB_DBL_ATTR_OPENNODECOUNT , & n_nodes );
+            GRBgetdblattr( updated_model() ,
+                           GRB_DBL_ATTR_OPENNODECOUNT , & n_nodes );
             //throw( std::runtime_error( "Could not access current best objective "
             //"from callback status " + std::to_string(current_cbwhere) ) );
         }
@@ -3596,7 +3625,7 @@ bool GRBMILPSolver::has_feasible_sol( void )
 double GRBMILPSolver::get_runtime( void ) const
 {
  double runtime = 0;
- GRBgetdblattr( model , GRB_DBL_ATTR_RUNTIME , &runtime );
+ GRBgetdblattr( updated_model() , GRB_DBL_ATTR_RUNTIME , &runtime );
  
  return( runtime );
  }
@@ -4294,7 +4323,7 @@ const std::string & GRBMILPSolver::vstr_par_idx2str( idx_type idx ) const
 void GRBMILPSolver::check_status( void )
 {
  int grb_nvars;
- GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , &grb_nvars );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMVARS , &grb_nvars );
  int n_ranged_con = map_rng_con_aux_var.size();
  int n_aux_quad_var = grb_idx_aux_qvar.size();
  int exp_nvars = numcols + n_ranged_con + n_aux_quad_var;
@@ -4304,7 +4333,7 @@ void GRBMILPSolver::check_status( void )
 
  // Number of linear constraints in Gurobi
  int grb_nconstrlin;
- GRBgetintattr( model , GRB_INT_ATTR_NUMCONSTRS , &grb_nconstrlin );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMCONSTRS , &grb_nconstrlin );
 
  // Retrieve true number of linear constraint in SMS++. We have to consider that
  // for some quadratic constraints we also add an auxiliary linear constraint 
@@ -4316,15 +4345,16 @@ void GRBMILPSolver::check_status( void )
 
  // Number of quadratic constraints in Gurobi
  int grb_nconstrquad;
- GRBgetintattr( model , GRB_INT_ATTR_NUMQCONSTRS , &grb_nconstrquad );
+ GRBgetintattr( updated_model() ,
+                GRB_INT_ATTR_NUMQCONSTRS , &grb_nconstrquad );
 
  if( numquadrows != grb_nconstrquad  )
   DEBUG_LOG( "total number of expected quadratic constraint is " << numquadrows
        <<  " but GRB_INT_ATTR_NUMQCONSTRS returns " << grb_nconstrquad << std::endl );
 
  int nbin , nint;
- GRBgetintattr( model , GRB_INT_ATTR_NUMINTVARS , &nint );
- GRBgetintattr( model , GRB_INT_ATTR_NUMBINVARS , &nbin );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMINTVARS , &nint );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMBINVARS , &nbin );
  if( int_vars != nint + nbin )
   DEBUG_LOG( "int_vars is " << int_vars << " but GUROBI has actually "
 	     << nint + nbin << " integer variables" << std::endl );
