@@ -2195,6 +2195,13 @@ void SCIPMILPSolver::set_par( idx_type par, int value )
    SCIP_CALL_ABORT( SCIPsetIntParam(scip, "propagating/maxroundsroot", 0) );
    SCIP_CALL_ABORT( SCIPsetIntParam(scip, "propagating/maxrounds", 0) );
    SCIP_CALL_ABORT( SCIPsetHeuristics(scip, SCIP_PARAMSETTING_OFF, TRUE) );
+   // and the dual reductions, which keep a primal optimum but are free to
+   // destroy the dual one: with them on the values below are those of a
+   // problem that is not the one whose duals were asked for
+   SCIP_CALL_ABORT( SCIPsetBoolParam(scip, "misc/allowstrongdualreds",
+                                     FALSE) );
+   SCIP_CALL_ABORT( SCIPsetBoolParam(scip, "misc/allowweakdualreds",
+                                     FALSE) );
 
    return;
   case( intMaxIter ):
