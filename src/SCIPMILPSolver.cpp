@@ -709,6 +709,10 @@ void SCIPMILPSolver::get_dual_direction( Configuration * dirc )
   dj[ j ] = ( fj == SCIP_INVALID ) ? 0 : - fj;
   }
 
+ // SCIP offers the certificate one row at a time and no scalar with it, so
+ // the value the dual objective takes along the direction is left unset and
+ // has_dual_direction_value() reports that this Solver does not have it
+
  // Call the method of the base class
  MILPSolver::write_dual_solution( y , dj );
  }

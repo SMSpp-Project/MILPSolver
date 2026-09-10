@@ -1531,6 +1531,16 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  for( auto i = y.begin() ; i != y.end() ; ++i  )
   *i = -*i;
 
+ // FARKASPROOF is the value the dual objective takes along the certificate,
+ // in the sign convention y has after the flip above, i.e. the vector handed
+ // to write_dual_solution() below, which writes it negated in the Block: for
+ // min 0 s.t. x >= 2 , x <= -3 with x free, FARKASDUAL is ( -1 , 1 ), the
+ // flipped y is ( 1 , -1 ) and FARKASPROOF is 5 = y' b. Hence it is recorded
+ // as it is [see MILPSolver::f_dual_direction_value]; it stays NaN when the
+ // certificate is not there, which is the empty-domain case below
+ if( status_proof == 0 )
+  f_dual_direction_value = proof;
+
  if( status_proof != 0 || status_y != 0 ) {
   // Gurobi could not return a Farkas certificate. This is expected when the
   // model is infeasible because of an EMPTY VARIABLE DOMAIN (some column has

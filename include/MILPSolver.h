@@ -59,6 +59,10 @@
 
 #include <QuadFunction.h>
 
+#include <cmath>
+
+#include <limits>
+
 #include <unordered_set>
 
 /*--------------------------------------------------------------------------*/
@@ -810,6 +814,33 @@ class MILPSolver : public CDASolver
  void write_dual_solution( const std::vector< double > & pi ,
 			   const std::vector< double > & rc );
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// true if the solver handed over the value of the dual direction
+ /** The value is the one the solver computes while producing the certificate,
+  * and it is only there if the solver both computes it and gives it out: the
+  * derived classes that do record it during get_dual_direction() [see
+  * f_dual_direction_value]. */
+
+ [[nodiscard]] bool has_dual_direction_value( void ) override {
+  return( ! std::isnan( f_dual_direction_value ) );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the value of the dual direction produced by the last get_dual_direction()
+ /** The multipliers reach the Constraint of the Block negated [see
+  * write_dual_solution()], so a consumer that walks the Block and accumulates
+  * \f$ - \pi_i b_i \f$ over its rows and its bounds obtains exactly this
+  * value: the number the back-end hands over and the one reconstructed by
+  * hand are therefore interchangeable, which is what makes the fallback for
+  * the back-ends that do not have it a fallback and not a different quantity.
+  * Measured on the infeasible instance of the MILPSolver test, where CPLEX
+  * and Gurobi both report 0.6 and the multipliers in the Block sum to
+  * -0.6. */
+
+ [[nodiscard]] OFValue get_dual_direction_value( void ) override {
+  return( f_dual_direction_value );
+  }
+
 /** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1249,6 +1280,14 @@ class MILPSolver : public CDASolver
  * an inconsistency when a reduced cost is being stored during a call to
  * get_dual_solution() or get_dual_direction(). */
  bool throw_reduced_cost_exception;
+
+ /** The value the dual objective takes along the unbounded dual direction
+  * the last call to get_dual_direction() wrote in the Block, in the sign
+  * convention of the dual solution this Solver produces. A derived class
+  * whose back-end computes it records it there; NaN means that no direction
+  * has been produced since the last compute(), or that the back-end does not
+  * hand the value over, which is what has_dual_direction_value() reports. */
+ OFValue f_dual_direction_value = std::numeric_limits< OFValue >::quiet_NaN();
 
  /** An array of length at least numcols containing pointers to character
   * strings containing the names of the variables. */

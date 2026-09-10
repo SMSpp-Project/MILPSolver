@@ -842,6 +842,10 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
              "HiGHSMILPSolver::get_dual_direction: "
              "unable to get reduced costs with Highs_getSolution()" ) );
 
+ // Highs_getDualRay gives the direction and nothing else, so the value the
+ // dual objective takes along it is left unset and has_dual_direction_value()
+ // reports that this Solver does not have it
+
  // Call the method of the base class
  MILPSolver::write_dual_solution( y , dj );
 }
