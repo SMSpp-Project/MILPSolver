@@ -217,6 +217,27 @@ class MILPSolver : public CDASolver
    * many passes to converge; reduce to limit the time spent in the
    * separation loop when fast (possibly weaker) bounds are acceptable. */
   intMaxCutPasses ,
+  /// the multipliers of the columns of a dual direction are homogeneous
+  /**< What get_dual_direction() writes as the multiplier of a column is, by
+   * default, the reduced cost \f$ c - A' y \f$: that is what the multiplier
+   * of a dual *point* is, and it is what whoever reads the duals of an
+   * optimum needs. A dual *direction*, though, is a ray of the homogeneous
+   * system, and the objective has no part in it: its column multipliers are
+   * \f$ - A' y \f$. The two differ on every column whose objective
+   * coefficient is not zero, which on a real model is most of them, and only
+   * the homogeneous ones describe the certificate.
+   *
+   * - intHomogeneousDirection == 0 [default]: get_dual_direction() writes
+   *   \f$ c - A' y \f$, as it has always done.
+   *
+   * - intHomogeneousDirection == 1: it writes \f$ - A' y \f$.
+   *
+   * get_dual_solution() is not affected either way. The parameter is only
+   * honoured by the derived classes that compute the multipliers themselves
+   * out of the duals [CPXMILPSolver and GRBMILPSolver]; SCIPMILPSolver asks
+   * its back-end for the Farkas coefficients, which are homogeneous to begin
+   * with, and HiGHSMILPSolver reads the reduced costs of the last iterate. */
+  intHomogeneousDirection ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
@@ -827,15 +848,20 @@ class MILPSolver : public CDASolver
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// the value of the dual direction produced by the last get_dual_direction()
- /** The multipliers reach the Constraint of the Block negated [see
-  * write_dual_solution()], so a consumer that walks the Block and accumulates
-  * \f$ - \pi_i b_i \f$ over its rows and its bounds obtains exactly this
-  * value: the number the back-end hands over and the one reconstructed by
-  * hand are therefore interchangeable, which is what makes the fallback for
-  * the back-ends that do not have it a fallback and not a different quantity.
-  * Measured on the infeasible instance of the MILPSolver test, where CPLEX
-  * and Gurobi both report 0.6 and the multipliers in the Block sum to
-  * -0.6. */
+ /** What the back-end reports for its own certificate, which is CPLEX's
+  * dualfarkas proof and Gurobi's FarkasProof; the other two back-ends do not
+  * have it [see has_dual_direction_value()].
+  *
+  * THIS IS NOT THE CONSTANT OF THE CUT THE CERTIFICATE GIVES, and the two are
+  * different numbers on any but the smallest models. What gives that constant
+  * is walking the Block and accumulating \f$ - \pi_i b_i \f$ over rows and
+  * bounds, each taken on the side its multiplier points to (the multipliers
+  * reach the Constraint negated, see write_dual_solution()), and that is what
+  * a consumer has to do. On the small infeasible instance of the MILPSolver
+  * test the two happen to agree, CPLEX and Gurobi reporting 0.6 against
+  * multipliers summing to -0.6; on a real one they do not, measured 106000
+  * against a certificate worth 6000, the difference being nine of the twelve
+  * columns the certificate uses aggregated on the opposite bound. */
 
  [[nodiscard]] OFValue get_dual_direction_value( void ) override {
   return( f_dual_direction_value );
@@ -1280,6 +1306,11 @@ class MILPSolver : public CDASolver
  * an inconsistency when a reduced cost is being stored during a call to
  * get_dual_solution() or get_dual_direction(). */
  bool throw_reduced_cost_exception;
+
+ /** true if get_dual_direction() writes the homogeneous multipliers of the
+  * columns, - A' y, instead of the reduced costs c - A' y
+  * [see intHomogeneousDirection]. */
+ bool homogeneous_direction = false;
 
  /** The value the dual objective takes along the unbounded dual direction
   * the last call to get_dual_direction() wrote in the Block, in the sign

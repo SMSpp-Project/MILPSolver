@@ -1617,6 +1617,20 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
              "CPXMILPSolver::get_dual_direction: "
              "an error occurred in CPXdjfrompi()" ) );
 
+ // with intHomogeneousDirection the multipliers of the columns are - A' y,
+ // the ray of the homogeneous system, and what CPXdjfrompi() gives is
+ // c - A' y, so the objective is taken back out
+ // [see MILPSolver::intHomogeneousDirection]
+ if( homogeneous_direction ) {
+  std::vector< double > cobj( numcols , 0 );
+  if( CPXgetobj( env , lp , cobj.data() , 0 , numcols - 1 ) )
+   throw( std::runtime_error(
+              "CPXMILPSolver::get_dual_direction: "
+              "an error occurred in CPXgetobj()" ) );
+  for( int j = 0 ; j < numcols ; ++j )
+   dj[ j ] -= cobj[ j ];
+  }
+
  // Call the method of the base class
  MILPSolver::write_dual_solution( y , dj );
 }
