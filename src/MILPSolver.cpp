@@ -2028,6 +2028,9 @@ int MILPSolver::compute( bool changedvars )
 {
  lock();  // lock the Solver mutex
 
+ // whatever certificate the previous solve left behind is stale
+ f_dual_direction_value = std::numeric_limits< OFValue >::quiet_NaN();
+
  // separation may happen during this compute() either via the derived
  // Solver's cut callback (CutSepPar > 0) or via the explicit LP cut
  // separation loop driven here when intRelaxIntVars == 2; in both cases

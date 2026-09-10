@@ -1555,6 +1555,14 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
  if( CPXdualfarkas( env , lp , y.data() , & proof ) )
   throw( std::runtime_error( "an error occurred in CPXdualfarkas()" ) );
 
+ // the second output of CPXdualfarkas is the value the dual objective takes
+ // along the certificate, in the sign convention of y, which here is the one
+ // of CPXgetpi and is therefore left alone: for min 0 s.t. x >= 2 , x <= -3
+ // with x free, y is ( 1 , -1 ) and the value is 5 = y' b, the same number
+ // Gurobi reports once its own y is flipped
+ // [see MILPSolver::f_dual_direction_value]
+ f_dual_direction_value = proof;
+
  // CPXdjfrompi computes reduced costs from dual values
  // dj = c - A'y
 
