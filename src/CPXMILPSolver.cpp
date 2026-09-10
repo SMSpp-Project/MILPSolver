@@ -1366,17 +1366,21 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
  if( numquadrows > 0 ) {
   // if we have a QCP model, we need also to retrieve the objective values of
   // auxiliary variables
-  std::vector< double > x_q( numcols + cpx_idx_aux_qvar.size() , 0 );
-  if( CPXgetx( env , lp , x_q.data() , 0 , numcols + cpx_idx_aux_qvar.size() - 1 ) )
+  auto naux = int( cpx_idx_aux_qvar.size() );
+  std::vector< double > x_q( numcols + naux , 0 );
+  if( CPXgetx( env , lp , x_q.data() , 0 , numcols + naux - 1 ) )
     throw( std::runtime_error( "Unable to get the solution with CPXgetx() in QCP" ) );
 
+  // note that there may well be no auxiliary variable at all, a quadratic
+  // constraint with no linear part being handed to CPLEX as it is (see
+  // cpx_idx_aux_qvar): hence the check that there still is one to skip,
+  // without which this reads past the end of the vector
   int aux_counter = 0;
-  for( int j = 0 ; j < numcols + cpx_idx_aux_qvar.size() ; ++j ) {
-    if( j != cpx_idx_aux_qvar[ aux_counter ] ) 
-      // column j is not an auxiliary variable
-      x[ j - aux_counter ] = x_q[ j ];
+  for( int j = 0 ; j < numcols + naux ; ++j ) {
+    if( ( aux_counter < naux ) && ( j == cpx_idx_aux_qvar[ aux_counter ] ) )
+      ++aux_counter;  // column j is an auxiliary variable
     else
-      ++aux_counter;
+      x[ j - aux_counter ] = x_q[ j ];
   }
  }
  else {
@@ -1583,7 +1587,7 @@ int CPXMILPSolver::cpx_index_of_variable( const ColVariable * var ) const
   // We can use the cpx_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
   int count = 0;
-  while( ( count < cpx_idx_aux_qvar.size() ) &&
+  while( ( count < int( cpx_idx_aux_qvar.size() ) ) &&
           ( cpx_idx_aux_qvar[ count ] < idx ) ) {
     ++idx;
     ++count;
@@ -1607,9 +1611,11 @@ int CPXMILPSolver::cpx_index_of_dynamic_variable( const ColVariable * var ) cons
   // Simply "jump" quadratic constraints auxiliary variables
   // We can use the cpx_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
+  // note that the check that there still is one has to come first, or the
+  // vector is read past its end
   int count = 0;
-  while( ( cpx_idx_aux_qvar[ count ] < idx ) &&
-         ( count < cpx_idx_aux_qvar.size() ) ) {
+  while( ( count < int( cpx_idx_aux_qvar.size() ) ) &&
+         ( cpx_idx_aux_qvar[ count ] < idx ) ) {
     ++idx;
     ++count;
   }

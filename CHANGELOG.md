@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CPXMILPSolver read `cpx_idx_aux_qvar` past its end in
+  `get_var_solution()` and in `cpx_index_of_dynamic_variable()`, which
+  crashes on a QCP model whose quadratic constraints have no linear part,
+  since those are handed to CPLEX as they are and no auxiliary variable is
+  built for them, leaving that vector empty
+
 - GRBMILPSolver::get_lb() returned minus infinity for a continuous problem
   that GUROBI solved without a branch-and-bound, OBJBOUND being undefined
   there: where the solve ended optimal, the optimal value is the bound
