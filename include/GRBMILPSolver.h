@@ -660,23 +660,11 @@ void add_mip_starts(
  std::string grb_dbl_par_map( idx_type par ) const;
 
 /*--------------------------------------------------------------------------*/
- /// the model with all the pending changes digested by GUROBI
- /** GUROBI shows an attribute query the model as of the last
-  * GRBupdatemodel(), so anything that reads the model back has to go
-  * through this rather than through \p model: changing the model only
-  * records that there is something to digest, and the update is done here,
-  * once, when it is actually needed. */
- GRBmodel * updated_model( void ) const;
-
-/*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
  GRBenv * env; ///< Gurobi environment
  GRBmodel * model;   ///< Gurobi LP problem
-
- /// true if the model has changes GUROBI has not digested yet
- mutable bool f_model_dirty = false;
 
  bool f_callback_set;  // true if the callback has been set
 
