@@ -2993,6 +2993,10 @@ void MILPSolver::set_par( idx_type par , int value )
   max_cut_passes = value;
   return;
   }
+ if( par == intHomogeneousDirection ) {
+  homogeneous_direction = bool( value );
+  return;
+  }
 
  CDASolver::set_par( par, value );
  }
@@ -3060,6 +3064,9 @@ int MILPSolver::get_dflt_int_par( idx_type par ) const
  if( par == intMaxCutPasses )
   return( 1000 );
 
+ if( par == intHomogeneousDirection )
+  return( 0 );
+
  return( CDASolver::get_dflt_int_par( par ) );
  }
 
@@ -3115,6 +3122,9 @@ int MILPSolver::get_int_par( idx_type par ) const
  if( par == intMaxCutPasses )
   return( max_cut_passes );
 
+ if( par == intHomogeneousDirection )
+  return( homogeneous_direction );
+
  return( CDASolver::get_int_par( par ) );
  }
 
@@ -3169,6 +3179,9 @@ Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
  if( name == "intMaxCutPasses" )
   return( intMaxCutPasses );
 
+ if( name == "intHomogeneousDirection" )
+  return( intHomogeneousDirection );
+
  return( CDASolver::int_par_str2idx( name ) );
  }
 
@@ -3182,7 +3195,8 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
                                                   "intSingleBound" ,
                                                   "intConsModification" ,
                                                   "intCutSepPar" ,
-                                                  "intMaxCutPasses" };
+                                                  "intMaxCutPasses" ,
+                                                  "intHomogeneousDirection" };
  if( idx == intThrowReducedCostException )
   return( pars[ 0 ] );
 
@@ -3203,6 +3217,9 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
 
  if( idx == intMaxCutPasses )
   return( pars[ 6 ] );
+
+ if( idx == intHomogeneousDirection )
+  return( pars[ 7 ] );
 
  return( CDASolver::int_par_idx2str( idx ) );
  }
