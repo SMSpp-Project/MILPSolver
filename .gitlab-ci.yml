@@ -2,7 +2,7 @@ default:
   image: registry.gitlab.com/smspp/smspp-project
 
 cache:
-  key: ${CI_COMMIT_REF_SLUG}
+  key: ${CI_PROJECT_PATH_SLUG}-${CI_COMMIT_REF_SLUG}
   paths:
     - smspp-project
 
