@@ -11,6 +11,7 @@
 #        CPLEX_FOUND         - True if headers are found                      #
 #        CPLEX_INCLUDE_DIRS  - Include directories                            #
 #        CPLEX_LIBRARIES     - Libraries to be linked                         #
+#        CPLEX_DLL           - The found runtime DLL (Windows only)           #
 #        CPLEX_VERSION       - Version number                                 #
 #                                                                             #
 #    This module reads hints about search locations from variables:           #
@@ -29,6 +30,23 @@
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
+
+# ----- Architecture -------------------------------------------------------- #
+# The umbrella project sets ARCH, but neither a module built on its own nor a
+# project using an installed module does, so it is computed here if missing.
+if (NOT ARCH)
+    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+        if (WIN32)
+            set(ARCH x64)
+        elseif (APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+            set(ARCH arm64)
+        else ()
+            set(ARCH x86-64)
+        endif ()
+    else ()
+        set(ARCH x86)
+    endif ()
+endif ()
 
 # ----- Find ILOG directories and lib suffixes ------------------------------ #
 # Based on the OS and architecture, generate:
@@ -134,28 +152,36 @@ endforeach ()
 find_package(Threads QUIET)
 
 # Check if already in cache
-if (CPLEX_INCLUDE_DIR AND CPLEX_LIBRARY AND CPLEX_LIBRARY_DEBUG AND CPLEX_VERSION)
-    set(CPLEX_FOUND TRUE)
+if (WIN32)
+    if (CPLEX_INCLUDE_DIR AND CPLEX_LIBRARY AND CPLEX_LIBRARY_DEBUG AND CPLEX_DLL AND CPLEX_VERSION)
+        set(CPLEX_FOUND TRUE)
+    endif ()
 else ()
+    if (CPLEX_INCLUDE_DIR AND CPLEX_LIBRARY AND CPLEX_LIBRARY_DEBUG AND CPLEX_VERSION)
+        set(CPLEX_FOUND TRUE)
+    endif ()
+endif ()
+
+if (NOT CPLEX_FOUND)
 
     set(CPLEX_DIR ${CPLEX_ROOT}/cplex)
 
     # ----- Find the CPLEX include directory -------------------------------- #
     find_path(CPLEX_INCLUDE_DIR
-              NAMES ilcplex/cplex.h
-              PATHS ${CPLEX_DIR}/include
-              DOC "CPLEX include directory.")
+            NAMES ilcplex/cplex.h
+            PATHS ${CPLEX_DIR}/include
+            DOC "CPLEX include directory.")
 
     # ----- Find the CPLEX library ------------------------------------------ #
     if (UNIX)
         find_library(CPLEX_LIBRARY
-                     NAMES cplex
-                     PATHS ${CPLEX_DIR}
-                     PATH_SUFFIXES ${CPLEX_LIB_PATH_SUFFIXES}
-                     DOC "CPLEX library.")
+                NAMES cplex
+                PATHS ${CPLEX_DIR}
+                PATH_SUFFIXES ${CPLEX_LIB_PATH_SUFFIXES}
+                DOC "CPLEX library.")
 
         set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIBRARY}
-                CACHE FILEPATH "CPLEX library." FORCE)
+                CACHE FILEPATH "CPLEX debug library." FORCE)
     elseif (WIN32)
 
         # ----- Macro: find_win_cplex_library ------------------------------- #
@@ -172,7 +198,20 @@ else ()
             if (NOT ${var})
                 set(${var} "${var}-NOTFOUND")
             endif ()
-        endmacro ()
+        endmacro()
+
+        # ----- Macro: find_win_cplex_dll ----------------------------------- #
+        macro(find_win_cplex_dll var)
+            file(GLOB CPLEX_DLL_CANDIDATES "${CPLEX_DIR}/bin/${ARCH}_win*/cplex*.dll")
+            set(${var} "${var}-NOTFOUND")
+            foreach (_dll ${CPLEX_DLL_CANDIDATES})
+                get_filename_component(_dll_name "${_dll}" NAME)
+                if (_dll_name MATCHES "^cplex[0-9]+\\.dll$")
+                    set(${var} "${_dll}")
+                    break()
+                endif ()
+            endforeach ()
+        endmacro()
 
         find_win_cplex_library(CPLEX_LIB ${CPLEX_LIB_PATH_SUFFIXES})
         set(CPLEX_LIBRARY ${CPLEX_LIB}
@@ -181,6 +220,10 @@ else ()
         find_win_cplex_library(CPLEX_LIB ${CPLEX_LIB_PATH_SUFFIXES_DEBUG})
         set(CPLEX_LIBRARY_DEBUG ${CPLEX_LIB}
                 CACHE FILEPATH "CPLEX debug library." FORCE)
+
+        find_win_cplex_dll(CPLEX_DLL_FILE)
+        set(CPLEX_DLL ${CPLEX_DLL_FILE}
+                CACHE FILEPATH "CPLEX runtime DLL." FORCE)
     endif ()
 
     # ----- Parse the version ----------------------------------------------- #
@@ -206,10 +249,17 @@ else ()
     # REQUIRED_VARS are set.
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
-    find_package_handle_standard_args(
-            CPLEX
-            REQUIRED_VARS CPLEX_LIBRARY CPLEX_INCLUDE_DIR
-            VERSION_VAR CPLEX_VERSION)
+    if (WIN32)
+        find_package_handle_standard_args(
+                CPLEX
+                REQUIRED_VARS CPLEX_LIBRARY CPLEX_LIBRARY_DEBUG CPLEX_DLL CPLEX_INCLUDE_DIR
+                VERSION_VAR CPLEX_VERSION)
+    else ()
+        find_package_handle_standard_args(
+                CPLEX
+                REQUIRED_VARS CPLEX_LIBRARY CPLEX_LIBRARY_DEBUG CPLEX_INCLUDE_DIR
+                VERSION_VAR CPLEX_VERSION)
+    endif ()
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
@@ -222,21 +272,41 @@ if (CPLEX_FOUND)
     endif ()
 
     if (NOT TARGET CPLEX::Cplex)
-        add_library(CPLEX::Cplex UNKNOWN IMPORTED)
-        set_target_properties(
-                CPLEX::Cplex PROPERTIES
-                IMPORTED_LOCATION "${CPLEX_LIBRARY}"
-                IMPORTED_LOCATION_DEBUG "${CPLEX_LIBRARY_DEBUG}"
-                INTERFACE_INCLUDE_DIRECTORIES "${CPLEX_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${CPLEX_LIBRARIES}")
+        if (WIN32)
+            add_library(CPLEX::Cplex SHARED IMPORTED)
+            set_target_properties(
+                    CPLEX::Cplex PROPERTIES
+                    IMPORTED_IMPLIB "${CPLEX_LIBRARY}"
+                    IMPORTED_IMPLIB_DEBUG "${CPLEX_LIBRARY_DEBUG}"
+                    IMPORTED_LOCATION "${CPLEX_DLL}"
+                    IMPORTED_LOCATION_DEBUG "${CPLEX_DLL}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${CPLEX_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${CPLEX_LIBRARIES}")
+        else ()
+            add_library(CPLEX::Cplex UNKNOWN IMPORTED)
+            set_target_properties(
+                    CPLEX::Cplex PROPERTIES
+                    IMPORTED_LOCATION "${CPLEX_LIBRARY}"
+                    IMPORTED_LOCATION_DEBUG "${CPLEX_LIBRARY_DEBUG}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${CPLEX_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${CPLEX_LIBRARIES}")
+        endif ()
     endif ()
 endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-mark_as_advanced(CPLEX_INCLUDE_DIR
-                 CPLEX_LIBRARY
-                 CPLEX_LIBRARY_DEBUG
-                 CPLEX_VERSION)
+if (WIN32)
+    mark_as_advanced(CPLEX_INCLUDE_DIR
+            CPLEX_LIBRARY
+            CPLEX_LIBRARY_DEBUG
+            CPLEX_DLL
+            CPLEX_VERSION)
+else ()
+    mark_as_advanced(CPLEX_INCLUDE_DIR
+            CPLEX_LIBRARY
+            CPLEX_LIBRARY_DEBUG
+            CPLEX_VERSION)
+endif ()
 
 # --------------------------------------------------------------------------- #

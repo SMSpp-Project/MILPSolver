@@ -12,6 +12,7 @@
 #        GUROBI_LICENSE_FOUND - True if gurobi.lic file is found              #
 #        GUROBI_INCLUDE_DIRS  - Include directories                           #
 #        GUROBI_LIBRARIES     - Libraries to be linked                        #
+#        GUROBI_DLL           - The found runtime DLL (Windows only)          #
 #        GUROBI_VERSION       - Version number                                #
 #                                                                             #
 #    This module reads hints about search locations from variables:           #
@@ -30,6 +31,23 @@
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
+
+# ----- Architecture -------------------------------------------------------- #
+# The umbrella project sets ARCH, but neither a module built on its own nor a
+# project using an installed module does, so it is computed here if missing.
+if (NOT ARCH)
+    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+        if (WIN32)
+            set(ARCH x64)
+        elseif (APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+            set(ARCH arm64)
+        else ()
+            set(ARCH x86-64)
+        endif ()
+    else ()
+        set(ARCH x86)
+    endif ()
+endif ()
 
 # ----- Find Gurobi directories and lib suffixes ---------------------------- #
 # Based on the OS generate:
@@ -77,9 +95,17 @@ endforeach ()
 find_package(Threads QUIET)
 
 # Check if already in cache
-if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_VERSION)
-    set(GUROBI_FOUND TRUE)
+if (WIN32)
+    if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_DLL AND GUROBI_VERSION)
+        set(GUROBI_FOUND TRUE)
+    endif ()
 else ()
+    if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_VERSION)
+        set(GUROBI_FOUND TRUE)
+    endif ()
+endif ()
+
+if (NOT GUROBI_FOUND)
 
     if (UNIX)
         if (APPLE)
@@ -97,9 +123,9 @@ else ()
 
     # ----- Find the GUROBI include directory ------------------------------- #
     find_path(GUROBI_INCLUDE_DIR
-              NAMES gurobi_c.h
-              PATHS ${GUROBI_DIR}/include
-              DOC "GUROBI include directory.")
+            NAMES gurobi_c.h
+            PATHS ${GUROBI_DIR}/include
+            DOC "GUROBI include directory.")
 
     # ----- Find the GUROBI library ----------------------------------------- #
     if (UNIX)
@@ -115,15 +141,70 @@ else ()
     if (GUROBI_LIBRARIES)
         list(GET GUROBI_LIBRARIES 0 GUROBI_LIB)
         find_library(GUROBI_LIBRARY
-                     NAMES ${GUROBI_LIB}
-                     PATHS ${GUROBI_DIR}/lib
-                     DOC "GUROBI library.")
+                NAMES ${GUROBI_LIB}
+                PATHS ${GUROBI_DIR}/lib
+                DOC "GUROBI library.")
     else ()
         set(GUROBI_LIBRARY GUROBI_LIBRARY-NOTFOUND)
     endif ()
 
     set(GUROBI_LIBRARY ${GUROBI_LIB}
             CACHE FILEPATH "GUROBI library." FORCE)
+
+    if (WIN32)
+
+        # ----- Macro: find_win_gurobi_dll ---------------------------------- #
+        macro(find_win_gurobi_dll var)
+            file(GLOB GUROBI_DLL_CANDIDATES "${GUROBI_DIR}/bin/gurobi*.dll")
+            set(${var} "${var}-NOTFOUND")
+            foreach (_dll ${GUROBI_DLL_CANDIDATES})
+                get_filename_component(_dll_name "${_dll}" NAME)
+                if (_dll_name MATCHES "^gurobi[0-9]+\\.dll$")
+                    set(${var} "${_dll}")
+                    break()
+                endif ()
+            endforeach ()
+        endmacro()
+
+        find_win_gurobi_dll(GUROBI_DLL_FILE)
+        set(GUROBI_DLL ${GUROBI_DLL_FILE}
+                CACHE FILEPATH "GUROBI runtime DLL." FORCE)
+    endif ()
+
+    # ----- Parse the version ----------------------------------------------- #
+    if (GUROBI_INCLUDE_DIR)
+        file(STRINGS
+                "${GUROBI_INCLUDE_DIR}/gurobi_c.h"
+                _gurobi_version_lines REGEX "#define GRB_VERSION_(MAJOR|MINOR|TECHNICAL)")
+
+        string(REGEX REPLACE ".*GRB_VERSION_MAJOR *\([0-9]*\).*" "\\1" _gurobi_version_major "${_gurobi_version_lines}")
+        string(REGEX REPLACE ".*GRB_VERSION_MINOR *\([0-9]*\).*" "\\1" _gurobi_version_minor "${_gurobi_version_lines}")
+        string(REGEX REPLACE ".*GRB_VERSION_TECHNICAL *\([0-9]*\).*" "\\1" _gurobi_version_technical "${_gurobi_version_lines}")
+
+        set(GUROBI_VERSION "${_gurobi_version_major}.${_gurobi_version_minor}.${_gurobi_version_technical}")
+        unset(_gurobi_version_lines)
+        unset(_gurobi_version_major)
+        unset(_gurobi_version_minor)
+        unset(_gurobi_version_technical)
+    endif ()
+
+    # ----- Handle the standard arguments ----------------------------------- #
+    # The following macro manages the QUIET, REQUIRED and version-related
+    # options passed to find_package(). It also sets <PackageName>_FOUND if
+    # REQUIRED_VARS are set.
+    # REQUIRED_VARS should be cache entries and not output variables. See:
+    # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
+    if (WIN32)
+        find_package_handle_standard_args(
+                GUROBI
+                REQUIRED_VARS GUROBI_LIBRARY GUROBI_DLL GUROBI_INCLUDE_DIR
+                VERSION_VAR GUROBI_VERSION)
+    else ()
+        find_package_handle_standard_args(
+                GUROBI
+                REQUIRED_VARS GUROBI_LIBRARY GUROBI_INCLUDE_DIR
+                VERSION_VAR GUROBI_VERSION)
+    endif ()
 
     # ----- Find the GUROBI license ----------------------------------------- #
     set(GUROBI_LICENSE_FOUND FALSE)
@@ -153,34 +234,6 @@ else ()
                          define it specifying your custom location of the `gurobi.lic` file, or move it\
                          to one of the default locations to definitively suppress this warning, i.e.: ${LICENSE_PATHS}")
     endif ()
-
-    # ----- Parse the version ----------------------------------------------- #
-    if (GUROBI_INCLUDE_DIR)
-        file(STRINGS
-                "${GUROBI_INCLUDE_DIR}/gurobi_c.h"
-                _gurobi_version_lines REGEX "#define GRB_VERSION_(MAJOR|MINOR|TECHNICAL)")
-
-        string(REGEX REPLACE ".*GRB_VERSION_MAJOR *\([0-9]*\).*" "\\1" _gurobi_version_major "${_gurobi_version_lines}")
-        string(REGEX REPLACE ".*GRB_VERSION_MINOR *\([0-9]*\).*" "\\1" _gurobi_version_minor "${_gurobi_version_lines}")
-        string(REGEX REPLACE ".*GRB_VERSION_TECHNICAL *\([0-9]*\).*" "\\1" _gurobi_version_technical "${_gurobi_version_lines}")
-
-        set(GUROBI_VERSION "${_gurobi_version_major}.${_gurobi_version_minor}.${_gurobi_version_technical}")
-        unset(_gurobi_version_lines)
-        unset(_gurobi_version_major)
-        unset(_gurobi_version_minor)
-        unset(_gurobi_version_technical)
-    endif ()
-
-    # ----- Handle the standard arguments ----------------------------------- #
-    # The following macro manages the QUIET, REQUIRED and version-related
-    # options passed to find_package(). It also sets <PackageName>_FOUND if
-    # REQUIRED_VARS are set.
-    # REQUIRED_VARS should be cache entries and not output variables. See:
-    # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
-    find_package_handle_standard_args(
-            GUROBI
-            REQUIRED_VARS GUROBI_LIBRARY GUROBI_INCLUDE_DIR
-            VERSION_VAR GUROBI_VERSION)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
@@ -193,19 +246,36 @@ if (GUROBI_FOUND)
     endif ()
 
     if (NOT TARGET GUROBI::Gurobi)
-        add_library(GUROBI::Gurobi UNKNOWN IMPORTED)
-        set_target_properties(
-                GUROBI::Gurobi PROPERTIES
-                IMPORTED_LOCATION "${GUROBI_LIBRARY}"
-                INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
-                INTERFACE_LINK_LIBRARIES "${GUROBI_LIBRARIES}")
+        if (WIN32)
+            add_library(GUROBI::Gurobi SHARED IMPORTED)
+            set_target_properties(
+                    GUROBI::Gurobi PROPERTIES
+                    IMPORTED_IMPLIB "${GUROBI_LIBRARY}"
+                    IMPORTED_LOCATION "${GUROBI_DLL}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${GUROBI_LIBRARIES}")
+        else ()
+            add_library(GUROBI::Gurobi UNKNOWN IMPORTED)
+            set_target_properties(
+                    GUROBI::Gurobi PROPERTIES
+                    IMPORTED_LOCATION "${GUROBI_LIBRARY}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${GUROBI_LIBRARIES}")
+        endif ()
     endif ()
 endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-mark_as_advanced(GUROBI_INCLUDE_DIR
-                 GUROBI_LIBRARY
-                 GUROBI_VERSION)
+if (WIN32)
+    mark_as_advanced(GUROBI_INCLUDE_DIR
+            GUROBI_LIBRARY
+            GUROBI_DLL
+            GUROBI_VERSION)
+else ()
+    mark_as_advanced(GUROBI_INCLUDE_DIR
+            GUROBI_LIBRARY
+            GUROBI_VERSION)
+endif ()
 
 # --------------------------------------------------------------------------- #

@@ -57,6 +57,12 @@
 
 #include <QuadFunction.h>
 
+#include <cmath>
+
+#include <limits>
+
+#include <unordered_set>
+
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -156,10 +162,80 @@ class MILPSolver : public CDASolver
   intThrowReducedCostException = intLastParCDAS ,
   intUseCustomNames , ///< use custom names for rows/columns
   /// Relax [M]ILP by removing integrality constraints for integer variables
-  intRelaxIntVars , 
-  intSingleBound , // Force that at maximum one OneVarConstraint can be 
+  /**< Controls how the integrality of integer Variable is treated. Three
+   * semantics are supported:
+   *
+   * - intRelaxIntVars == 0 [default]: the problem is solved as a MILP, with
+   *   integer Variable kept integer.
+   *
+   * - intRelaxIntVars == 1: the problem is solved as the LP relaxation,
+   *   i.e., integer Variable are treated as continuous. The Solver uses
+   *   the MILP engine on a problem whose integrality has been relaxed
+   *   (the cut callback, if any, still fires as for a MIP). This is
+   *   appropriate when the user wants the LP relaxation but the Solver's
+   *   MIP machinery (in particular the user-cut callback at the root
+   *   node) is required.
+   *
+   * - intRelaxIntVars == 2: the problem is solved as a pure LP with an
+   *   explicit user-cut separation loop driven by MILPSolver. After each
+   *   LP solve, the Block's generate_dynamic_constraints() is called and,
+   *   if any new dynamic Constraint is added, the LP is re-solved; the
+   *   loop terminates when no new constraint is generated or
+   *   intMaxCutPasses rounds have been performed. This mode does *not*
+   *   install the MIP cut callback (which would not fire on a pure LP
+   *   solve) and is therefore the only one suitable for getting the LP
+   *   relaxation value of a Block with non-trivial dynamic constraints
+   *   when the underlying Solver does not natively support user-cut
+   *   separation on continuous problems. */
+  intRelaxIntVars ,
+  intSingleBound , // Force that at maximum one OneVarConstraint can be
                    // associated to a single variable
   intConsModification , // Enable/Disable constraint modifications
+  /// parameter for deciding if/when cut separation is done
+  /**< If > 0, the Solver may perform user-cut and/or lazy-constraint
+   * separation during compute(), calling generate_dynamic_constraints()
+   * on the attached Block. The specific bit-coded semantics (which
+   * sub-events fire the separation, when in the search tree, ...) is
+   * defined by the derived class; the base class only inspects whether
+   * the value is non-zero, which has two effects:
+   *
+   * - when non-zero, compute() holds the Block under a write lock() for
+   *   its full duration (since the cut callback may modify the Block);
+   *   when zero, compute() only acquires a read_lock() for the duration
+   *   of process_modifications() and then releases it.
+   *
+   * - when non-zero, the loop driven by intRelaxIntVars == 2 (see) is
+   *   executed (only if intRelaxIntVars == 2; otherwise the derived
+   *   class governs the callback installation as appropriate). */
+  intCutSepPar ,
+  /// maximum number of LP cut separation passes (when intRelaxIntVars == 2)
+  /**< Caps the number of "solve LP - separate user cuts - re-solve"
+   * iterations performed by the base compute() when intRelaxIntVars == 2.
+   * Defaults to 1000. Increase if the separator is known to require very
+   * many passes to converge; reduce to limit the time spent in the
+   * separation loop when fast (possibly weaker) bounds are acceptable. */
+  intMaxCutPasses ,
+  /// the multipliers of the columns of a dual direction are homogeneous
+  /**< What get_dual_direction() writes as the multiplier of a column is, by
+   * default, the reduced cost \f$ c - A' y \f$: that is what the multiplier
+   * of a dual *point* is, and it is what whoever reads the duals of an
+   * optimum needs. A dual *direction*, though, is a ray of the homogeneous
+   * system, and the objective has no part in it: its column multipliers are
+   * \f$ - A' y \f$. The two differ on every column whose objective
+   * coefficient is not zero, which on a real model is most of them, and only
+   * the homogeneous ones describe the certificate.
+   *
+   * - intHomogeneousDirection == 0 [default]: get_dual_direction() writes
+   *   \f$ c - A' y \f$, as it has always done.
+   *
+   * - intHomogeneousDirection == 1: it writes \f$ - A' y \f$.
+   *
+   * get_dual_solution() is not affected either way. The parameter is only
+   * honoured by the derived classes that compute the multipliers themselves
+   * out of the duals [CPXMILPSolver and GRBMILPSolver]; SCIPMILPSolver asks
+   * its back-end for the Farkas coefficients, which are homogeneous to begin
+   * with, and HiGHSMILPSolver reads the reduced costs of the last iterate. */
+  intHomogeneousDirection ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
@@ -685,7 +761,29 @@ class MILPSolver : public CDASolver
  void set_Block( Block * block ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// does nothing as there is nothing to do
+ /// compute() entry point shared by all the *MILPSolver derived classes
+ /** The base compute() takes care of:
+  *
+  * - acquiring the appropriate locks (Solver mutex; on the Block, write
+  *   lock() if cut separation may happen during the solve, otherwise
+  *   read_lock() only for the duration of process_modifications());
+  *
+  * - dispatching pending Modification (via process_modifications());
+  *
+  * - dispatching to the derived class via guts_of_compute() to perform
+  *   the actual back-end solve;
+  *
+  * - if intRelaxIntVars == 2, wrapping guts_of_compute() in an LP
+  *   cut-separation loop: after each solve the LP solution is written
+  *   into the Block Variable (via get_var_solution()),
+  *   generate_dynamic_constraints() is called on the Block, and the
+  *   resulting new Modification (if any) is processed before the next
+  *   guts_of_compute() iteration. The loop terminates when no new
+  *   Modification is produced or intMaxCutPasses rounds have been done.
+  *
+  * Derived classes should *not* override compute(); they should instead
+  * override guts_of_compute(). */
+
  int compute( bool changedvars = true ) override;
 
 /*--------------------------------------------------------------------------*/
@@ -729,6 +827,38 @@ class MILPSolver : public CDASolver
  
  void write_dual_solution( const std::vector< double > & pi ,
 			   const std::vector< double > & rc );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// true if the solver handed over the value of the dual direction
+ /** The value is the one the solver computes while producing the certificate,
+  * and it is only there if the solver both computes it and gives it out: the
+  * derived classes that do record it during get_dual_direction() [see
+  * f_dual_direction_value]. */
+
+ [[nodiscard]] bool has_dual_direction_value( void ) override {
+  return( ! std::isnan( f_dual_direction_value ) );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the value of the dual direction produced by the last get_dual_direction()
+ /** What the back-end reports for its own certificate, which is CPLEX's
+  * dualfarkas proof and Gurobi's FarkasProof; the other two back-ends do not
+  * have it [see has_dual_direction_value()].
+  *
+  * THIS IS NOT THE CONSTANT OF THE CUT THE CERTIFICATE GIVES, and the two are
+  * different numbers on any but the smallest models. What gives that constant
+  * is walking the Block and accumulating \f$ - \pi_i b_i \f$ over rows and
+  * bounds, each taken on the side its multiplier points to (the multipliers
+  * reach the Constraint negated, see write_dual_solution()), and that is what
+  * a consumer has to do. On the small infeasible instance of the MILPSolver
+  * test the two happen to agree, CPLEX and Gurobi reporting 0.6 against
+  * multipliers summing to -0.6; on a real one they do not, measured 106000
+  * against a certificate worth 6000, the difference being nine of the twelve
+  * columns the certificate uses aggregated on the opposite bound. */
+
+ [[nodiscard]] OFValue get_dual_direction_value( void ) override {
+  return( f_dual_direction_value );
+  }
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
@@ -836,6 +966,24 @@ class MILPSolver : public CDASolver
 /*--------------------------------------------------------------------------*/
 
  protected:
+
+/*--------------------------------------------------------------------------*/
+/*------------------------- PROTECTED METHODS ------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ /// derived-class hook performing the actual back-end solve
+ /** Virtual method called by MILPSolver::compute() after the locks have
+  * been acquired and any pending Modification have been processed. The
+  * derived class implements only the part that is specific to its
+  * underlying solver: calling the LP/MIP optimisation function, decoding
+  * the return code, and storing it into f_status or the analogous member.
+  *
+  * The default base-class implementation returns kOK and does nothing,
+  * which makes MILPSolver usable as a stand-alone class for the sole
+  * purpose of keeping the matrix-based representation in sync with the
+  * Block (no actual optimisation is performed). */
+
+ virtual int guts_of_compute( void ) { return( kOK ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------- VARIABLE AND CONSTRAINT TRACKING VECTORS ----------------*/
@@ -1046,14 +1194,39 @@ class MILPSolver : public CDASolver
  /// if true, use Variable/Constraint custom names
  bool use_custom_names = true;
 
- /// if true, relax [M]ILP by removing integrality constraints
- bool relax_int_vars = false;
+ /// how to handle the integrality of integer Variable
+ /**< 0 = solve as MILP, 1 = MILP engine on the relaxed problem, 2 = LP
+  * with explicit user-cut separation loop; see the comments to the
+  * intRelaxIntVars parameter for details. */
+ int relax_int_vars = 0;
+
+ /// parameter for deciding if/when cut separation is done; see intCutSepPar
+ unsigned char CutSepPar = 0;
+
+ /// maximum number of LP cut separation passes (see intMaxCutPasses)
+ int max_cut_passes = 1000;
+
+ /// SMS++-semantic value of intLogVerb captured at set_par() time
+ /**< Mirrors the value most recently set via set_par( intLogVerb , v ).
+  * The derived classes each map intLogVerb to their backend log
+  * parameter (e.g., LogToConsole for Gurobi, CPXPARAM_ScreenOutput for
+  * CPLEX), which may clamp or otherwise alter the value; this member
+  * preserves the original integer the caller asked for, so that base
+  * methods (in particular compute() with its intRelaxIntVars == 2 loop)
+  * can take it as the verbosity intended for SMS++-side logging. */
+ int log_verbosity = 0;
 
  /* if true, no more than one OneVarConstraint can be associated to a
  *  single variable. 
  *  Moreover, the vectors svar_to_bound and dvar_to_bound are activated
  *  to guarantee a direct link between variables and bound. */
  bool single_bound = false;
+
+ /* if true, the model should be cleared and re-loaded. This parameter
+  * can be useful when some Modifications are issued but they are not
+  * handled by the specialized *MILPSolver. In this case, the model
+  * should be reconstructed from scratch. */
+ bool f_reset = false;
 
   /* if true, modification on constraints are enabled. This parameter can
   *  be useful when dealing with quadratic constraint, where Modification 
@@ -1064,6 +1237,19 @@ class MILPSolver : public CDASolver
  * an inconsistency when a reduced cost is being stored during a call to
  * get_dual_solution() or get_dual_direction(). */
  bool throw_reduced_cost_exception;
+
+ /** true if get_dual_direction() writes the homogeneous multipliers of the
+  * columns, - A' y, instead of the reduced costs c - A' y
+  * [see intHomogeneousDirection]. */
+ bool homogeneous_direction = false;
+
+ /** The value the dual objective takes along the unbounded dual direction
+  * the last call to get_dual_direction() wrote in the Block, in the sign
+  * convention of the dual solution this Solver produces. A derived class
+  * whose back-end computes it records it there; NaN means that no direction
+  * has been produced since the last compute(), or that the back-end does not
+  * hand the value over, which is what has_dual_direction_value() reports. */
+ OFValue f_dual_direction_value = std::numeric_limits< OFValue >::quiet_NaN();
 
  /** An array of length at least numcols containing pointers to character
   * strings containing the names of the variables. */
@@ -1254,6 +1440,130 @@ class MILPSolver : public CDASolver
  /// removes a single dynamic bound
  virtual void remove_dynamic_bound( const OneVarConstraint * con );
 
+/*--------------------------------------------------------------------------*/
+/*--------------- AUXILIARY METHODS FOR MULTI-ARRAY GROUP  -----------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Multi-array methods
+ *
+ * These methods are used in load_problem() to read data from complex
+ * multi_array<> structures.
+ * Each method is templated with:
+ *  1) T - the type of elements in the group, expected to be either
+ *     ColVariable or FRowConstraint.
+ *  2) K - the number of dimensions of the multi_array.
+ *
+ * NOTE: Currently, only 2D or 3D arrays are supported.
+ * @{ */
+
+ /** Scans a multi_array structure and returns its number of dimensions.
+  *
+  * This method attempts to cast a boost::any element to a boost::multi_array.
+  * It should be used as a recursive method, as it will try to cast an 
+  * increasing number of dimensions until the cast succeeds.
+  * If the cast succeeds, it returns the number of dimensions of the array.
+  * A default maximum of K = 9 dimensions is used when attempting the cast.
+  * 
+  * @param any the reference to the multi_array
+  * @param T the basic type of the multi_array
+  * @param K the number of dimensions of the multi array 
+ */
+
+ template< typename T , unsigned short K >
+  int get_multi_array_dim( const boost::any & any ,
+                           un_any_type< T > , un_any_int< K > ){
+  if( any.type() == typeid( boost::multi_array< T , K > * ) ||
+    any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
+   return K;
+  else
+   return( get_multi_array_dim( any , un_any_type< T >() ,
+                              un_any_int< K + 1 >() ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ template< typename T >
+  int get_multi_array_dim( const boost::any & any ,
+                          un_any_type< T > , un_any_int< 9 > ) {
+  return( -1 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** Scans a multi_array structure and returns its type.
+  *
+  * This method attempts to cast a boost::any element to a boost::multi_array
+  * with fixed number of dimensions K.
+  * If the cast succeeds, it returns the type of the array.
+  * In SMS++ currently two different types of multi_array are available:
+  *
+  * - boost::multi_array< T > -> type 0
+  * - boost::multi_array< std::vector < T > > -> type 1
+  * 
+  * @param any the reference to the multi_array
+  * @param T the basic type of the multi_array
+  * @param K the number of dimensions of the multi array 
+ */
+ template< typename T , unsigned short K >
+  int get_multi_array_type( 
+                         const boost::any & any ,
+                         un_any_type< T > , 
+                         un_any_int< K > ){
+  if( any.type() == typeid( boost::multi_array< T , K > * ) )
+   return 0;
+  else if( any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
+   return 1;
+  else
+   return( -1 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ /** These methods attempt to cast a multi_array with specific attributes.
+ * If the cast is successful, they return a pointer to the resulting 
+ * structure. 
+ * 
+ * @param any the reference to the multi_array
+ * @param T the basic type of the multi_array
+ * @param K the number of dimensions of the multi array */
+
+ // Cast to a 2D multi_array of type 0
+ template< typename T >
+ boost::multi_array< T , 2 > * get_multi_array0( 
+                          const boost::any & any ,
+                          un_any_type< T > , un_any_int< 2 > ){
+  auto & var = * boost::any_cast< boost::multi_array< T , 2 > * >( any );
+   return &var;
+ }
+
+ // Cast to a 2D multi_array of type 1
+ template< typename T >
+ boost::multi_array< std::vector< T >, 2 > * get_multi_array1( 
+                          const boost::any & any ,
+                          un_any_type< T > , un_any_int< 2 > ){
+  auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 2 > * >
+    ( any );
+   return &var;
+ }
+
+ // Cast to a 3D multi_array of type 0
+ template< typename T >
+ boost::multi_array< T , 3 > * get_multi_array0( 
+                          const boost::any & any ,
+                          un_any_type< T > , un_any_int< 3 > ){
+  auto & var = * boost::any_cast< boost::multi_array< T , 3 > * >( any );
+   return &var;
+ }
+
+ // Cast to a 3D multi_array of type 1
+ template< typename T >
+ boost::multi_array< std::vector< T >, 3 > * get_multi_array1( 
+                          const boost::any & any ,
+                          un_any_type< T > , un_any_int< 3 > ){
+  auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 3 > * >
+    ( any );
+   return &var;
+ }
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1357,102 +1667,6 @@ class MILPSolver : public CDASolver
   * @param obj a FRealObjective */
 
  void scan_objective( const FRealObjective * obj );
-
-/*--------------------------------------------------------------------------*/
-/*--------------- AUXILIARY METHODS FOR MULTI-ARRAY GROUP  -----------------*/
-/*--------------------------------------------------------------------------*/
-/** @name Multi-array methods
- *
- * These methods are used in load_problem() to read data from complex
- * multi_array<> structures.
- * Each method is templated with:
- *  1) T - the type of elements in the group, expected to be either
- *     ColVariable or FRowConstraint.
- *  2) K - the number of dimensions of the multi_array.
- *
- * NOTE: Currently, only 2D or 3D arrays are supported.
- * @{ */
-
- /** Scans a multi_array structure and returns its number of dimensions.
-  *
-  * This method attempts to cast a boost::any element to a boost::multi_array.
-  * It should be used as a recursive method, as it will try to cast an 
-  * increasing number of dimensions until the cast succeeds.
-  * If the cast succeeds, it returns the number of dimensions of the array.
-  * A default maximum of K = 9 dimensions is used when attempting the cast.
-  * 
-  * @param any the reference to the multi_array
-  * @param T the basic type of the multi_array
-  * @param K the number of dimensions of the multi array 
- */
-
- template< typename T , unsigned short K >
-  int get_multi_array_dim( const boost::any & any ,
-                           un_any_type< T > , un_any_int< K > );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- template< typename T >
-  int get_multi_array_dim( const boost::any & ,
-                          un_any_type< T > , un_any_int< 9 > ) {
-  return( -1 );
- }
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- /** Scans a multi_array structure and returns its type.
-  *
-  * This method attempts to cast a boost::any element to a boost::multi_array
-  * with fixed number of dimensions K.
-  * If the cast succeeds, it returns the type of the array.
-  * In SMS++ currently two different types of multi_array are available:
-  *
-  * - boost::multi_array< T > -> type 0
-  * - boost::multi_array< std::vector < T > > -> type 1
-  * 
-  * @param any the reference to the multi_array
-  * @param T the basic type of the multi_array
-  * @param K the number of dimensions of the multi array 
- */
- template< typename T , unsigned short K >
-  int get_multi_array_type( 
-                         const boost::any & any ,
-                         un_any_type< T > , 
-                         un_any_int< K > );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- /** These methods attempt to cast a multi_array with specific attributes.
- * If the cast is successful, they return a pointer to the resulting 
- * structure. 
- * 
- * @param any the reference to the multi_array
- * @param T the basic type of the multi_array
- * @param K the number of dimensions of the multi array */
-
- // Cast to a 2D multi_array of type 0
- template< typename T >
- boost::multi_array< T , 2 > * get_multi_array0( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 2 > );
-
- // Cast to a 2D multi_array of type 1
- template< typename T >
- boost::multi_array< std::vector< T >, 2 > * get_multi_array1( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 2 > );
-
- // Cast to a 3D multi_array of type 0
- template< typename T >
- boost::multi_array< T , 3 > * get_multi_array0( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 3 > );
-
- // Cast to a 3D multi_array of type 1
- template< typename T >
- boost::multi_array< std::vector< T >, 3 > * get_multi_array1( 
-                          const boost::any & ,
-                          un_any_type< T > , un_any_int< 3 > );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/

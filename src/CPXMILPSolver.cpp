@@ -101,7 +101,7 @@ int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
 
 CPXMILPSolver::CPXMILPSolver( void ) :
  MILPSolver() , env( nullptr ) , lp( nullptr ) , f_callback_set( false ) ,
- CutSepPar( 0 ) , UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
+ UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
 {
  int status = 0;
  env = CPXopenCPLEX( & status );
@@ -155,6 +155,8 @@ void CPXMILPSolver::clear_problem( unsigned int what )
   CPXfreeprob( env , & lp );
   lp = nullptr;
   }
+
+ f_inverted_rows.clear();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -168,6 +170,7 @@ void CPXMILPSolver::load_problem( void )
  cpx_quad_var_aux.clear();
  cpx_quad_con_aux.clear();
  cpx_idx_aux_qvar.clear();
+ f_inverted_rows.clear();
 
  if( lp )
   CPXfreeprob( env , & lp );
@@ -296,8 +299,13 @@ void CPXMILPSolver::load_problem( void )
                   & sense[ i ] , rmatbeg.data() , rmatind.data() , 
                   rmatval.data() , nullptr , &name );
 
-      if( sense[ i ] == 'R' ) 
-        CPXchgrngval( env , lp , 1 , & i , & rngval[ i ] );
+      if( sense[ i ] == 'R' ) {
+        // We have to be sure of not considering the quadratic
+        // constraints in the set of linear ones, because CPLEX keeps
+        // the two separated.
+        int linear_idx = i - count_quad;
+        CPXchgrngval( env , lp , 1 , & linear_idx , & rngval[ i ] );
+      }
      }
     else {
       // Quadratic Constraint
@@ -366,7 +374,7 @@ void CPXMILPSolver::load_problem( void )
         // Add new auxiliary variable with coeficient 1 in the row
         std::vector< double > v_lb = { -CPX_INFBOUND };
         std::vector< double > v_ub = { CPX_INFBOUND };
-        std::string tmp = "quad_aux_var_" + std::to_string( count_quad );
+        std::string tmp = "quad_aux_var_" + std::to_string( num_qauxvar );
         std::vector< char * > v_name( 1 );
         v_name[ 0 ] = strcpy( new char[ tmp.length() + 1 ] , tmp.c_str() );
 
@@ -375,7 +383,7 @@ void CPXMILPSolver::load_problem( void )
 
         delete[] v_name[ 0 ];
 
-        rmatind.push_back( numcols + count_quad );
+        rmatind.push_back( numcols + num_qauxvar );
         rmatval.push_back( 1 );
 
         // update the CPLEX problem with q x + v <= q_0
@@ -384,10 +392,10 @@ void CPXMILPSolver::load_problem( void )
                   rmatval.data() , nullptr , &name );
 
         // Now we have to create the auxiliary quadratic constraint
-        std::vector< int > lidx = { numcols + count_quad };
+        std::vector< int > lidx = { numcols + num_qauxvar };
         std::vector< double > lcoeff = { 1 };
 
-        std::string tmp_con = "quad_aux_con_" + std::to_string( count_quad );
+        std::string tmp_con = "quad_aux_con_" + std::to_string( num_qauxvar );
 
         CPXaddqconstr( env , lp , 1 , qidx1.size() , 0 ,
           sense_q , lidx.data() , lcoeff.data() , qidx1.data() ,
@@ -493,14 +501,19 @@ std::array< double , 2 > CPXMILPSolver::get_problem_bounds(
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::compute( bool changedvars )
+int CPXMILPSolver::guts_of_compute( void )
 {
- lock();  // lock the mutex: this is done again inside MILPSolver::compute,
-          // but that's OK since the mutex is recursive
+ // Note: locking, process_modifications() and the LP cut separation loop
+ // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
+ // This method is only responsible for the actual CPLEX call.
 
- // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
- if( MILPSolver::compute( changedvars ) != kOK )
-  throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
+ // short-circuit: any FRowConstraint with lhs > rhs makes the problem
+ // structurally infeasible (see f_inverted_rows documentation)
+ if( ! f_inverted_rows.empty() ) {
+  sol_status = kInfeasible;
+  unlock();
+  return( sol_status );
+  }
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() )
@@ -545,7 +558,12 @@ int CPXMILPSolver::compute( bool changedvars )
  // the actual call to CPLEX- - - - - - - - - - - - - - - - - - - - - - - - -
  CPXgettime( env , & starting_time ); // store initial timestamp
 
- if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
+ // dispatch LP vs MIP: only intRelaxIntVars == 2 unconditionally goes
+ // through the LP path (CPXlpopt/CPXqpopt) so that the base
+ // user-cut-separation loop in MILPSolver::compute() works on a pure LP
+ // solve. Values 0 (MIP) and 1 (MIP engine on relaxed problem) keep the
+ // pre-existing semantics of going through CPXmipopt
+ if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
 
   if( ( CutSepPar & 7 ) ||
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
@@ -576,27 +594,34 @@ int CPXMILPSolver::compute( bool changedvars )
    else
     sol_status = decode_cpx_error( status );
 
-   goto Return_status;
+   return( sol_status );
    }
 
   sol_status = decode_mip_status( CPXgetstat( env , lp ) );
-  goto Return_status;
+  return( sol_status );
   }
 
  // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // (no MIP callback is installed here even if CutSepPar > 0: when
+ // relax_int_vars == 2 the LP separation loop is driven by MILPSolver
+ // around this method)
+
+ if( f_callback_set ) {    // a callback was set in a previous solve
+  CPXcallbacksetfunc( env , lp , 0 , nullptr , nullptr );  // un-set it
+  f_callback_set = false;
+  current_Cntx = nullptr;
+  current_Cntx_id = 0;
+  }
 
  if( int status = is_qp ? CPXqpopt( env , lp ) : CPXlpopt( env , lp ) ) {
   sol_status = decode_cpx_error( status );  // error
-  goto Return_status;
+  return( sol_status );
   }
 
  sol_status = decode_lqp_status( CPXgetstat( env , lp ) );
-
- Return_status:
- unlock();  // unlock the mutex
  return( sol_status );
 
- }  // end( CPXMILPSolver::compute )
+ }  // end( CPXMILPSolver::guts_of_compute )
 
 /*--------------------------------------------------------------------------*/
 
@@ -716,9 +741,13 @@ int CPXMILPSolver::decode_lqp_status( int status )
    return( kStopIter );
   case( CPX_STAT_ABORT_OBJ_LIM ):
    // Stopped due to an objective limit.
-  case( CPX_STAT_ABORT_PRIM_OBJ_LIM ):
-   // Stopped due to a limit on the primal objective.
    return( kError );
+  case( CPX_STAT_ABORT_PRIM_OBJ_LIM ):
+   // A feasible primal sequence reached the objective limit. This is the
+   // threshold-based unboundedness certificate described by Solver::
+   // set_unbounded_threshold(), even when CPLEX stops before constructing an
+   // explicit unbounded ray (notably for unbounded convex QPs).
+   return( kUnbounded );
   case( CPX_STAT_ABORT_TIME_LIM ):
    // Stopped due to a time limit.
    return( kStopTime );
@@ -744,13 +773,15 @@ int CPXMILPSolver::decode_lqp_status( int status )
   case( CPX_STAT_NUM_BEST ):
    // Solution is available, but not proved optimal,
    // due to numeric difficulties during optimization.
+   return( kLowPrecision );
   case( CPX_STAT_OPTIMAL ):
    // Optimal solution is available.
   case( CPX_STAT_OPTIMAL_FACE_UNBOUNDED ):
    // Model has an unbounded optimal face.
+   return( kOK );
   case( CPX_STAT_OPTIMAL_INFEAS ):
    // Optimal solution is available, but with infeasibilities after unscaling.
-   return( kOK );
+   return( kLowPrecision );
   case( CPX_STAT_UNBOUNDED ):
    // Problem has an unbounded ray.
    return( kUnbounded );
@@ -1335,17 +1366,21 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
  if( numquadrows > 0 ) {
   // if we have a QCP model, we need also to retrieve the objective values of
   // auxiliary variables
-  std::vector< double > x_q( numcols + cpx_idx_aux_qvar.size() , 0 );
-  if( CPXgetx( env , lp , x_q.data() , 0 , numcols + cpx_idx_aux_qvar.size() - 1 ) )
+  auto naux = int( cpx_idx_aux_qvar.size() );
+  std::vector< double > x_q( numcols + naux , 0 );
+  if( CPXgetx( env , lp , x_q.data() , 0 , numcols + naux - 1 ) )
     throw( std::runtime_error( "Unable to get the solution with CPXgetx() in QCP" ) );
 
+  // note that there may well be no auxiliary variable at all, a quadratic
+  // constraint with no linear part being handed to CPLEX as it is (see
+  // cpx_idx_aux_qvar): hence the check that there still is one to skip,
+  // without which this reads past the end of the vector
   int aux_counter = 0;
-  for( int j = 0 ; j < numcols + cpx_idx_aux_qvar.size() ; ++j ) {
-    if( j != cpx_quad_var_aux[ aux_counter ] ) 
-      // column j is not an auxiliary variable
-      x[ j - aux_counter ] = x_q[ j ];
+  for( int j = 0 ; j < numcols + naux ; ++j ) {
+    if( ( aux_counter < naux ) && ( j == cpx_idx_aux_qvar[ aux_counter ] ) )
+      ++aux_counter;  // column j is an auxiliary variable
     else
-      ++aux_counter;
+      x[ j - aux_counter ] = x_q[ j ];
   }
  }
  else {
@@ -1520,11 +1555,33 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
  if( CPXdualfarkas( env , lp , y.data() , & proof ) )
   throw( std::runtime_error( "an error occurred in CPXdualfarkas()" ) );
 
+ // the second output of CPXdualfarkas is the value the dual objective takes
+ // along the certificate, in the sign convention of y, which here is the one
+ // of CPXgetpi and is therefore left alone: for min 0 s.t. x >= 2 , x <= -3
+ // with x free, y is ( 1 , -1 ) and the value is 5 = y' b, the same number
+ // Gurobi reports once its own y is flipped
+ // [see MILPSolver::f_dual_direction_value]
+ f_dual_direction_value = proof;
+
  // CPXdjfrompi computes reduced costs from dual values
  // dj = c - A'y
 
  if( CPXdjfrompi( env , lp , y.data() , dj.data() ) )
   throw( std::runtime_error( "an error occurred in CPXdjfrompi()" ) );
+
+ // with intHomogeneousDirection the multipliers of the columns are - A' y,
+ // the ray of the homogeneous system, and what CPXdjfrompi() gives is
+ // c - A' y, so the objective is taken back out
+ // [see MILPSolver::intHomogeneousDirection]
+ if( homogeneous_direction ) {
+  std::vector< double > cobj( numcols , 0 );
+  if( CPXgetobj( env , lp , cobj.data() , 0 , numcols - 1 ) )
+   throw( std::runtime_error(
+              "CPXMILPSolver::get_dual_direction: "
+              "an error occurred in CPXgetobj()" ) );
+  for( int j = 0 ; j < numcols ; ++j )
+   dj[ j ] -= cobj[ j ];
+  }
 
  // Call the method of the base class
  MILPSolver::write_dual_solution( y , dj );
@@ -1552,7 +1609,7 @@ int CPXMILPSolver::cpx_index_of_variable( const ColVariable * var ) const
   // We can use the cpx_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
   int count = 0;
-  while( ( count < cpx_idx_aux_qvar.size() ) &&
+  while( ( count < int( cpx_idx_aux_qvar.size() ) ) &&
           ( cpx_idx_aux_qvar[ count ] < idx ) ) {
     ++idx;
     ++count;
@@ -1576,9 +1633,11 @@ int CPXMILPSolver::cpx_index_of_dynamic_variable( const ColVariable * var ) cons
   // Simply "jump" quadratic constraints auxiliary variables
   // We can use the cpx_idx_aux_qvar vector, containing all the indices
   // of auxiliary variables already sorted.
+  // note that the check that there still is one has to come first, or the
+  // vector is read past its end
   int count = 0;
-  while( ( cpx_idx_aux_qvar[ count ] < idx ) &&
-         ( count < cpx_idx_aux_qvar.size() ) ) {
+  while( ( count < int( cpx_idx_aux_qvar.size() ) ) &&
+         ( cpx_idx_aux_qvar[ count ] < idx ) ) {
     ++idx;
     ++count;
   }
@@ -1771,6 +1830,22 @@ void CPXMILPSolver::const_modification( const ConstraintMod * mod )
 
    con_lhs = con->get_lhs();
    con_rhs = con->get_rhs();
+
+   if( con_lhs > con_rhs ) {
+    // Inverted bounds: the row is structurally infeasible. CPLEX's
+    // ranged-row encoding (rngval = rhs - lhs < 0) would silently swap
+    // them into the feasible interval [rhs, lhs], so we encode the row
+    // as a feasible equality at con_rhs and track it in f_inverted_rows;
+    // compute() will short-circuit to kInfeasible.
+    f_inverted_rows.insert( con );
+    sense = 'E';
+    rhs = con_rhs;
+    CPXchgrhs( env , lp , 1 , & index , & rhs );
+    CPXchgsense( env , lp , 1 , & index , & sense );
+    break;
+    }
+
+   f_inverted_rows.erase( con );
 
    if( con_lhs == con_rhs ) {
     sense = 'E';
@@ -2508,26 +2583,36 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
   auto con_rhs = con->get_rhs();
   double rhs , rngval;
   char sense;
+  bool inverted = false;
 
-  if( con_lhs == con_rhs ) {
+  if( con_lhs > con_rhs ) {
+   // Inverted bounds: see f_inverted_rows documentation. Encode the new
+   // row as a feasible equality at con_rhs and record it; compute() will
+   // short-circuit to kInfeasible while it remains in this state.
+   inverted = true;
    sense = 'E';
    rhs = con_rhs;
    }
   else
-   if( con_lhs == -Inf< double >() ) {
-    sense = 'L';
+   if( con_lhs == con_rhs ) {
+    sense = 'E';
     rhs = con_rhs;
     }
    else
-    if( con_rhs == Inf< double >() ) {
-     sense = 'G';
-     rhs = con_lhs;
+    if( con_lhs == -Inf< double >() ) {
+     sense = 'L';
+     rhs = con_rhs;
      }
-    else {
-     sense = 'R';
-     rhs = con_lhs;
-     rngval = con_rhs - con_lhs;
-     }
+    else
+     if( con_rhs == Inf< double >() ) {
+      sense = 'G';
+      rhs = con_lhs;
+      }
+     else {
+      sense = 'R';
+      rhs = con_lhs;
+      rngval = con_rhs - con_lhs;
+      }
 
   // update the CPLEX problem
   CPXaddrows( env , lp , 0 , 1 , rmatind.size() , & rhs , & sense ,
@@ -2539,6 +2624,9 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
    int index = numrows - 1;
    CPXchgrngval( env , lp , 1 , & index , & rngval );
    }
+
+  if( inverted )
+   f_inverted_rows.insert( con );
   }
  }  // end( CPXMILPSolver::add_dynamic_constraint )
 
@@ -2643,6 +2731,8 @@ void CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
   throw( std::runtime_error( "Dynamic constraint not found" ) );
 
  CPXdelrows( env , lp , index , index );
+
+ f_inverted_rows.erase( con );
 
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::remove_dynamic_constraint( con );
@@ -3250,10 +3340,15 @@ int CPXMILPSolver::cpx_dbl_par_map( idx_type par ) const
 
 void CPXMILPSolver::set_par( idx_type par , int value )
 {
- if( par == intCutSepPar ) {
-  CutSepPar = value;
-  return;
-  }
+ // intCutSepPar is now handled by MILPSolver base (the CutSepPar member
+ // is inherited, and the base read_lock / write lock policy in compute()
+ // uses it to decide the Block locking). The base will be called below.
+
+ // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
+ // separation loop logging) before letting CPLEX consume it through the
+ // mapping below
+ if( par == intLogVerb )
+  log_verbosity = value;
 
  if( int cp = cpx_int_par_map( par ) ) {
   if( cp > 0 )
@@ -3393,8 +3488,7 @@ Solver::idx_type CPXMILPSolver::get_num_vstr_par( void ) const {
 
 int CPXMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( 0 );
+ // intCutSepPar is now handled by MILPSolver base
 
  if( int cp = cpx_int_par_map( par ) ) {
   if( cp > 0 ) {
@@ -3482,8 +3576,7 @@ const std::vector< std::string > & CPXMILPSolver::get_dflt_vstr_par(
 
 int CPXMILPSolver::get_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( CutSepPar );
+ // intCutSepPar is now handled by MILPSolver base
 
  if( int cp = cpx_int_par_map( par ) ) {
   if( cp > 0 ) {
@@ -3561,8 +3654,7 @@ const std::vector< std::string > & CPXMILPSolver::get_vstr_par( idx_type par )
 Solver::idx_type CPXMILPSolver::int_par_str2idx(
 					     const std::string & name ) const
 {
- if( name == "intCutSepPar" )
-  return( intCutSepPar );
+ // intCutSepPar is now handled by MILPSolver::int_par_str2idx()
 
  /* In CPXMILPSolver::*_par_str2idx() methods we check with MILPSolver first
   * to hide the ugly warning that CPXgetparamnum() shows when a parameter name
@@ -3588,10 +3680,8 @@ Solver::idx_type CPXMILPSolver::int_par_str2idx(
 
 const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::array< std::string , 1 > _pars =
-                     { "intCutSepPar" };
- if( idx == intCutSepPar )
-  return( _pars[ 0 ] );
+ // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
+ // fall-through at the end of this method)
 
  // note: this implementation is not thread safe and it requires that the
  //       result is used immediately after the call (prior to any other call

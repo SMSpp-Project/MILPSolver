@@ -37,6 +37,8 @@
 
 #include <ilcplex/cplex.h>
 
+#include <unordered_set>
+
 #include "MILPSolver.h"
 
 // Include the proper CPLEX parameter mapping
@@ -98,9 +100,8 @@ class CPXMILPSolver : public MILPSolver {
 
  /// enum for integer parameters
  enum int_par_type_CPXS {
-  ///< parameter for deciding if/when cut separation is done
-  intCutSepPar = intLastAlgParMILP ,
-  intFirstCPLEXPar ,  ///< first CPLEX int/long parameter
+  // note: intCutSepPar has moved to MILPSolver base (enum int_par_type_MILP)
+  intFirstCPLEXPar = intLastAlgParMILP ,  ///< first CPLEX int/long parameter
   /// first allowed new int parameter for derived classes
   intLastAlgParCPXS = intFirstCPLEXPar + CPX_NUM_INT_PARS
   };
@@ -165,8 +166,9 @@ class CPXMILPSolver : public MILPSolver {
  /// sets the Block that the Solver has to solve and initializes CPLEX
  void set_Block( Block * block ) override;
 
- /// optimizes the problem with CPLEX
- int compute( bool changedvars = false ) override;
+ // note: the public compute() entry point is inherited from MILPSolver;
+ // CPXMILPSolver implements only the CPLEX-specific solve in
+ // guts_of_compute() below (protected)
 
  /// returns a valid lower bound on the optimal objective function value
  OFValue get_lb( void ) override;
@@ -532,6 +534,16 @@ class CPXMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
+
+ /// CPLEX back-end solve, called by MILPSolver::compute()
+ /** Performs the actual CPLEX optimisation. Locking, Modification
+  * processing and the LP cut-separation loop (intRelaxIntVars == 2) are
+  * all handled by MILPSolver::compute(). */
+
+ int guts_of_compute( void ) override;
+
+/*--------------------------------------------------------------------------*/
+
  /** @name Get variable bounds for the problem
   *
   * The following two methods retrieve the upper and lower bound for the
@@ -647,9 +659,8 @@ class CPXMILPSolver : public MILPSolver {
 
  bool f_callback_set;  // true if the callback has been set
 
- /** bitwise-encoded parameter for deciding if and when separation of user
-  * cuts and lazy constraints is performed */
- unsigned char CutSepPar;
+ // note: CutSepPar (the bitwise-encoded cut/lazy separation parameter)
+ // is now an inherited member of MILPSolver base
 
  /** vector containing the indices of the Configuration for the various
   * user cuts / lazy constraints separations in the "Configuration DB" */
@@ -793,10 +804,23 @@ class CPXMILPSolver : public MILPSolver {
         Index row ,
         bool lin_null );
 
- /** Evaluate the gradient of a specific quadratic constraint 
+ /** Evaluate the gradient of a specific quadratic constraint
   * in the optimum find by CPLEX. */
  double evaluate_dual_qcon( Index row ,
         std::vector< double > x_sol );
+
+ /// FRowConstraints with \f$ lhs > rhs \f$ in their current state
+ /** CPLEX encodes a ranged row with \f$ \mathit{rngval} =
+  *  \mathit{rhs} - \mathit{lhs} \f$. When \f$ \mathit{rngval} < 0 \f$
+  *  (i.e. \f$ \mathit{lhs} > \mathit{rhs} \f$), CPLEX silently re-interprets
+  *  the row as the swapped interval
+  *  \f$ [\mathit{rhs}, \mathit{lhs}] \f$, masking the intended
+  *  infeasibility. To preserve the SMS++ semantics we detect this case in
+  *  const_modification() / add_dynamic_constraint(), encode the row in
+  *  CPLEX as a feasible equality at \f$ \mathit{rhs} \f$, and record the
+  *  affected FRowConstraint here. compute() short-circuits to
+  *  kInfeasible if this set is non-empty. */
+ std::unordered_set< const FRowConstraint * > f_inverted_rows;
 
 /*--------------------------------------------------------------------------*/
 

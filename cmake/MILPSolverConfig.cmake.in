@@ -29,6 +29,14 @@ set(GUROBI_ROOT @GUROBI_ROOT@)
 set(MILPSolver_USE_HiGHS @MILPSolver_USE_HiGHS@)
 set(HiGHS_ROOT @HiGHS_ROOT@)
 
+set(MILPSolver_USE_PIPS @MILPSolver_USE_PIPS@)
+set(PIPSIPMPP_ROOT @PIPSIPMPP_ROOT@)
+set(PIPS_BUILD_DIR @PIPS_BUILD_DIR@)
+set(PIPS_PARDISO_DIR @PIPS_PARDISO_DIR@)
+set(PIPS_WITH_MUMPS @PIPS_WITH_MUMPS@)
+set(PIPS_WITH_PARDISO @PIPS_WITH_PARDISO@)
+set(PIPS_WITH_MA57 @PIPS_WITH_MA57@)
+
 # ----- Requirements -------------------------------------------------------- #
 find_dependency(SMS++)
 
@@ -49,6 +57,10 @@ endif ()
 
 if (MILPSolver_USE_HiGHS)
     find_dependency(HiGHS)
+endif ()
+
+if (MILPSolver_USE_PIPS)
+    find_dependency(PIPS)
 endif ()
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)

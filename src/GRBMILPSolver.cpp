@@ -70,7 +70,7 @@ int GRBMILPSolver_callback( GRBmodel * model , void * cbdata , int where ,
 
 GRBMILPSolver::GRBMILPSolver( void ) :
  MILPSolver() , env( nullptr ) , model( nullptr ) , f_callback_set( false ) ,
- last_static_rng_con( -1 ) , CutSepPar( 0 ) ,
+ last_static_rng_con( -1 ) ,
  UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
 {
  int status = 0;
@@ -81,6 +81,10 @@ GRBMILPSolver::GRBMILPSolver( void ) :
 
  GRBsetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , 0 );
  // suppress Gurobi logging
+
+ // always have Farkas / unbounded-ray certificates available,
+ // mirroring CPLEX where CPXdualfarkas() needs no prior opt-in
+ GRBsetintparam( env , GRB_INT_PAR_INFUNBDINFO , 1 );
  
  status = GRBstartenv( env );
  if( status != 0 )
@@ -307,14 +311,43 @@ void GRBMILPSolver::load_problem( void )
         matval_group_con[ i ] = matval_t[ matbeg_t[ tmp ] + i ];
       }
       
-      if( use_custom_names )
-        GRBaddconstrs( model , n_constrs , tot_nnz , matbeg_group_con.data() , 
+      if( use_custom_names ){
+        int error = GRBaddconstrs( model , n_constrs , tot_nnz , matbeg_group_con.data() , 
                       matind_group_con.data() , matval_group_con.data() , & grb_sense[ tmp ] ,
                       & grb_rhs[ tmp ] , & rowname[ tmp ] );
-      else
-        GRBaddconstrs( model , n_constrs , tot_nnz , & matbeg_t[ tmp ] , 
+
+        if( error ){
+          // Some error was thrown while adding the constraint
+          std::string msg = std::string("GRBMILPSolver Error [")
+            + __func__ + "]: GRBaddconstrs returned status "
+            + std::to_string( error ) + ". \n";
+
+          // Print warning message in Gurobi log
+          GRBmsg( GRBgetenv(model), msg.c_str() );
+
+          // Print warning message in MILPSolver DEBUG
+          DEBUG_LOG( msg.c_str() );
+        }
+
+      }
+      else{
+        int error = GRBaddconstrs( model , n_constrs , tot_nnz , & matbeg_t[ tmp ] , 
                       & matind_t[ tmp ] , & matval_t[ tmp ] , & grb_sense[ tmp ] ,
                       & grb_rhs[ tmp ] , NULL );
+
+        if( error ){
+          // Some error was thrown while adding the constraint
+          std::string msg = std::string("GRBMILPSolver Error [")
+            + __func__ + "]: GRBaddconstrs returned status "
+            + std::to_string( error ) + ". \n";
+
+          // Print warning message in Gurobi log
+          GRBmsg( GRBgetenv(model), msg.c_str() );
+
+          // Print warning message in MILPSolver DEBUG
+          DEBUG_LOG( msg.c_str() );
+        }
+      }
     }
     else { // ranged case
       char * name = use_custom_names ? rowname[ j ] : NULL; // retrieve constraint name
@@ -351,11 +384,13 @@ void GRBMILPSolver::load_problem( void )
   int n_ranged_con = 0; // Counter of already inserted ranged constraint
   int num_qauxvar = 0; // Counter of already inserted auxiliary variables
 
+  // Initialize vector storing the indices of ranged constraints
+  std::vector< int > ranged_idxs;
+
   for( int i = 0 ; i < numrows ; i++ ) {
 
     char * name = use_custom_names ? rowname[ i ] : NULL; // retrieve constraint name
     
-    //if( q_part[ i ].nonZeros() == 0 ) {
     if( q_part[ i ].empty() ) {
       // Simple Linear Constraint
       int nzcnt = matcnt[ i ];
@@ -377,9 +412,10 @@ void GRBMILPSolver::load_problem( void )
                       rmatval.data() , sense[ i ] , grb_rhs[ i ] , 
                       name );
       else{
-        // Filling map between ranged constraint and auxiliary variables built by Gurobi
-        // See GRBMILPSolver.h for further information
-        map_rng_con_aux_var.push_back( { i , numcols + n_ranged_con + count_quad } );
+        // NOTE: Gurobi does not add auxiliary variables until GRBupdatemodel() is called.
+        // Since we only call it at the end of the loading phase, we assume that all
+        // auxiliary ranged variables are located in the last columns of the Gurobi matrix.
+        ranged_idxs.push_back( i );
         
         if( i < static_cons)
           last_static_rng_con = n_ranged_con;
@@ -444,12 +480,14 @@ void GRBMILPSolver::load_problem( void )
         }
 
         // Add new auxiliary variable with coeficient 1 in the row
-        std::string tmp = "quad_aux_var_" + std::to_string( count_quad ); 
+        std::string tmp = "quad_aux_var_" + std::to_string( num_qauxvar ); 
 
         GRBaddvar( model , 0 , nullptr , nullptr , 0 , -GRB_INFINITY , 
               GRB_INFINITY , 'C' , tmp.c_str() );
 
-        rmatind.push_back( numcols + count_quad + n_ranged_con );
+        //status = GRBupdatemodel( model );
+
+        rmatind.push_back( numcols + num_qauxvar );
         rmatval.push_back( 1 );
 
         // update the Gurobi problem with q x + v <= q_0
@@ -458,7 +496,7 @@ void GRBMILPSolver::load_problem( void )
                         name );
 
         // Now we have to create the auxiliary quadratic constraint
-        std::vector< int > lidx = { numcols + count_quad + n_ranged_con };
+        std::vector< int > lidx = { numcols + num_qauxvar };
         std::vector< double > lcoeff = { 1 };
         std::vector< int > qidx1;
         std::vector< int > qidx2;
@@ -475,21 +513,29 @@ void GRBMILPSolver::load_problem( void )
         // Call specific function to generate the structures required
         generate_qcon_matrix( qidx1 , qidx2 , qcoeff , i , false );
 
-        std::string tmp_con = "quad_aux_con_" + std::to_string( count_quad );
+        std::string tmp_con = "quad_aux_con_" + std::to_string( num_qauxvar );
 
         GRBaddqconstr( model , lidx.size() , lidx.data() , lcoeff.data() , 
           qidx1.size() , qidx1.data() , qidx2.data() , qcoeff.data() , 
           sense_q , 0 , tmp_con.c_str() );
 
-        grb_quad_var_aux[ i ] = numcols + num_qauxvar + n_ranged_con; // Index of aux var
+        grb_quad_var_aux[ i ] = numcols + num_qauxvar; // Index of aux var
 
-        grb_idx_aux_qvar.push_back( numcols + num_qauxvar + n_ranged_con ); 
+        grb_idx_aux_qvar.push_back( numcols + num_qauxvar ); 
+
         num_qauxvar++; // Update counter of auxiliary variables
        }
       grb_quad_con_aux[ i ] = count_quad; // Index of quad con
       ++count_quad;
       }
     }
+
+    // Filling map between ranged constraint and auxiliary variables built by Gurobi
+    // See GRBMILPSolver.h for further information
+    for( int i = 0 ; i < n_ranged_con ; i++ ){
+      map_rng_con_aux_var.push_back( { ranged_idxs[ i ] , 
+                                    numcols + num_qauxvar + i } );
+      }
   }
 
  status = GRBupdatemodel( model );
@@ -543,14 +589,11 @@ std::array< double , 2 > GRBMILPSolver::get_problem_bounds(
 
 /*--------------------------------------------------------------------------*/
 
-int GRBMILPSolver::compute( bool changedvars )
+int GRBMILPSolver::guts_of_compute( void )
 {
- lock();  // lock the mutex: this is done again inside MILPSolver::compute,
-          // but that's OK since the mutex is recursive
-
- // process Modification: this is driven by MILPSolver- - - - - - - - - - - -
- if( MILPSolver::compute( changedvars ) != kOK )
-  throw( std::runtime_error( "an error occurred in MILPSolver::compute()" ) );
+ // Note: locking, process_modifications() and the LP cut separation loop
+ // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
+ // This method is only responsible for the actual Gurobi call.
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() ) {
@@ -579,22 +622,27 @@ int GRBMILPSolver::compute( bool changedvars )
 
  // the actual call to GUROBI- - - - - - - - - - - - - - - - - - - - - - - - -
 
- if( int_vars > 0 ) {  // the MIP case- - - - - - - - - - - - - - - - - - - -
+ // dispatch LP vs MIP: only intRelaxIntVars == 2 unconditionally goes
+ // through the LP path so the base user-cut-separation loop in
+ // MILPSolver::compute() works on a pure LP solve. Values 0 (MIP) and 1
+ // (MIP engine on relaxed problem) keep the pre-existing semantics
+ if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
 
   if( ( CutSepPar & 7 ) ||
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
    // the callback has to be set
    GRBsetcallbackfunc( model , & GRBMILPSolver_callback , this );
 
-   if( CutSepPar & 3 ) {  // we do user cut separation, thus we have to set the possibility in Gurobi
+   if( CutSepPar & 3 ) {  // we do user cut separation.
+    // Simply shut off a few presolve reductions that can sometimes prevent
+    // the cut from being applied to the presolved model.
     GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRECRUSH , 1 );
-    auto md = ( CutSepPar >> 3 ) & 3;
-    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_CUTS , md );
    }
-   
-   if( CutSepPar & 4 )  // we do lazy constraint separation, thus we have to set the possibility in Gurobi
+
+   if( CutSepPar & 4 )  // we do lazy constraint separation.
+    // We have to set the possibility in Gurobi.
     GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_LAZYCONSTRAINTS , 1 );
-   
+
    f_callback_set = true;
    }
   else {
@@ -605,35 +653,62 @@ int GRBMILPSolver::compute( bool changedvars )
   }
 
   if( int status = GRBoptimize( model ) ) { //error
-   
+
    sol_status = decode_grb_error( status );
-   goto Return_status;
+   return( sol_status );
    }
 
   int m_status;
   GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
 
   sol_status = decode_model_status( m_status );
-  goto Return_status;
+  return( sol_status );
   }
 
  // the continuous case - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // (no MIP callback is installed here even if CutSepPar > 0: when
+ // relax_int_vars == 2 the LP separation loop is driven by MILPSolver
+ // around this method)
+
+ if( f_callback_set ) {    // a callback was set in a previous solve
+  GRBsetcallbackfunc( model , NULL , nullptr );  // un-set it
+  f_callback_set = false;
+  }
 
  if( int status = GRBoptimize( model ) ) {
   sol_status = decode_grb_error( status );
-  goto Return_status;
+  return( sol_status );
   }
 
  int m_status;
  GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
 
- sol_status = decode_model_status( m_status );
+ // If Gurobi's presolve returned INF_OR_UNBD it can't tell whether the
+ // model is infeasible or unbounded. Per Gurobi documentation, the way
+ // to obtain a definitive answer is to set DualReductions = 0 and
+ // re-optimise; we do this here so that GRBMILPSolver returns the
+ // correct status (kInfeasible vs kUnbounded) instead of the previous
+ // heuristic guess "kUnbounded". This matters in particular for the
+ // tester comparison logic, which treats kInfeasible and kUnbounded
+ // very differently (e.g., the LP-duality pair detection in dual mode,
+ // and the natural-vs-linearised consistency check in primal mode).
+ if( m_status == GRB_INF_OR_UNBD ) {
+  int saved;
+  GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , & saved );
+  GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , 0 );
+  if( int status = GRBoptimize( model ) ) {
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
+   sol_status = decode_grb_error( status );
+   return( sol_status );
+   }
+  GRBgetintattr( model , GRB_INT_ATTR_STATUS , & m_status );
+  GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
+  }
 
- Return_status:
- unlock();  // unlock the mutex
+ sol_status = decode_model_status( m_status );
  return( sol_status );
 
- }  // end( GRBMILPSolver::compute )
+ }  // end( GRBMILPSolver::guts_of_compute )
 
 /*--------------------------------------------------------------------------*/
 
@@ -697,7 +772,13 @@ int GRBMILPSolver::decode_model_status( int status )
    // difficulties
    return( kError );
   case( GRB_SUBOPTIMAL ):
-   // Unable to satisfy optimality tolerances; a sub-optimal solution is available
+   // Unable to satisfy optimality tolerances; a sub-optimal solution is
+   // available. What this says is kLowPrecision, a solution with no promise
+   // attached, and returning that here would be more honest; it is not done
+   // because the status travels up: LagBFunction returns the one of the
+   // Solver of its inner Block verbatim, and BundleSolver reads
+   // kLowPrecision as an inexact oracle, which on the AC instances, whose
+   // QCP sub-problems routinely end here, breaks the whole Lagrangian chain
    return( kOK );
   case( GRB_INPROGRESS ):
    // An asynchronous optimization call was made, but the 
@@ -783,6 +864,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
     case( kOK ):
+    case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
@@ -797,9 +879,19 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
 
       if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) )
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
-      else
+      else {
         GRBgetdblattr( model , GRB_DBL_ATTR_OBJBOUND , &lower_bound );
-      
+        // OBJBOUND belongs to the branch-and-bound: a model solved without
+        // one, which is the case of a continuous problem whenever the
+        // NonConvex parameter is not explicitly 0, publishes no bound at
+        // all. Where the solve ended optimal the optimal value *is* the
+        // bound, and reporting -infinity instead throws away what the
+        // Solver has proved
+        if( ( m_status == GRB_OPTIMAL ) &&
+            ( lower_bound <= - GRB_INFINITY ) )
+         GRBgetdblattr( model , GRB_DBL_ATTR_OBJVAL , &lower_bound );
+        }
+
       lower_bound += constant_value;
       break;
 
@@ -827,6 +919,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
+    case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -885,6 +978,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
+    case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -926,6 +1020,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
 
     case( kOK ):
+    case( kLowPrecision ):
     case( kStopIter ):
     case( kStopTime ):
      GRBgetintattr( model , GRB_INT_ATTR_STATUS , &m_status );
@@ -1002,23 +1097,42 @@ Solver::OFValue GRBMILPSolver::get_var_value( void )
 void GRBMILPSolver::get_var_solution( Configuration * solc )
 {
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_aux_quad_var;
  std::vector< double > x( numcols , 0 );
- std::vector< double > x_grb( numcols + n_ranged_con, 0 );
+ std::vector< double > x_grb( tot_grb_vars, 0 );
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_X , 0 , numcols + n_ranged_con , x_grb.data() ) )
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_X , 0 , tot_grb_vars , x_grb.data() ) )
   throw( std::runtime_error( "Unable to get the solution with GRB_DBL_ATTR_X" ) );
 
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
-  x = x_grb;
- else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
-      x[ j - aux_counter ] = x_grb[ j ];
-    else
-      ++aux_counter;
+ if( tot_grb_vars == numcols ) { // there are no auxiliary variables in Gurobi.
+    x = x_grb;
   }
- }
+  else {
+   int aux_counter_rng = 0;
+   int aux_counter_quad = 0;
+
+   for( int j = 0; j < tot_grb_vars; ++j ) {
+
+    bool is_rng_aux =
+      (aux_counter_rng < map_rng_con_aux_var.size() &&
+        j == map_rng_con_aux_var[aux_counter_rng].second);
+
+    bool is_quad_aux =
+      (aux_counter_quad < grb_idx_aux_qvar.size() &&
+        j == grb_idx_aux_qvar[aux_counter_quad]);
+
+    if( is_rng_aux ) {
+      ++aux_counter_rng; // auxiliary variable of a ranged constraint
+    }
+    else if( is_quad_aux ) {
+      ++aux_counter_quad; // auxiliary variable of a quadratic constraint
+    }
+    else {
+      x[j - aux_counter_rng - aux_counter_quad] = x_grb[j];
+    }
+   }
+  }
 
  MILPSolver::write_var_solution( x );
  }
@@ -1029,14 +1143,19 @@ bool GRBMILPSolver::has_var_direction( void )
 {
  int isMIP = 1;
  GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP );
- 
- int verbosity = 0;
- GRBgetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
 
  if( ( isMIP ) ) {
  // The model is a MIP
-    if( verbosity )
-      DEBUG_LOG( "Unbounded direction isavailable only for LP model" << std::endl);
+    
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: Unbounded direction is available only for LP models. \n";
+    
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+  
     return( false );  
   }
 
@@ -1050,11 +1169,18 @@ bool GRBMILPSolver::has_var_direction( void )
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
 
  if( ( m_status != GRB_UNBOUNDED ) || ( ! infunbd_info ) ) {
-  if( verbosity )
-    DEBUG_LOG( "In order to ask for the unbounded direction of"
-                "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
-                "should be set to 1" << std::endl);
-  return( false );
+    
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: In order to ask for the unbounded direction of "
+      "the model, the parameter InfUnbdInfo should be set to 1"". \n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+    
+    return( false );
  }
 
  return( true );
@@ -1065,23 +1191,42 @@ bool GRBMILPSolver::has_var_direction( void )
 void GRBMILPSolver::get_var_direction( Configuration * dirc )
 {
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_aux_quad_var;
  std::vector< double > x( numcols , 0 );
- std::vector< double > x_grb( numcols + n_ranged_con, 0 );
+ std::vector< double > x_grb( tot_grb_vars, 0 );
  
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_UNBDRAY , 0 , numcols + n_ranged_con , x_grb.data() ) )
+ if( GRBgetdblattrarray( model , GRB_DBL_ATTR_UNBDRAY , 0 , tot_grb_vars , x_grb.data() ) )
   throw( std::runtime_error( "Unable to get the unbounded direction with GRB_DBL_ATTR_UNBDRAY" ) );
  
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
-  x = x_grb;
- else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
-      x[ j - aux_counter ] = x_grb[ j ];
-    else
-      ++aux_counter;
+ if( tot_grb_vars == numcols ) { // there are no auxiliary variables in Gurobi.
+    x = x_grb;
+  }
+  else {
+   int aux_counter_rng = 0;
+   int aux_counter_quad = 0;
+
+   for( int j = 0; j < tot_grb_vars; ++j ) {
+
+    bool is_rng_aux =
+      (aux_counter_rng < map_rng_con_aux_var.size() &&
+        j == map_rng_con_aux_var[aux_counter_rng].second);
+
+    bool is_quad_aux =
+      (aux_counter_quad < grb_idx_aux_qvar.size() &&
+        j == grb_idx_aux_qvar[aux_counter_quad]);
+
+    if( is_rng_aux ) {
+      ++aux_counter_rng; // auxiliary variable of a ranged constraint
+    }
+    else if( is_quad_aux ) {
+      ++aux_counter_quad; // auxiliary variable of a quadratic constraint
+    }
+    else {
+      x[j - aux_counter_rng - aux_counter_quad] = x_grb[j];
+    }
    }
- }
+  }
  
  MILPSolver::write_var_solution( x );
 }
@@ -1092,14 +1237,17 @@ bool GRBMILPSolver::has_dual_solution( void )
 {
  int isMIP = 1;
  GRBgetintattr( model , GRB_INT_ATTR_IS_MIP , &isMIP );
- 
- int verbosity = 0;
- GRBgetintparam( env , GRB_INT_PAR_LOGTOCONSOLE , &verbosity );
 
  if( ( isMIP ) ) {
- // The model is a MIP
-    if( verbosity )
-      DEBUG_LOG( "Dual solution for MIP model not available" << std::endl);
+    // The model is a MIP
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: Dual solution for MIP model not available. \n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
     return( false );  
   }
 
@@ -1114,20 +1262,35 @@ bool GRBMILPSolver::has_dual_solution( void )
 
  if( ( m_status == GRB_INFEASIBLE || m_status == GRB_INF_OR_UNBD || 
         m_status == GRB_UNBOUNDED ) && ( ! infunbd_info ) ) {
-  if( verbosity )
-    DEBUG_LOG( "In order to ask for the dual solution of"
-                      "the model, the parameter GRB_INT_PAR_INFUNBDINFO" 
-                      "should be set to 1" << std::endl);
-  return( false );
+    
+    // Warning message
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: To retrieve the model's dual solution, "
+      "set the parameter InfUnbdInfo to 1.\n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+    
+    return( false );
  }
 
  if( numquadrows > 0 ) {
   int qcp_dual;
   GRBgetintparam( env , GRB_INT_PAR_QCPDUAL , & qcp_dual );
   if( ! qcp_dual ) {
-    if( verbosity )
-      DEBUG_LOG( "In order to retrieve dual values for QCP models  "
-            "the attribute QCPDUAL must be set to 1" << std::endl);
+    // Warning message
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: To retrieve the dual solution of a "
+      "QCP model, the attribute QCPDUAL must be set to 1. \n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
 
     return( false );
   }
@@ -1139,9 +1302,16 @@ bool GRBMILPSolver::has_dual_solution( void )
  std::vector< double > small_pi( 1 , 0 );
  if( int status = GRBgetdblattrarray( model , GRB_DBL_ATTR_PI , 0 , 
                     1 , small_pi.data() ) ) {
-  if( verbosity )
-      DEBUG_LOG( "Query of dual values with attributes GRB_PI " 
-        "returned status " + std::to_string( status ) << std::endl);
+  // Warning message
+  std::string msg = std::string("GRBMILPSolver Warning [")
+    + __func__ + "]: Query of dual values with attributes GRB_PI " 
+    "returned status" + std::to_string( status ) + ".\n";
+
+  // Print warning message in Gurobi log
+  GRBmsg( GRBgetenv(model), msg.c_str() );
+
+  // Print warning message in MILPSolver DEBUG
+  DEBUG_LOG( msg.c_str() );
 
   return( false );
   }
@@ -1186,38 +1356,29 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
  if( ( n_ranged_con == 0 ) && ( grb_idx_aux_qvar.size() == 0 ) )
   // there are neither ranged constraint or auxiliary variables for quadratic constraint
   dj = dj_grb;
- else if( grb_idx_aux_qvar.size() == 0 ) {
-  // there are no auxiliary variables for quadratic constraint (jump only ranged one)
-  int rng_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ rng_counter ].second ) // column j is not an auxiliary variable
-      dj[ j - rng_counter ] = dj_grb[ j ];
-    else
-      ++rng_counter;
-   }
-  }
- else if( n_ranged_con == 0 ) {
-  // there are no ranged constraint (jump auxiliary variables for quadratic constraint)
-  int q_counter = 0;
-  for( int j = 0 ; j < numcols + grb_idx_aux_qvar.size() ; ++j ) {
-    if( j != grb_idx_aux_qvar[ q_counter ] ) // column j is not an auxiliary variable
-      dj[ j - q_counter ] = dj_grb[ j ];
-    else
-      ++q_counter;
-   }
-  }
  else{
-  // there are both ranged constraint and auxiliary variables for quadratic constraint
   int rng_counter = 0;
   int q_counter = 0;
-  for( int j = 0 ; j < numcols + + n_ranged_con + grb_idx_aux_qvar.size() ; ++j ) {
-    if( j == grb_idx_aux_qvar[ q_counter ] )
-      ++q_counter;
-    else if(  j == map_rng_con_aux_var[ rng_counter ].second )
-      ++rng_counter;
-    else
-      dj[ j - q_counter - rng_counter ] = dj_grb[ j ];
+
+  for (int j = 0 ; j < dj_grb.size() ; ++j ) {
+   const bool is_rng_aux =
+    (rng_counter < map_rng_con_aux_var.size() &&
+      j == map_rng_con_aux_var[rng_counter].second);
+
+   const bool is_q_aux =
+    (q_counter < grb_idx_aux_qvar.size() &&
+      j == grb_idx_aux_qvar[q_counter]);
+
+   if (is_rng_aux) {
+    ++rng_counter;
    }
+   else if (is_q_aux) {
+    ++q_counter;
+   }
+   else {
+    dj[ j - rng_counter - q_counter ] = dj_grb[ j ];
+   }
+  }
  }
 
  /* Retrieve dual values for initial constraints (also quadratic) */
@@ -1271,16 +1432,35 @@ bool GRBMILPSolver::has_dual_direction( void )
   case( GRB_INFEASIBLE ):
   case( GRB_INF_OR_UNBD ):
   case( GRB_UNBOUNDED ):  break;
-  default: DEBUG_LOG( "Status of the Gurobi model not infeasible or "
-      "unbounded" << std::endl );
+  default:
+    // Warning message
+    std::string msg = std::string("GRBMILPSolver Warning [")
+      + __func__ + "]: No dual ray can be retrieved unless the "
+      "model status is infeasible or unbounded. \n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv(model), msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+
     return( false );                       
  }
 
  int infunbd_info;
  GRBgetintparam( env , GRB_INT_PAR_INFUNBDINFO , & infunbd_info );
  if( ! infunbd_info ) {
-  DEBUG_LOG( "In order to ask for the farkas proof of the model, the "
-    "parameter GRB_INT_PAR_INFUNBDINFO should be set to 1" << std::endl );
+    // Warning message
+    std::string msg = std::string("GRBMILPSolver Warning [") 
+      + __func__ + "]: To retrieve the model's dual solution, "
+    "set the parameter InfUnbdInfo to 1.\n";
+
+    // Print warning message in Gurobi log
+    GRBmsg( GRBgetenv( model ) ,  msg.c_str() );
+
+    // Print warning message in MILPSolver DEBUG
+    DEBUG_LOG( msg.c_str() );
+
   return( false );
  }
  
@@ -1292,9 +1472,11 @@ bool GRBMILPSolver::has_dual_direction( void )
 void GRBMILPSolver::get_dual_direction( Configuration * dirc )
 {
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_quad_aux_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_quad_aux_var;
  std::vector< double > y( numrows , 0 );
  std::vector< double > dj( numcols , 0 );
- std::vector< double > dj_grb( numcols + n_ranged_con , 0 );
+ std::vector< double > dj_grb( tot_grb_vars , 0 );
 
  double proof;
 
@@ -1310,21 +1492,113 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  for( auto i = y.begin() ; i != y.end() ; ++i  )
   *i = -*i;
 
- if( status_proof != 0 || status_y != 0 )
-  throw( std::runtime_error( "an error occurred in getting Farkas certificate" ) );
+ // FARKASPROOF is the value the dual objective takes along the certificate,
+ // in the sign convention y has after the flip above, i.e. the vector handed
+ // to write_dual_solution() below, which writes it negated in the Block: for
+ // min 0 s.t. x >= 2 , x <= -3 with x free, FARKASDUAL is ( -1 , 1 ), the
+ // flipped y is ( 1 , -1 ) and FARKASPROOF is 5 = y' b. Hence it is recorded
+ // as it is [see MILPSolver::f_dual_direction_value]; it stays NaN when the
+ // certificate is not there, which is the empty-domain case below
+ if( status_proof == 0 )
+  f_dual_direction_value = proof;
 
- if( GRBgetdblattrarray( model , GRB_DBL_ATTR_RC , 0 , numcols + n_ranged_con , dj_grb.data() ) )
-  throw( std::runtime_error( "Unable to get reduced costs querying the attribute GBL_RC") );
+ if( status_proof != 0 || status_y != 0 ) {
+  // Gurobi could not return a Farkas certificate. This is expected when the
+  // model is infeasible because of an EMPTY VARIABLE DOMAIN (some column has
+  // lb > ub) rather than a row conflict: infeasibility is then proven by bound
+  // propagation, with no simplex/barrier basis, so FARKASDUAL is unavailable
+  // (GRB_ERROR_DATA_NOT_AVAILABLE). This case legitimately arises from the
+  // ranged-constraint encoding used here: an inverted range lhs > rhs turns the
+  // auxiliary slack bound into [ 0 , rhs - lhs ] < 0, an empty domain. The
+  // Farkas ray of such a self-contradictory row projects onto the base
+  // ( row , column ) dual space as the zero vector: the row is stored once and
+  // its certificate needs both sides ( a'x >= lhs and a'x <= rhs ) with equal
+  // weight, whose scalar net is 0, and no variable bound participates.
+  // Consumers that need the non-trivial content (e.g. BendersBFunction)
+  // reconstruct it from the inverted-row data itself. Hence we fall back to
+  // y = 0 and let the reduced costs be computed as dj = c - A' y = c below,
+  // exactly as CPXdjfrompi() yields for the same model. This is done only when
+  // the model is genuinely infeasible with an empty column domain; any other
+  // failure is a real error and is re-thrown.
+  int model_status = -1;
+  GRBgetintattr( model , GRB_INT_ATTR_STATUS , & model_status );
 
- if( n_ranged_con == 0 ) // there are no ranged constraint. Thus, no aux var in Gurobi
+  bool empty_domain = false;
+  if( model_status == GRB_INFEASIBLE ) {
+   std::vector< double > lbnd( tot_grb_vars , 0 ) , ubnd( tot_grb_vars , 0 );
+   if( ( GRBgetdblattrarray( model , GRB_DBL_ATTR_LB , 0 , tot_grb_vars ,
+                             lbnd.data() ) == 0 ) &&
+       ( GRBgetdblattrarray( model , GRB_DBL_ATTR_UB , 0 , tot_grb_vars ,
+                             ubnd.data() ) == 0 ) )
+    for( int j = 0 ; j < tot_grb_vars ; ++j )
+     if( lbnd[ j ] > ubnd[ j ] ) { empty_domain = true; break; }
+   }
+
+  if( ! empty_domain )
+   throw( std::runtime_error( "an error occurred in getting Farkas certificate" ) );
+
+  // defensive: FARKASDUAL left y untouched, make the zero ray explicit
+  std::fill( y.begin() , y.end() , 0.0 );
+  }
+
+ // TEMP-PATCH: Farkas-consistent reduced costs dj = c - A' y (same as
+ // CPXdjfrompi() in CPXMILPSolver): the RC attribute refers to the last
+ // simplex iterate w.r.t. the original objective and is unrelated to the
+ // Farkas certificate.
+ // with intHomogeneousDirection the multipliers of the columns are - A' y,
+ // the ray of the homogeneous system, so the accumulation below starts from
+ // zero instead of from the objective [see MILPSolver::intHomogeneousDirection]
+ if( homogeneous_direction )
+  std::fill( dj_grb.begin() , dj_grb.end() , 0.0 );
+ else
+  if( GRBgetdblattrarray( model , GRB_DBL_ATTR_OBJ , 0 , tot_grb_vars ,
+                          dj_grb.data() ) )
+   throw( std::runtime_error(
+              "GRBMILPSolver::get_dual_direction: "
+              "unable to get objective coefficients querying GRB_OBJ" ) );
+
+ {
+  int nnz = 0;
+  if( GRBgetvars( model , & nnz , nullptr , nullptr , nullptr , 0 , tot_grb_vars ) )
+   throw( std::runtime_error( "GRBgetvars (count) failed" ) );
+  std::vector< int > vbeg( tot_grb_vars , 0 );
+  std::vector< int > vind( nnz , 0 );
+  std::vector< double > vval( nnz , 0 );
+  if( nnz > 0 &&
+      GRBgetvars( model , & nnz , vbeg.data() , vind.data() , vval.data() ,
+                  0 , tot_grb_vars ) )
+   throw( std::runtime_error( "GRBgetvars failed" ) );
+  for( int j = 0 ; j < tot_grb_vars ; ++j ) {
+   int end = ( j + 1 < tot_grb_vars ) ? vbeg[ j + 1 ] : nnz;
+   for( int k = vbeg[ j ] ; k < end ; ++k )
+    dj_grb[ j ] -= vval[ k ] * y[ vind[ k ] ];
+   }
+  }
+
+ if( tot_grb_vars == numcols ) // there are no auxiliary variables in Gurobi
   dj = dj_grb;
  else{
-  int aux_counter = 0;
-  for( int j = 0 ; j < numcols + n_ranged_con ; ++j ) {
-    if( j != map_rng_con_aux_var[ aux_counter ].second ) // column j is not an auxiliary variable
-      dj[ j - aux_counter ] = dj_grb[ j ];
-    else
-      ++aux_counter;
+  int rng_counter = 0;
+  int q_counter = 0;
+
+  for (int j = 0 ; j < dj_grb.size() ; ++j ) {
+   const bool is_rng_aux =
+    (rng_counter < map_rng_con_aux_var.size() &&
+      j == map_rng_con_aux_var[rng_counter].second);
+
+   const bool is_q_aux =
+    (q_counter < grb_idx_aux_qvar.size() &&
+      j == grb_idx_aux_qvar[q_counter]);
+
+   if (is_rng_aux) {
+    ++rng_counter;
+   }
+   else if (is_q_aux) {
+    ++q_counter;
+   }
+   else {
+    dj[ j - rng_counter - q_counter ] = dj_grb[ j ];
+   }
   }
  }
 
@@ -1361,61 +1635,76 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
 
 int GRBMILPSolver::grb_index_of_variable( int old_idx ) const
 {
+ if( old_idx >= numcols ){
+  throw( std::runtime_error( "Index is out of range") );
+ }
+
  int new_idx = old_idx;
  int n_ranged_con = map_rng_con_aux_var.size();
+ int n_quad_aux_var = grb_idx_aux_qvar.size();
+ int tot_grb_vars = numcols + n_ranged_con + n_quad_aux_var;
 
- bool is_qcp = ( numquadrows > 0 );
-
- if( !is_qcp && n_ranged_con == 0 ) {
+ if( tot_grb_vars == numcols ) {
   // Nothing to do
   return( new_idx );
  }
- else if( !is_qcp && n_ranged_con != 0 ) {
-  // Simply "jump" ranged constraints auxiliary variables
-  int tmp_count = 0;
-    while( tmp_count < n_ranged_con && new_idx >= map_rng_con_aux_var[ tmp_count ].second ) {
-      ++tmp_count;
-      ++new_idx;
-    }
-  }
- else if( is_qcp && ( n_ranged_con == 0 ) ) {
-  // Simply "jump" quadratic constraints auxiliary variables
-  // We can use the grb_idx_aux_qvar vector, containing all the indices
-  // of auxiliary variables already sorted.
-  int count = 0;
-  while( ( count < grb_idx_aux_qvar.size() ) && 
-          ( grb_idx_aux_qvar[ count ] < new_idx ) ) {
-    ++new_idx;
-    ++count;
-   }
-  }
  else{
-  // We have to skip both
-  bool update_idx = 1;
+  int rng_count = 0;
+  int q_count = 0;
 
-  int tmp_count = 0;
-  auto it = lower_bound( grb_quad_var_aux.begin() , grb_quad_var_aux.end() , new_idx + 1 );
-  auto last_it = grb_quad_var_aux.begin();
+  while( true ){
+    bool has_rng = ( rng_count < map_rng_con_aux_var.size() );
+    bool has_q   = ( q_count < grb_idx_aux_qvar.size() );
 
-  while( update_idx ) {
-
-    if( tmp_count < n_ranged_con && new_idx >= map_rng_con_aux_var[ tmp_count ].second ) {
-      ++tmp_count;
-      ++new_idx;
-      it = lower_bound( last_it , grb_quad_var_aux.end() , new_idx + 1 );
+    if ( !has_rng && !has_q ) {
+     // There are no more auxiliary variables to skip
+     break;
     }
-    else if( it != grb_quad_var_aux.end() ) {
-      ++new_idx;
-      last_it = it + 1;
-      it = lower_bound( it + 1 , grb_quad_var_aux.end() , new_idx + 1 );
+
+    int next_aux_idx;
+    bool take_rng;
+
+    if( has_rng && has_q ){
+      if( map_rng_con_aux_var[ rng_count ].second <= grb_idx_aux_qvar[ q_count ] ){
+        // It is important to understand which var must be skipped first
+        next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
+        take_rng = true;
+      } 
+      else{
+        next_aux_idx = grb_idx_aux_qvar[ q_count ];
+        take_rng = false;
+      }
     }
-    else
-      update_idx = 0;
-   }
+    else if( has_rng ){
+      // Only left ranged auxiliary variables to skip
+      next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
+      take_rng = true;
+    }
+    else{
+      // Only left quadratic auxiliary variables to skip
+      next_aux_idx = grb_idx_aux_qvar[ q_count ];
+      take_rng = false;
+    }
+    
+    if(next_aux_idx <= new_idx){
+      // Index must be skipped
+      ++new_idx;
+      if( take_rng ){
+        ++rng_count;
+      } 
+      else{
+        ++q_count;
+      }
+    }
+    else{
+      // We can return the index
+      break;
+    }
   }
 
  return( new_idx );
  }
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -1425,56 +1714,15 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
  if( idx == Inf< int >() )
   return( idx );
 
- int n_ranged_con = map_rng_con_aux_var.size();
- bool is_qcp = ( numquadrows > 0 );
- 
- if( ( ! is_qcp ) && ( n_ranged_con != 0 ) ) {
-  int tmp_count = last_static_rng_con + 1;
-    while( ( idx >= map_rng_con_aux_var[ tmp_count ].second ) &&
-           ( tmp_count < n_ranged_con ) ) {
-      ++tmp_count;
-      ++idx;
-    }
-  }
- else if( is_qcp && ( n_ranged_con == 0 ) ) {
-  // Simply "jump" quadratic constraints auxiliary variables
-  // We can use the cpx_idx_aux_qvar vector, containing all the indices
-  // of auxiliary variables already sorted.
-  int count = 0;
-  while( ( grb_idx_aux_qvar[ count ] < idx ) &&
-         ( count < grb_idx_aux_qvar.size() ) ) {
-    ++idx;
-    ++count;
-  }
- }
- else{
-  // We have to skip both
-  bool update_idx = 1;
-
-  int tmp_count = last_static_rng_con + 1;
-  auto it = lower_bound( grb_quad_var_aux.begin() , grb_quad_var_aux.end() , idx + 1 );
-  auto last_it = grb_quad_var_aux.begin();
-
-  while( update_idx ) {
-
-    if( ( tmp_count < n_ranged_con ) &&
-        ( idx >= map_rng_con_aux_var[ tmp_count ].second ) ) {
-      ++tmp_count;
-      ++idx;
-      it = lower_bound( last_it , grb_quad_var_aux.end() , idx + 1 );
-    }
-    else if( it != grb_quad_var_aux.end() ) {
-      ++idx;
-      last_it = it + 1;
-      it = lower_bound( it + 1 , grb_quad_var_aux.end() , idx + 1 );
-    }
-    else
-      update_idx = 0;
-  }
- }
-
-  return( idx );
- }
+ // resolve the true Gurobi column of the ( dynamic ) variable by skipping the
+ // aux var columns. this is exactly the same computation done for any variable,
+ // hence it is delegated to grb_index_of_variable( int ), which walks the whole
+ // set of aux vars ( ranged + quadratic ) merged by ascending column index. an
+ // earlier version started the ranged scan at last_static_rng_con as an
+ // "optimization", which both mis-counts the static ranged aux vars and reads
+ // map_rng_con_aux_var[ -1 ] when no static ranged constraint exists
+ return( grb_index_of_variable( idx ) );
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -1498,9 +1746,11 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
 
   // Simply "jump" quadratic constraints 
   // NOTE: if the quadratic constraint has a linear part (see GRBMILPSolver.h:660)
-  // we are building also linear constraint. Thus, we will need to "jump"
+  // we are building also linear constraint. Thus, to retrieve the Gurobi 
+  // index of the linear constraint, we will need to "jump"
   // only quadratic constraint without a linear part, i.e. for which an 
-  // auxiliary variable has not been built.
+  // linear constraint has not been built. This is beacuse Gurobi keeps separate
+  // index sets for both linear and quadratic constraints.
   auto new_idx = idx;
   for( int j = 0 ; j < idx ; j++ ) {
     if( ( ! q_part[ j ].empty() ) && ( grb_quad_var_aux[ j ] == -1 ) ) {
@@ -1668,21 +1918,40 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
     
     if( is_rng ) {
      // we are modifying a previously ranged constraint into a non-ranged one.
-     // We allow this to happen, but we have to set the bound on the auxiliary
-     // variable to 0
+     // We allow this to happen, but we have to fix the auxiliary slack
+     // variable to 0 (UB = 0), so that the equality  a'x + s = rhs  reduces
+     // to  a'x = rhs  (rngval is not even defined on this non-ranged branch)
      int idx_aux_var = ( *it_rng ).second;
-     GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , rngval );
+     GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , 0.0 );
     }
    }
    else{
-    // GRBMILPSolver doesn't support change in linear constraint sense from
-    // non-ranged to ranged
-    if( ! is_rng )
-      throw( std::invalid_argument( "Tried to convert a non-ranged constraint "
-                                    "into a ranged one. GRBMILPSolver does not "
-                                    "support this function." ) );
-    
-    int idx_aux_var = ( *it_rng ).second;
+    int idx_aux_var;
+
+    if( ! is_rng ) {
+     // convert a non-ranged constraint into a ranged one. Gurobi has no
+     // "range" sense to set on an existing row: it models a ranged
+     // constraint  lhs <= a'x <= rhs  as the equality  a'x + s = rhs  with
+     // an auxiliary slack variable s in [ 0 , rhs - lhs ] (the same
+     // representation GRBaddrangeconstr() produces, see the loading code and
+     // the already-ranged case just below: sense '=', row RHS = rhs, slack
+     // UB = rngval). Add that slack, give it a +1 coefficient in this row,
+     // and record the ( constraint , aux var ) pair so that the solution and
+     // dual extraction keep skipping the slack column.
+     GRBupdatemodel( model );  // so that NUMVARS is current
+     GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , & idx_aux_var );
+     GRBaddvar( model , 0 , nullptr , nullptr , 0.0 , 0.0 , rngval ,
+                GRB_CONTINUOUS , nullptr );
+     double one = 1.0;
+     GRBchgcoeffs( model , 1 , & index , & idx_aux_var , & one );
+     // the map is kept sorted by aux var index (ascending), as the
+     // solution/dual extraction walks it together with the column index; the
+     // new slack has the largest index so far, hence it goes at the back
+     map_rng_con_aux_var.push_back( { index , idx_aux_var } );
+     }
+    else
+     idx_aux_var = ( *it_rng ).second;
+
     GRBsetcharattrelement( model , GRB_CHAR_ATTR_SENSE , index , GRB_EQUAL );
     GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , rngval );
     GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
@@ -1856,7 +2125,10 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
 
-   //GRBupdatemodel( model );
+   // flush the pending attribute changes: attribute queries only see the
+   // model as of the last update, so a later read-modify-write of the same
+   // coefficients would otherwise fetch stale values and lose this change
+   GRBupdatemodel( model );
    return;
    }
 
@@ -1915,12 +2187,12 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      auto cidx = grb_index_of_variable( static_cast< const ColVariable * >( v ) );
      *(cidxit++) = cidx ;
-      
+
      // Retrieve old linear coefficient
      double oldlinval;
      GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit ); 
+     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
 
      // quadratic coefficients need be changed one at a time
      double q_delta = std::get< 1 >( *dcoeffit );
@@ -1933,8 +2205,11 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    nval.resize( nsz );
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidxs.size() , cidxs.data() , nval.data());
-   
-   //GRBupdatemodel( model );
+
+   // flush the pending attribute changes: attribute queries only see the
+   // model as of the last update, so a later read-modify-write of the same
+   // coefficients would otherwise fetch stale values and lose this change
+   GRBupdatemodel( model );
    return;
    }
   else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
@@ -1958,12 +2233,12 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      int cidx = grb_index_of_variable( dynamic_cast< ColVariable * >( v ) );
      *(cidxit++) = cidx;
-      
+
      // Retrieve old linear coefficient
      double oldlinval;
      GRBgetdblattrelement( model , GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit ); 
+     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
 
      // quadratic coefficients need be changed one at a time
      double q_delta = std::get< 1 >( *dcoeffit );
@@ -2419,7 +2694,6 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
 
  int nzcnt = lf->get_num_active_var();
 
- int n_ranged_con = map_rng_con_aux_var.size();
  std::array< int , 2 > rmatbeg = { 0 , nzcnt };
  std::vector< int > rmatind;
  rmatind.reserve( nzcnt );
@@ -2465,12 +2739,21 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
                   rmatval.data() , sense , rhs ,
                   NULL );
  else{
-   // Filling map between ranged constraint and auxiliary variables built by Gurobi
-   // See GRBMILPSolver.h for further information
-   map_rng_con_aux_var.push_back( { numrows - 1 , numcols + n_ranged_con } );
-   GRBaddrangeconstr( model , rmatind.size() , rmatind.data() , 
+   GRBaddrangeconstr( model , rmatind.size() , rmatind.data() ,
                          rmatval.data() , lhs , rhs ,
                          NULL );
+   // Filling map between ranged constraint and auxiliary variables built by
+   // Gurobi. See GRBMILPSolver.h for further information. The aux var column is
+   // read from the model ( it is the last one, as GRBaddrangeconstr appends it )
+   // rather than derived from numcols + n_ranged_con, which is fragile once the
+   // column layout has been perturbed by deletions or runtime conversions.
+   GRBupdatemodel( model );
+   int aux_idx;
+   GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , & aux_idx );
+   --aux_idx;
+   // the new aux var has the largest column index, so the map stays sorted
+   // ascending by .second when the entry is appended at the back
+   map_rng_con_aux_var.push_back( { numrows - 1 , aux_idx } );
   }
 
  GRBupdatemodel( model );
@@ -2542,46 +2825,47 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 
  int n_ranged_con = map_rng_con_aux_var.size();
  if( n_ranged_con != 0 ) {
-  // find if con is a ranged constraint
-  auto it_rng = std::find_if( map_rng_con_aux_var.begin() + last_static_rng_con + 1, 
+  // find if con is a ranged constraint. the whole map is scanned (rather than
+  // only the dynamic tail starting at last_static_rng_con + 1) because a
+  // constraint converted from non-ranged to ranged at runtime records a
+  // low ( static ) row index but its aux var sits at the end of the columns,
+  // so its map entry may not be ordered by .first
+  auto it_rng = std::find_if( map_rng_con_aux_var.begin(),
       map_rng_con_aux_var.end(), [&index]( std::pair< int , int > const& elem ) {
       return( elem.first == index );
     });
   bool is_rng = ( it_rng != map_rng_con_aux_var.end() ); // 0 isn't a ranged constraint
 
-  // The element ( index , aux_var ) has to be removed from the map and also the 
+  // The element ( index , aux_var ) has to be removed from the map and also the
   // auxiliary variable has to be removed from the Gurobi model
   if( is_rng ) {
     int index_aux_var = (*it_rng).second;
     GRBdelvars( model , 1 , &index_aux_var );
     map_rng_con_aux_var.erase( it_rng );
+    map_rng_con_aux_var.shrink_to_fit();
 
-    // Update map : find the first pair with idx aux var greater than index
-    auto it_rng_var = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
-      [&index_aux_var]( std::pair< int , int > const& elem ) {
-      return( elem.second > index_aux_var );
-    });
-    // Update map : decrease the idx of aux var
-    while( it_rng_var != map_rng_con_aux_var.end() ) {
-      --( *it_rng_var ).second;
-      ++it_rng_var;
-    }
+    // deleting the aux column shifts every higher column down by one: the map
+    // is kept sorted by .second, so decrease the aux var index of all the
+    // entries whose column comes after the removed one
+    for( auto & elem : map_rng_con_aux_var )
+      if( elem.second > index_aux_var )
+        --elem.second;
   }
 
-  // Update map : find the first pair with idx con greater than index
-  auto it_rng_s = std::find_if( map_rng_con_aux_var.begin() + last_static_rng_con + 1,
-      map_rng_con_aux_var.end(), [&index]( std::pair< int , int > const& elem ) {
-      return( elem.first > index );
-    });
-  // Update map : decrease the idx of rng con
-  while( it_rng_s != map_rng_con_aux_var.end() ) {
-    --( *it_rng_s ).first;
-    ++it_rng_s;
-  }
+  // deleting the constraint row shifts every higher row down by one. the map
+  // is not necessarily sorted by .first ( see above ), hence each entry whose
+  // row comes after the removed one is decreased individually
+  for( auto & elem : map_rng_con_aux_var )
+    if( elem.first > index )
+      --elem.first;
  }
 
  GRBdelconstrs( model , 1 , &index );
  GRBupdatemodel( model );
+
+ // NOTE: at the moment there is no need of checking the quadratic structures,
+ // as we only allow quadratic static constraints. Hence, all the modification
+ // done to dynamic constraints do not impact the quadratic constraints indices.
 
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::remove_dynamic_constraint( con );
@@ -2591,24 +2875,22 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 
 void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
+ // true Gurobi column of the variable, with the aux var columns skipped
  int index = grb_index_of_dynamic_variable( var );
- int n_ranged_con = map_rng_con_aux_var.size();
 
- if( n_ranged_con != 0 ) {
- // Update map : find the first pair with idx aux var greater than index
-  auto it_rng = std::find_if( map_rng_con_aux_var.begin(), map_rng_con_aux_var.end(), 
-      [&index]( std::pair< int , int > const& elem ) {
-      return( elem.second > index );
-    });
-  // Update map : decrease the idx of aux var
-  while( it_rng != map_rng_con_aux_var.end() ) {
-    --( *it_rng ).second;
-    ++it_rng;
-  }
- }
+ // deleting that column shifts every higher column down by one: the map is
+ // kept sorted by .second, so decrease the aux var index of all the entries
+ // whose column comes after the removed one
+ for( auto & elem : map_rng_con_aux_var )
+  if( elem.second > index )
+   --elem.second;
 
  GRBdelvars( model , 1 , &index );
  GRBupdatemodel( model );
+
+ // NOTE: at the moment there is no need of checking the quadratic structures,
+ // as we only allow quadratic static constraints. Hence, all the modification
+ // done to dynamic variables do not impact the quadratic indices.
 
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::remove_dynamic_variable( var );
@@ -2720,11 +3002,16 @@ int GRBMILPSolver::callback( GRBmodel *model,
     if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
      throw( std::runtime_error( "Unable to lock the Block" ) );
 
-    // get the solution of the relaxation
-    std::vector< double > x( numcols );
-    if( GRBcbget( cbdata , where, GRB_CB_MIPNODE_REL , x.data() ) )
+    // get the solution of the relaxation: on top of the columns of the
+    // Block the model has the auxiliary variables of the ranged constraints
+    // and of the quadratic terms, and GUROBI writes all of them, so the
+    // buffer has to be as long as the model and not as the Block
+    std::vector< double > x_grb( numcols + map_rng_con_aux_var.size()
+                                 + grb_idx_aux_qvar.size() );
+    if( GRBcbget( cbdata , where, GRB_CB_MIPNODE_REL , x_grb.data() ) )
      throw( std::runtime_error(
         "Unable to get the solution with GRB_CB_MIPNODE_REL" ) );
+    std::vector< double > x( x_grb.begin() , x_grb.begin() + numcols );
     // GRBcbsolution( cbdata, x.data() , nullptr);
 
     // write it in the Variable of the Block
@@ -2779,11 +3066,14 @@ int GRBMILPSolver::callback( GRBmodel *model,
    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
     throw( std::runtime_error( "Unable to lock the Block" ) );
 
-   // get the feasible solution
-   std::vector< double > x( numcols );
-   if( GRBcbget( cbdata , where , GRB_CB_MIPSOL_SOL, x.data() ) )
+   // get the feasible solution, in a buffer as long as the model: see the
+   // MIPNODE case above for why the columns of the Block are not enough
+   std::vector< double > x_grb( numcols + map_rng_con_aux_var.size()
+                                + grb_idx_aux_qvar.size() );
+   if( GRBcbget( cbdata , where , GRB_CB_MIPSOL_SOL, x_grb.data() ) )
     throw( std::runtime_error(
        "Unable to get the solution with GRB_CB_MIPSOL_SOL" ) );
+   std::vector< double > x( x_grb.begin() , x_grb.begin() + numcols );
 
    // write it in the Variable of the Block
    MILPSolver::write_var_solution( x );
@@ -3117,7 +3407,7 @@ void GRBMILPSolver::add_mip_starts(
  // Loop over each MIP start
  for( int i = 0; i < nstarts; ++i ) {
   // Set the number of the MIP start provided
-  GRBsetintparam( env , GRB_INT_PAR_STARTNUMBER , i );
+  GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_STARTNUMBER , i );
 
   // Loop over each provided value
   for( int j = 0; j < varidxs[ i ].size(); ++j ) {
@@ -3275,10 +3565,13 @@ std::string GRBMILPSolver::grb_dbl_par_map( idx_type par ) const
 
 void GRBMILPSolver::set_par( idx_type par , int value )
 {
- if( par == intCutSepPar ) {
-  CutSepPar = value;
-  return;
-  }
+ // intCutSepPar is now handled by MILPSolver base
+
+ // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
+ // separation loop logging) before letting Gurobi consume it through the
+ // mapping below
+ if( par == intLogVerb )
+  log_verbosity = value;
 
  if( par == intMaxIter ) { // intMaxIter is an int parameter in sms++ but a double in Gurobi
   set_par( par , (double)value );
@@ -3287,7 +3580,13 @@ void GRBMILPSolver::set_par( idx_type par , int value )
 
  std::string gp = grb_int_par_map( par );
  if( gp.size() > 0 ) {
+  // the master env is inherited by any model created later; a model that
+  // already exists has its own env copy, unaffected by changes to the
+  // master, so the parameter has to be pushed there too (otherwise a config
+  // applied after load_problem() is silently ignored by the actual solve)
   GRBsetintparam( env , gp.c_str() , value );
+  if( model )
+   GRBsetintparam( GRBgetenv( model ) , gp.c_str() , value );
   return;
   }
  //else
@@ -3311,7 +3610,10 @@ void GRBMILPSolver::set_par( idx_type par , double value )
  gp = grb_dbl_par_map( par );
 
  if( gp.size() > 0 ) {
+  // see the note in the int overload: also reach the live model's env
   GRBsetdblparam( env , gp.data() , value );
+  if( model )
+   GRBsetdblparam( GRBgetenv( model ) , gp.data() , value );
   return;
   }
 
@@ -3331,7 +3633,10 @@ void GRBMILPSolver::set_par( idx_type par , std::string && value )
  // GUROBI parameters
  if( ( par >= strFirstGUROBIPar ) && ( par < strLastAlgParGRBS ) ) {
   std::string gurobi_par = SMSpp_to_GUROBI_str_pars[ par - strFirstGUROBIPar ];
+  // see the note in the int overload: also reach the live model's env
   GRBsetstrparam( env , gurobi_par.data() , value.c_str() );
+  if( model )
+   GRBsetstrparam( GRBgetenv( model ) , gurobi_par.data() , value.c_str() );
   return;
   }
 
@@ -3427,13 +3732,13 @@ Solver::idx_type GRBMILPSolver::get_num_vstr_par( void ) const {
 
 int GRBMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( 0 );
+ // intCutSepPar is now handled by MILPSolver base
 
  std::string gp = grb_int_par_map( par );
  if( gp.size() > 0 ) {
-   int value;
-   GRBgetintparam( env , gp.data() , & value );
+  int value;
+  // see the note in the double overload
+  if( ! GRBgetintparam( env , gp.data() , & value ) )
    return( value );
   }
 
@@ -3452,8 +3757,10 @@ double GRBMILPSolver::get_dflt_dbl_par( idx_type par ) const
  std::string gp = grb_dbl_par_map( par );
  if( gp.size() > 0 ) {
   double value;
-  GRBgetdblparam( env , gp.data() , & value );
-  return( value );
+  // only the value of a call that succeeded means anything: GUROBI leaves
+  // it untouched otherwise, and using it would set the parameter to garbage
+  if( ! GRBgetdblparam( env , gp.data() , & value ) )
+   return( value );
   }
 
  return( MILPSolver::get_dflt_dbl_par( par ) );
@@ -3511,13 +3818,13 @@ const std::vector< std::string > & GRBMILPSolver::get_dflt_vstr_par(
 
 int GRBMILPSolver::get_int_par( idx_type par ) const
 {
- if( par == intCutSepPar )
-  return( CutSepPar );
+ // intCutSepPar is now handled by MILPSolver base
 
  std::string gp = grb_int_par_map( par );
-  if( gp.size() > 0 ) {
-   int value;
-   GRBgetintparam( env , gp.data() , & value );
+ if( gp.size() > 0 ) {
+  int value;
+  // see the note in get_dflt_dbl_par()
+  if( ! GRBgetintparam( env , gp.data() , & value ) )
    return( value );
   }
 
@@ -3536,8 +3843,9 @@ double GRBMILPSolver::get_dbl_par( idx_type par ) const
  std::string gp = grb_dbl_par_map( par );
  if( gp.size() > 0 ) {
   double value;
-  GRBgetdblparam( env , gp.data() , & value );
-  return( value );
+  // see the note in get_dflt_dbl_par()
+  if( ! GRBgetdblparam( env , gp.data() , & value ) )
+   return( value );
   }
 
  return( MILPSolver::get_dbl_par( par ) );
@@ -3585,8 +3893,7 @@ const std::vector< std::string > & GRBMILPSolver::get_vstr_par( idx_type par )
 Solver::idx_type GRBMILPSolver::int_par_str2idx(
 					     const std::string & name ) const
 {
- if( name == "intCutSepPar" )
-  return( intCutSepPar );
+ // intCutSepPar is now handled by MILPSolver::int_par_str2idx()
 
  /* In GRBMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
 
@@ -3613,11 +3920,8 @@ Solver::idx_type GRBMILPSolver::int_par_str2idx(
 
 const std::string & GRBMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::array< std::string , 1 > _pars =
-                     { "intCutSepPar" };
-
- if( idx == intCutSepPar )
-  return( _pars[ 0 ] );
+ // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
+ // fall-through at the end of this method)
 
  // note: this implementation is not thread safe, and it requires that the
  //       result is used immediately after the call (prior to any other call
@@ -3771,17 +4075,34 @@ const std::string & GRBMILPSolver::vstr_par_idx2str( idx_type idx ) const
 
 void GRBMILPSolver::check_status( void )
 {
- int nvars;
- GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , &nvars );
- if( numcols != nvars )
-  DEBUG_LOG( "numcols is " << numcols << " but GRB_INT_ATTR_NUMVARS returns "
-	     << nvars << std::endl );
+ int grb_nvars;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , &grb_nvars );
+ int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ int exp_nvars = numcols + n_ranged_con + n_aux_quad_var;
+ if( exp_nvars != grb_nvars )
+  DEBUG_LOG( "total number of expected variable is " << exp_nvars 
+	     << " but GRB_INT_ATTR_NUMVARS returns " << grb_nvars << std::endl );
 
- int nconstr;
- GRBgetintattr( model , GRB_INT_ATTR_NUMCONSTRS , &nconstr );
- if( numrows != nconstr )
-  DEBUG_LOG( "numrows is " << numrows << " but GRB_INT_ATTR_NUMCONSTRS returns "
-	     << nconstr << std::endl );
+ // Number of linear constraints in Gurobi
+ int grb_nconstrlin;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMCONSTRS , &grb_nconstrlin );
+
+ // Retrieve true number of linear constraint in SMS++. We have to consider that
+ // for some quadratic constraints we also add an auxiliary linear constraint 
+ // (see GRBMILPSolver.h:660).
+ int exp_nconstrlin = numrows - numquadrows + n_aux_quad_var;
+ if( exp_nconstrlin != grb_nconstrlin  )
+  DEBUG_LOG( "total number of expected linear constraint is " << exp_nconstrlin
+       <<  " but GRB_INT_ATTR_NUMCONSTRS returns " << grb_nconstrlin << std::endl );
+
+ // Number of quadratic constraints in Gurobi
+ int grb_nconstrquad;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMQCONSTRS , &grb_nconstrquad );
+
+ if( numquadrows != grb_nconstrquad  )
+  DEBUG_LOG( "total number of expected quadratic constraint is " << numquadrows
+       <<  " but GRB_INT_ATTR_NUMQCONSTRS returns " << grb_nconstrquad << std::endl );
 
  int nbin , nint;
  GRBgetintattr( model , GRB_INT_ATTR_NUMINTVARS , &nint );

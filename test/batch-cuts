@@ -2,6 +2,8 @@
 
 iter=3
 
+test_cuts=${1:-./test_cuts}
+
 for size in 10 50; do
   for (( seed = 0 ; seed < 20 ; seed++ )); do
 
@@ -11,7 +13,7 @@ for size in 10 50; do
       printf "[$seed $size $iter]: "
     fi
 
-    ./test_cuts $seed $size $iter
+    "$test_cuts" $seed $size $iter
 
     retVal=$?
     if [ $retVal -ne 0 ]; then

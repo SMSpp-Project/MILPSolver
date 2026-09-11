@@ -53,6 +53,10 @@ SW_RELEASE = -O3 -DNDEBUG
 # compiler
 CC = clang++
 
+# switches: the debug and release targets override these, but a specific
+# *_pars target can be requested directly, and it needs them as well
+SW = $(COMMON_SW) $(SW_RELEASE)
+
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 default: release
@@ -67,21 +71,44 @@ release: SW = $(COMMON_SW) $(SW_RELEASE)
 
 # include the makefiles of the individual *_pars- - - - - - - - - - - - - - -
 # if you are not interested in some of them, just comment them away here
+#
+# If a specific target is requested, only include the makefile(s) strictly
+# needed for that target, so that missing optional dependencies do not prevent
+# building the requested parser.
 
-# cpx_pars
-include $(DIR)/makefile_cpx
-
-# grb_pars
-include $(DIR)/makefile_grb
-
-# highs_pars
-include $(DIR)/makefile_highs
-
-# scip_pars
-include $(DIR)/makefile_scip
+# no explicit target, or generic targets requiring all pars
+ifeq ($(strip $(MAKECMDGOALS)),)
+    include $(DIR)/makefile_cpx
+    include $(DIR)/makefile_grb
+    include $(DIR)/makefile_highs
+    include $(DIR)/makefile_scip
+    include $(DIR)/makefile_pips
+else ifneq ($(filter default debug release clean distclean,$(MAKECMDGOALS)),)
+    include $(DIR)/makefile_cpx
+    include $(DIR)/makefile_grb
+    include $(DIR)/makefile_highs
+    include $(DIR)/makefile_scip
+    include $(DIR)/makefile_pips
+else
+    ifneq ($(filter cpx_pars,$(MAKECMDGOALS)),)
+		include $(DIR)/makefile_cpx
+	endif
+	ifneq ($(filter grb_pars,$(MAKECMDGOALS)),)
+		include $(DIR)/makefile_grb
+	endif
+	ifneq ($(filter highs_pars,$(MAKECMDGOALS)),)
+		include $(DIR)/makefile_highs
+	endif
+	ifneq ($(filter scip_pars,$(MAKECMDGOALS)),)
+		include $(DIR)/makefile_scip
+	endif
+	ifneq ($(filter pips_pars,$(MAKECMDGOALS)),)
+		include $(DIR)/makefile_pips
+	endif
+endif
 
 # collate all (defined) executables
-NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS)
+NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS) $(PIPS_PARS)
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

@@ -15,16 +15,22 @@
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 cmake_policy(VERSION 3.15)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DeriveVersion.cmake)
+smspp_derive_version(SMSPP_MODULE_VERSION)
+
 project(MILPSolver
-        VERSION 0.8.0
+        VERSION ${SMSPP_MODULE_VERSION}
         DESCRIPTION "SMS++ MILPSolver module"
         HOMEPAGE_URL https://gitlab.com/smspp/milpsolver
         LANGUAGES C CXX)
 
 # These variables make the code harder to read but easier to change.
 set(modName ${PROJECT_NAME})
+
+# C-safe form of modName for the preprocessor macros in <modName>Config.h
+string(MAKE_C_IDENTIFIER "${modName}" modMacro)
 set(modNamespace "SMS++")
 
 # Find out if it's being called by the umbrella.
@@ -49,6 +55,7 @@ option(MILPSolver_USE_CPLEX "Whether MILPSolver will use CPLEX or not." ON)
 option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." ON)
 option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
+option(MILPSolver_USE_PIPS "Whether MILPSolver will use PIPS-IPM++ or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -94,6 +101,15 @@ if (MILPSolver_USE_HiGHS)
     endif ()
 endif ()
 
+if (MILPSolver_USE_PIPS)
+    # Needed for PIPSMILPSolver
+    # PIPS-IPM++ exposes no version number, so none can be checked here
+    find_package(PIPS)
+    if (NOT PIPS_FOUND)
+        set(MILPSolver_USE_PIPS OFF)
+    endif ()
+endif ()
+
 # ----- Subdirectories ------------------------------------------------------ #
 add_subdirectory(tools)
 
@@ -101,11 +117,44 @@ add_subdirectory(tools)
 # This will generate a *Config.h header in the build directory.
 configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
 
+# ----- RPATH --------------------------------------------------------------- #
+# The installed libraries and executables look for the libraries of the same
+# installation relative to their own location, so that the installed tree can
+# be moved as a whole; the directories of the external libraries are kept.
+include(GNUInstallDirs)
+if (NOT CMAKE_INSTALL_RPATH)
+    if (APPLE)
+        set(rpathOrigin "@loader_path")
+    else ()
+        set(rpathOrigin "$ORIGIN")
+    endif ()
+    file(RELATIVE_PATH binToLib ${CMAKE_INSTALL_FULL_BINDIR}
+            ${CMAKE_INSTALL_FULL_LIBDIR})
+    set(CMAKE_INSTALL_RPATH "${rpathOrigin}" "${rpathOrigin}/${binToLib}")
+endif ()
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 # ----- Library ------------------------------------------------------------- #
 # With the BUILD_SHARED_LIBS variable we can specify if the library will
 # be STATIC or SHARED, so no reason to do it now.
 add_library(${modName})
 target_compile_features(${modName} PUBLIC cxx_std_17)
+
+# The name of the shared library carries the version of its binary interface,
+# which any minor release may change while the major version is 0, and then
+# any major release.
+if (PROJECT_VERSION_MAJOR EQUAL 0)
+    set(soVersion ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
+else ()
+    set(soVersion ${PROJECT_VERSION_MAJOR})
+endif ()
+set_target_properties(${modName} PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${soVersion})
+
+if (MSVC AND BUILD_SHARED_LIBS)
+    target_link_options(${modName} INTERFACE "/INCLUDE:SMSpp_force_load_${modName}")
+endif ()
 
 # Ensure that the executables from /tools are run before adding the /include
 # directory to generate the necessary *_defs.h and *_maps.h files of the correct
@@ -133,6 +182,7 @@ target_sources(${modName} PRIVATE src/MILPSolver.cpp)
 target_include_directories(
         ${modName} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
         $<INSTALL_INTERFACE:include/${modNamespace}>)
 
 # When linking other targets to the library with target_link_libraries(),
@@ -166,15 +216,19 @@ if (MILPSolver_USE_HiGHS)
     target_link_libraries(${modName} PUBLIC HiGHS::HiGHS)
 endif ()
 
+if (MILPSolver_USE_PIPS)
+    message(STATUS "MILPSolver: PIPS-IPM++ found, configuring PIPSMILPSolver")
+    target_sources(${modName} PRIVATE src/PIPSMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC PIPS::PIPS)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
 
 # ----- Subdirectories ------------------------------------------------------ #
 if (BUILD_TESTING)
-    add_subdirectory(test_cuts)
-    add_subdirectory(test_dual)
-    add_subdirectory(test_dynamic)
+    add_subdirectory(test)
 endif ()
 
 # ----- Install instructions ------------------------------------------------ #
@@ -218,6 +272,12 @@ if (MILPSolver_USE_HiGHS)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "HiGHS*")
+endif ()
+
+if (MILPSolver_USE_PIPS)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "PIPS*")
 endif ()
 
 # Install the auto-generated configuration header (see above).
@@ -268,8 +328,8 @@ install(FILES
 # dynamic loading will look into it.
 if (hasParent)
     set(SMSPP_BUILD_RPATH
-        "${SMSPP_BUILD_RPATH};${CMAKE_CURRENT_BINARY_DIR}"
-        PARENT_SCOPE)
+            "${SMSPP_BUILD_RPATH};${CMAKE_CURRENT_BINARY_DIR}"
+            PARENT_SCOPE)
 endif ()
 
 # ----- Packaging support --------------------------------------------------- #
@@ -284,9 +344,9 @@ if (NOT hasParent)
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_LIST_DIR}/LICENSE")
     set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_LIST_DIR}/README.md")
     set(CPACK_SOURCE_IGNORE_FILES
-        \\\\.git/
-        \\\\.gitignore$
-        \\\\.gitattributes$)
+            \\\\.git/
+            \\\\.gitignore$
+            \\\\.gitattributes$)
     include(CPack)
 endif ()
 

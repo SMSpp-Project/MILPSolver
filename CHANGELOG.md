@@ -13,6 +13,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [0.9.0] - 2026-09-12
+
+### Added
+
+- PIPSMILPSolver, providing the interface with the parallel
+  interior-point solver PIPS-IPM++ (LP problems, Linux only),
+  plus the pips\_pars header-generator tool
+
+### Changed
+
+- the version of the module is the git tag of its repository, or the
+  VERSION.txt of a release tarball, and the shared library carries it: its
+  SONAME is major.minor while the major is 0, and it is installed with an
+  RPATH relative to itself, so that an installed tree keeps working wherever
+  it is moved
+
+### Fixed
+
+- CPXMILPSolver read `cpx_idx_aux_qvar` past its end in
+  `get_var_solution()` and in `cpx_index_of_dynamic_variable()`, which
+  crashes on a QCP model whose quadratic constraints have no linear part,
+  since those are handed to CPLEX as they are and no auxiliary variable is
+  built for them, leaving that vector empty
+
+- GRBMILPSolver::get_lb() returned minus infinity for a continuous problem
+  that GUROBI solved without a branch-and-bound, OBJBOUND being undefined
+  there: where the solve ended optimal, the optimal value is the bound
+
+- the callback of GRBMILPSolver read the solution into a buffer as long as
+  the columns of the Block, while the model also has the auxiliary variables
+  of the ranged constraints and of the quadratic terms and GUROBI writes all
+  of them: the heap was corrupted past the end of the buffer, which then
+  crashed inside GUROBI itself. It only showed with the integer variables
+  on, the callback being called only in a MIP context
+
+- FindCPLEX, FindGUROBI and FindSCIP compute ARCH when it is not given, as for
+  a module built on its own or a project using the installed one, where the
+  umbrella does not set it
 
 ## [0.8.0] - 2025-12-12
 
@@ -211,7 +249,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.8.0...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...develop
+[0.9.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.8.0...0.9.0
 [0.8.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.7.1...0.8.0
 [0.7.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.7.0...0.7.1
 [0.7.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.6.0...0.7.0

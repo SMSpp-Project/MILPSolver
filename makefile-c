@@ -49,6 +49,9 @@ include $(MILPSSDR)/../extlib/makefile-libSCIP
 # include makefile for libHiGHS
 include $(MILPSSDR)/../extlib/makefile-libHiGHS
 
+# include makefile for libPIPS
+include $(MILPSSDR)/../extlib/makefile-libPIPS
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -63,5 +66,11 @@ MILPSINC := $(MILPSINC) $(SMS++INC) $(libCPLEXINC) $(libGUROBIINC) \
 # external libraries for MILPSolver
 MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB) \
 	$(libSCIPLIB)
+
+# append PIPS-IPM++ flags only when its source tree is available
+ifneq ($(wildcard $(PIPSROOT)/Core/Interface/PIPSIPMppInterface.hpp),)
+    MILPSINC := $(MILPSINC) $(libPIPSINC)
+    MILPSLIB := $(MILPSLIB) $(libPIPSLIB)
+endif
 
 ############################ End of makefile #################################

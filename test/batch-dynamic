@@ -1,6 +1,8 @@
-#/usr/bin bash
+#!/usr/bin/env bash
 
 #iter=10
+
+test_dynamic=${1:-./test_dynamic}
 
 for what in 31 63 127 255; do
   for size in 3 10 50; do
@@ -13,7 +15,7 @@ for what in 31 63 127 255; do
           printf "[$seed $what $size $dens $iter]: "
         fi
 
-        ./DynamicLP_test $seed $what $size $dens $iter
+        "$test_dynamic" $seed $what $size $dens $iter
 
         retVal=$?
         if [ $retVal -ne 0 ]; then

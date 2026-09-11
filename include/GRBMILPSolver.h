@@ -93,9 +93,8 @@ class GRBMILPSolver : public MILPSolver {
 
  /// enum for integer parameters
  enum int_par_type_GRBS {
-  ///< parameter for deciding if/when cut separation is done
-  intCutSepPar = intLastAlgParMILP ,
-  intFirstGUROBIPar ,  ///< first Gurobi int/long parameter
+  // note: intCutSepPar has moved to MILPSolver base (enum int_par_type_MILP)
+  intFirstGUROBIPar = intLastAlgParMILP ,  ///< first Gurobi int/long parameter
   /// first allowed new int parameter for derived classes
   intLastAlgParGRBS = intFirstGUROBIPar + GRB_NUM_INT_PARS
   };
@@ -160,8 +159,9 @@ class GRBMILPSolver : public MILPSolver {
  /// sets the Block that the Solver has to solve and initializes Gurobi
  void set_Block( Block * block ) override;
 
- /// optimizes the problem with Gurobi
- int compute( bool changedvars = false ) override;
+ // note: the public compute() entry point is inherited from MILPSolver;
+ // GRBMILPSolver implements only the Gurobi-specific solve in
+ // guts_of_compute() below (protected)
 
  /// returns a valid lower bound on the optimal objective function value
  OFValue get_lb( void ) override;
@@ -189,6 +189,14 @@ class GRBMILPSolver : public MILPSolver {
 
  /// writes the current unbounded direction in the Block
  void get_var_direction( Configuration * dirc = nullptr ) override;
+
+ /** The following methods provide access to dual information of the
+ *  current solution.
+ *
+ *  Note: When using Gurobi, the parameter InfUnbdInfo must be set to 1
+ *  to make this information available. Otherwise, SMS++ will return
+ *  false when such information is requested.
+ */
 
  /// tells whether a dual solution is available
  bool has_dual_solution( void ) override;
@@ -297,11 +305,6 @@ void add_mip_starts(
   *
   *   bit 2 : 1 (+4) if separation of lazy constraints is performed each time
   *           a feasible solution is generated
-  *
-  *   bit 3-4: encode user cuts aggressiveness settings:
-  *            0 (+0) for moderate cut generation.
-  *            1 (+8) for aggressive cut generation.
-  *            2 (+16) for very aggressive cut generation.
   *
   *   See vintCutSepCfgInd for properly setting Configurations for the
   *   corresponding calls to generate_dynamic_constraint(). */
@@ -541,6 +544,16 @@ void add_mip_starts(
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
+
+ /// Gurobi back-end solve, called by MILPSolver::compute()
+ /** Performs the actual Gurobi optimisation. Locking, Modification
+  * processing and the LP cut-separation loop (intRelaxIntVars == 2) are
+  * all handled by MILPSolver::compute(). */
+
+ int guts_of_compute( void ) override;
+
+/*--------------------------------------------------------------------------*/
+
  /** @name Get variable bounds for the problem
   *
   * The following two methods retrieve the upper and lower bound for the
@@ -655,9 +668,7 @@ void add_mip_starts(
 
  bool f_callback_set;  // true if the callback has been set
 
- /** bitwise-encoded parameter for deciding if and when separation of user
-  * cuts and lazy constraints is performed */
- unsigned char CutSepPar;
+ // note: CutSepPar is now an inherited member of MILPSolver base
 
  /** vector containing the indices of the Configuration for the various
   * user cuts / lazy constraints separations in the "Configuration DB" */
@@ -702,6 +713,11 @@ void add_mip_starts(
   *                   variable at the end of the model. Thus, the new couple
   *                   ( idx_rng_con , idx_aux_var ) will have values greater than the
   *                   previously added ones. 
+  * 
+  *   IMPORTANT NOTE2: Gurobi does not add auxiliary variables until GRBupdatemodel() 
+  *                   is called. Since we only call it at the end of the loading phase,
+  *                   we assume that all auxiliary ranged variables are located in
+  *                   the last columns of the Gurobi matrix.
   * */
  // the vector of pair ( ranged constraint - axiliary variable )
  std::vector<std::pair < int , int >> map_rng_con_aux_var;
