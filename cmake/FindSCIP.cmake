@@ -32,6 +32,23 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
+# ----- Architecture -------------------------------------------------------- #
+# The umbrella project sets ARCH, but neither a module built on its own nor a
+# project using an installed module does, so it is computed here if missing.
+if (NOT ARCH)
+    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+        if (WIN32)
+            set(ARCH x64)
+        elseif (APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+            set(ARCH arm64)
+        else ()
+            set(ARCH x86-64)
+        endif ()
+    else ()
+        set(ARCH x86)
+    endif ()
+endif ()
+
 # ----- Find SCIP directories and lib suffixes ----------------------------- #
 # Based on the OS generate:
 # - a list of possible SCIP directories
