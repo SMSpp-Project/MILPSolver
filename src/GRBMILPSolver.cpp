@@ -3085,7 +3085,16 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  }
 
  GRBdelconstrs( model , 1 , &index );
- f_model_dirty = true;
+
+ /* Gurobi queues a deletion like any other change: until the model is
+  * updated the row indices it accepts are still the ones before it, while
+  * the dictionaries above have been renumbered already, so every later
+  * index-based write would land one row off, and the shift accumulates.
+  * Deferring the update is what makes a stream of changes cheap, but a
+  * deletion is rare and cannot be deferred. */
+
+ GRBupdatemodel( model );
+ f_model_dirty = false;
 
  // NOTE: at the moment there is no need of checking the quadratic structures,
  // as we only allow quadratic static constraints. Hence, all the modification
@@ -3110,7 +3119,12 @@ void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
    --elem.second;
 
  GRBdelvars( model , 1 , &index );
- f_model_dirty = true;
+
+ // a queued deletion leaves the column indices as they were, so it is made
+ // effective here [see remove_dynamic_constraint()]
+
+ GRBupdatemodel( model );
+ f_model_dirty = false;
 
  // NOTE: at the moment there is no need of checking the quadratic structures,
  // as we only allow quadratic static constraints. Hence, all the modification
