@@ -680,7 +680,16 @@ void add_mip_starts(
   * GRBupdatemodel(), so anything that reads the model back has to go
   * through this rather than through \p model: changing the model only
   * records that there is something to digest, and the update is done here,
-  * once, when it is actually needed. */
+  * once, when it is actually needed.
+  *
+  * The other half of the bargain is that EVERY method changing the model
+  * has to say so by setting f_model_dirty, since nothing else does it for
+  * it, and that a method reading the model back in the middle of its own
+  * changes has to set it again afterwards, because the read consumes the
+  * mark. A deletion is the one change that cannot be deferred at all: the
+  * indices GUROBI accepts are the ones before it until the model is
+  * updated, so the three methods deleting a row or a column update on the
+  * spot and clear the mark [see remove_dynamic_constraint()]. */
  GRBmodel * updated_model( void ) const;
 
 /*--------------------------------------------------------------------------*/

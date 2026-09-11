@@ -1886,6 +1886,8 @@ void GRBMILPSolver::var_modification( const VariableMod * mod )
     GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx , bd[ 1 ] );
     }
   }
+ // the model has changed, GUROBI will digest it at the first read
+ f_model_dirty = true;
  }  // end( GRBMILPSolver::var_modification )
 
 /*--------------------------------------------------------------------------*/
@@ -1911,6 +1913,8 @@ void GRBMILPSolver::objective_modification( const ObjectiveMod * mod )
               "GRBMILPSolver::objective_modification: "
               "invalid type of ObjectiveMod" ) );
   }
+ // the model has changed, GUROBI will digest it at the first read
+ f_model_dirty = true;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2033,7 +2037,11 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
     GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , rngval );
     GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
    }
-   
+
+   // the query above consumed the mark, and everything after it changed the
+   // model again [see add_dynamic_constraint() for the same pattern]
+   f_model_dirty = true;
+
    break;
 
   default:
@@ -2041,6 +2049,10 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
               "GRBMILPSolver::const_modification: "
               "invalid type of ConstraintMod" ) );
   }
+
+ // the model has changed, GUROBI will digest it at the first read
+ f_model_dirty = true;
+
  }  // end( GRBMILPSolver::const_modification )
 
 /*--------------------------------------------------------------------------*/
@@ -2099,6 +2111,8 @@ void GRBMILPSolver::bound_modification( const OneVarConstraintMod * mod )
               "GRBMILPSolver::bound_modification: "
               "invalid type of OneVarConstraintMod" ) );
   }
+ // the model has changed, GUROBI will digest it at the first read
+ f_model_dirty = true;
  }  // end( GRBMILPSolver::bound_modification )
 
 /*--------------------------------------------------------------------------*/
@@ -2442,6 +2456,8 @@ void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
  // --------------------------------------------------------------------------
  // reload_constraint( lf );
 
+ // the model has changed, GUROBI will digest it at the first read
+ f_model_dirty = true;
  }  // end( GRBMILPSolver::constraint_function_modification )
 
 /*--------------------------------------------------------------------------*/
@@ -2975,6 +2991,7 @@ void GRBMILPSolver::add_dynamic_constraints(
               std::to_string( rc ) ) );
 
  GRBupdatemodel( model );
+ f_model_dirty = false;
 
  }  // end( GRBMILPSolver::add_dynamic_constraints )
 
@@ -3035,6 +3052,8 @@ void GRBMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 
  GRBsetdblattrelement( model , GRB_DBL_ATTR_LB , idx , bd[ 0 ] );
  GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx , bd[ 1 ] );
+ // the model has changed, GUROBI will digest it at the first read
+ f_model_dirty = true;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -3156,6 +3175,8 @@ void GRBMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 
  GRBsetdblattrelement( model , GRB_DBL_ATTR_LB , idx , bd[ 0 ] );
  GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx , bd[ 1 ] );
+ // the model has changed, GUROBI will digest it at the first read
+ f_model_dirty = true;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -3688,6 +3709,8 @@ void GRBMILPSolver::add_mip_starts(
     GRBsetdblattrelement( model , GRB_DBL_ATTR_START , new_idx , varvalues[ i ][ j ] );
    }
   }
+ // the model has changed, GUROBI will digest it at the first read
+ f_model_dirty = true;
  }
 
 /*--------------------------------------------------------------------------*/
