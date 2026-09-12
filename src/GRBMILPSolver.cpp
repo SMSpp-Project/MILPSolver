@@ -26,6 +26,7 @@
 
 #include <queue>
 #include <iostream>
+#include <thread>
 
 #include <LinearFunction.h>
 
@@ -49,6 +50,21 @@
 /*--------------------------------------------------------------------------*/
 
 using namespace SMSpp_di_unipi_it;
+
+/*--------------------------------------------------------------------------*/
+/*----------------------------- CONSTANTS ----------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+namespace {
+
+/// how many times the start of the environment is attempted
+/** How many times the start of the Gurobi environment is attempted when the
+ * license service refuses it for a transient reason, the wait between two
+ * attempts doubling up to 30 seconds. */
+
+constexpr unsigned int GRBenvTrials = 8;
+
+}  // end( anonymous namespace )
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- FACTORY MANAGEMENT ----------------------------*/
@@ -92,12 +108,29 @@ GRBMILPSolver::GRBMILPSolver( void ) :
  // mirroring CPLEX where CPXdualfarkas() needs no prior opt-in
  GRBsetintparam( env , GRB_INT_PAR_INFUNBDINFO , 1 );
 
- status = GRBstartenv( env );
- if( status != 0 )
-  throw( std::runtime_error(
-             "GRBMILPSolver::GRBMILPSolver: "
-             "GRBstartenv returned with status " +
-             std::to_string( status ) ) );
+ // starting the environment contacts the license service, which can refuse
+ // the request for reasons that have nothing to do with this process (the
+ // network, or too many sessions of the same license at the same moment);
+ // since a refusal here kills a computation that may have been running for
+ // hours, the request is repeated a few times before giving up
+ for( unsigned int trial = 0 ; ; ) {
+  status = GRBstartenv( env );
+  if( status == 0 )
+   break;
+
+  if( ( ++trial >= GRBenvTrials ) ||
+      ( ( status != GRB_ERROR_NETWORK ) &&
+        ( status != GRB_ERROR_JOB_REJECTED ) &&
+        ( status != GRB_ERROR_CSWORKER ) &&
+        ( status != GRB_ERROR_NO_LICENSE ) ) )
+   throw( std::runtime_error(
+              "GRBMILPSolver::GRBMILPSolver: "
+              "GRBstartenv returned with status " +
+              std::to_string( status ) ) );
+
+  std::this_thread::sleep_for( std::chrono::seconds(
+                                std::min( 1u << ( trial - 1 ) , 30u ) ) );
+  }
  }
 
 /*--------------------------------------------------------------------------*/
