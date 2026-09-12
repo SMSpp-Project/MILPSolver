@@ -830,13 +830,11 @@ int GRBMILPSolver::decode_model_status( int status )
    return( kError );
   case( GRB_SUBOPTIMAL ):
    // Unable to satisfy optimality tolerances; a sub-optimal solution is
-   // available. What this says is kLowPrecision, a solution with no promise
-   // attached, and returning that here would be more honest; it is not done
-   // because the status travels up: LagBFunction returns the one of the
-   // Solver of its inner Block verbatim, and BundleSolver reads
-   // kLowPrecision as an inexact oracle, which on the AC instances, whose
-   // QCP sub-problems routinely end here, breaks the whole Lagrangian chain
-   return( kOK );
+   // available, i.e., one with no accuracy promise attached, which is what
+   // kLowPrecision says; the status travels up, since LagBFunction returns
+   // the one of the Solver of its inner Block verbatim, and the callers
+   // read it as inexact information rather than as an error
+   return( kLowPrecision );
   case( GRB_INPROGRESS ):
    // An asynchronous optimization call was made, but the 
    // associated optimization run is not yet complete

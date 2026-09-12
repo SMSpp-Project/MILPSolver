@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- GRBMILPSolver maps GRB_SUBOPTIMAL to kLowPrecision rather than to kOK,
+  since a solution that does not satisfy the optimality tolerances carries
+  no accuracy promise; the callers that read the status of a component,
+  BundleSolver among them, take it as inexact information
+
 - the start of the Gurobi environment is retried, with a growing wait,
   when the license service refuses it for a transient reason, so that a
   long computation is not lost to a momentary refusal
