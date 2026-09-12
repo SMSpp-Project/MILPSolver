@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- the start of the Gurobi environment is retried, with a growing wait,
+  when the license service refuses it for a transient reason, so that a
+  long computation is not lost to a momentary refusal
+
 ### Fixed
 
 ## [0.9.0] - 2026-09-12
