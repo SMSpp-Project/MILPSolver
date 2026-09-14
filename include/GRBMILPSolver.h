@@ -632,6 +632,36 @@ void add_mip_starts(
  bool remove_columns( const std::vector< Variable * > & vars ,
                       const GroupModification * gmod ) override;
 
+ /// changes the linear coefficients of a whole group in one operation
+ /** The entries of the rows go out with one GRBchgcoeffs() and those of the
+  * Objective with one GRBsetdblattrlist(); for the Objective the old value
+  * of each column, which a change is a delta on, is read once for the whole
+  * group rather than once per Modification, and the deltas of a column that
+  * the group touches more than once are summed [see
+  * MILPSolver::change_coefficients()]. */
+
+ bool change_coefficients(
+               const std::vector< const FunctionMod * > & mods ) override;
+
+ /// writes the bounds of a whole group in one operation
+ /** One GRBsetdblattrlist() for the lower bounds and one for the upper ones,
+  * with the value of each of them computed exactly as it is when the
+  * Modification arrive one by one [see MILPSolver::change_bounds()]. */
+
+ bool change_bounds(
+        const std::vector< const OneVarConstraintMod * > & mods ) override;
+
+ /// writes the sides of a whole group of rows in one operation
+ /** One GRBsetcharattrlist() for the senses and one GRBsetdblattrlist() for
+  * the right-hand sides. A row that is ranged, or that the change would make
+  * ranged, is not written here: GUROBI has no range sense to set on an
+  * existing row and models it with an auxiliary column, so the whole group
+  * goes back to the one-by-one path, which knows how to do that [see
+  * const_modification()]. */
+
+ bool change_sides(
+        const std::vector< const RowConstraintMod * > & mods ) override;
+
  /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
 

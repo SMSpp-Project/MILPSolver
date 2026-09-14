@@ -47,6 +47,8 @@
 
 #include <iostream>
 
+#include <functional>
+
 #include "MILPSolver.h"
 
 /*--------------------------------------------------------------------------*/
@@ -2289,40 +2291,138 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
 
 bool MILPSolver::process_group_modification( const GroupModification * gmod )
 {
- // the only shape the core describes for now is the column, and it says so
- // with the type of the group [see VariableGroupMod in Modification.h]
- auto vgm = dynamic_cast< const VariableGroupMod * >( gmod );
- if( ( ! vgm ) || vgm->vars().empty() )
-  return( false );
+ // the shape a group declares: the column, said by the type of the group
+ // [see VariableGroupMod in Modification.h]
+ if( auto vgm = dynamic_cast< const VariableGroupMod * >( gmod ) ;
+     vgm && ( ! vgm->vars().empty() ) ) {
 
- // a group is executed whole only if it contains nothing but the cascade
- // that the column operation subsumes, i.e. the Variable appearing or
- // disappearing and the coefficients that go with them: anything else in
- // there, a nested group included, is dealt with one Modification at a time
- int nstruct = 0;
- for( const auto & submod : gmod->sub_Modifications() ) {
-  auto psub = submod.get();
-  if( dynamic_cast< const BlockModAD * >( psub ) )
-   ++nstruct;
-  else
-   if( ! dynamic_cast< const FunctionModVars * >( psub ) )
+  // a group is executed whole only if it contains nothing but the cascade
+  // that the column operation subsumes, i.e. the Variable appearing or
+  // disappearing and the coefficients that go with them: anything else in
+  // there, a nested group included, is dealt with one Modification at a time
+  int nstruct = 0;
+  for( const auto & submod : gmod->sub_Modifications() ) {
+   auto psub = submod.get();
+   if( dynamic_cast< const BlockModAD * >( psub ) )
+    ++nstruct;
+   else
+    if( ! dynamic_cast< const FunctionModVars * >( psub ) )
+     return( false );
+   if( is_excluded( const_cast< Block * >( psub->get_Block() ) ) )
     return( false );
-  if( is_excluded( const_cast< Block * >( psub->get_Block() ) ) )
+   }
+
+  // without the Variable coming or going this is not a column operation, the
+  // type of the group notwithstanding
+  if( ! nstruct )
    return( false );
+
+  if( vgm->type() == VariableGroupMod::VariableAdded )
+   return( add_columns( vgm->vars() , gmod ) );
+
+  if( vgm->type() == VariableGroupMod::VariableDeleted )
+   return( remove_columns( vgm->vars() , gmod ) );
+
+  return( false );
   }
 
- // without the Variable coming or going this is not a column operation, the
- // type of the group notwithstanding
- if( ! nstruct )
-  return( false );
+ // the shapes a group need not declare, being recognisable from what it
+ // holds: changes of the linear coefficients, changes of the bounds of the
+ // columns and changes of the sides of the rows. A real cascade mixes them,
+ // one datum of a :Block being a coefficient here and a right-hand side
+ // there, so each kind is batched on its own and the order inside each of
+ // them is kept; between one kind and another there is no order to keep,
+ // they being different attributes of the model.
+ //
+ // A group may hold other groups [see Modification.h], and their leaves
+ // belong to the same batch as the others: the tree is walked in the order
+ // the Modification were issued, which is what makes a coefficient written
+ // twice end up with the value written last. Anything that is not one of
+ // the three kinds, a structural change or a group that declares a shape of
+ // its own, closes the batch: what has been collected so far is executed,
+ // then that Modification is dealt with on its own, then a new batch starts,
+ // since only that keeps the order between a change of a datum and a change
+ // of the structure the datum lives in
+ std::vector< const FunctionMod * > fmods;
+ std::vector< const OneVarConstraintMod * > bmods;
+ std::vector< const RowConstraintMod * > rmods;
 
- if( vgm->type() == VariableGroupMod::VariableAdded )
-  return( add_columns( vgm->vars() , gmod ) );
+ // executes what has been collected so far, each kind in one operation if
+ // the back-end can, one Modification at a time if it cannot
+ auto flush = [ & ]() {
+  if( ! fmods.empty() ) {
+   if( ! change_coefficients( fmods ) )
+    for( auto mod : fmods )
+     guts_of_process_modifications( const_cast< FunctionMod * >( mod ) );
+   fmods.clear();
+   }
 
- if( vgm->type() == VariableGroupMod::VariableDeleted )
-  return( remove_columns( vgm->vars() , gmod ) );
+  if( ! bmods.empty() ) {
+   if( ! change_bounds( bmods ) )
+    for( auto mod : bmods )
+     guts_of_process_modifications( const_cast< OneVarConstraintMod * >(
+                                                                  mod ) );
+   bmods.clear();
+   }
 
- return( false );
+  if( ! rmods.empty() ) {
+   if( ! change_sides( rmods ) )
+    for( auto mod : rmods )
+     guts_of_process_modifications( const_cast< RowConstraintMod * >( mod ) );
+   rmods.clear();
+   }
+  };
+
+ std::function< void( const GroupModification * ) > walk =
+  [ & ]( const GroupModification * grp ) {
+   for( const auto & submod : grp->sub_Modifications() ) {
+    auto psub = submod.get();
+
+    // a Modification of a sub-Block the user has asked to ignore is
+    // dropped, exactly as it is when it arrives alone
+    if( is_excluded( const_cast< Block * >( psub->get_Block() ) ) )
+     continue;
+
+    if( auto sgrp = dynamic_cast< const GroupModification * >( psub ) ) {
+     // a group that declares a shape of its own is asked whole, and what
+     // is collected goes out first, the shape being free to change the
+     // structure the collected changes are about
+     if( dynamic_cast< const VariableGroupMod * >( sgrp ) ) {
+      flush();
+      guts_of_process_modifications( const_cast< Modification * >( psub ) );
+      }
+     else
+      walk( sgrp );  // a plain group: its leaves are leaves of this one
+
+     continue;
+     }
+
+    if( auto fm = dynamic_cast< const C05FunctionModLin * >( psub ) ) {
+     fmods.push_back( fm );
+     continue;
+     }
+
+    // a bound is a OneVarConstraint, hence it is asked for before the rows
+    if( auto bm = dynamic_cast< const OneVarConstraintMod * >( psub ) ) {
+     bmods.push_back( bm );
+     continue;
+     }
+
+    if( auto rm = dynamic_cast< const RowConstraintMod * >( psub ) ) {
+     rmods.push_back( rm );
+     continue;
+     }
+
+    // anything else closes the batch and goes on its own
+    flush();
+    guts_of_process_modifications( const_cast< Modification * >( psub ) );
+    }
+   };
+
+ walk( gmod );
+ flush();
+
+ return( true );
 
  }  // end( MILPSolver::process_group_modification )
 

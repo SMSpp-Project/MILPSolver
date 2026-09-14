@@ -1459,9 +1459,10 @@ class MILPSolver : public CDASolver
   * as they are when they arrive alone.
   *
   * The implementation here recognises the shapes that the core describes and
-  * hands each of them to a method of its own [see add_columns() and
-  * remove_columns()], which is what a :MILPSolver overrides to turn the
-  * operation into one call of its own API. Since those answer false unless
+  * hands each of them to a method of its own [see add_columns(),
+  * remove_columns(), change_coefficients() and change_bounds()], which is
+  * what a :MILPSolver overrides to turn the operation into one call of its
+  * own API. Since those answer false unless
   * overridden, a back-end that does nothing keeps exactly the behaviour it
   * has today.
   *
@@ -1508,6 +1509,60 @@ class MILPSolver : public CDASolver
 
  virtual bool remove_columns( const std::vector< Variable * > & vars ,
                               const GroupModification * gmod ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// changes the linear coefficients of \p mods in one operation
+ /** Called when a group contains nothing but changes of the linear
+  * coefficients of some Function, which is what a :Block issues when one
+  * datum of it enters many rows, or many entries of the same row: each of
+  * them is a Modification of its own, and the model has to be told all of
+  * them, but it can be told once [see process_group_modification()].
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the changes have to be made one at a time as usual.
+  *
+  * @param mods the changes, in the order they were issued
+  * @return true if the changes have been made */
+
+ virtual bool change_coefficients(
+                     const std::vector< const FunctionMod * > & mods ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// changes the bounds of \p mods in one operation
+ /** The counterpart of change_coefficients() for the bounds: a group of
+  * OneVarConstraintMod, which is what a :Block issues when it fixes or frees
+  * a whole set of Variable at once.
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the bounds have to be written one at a time as usual.
+  *
+  * @param mods the changes, in the order they were issued
+  * @return true if the bounds have been written */
+
+ virtual bool change_bounds(
+              const std::vector< const OneVarConstraintMod * > & mods ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// changes the sides of the rows of \p mods in one operation
+ /** The counterpart of change_bounds() for the rows: a group of
+  * RowConstraintMod, which is what a :Block issues when one datum of it is
+  * the right-hand side of a whole vector of Constraint, one per time
+  * instant.
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the sides have to be written one at a time as usual.
+  *
+  * @param mods the changes, in the order they were issued
+  * @return true if the sides have been written */
+
+ virtual bool change_sides(
+              const std::vector< const RowConstraintMod * > & mods ) {
   return( false );
   }
 

@@ -26,6 +26,7 @@
 
 #include <queue>
 #include <iostream>
+#include <map>
 #include <thread>
 
 #include <LinearFunction.h>
@@ -3327,6 +3328,251 @@ bool GRBMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
  return( true );
 
  }  // end( GRBMILPSolver::remove_columns )
+
+/*--------------------------------------------------------------------------*/
+
+bool GRBMILPSolver::change_coefficients(
+                          const std::vector< const FunctionMod * > & mods )
+{
+ // nothing is written until the whole group has been read, so that a group
+ // that turns out not to be a plain change of coefficients can still be
+ // handed back to the one-by-one path
+
+ // the entries of the rows, as the ( row , column , value ) triples GUROBI
+ // takes in one call
+ std::vector< int > rows , cols;
+ std::vector< double > vals;
+
+ // the Objective, where a change is a delta on what the column has
+ std::vector< int > ocols;
+ std::vector< double > odeltas;
+
+ for( auto mod : mods ) {
+  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+  if( ! modl )
+   return( false );
+
+  auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+  if( ! lf )
+   return( false );
+
+  Subset idxs;
+  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+   idxs = lf->map_index( modl->vars() , modlr->range() );
+  else
+   if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+    idxs = lf->map_index( modl->vars() , modls->subset() );
+   else
+    return( false );
+
+  auto obs = lf->get_Observer();
+
+  if( auto con = dynamic_cast< const FRowConstraint * >( obs ) ) {
+   auto row = grb_index_of_linear_constraint( con );
+   if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
+    continue;                 // what the handler does with it one by one
+
+   auto & cp = lf->get_v_var();
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
+    if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
+     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+     rows.push_back( row );
+     cols.push_back( grb_index_of_variable( var ) );
+     vals.push_back( cp[ idx ].second );
+     }
+
+   continue;
+   }
+
+  if( dynamic_cast< const Objective * >( obs ) ) {
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
+    if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
+     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+     ocols.push_back( grb_index_of_variable( var ) );
+     odeltas.push_back( modl->delta()[ i ] );
+     }
+
+   continue;
+   }
+
+  return( false );  // a Function of something this Solver does not have
+  }
+
+ if( ! rows.empty() )
+  GRBchgcoeffs( model , rows.size() , rows.data() , cols.data() ,
+                vals.data() );
+
+ if( ! ocols.empty() ) {
+  // the old value of a column is read once for the whole group, and the
+  // deltas of a column the group touches more than once are summed: the
+  // result is the one the Modification give one at a time, where each of
+  // them reads back what the previous one has written
+  auto grbmodel = updated_model();
+  std::map< int , double > newval;
+  for( Block::Index i = 0 ; i < ocols.size() ; ++i ) {
+   auto it = newval.find( ocols[ i ] );
+   if( it == newval.end() ) {
+    double oldval;
+    GRBgetdblattrelement( grbmodel , GRB_DBL_ATTR_OBJ , ocols[ i ] ,
+                          & oldval );
+    newval[ ocols[ i ] ] = oldval + odeltas[ i ];
+    }
+   else
+    it->second += odeltas[ i ];
+   }
+
+  std::vector< int > oidx;
+  std::vector< double > oval;
+  oidx.reserve( newval.size() );
+  oval.reserve( newval.size() );
+  for( const auto & el : newval ) {
+   oidx.push_back( el.first );
+   oval.push_back( el.second );
+   }
+
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , oidx.size() , oidx.data() ,
+                     oval.data() );
+  }
+
+ f_model_dirty = true;
+
+ return( true );
+
+ }  // end( GRBMILPSolver::change_coefficients )
+
+/*--------------------------------------------------------------------------*/
+
+bool GRBMILPSolver::change_bounds(
+                   const std::vector< const OneVarConstraintMod * > & mods )
+{
+ std::vector< int > lidx , uidx;
+ std::vector< double > lval , uval;
+
+ for( auto mod : mods ) {
+  auto con = static_cast< OneVarConstraint * >( mod->constraint() );
+  auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
+  if( ! var )  // this should never happen
+   continue;   // but in case, there is nothing to do
+
+  // a fixed Variable has its bounds used to fix it, so a change of the
+  // bounds is ignored, exactly as it is one by one [see bound_modification()]
+  if( var->is_fixed() )
+   continue;
+
+  auto vi = grb_index_of_variable( var );
+  if( vi == Inf< int >() )  // the ColVariable has been removed
+   continue;
+
+  switch( mod->type() ) {
+
+   case( RowConstraintMod::eChgLHS ):
+    lidx.push_back( vi );
+    lval.push_back( GRBMILPSolver::get_problem_lb( *var ) );
+    break;
+
+   case( RowConstraintMod::eChgRHS ):
+    uidx.push_back( vi );
+    uval.push_back( GRBMILPSolver::get_problem_ub( *var ) );
+    break;
+
+   case( RowConstraintMod::eChgBTS ): {
+    auto bd = GRBMILPSolver::get_problem_bounds( *var );
+    lidx.push_back( vi );
+    lval.push_back( bd[ 0 ] );
+    uidx.push_back( vi );
+    uval.push_back( bd[ 1 ] );
+    break;
+    }
+
+   default:  // nothing has been written yet, so the group can still be
+    return( false );  // taken apart and each of them throw on its own
+   }
+  }
+
+ if( ! lidx.empty() )
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_LB , lidx.size() , lidx.data() ,
+                     lval.data() );
+
+ if( ! uidx.empty() )
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_UB , uidx.size() , uidx.data() ,
+                     uval.data() );
+
+ f_model_dirty = true;
+
+ return( true );
+
+ }  // end( GRBMILPSolver::change_bounds )
+
+/*--------------------------------------------------------------------------*/
+
+bool GRBMILPSolver::change_sides(
+                      const std::vector< const RowConstraintMod * > & mods )
+{
+ std::vector< int > idxs;
+ std::vector< char > senses;
+ std::vector< double > rhss;
+
+ for( auto mod : mods ) {
+  switch( mod->type() ) {
+   case( RowConstraintMod::eChgLHS ):
+   case( RowConstraintMod::eChgRHS ):
+   case( RowConstraintMod::eChgBTS ):
+    break;
+   default:  // relaxing and enforcing a Constraint is not a side, and
+    return( false );  // nothing has been written yet
+   }
+
+  auto con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+  if( ! con )  // this should not happen
+   return( false );
+
+  auto index = grb_index_of_linear_constraint( con );
+  if( index == Inf< int >() )  // the FRowConstraint is not (yet?) there,
+   continue;                   // which is what the handler does one by one
+
+  // a row that is ranged already, or that these sides would make ranged,
+  // takes an auxiliary column and is left to the one-by-one path
+  if( std::find_if( map_rng_con_aux_var.begin() , map_rng_con_aux_var.end() ,
+                    [ index ]( const std::pair< int , int > & el ) {
+                     return( el.first == index );
+                     } ) != map_rng_con_aux_var.end() )
+   return( false );
+
+  auto con_lhs = con->get_lhs();
+  auto con_rhs = con->get_rhs();
+
+  if( con_lhs == con_rhs ) {
+   senses.push_back( GRB_EQUAL );
+   rhss.push_back( con_rhs );
+   }
+  else
+   if( con_lhs == -Inf< double >() ) {
+    senses.push_back( GRB_LESS_EQUAL );
+    rhss.push_back( con_rhs );
+    }
+   else
+    if( con_rhs == Inf< double >() ) {
+     senses.push_back( GRB_GREATER_EQUAL );
+     rhss.push_back( con_lhs );
+     }
+    else  // it would become a ranged row
+     return( false );
+
+  idxs.push_back( index );
+  }
+
+ if( ! idxs.empty() ) {
+  GRBsetcharattrlist( model , GRB_CHAR_ATTR_SENSE , idxs.size() ,
+                      idxs.data() , senses.data() );
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_RHS , idxs.size() , idxs.data() ,
+                     rhss.data() );
+  }
+
+ f_model_dirty = true;
+
+ return( true );
+
+ }  // end( GRBMILPSolver::change_sides )
 
 /*--------------------------------------------------------------------------*/
 

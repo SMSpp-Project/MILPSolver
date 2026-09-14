@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `for_each_row_addition()`, which walks a Modification and the groups inside
   it looking for additions of FRowConstraint
 
+- the shapes that a group need not declare, recognised from what it holds:
+  changes of the linear coefficients, of the bounds of the columns and of the
+  sides of the rows, each batched on its own and in the order they were
+  issued, with `change_coefficients()`, `change_bounds()` and
+  `change_sides()` to execute them (virtual, answering false unless a
+  back-end implements them, GRBMILPSolver implementing all three). Groups
+  nest, so the leaves of a group inside a group belong to the same batch,
+  while a structural change, or a group declaring a shape of its own, closes
+  the batch, is executed on its own and opens the next one
+
 ### Fixed
 
 - the scan of `perform_separation()`, in all four back-ends, which looked for
