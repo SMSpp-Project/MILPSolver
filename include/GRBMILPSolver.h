@@ -34,6 +34,8 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <mutex>
+
 #include <gurobi_c.h>
 
 #include "MILPSolver.h"
@@ -745,13 +747,50 @@ void add_mip_starts(
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
- GRBenv * env; ///< Gurobi environment
+ GRBenv * env; ///< Gurobi environment, shared by all the GRBMILPSolver
+ /**< Every environment is a session of the licence and a round trip to the
+  * licence service, so one per Solver does not scale: a decomposition with
+  * one component per Solver asks for as many sessions as there are
+  * components, and the service starts refusing them (status 10022, measured
+  * at around 700 components) well before the memory or the time do. The
+  * environment is therefore one for the whole process, created when the
+  * first GRBMILPSolver is built and released when the last one goes [see
+  * f_env_users]. What a Solver must keep to itself, i.e., the parameters,
+  * lives in the environment of its own model, which GUROBI gives each model
+  * as a copy [see apply_env_parameters()]. */
  GRBmodel * model;   ///< Gurobi LP problem
+
+ /// the parameters set on this Solver, to be given to its model
+ /**< A parameter can be set before the model exists; the environment being
+  * shared, it cannot wait there, for every other Solver would be given it,
+  * so it waits here and reaches the model as soon as that is created [see
+  * apply_env_parameters()]. */
+ std::map< std::string , int > f_int_pars;
+ std::map< std::string , double > f_dbl_pars;
+ std::map< std::string , std::string > f_str_pars;
 
  /// true if the model has changes GUROBI has not digested yet
  mutable bool f_model_dirty = false;
 
  bool f_callback_set;  // true if the callback has been set
+
+ /// how many GRBMILPSolver are using the shared environment
+ static unsigned int f_env_users;
+
+ /// the shared environment itself, and the lock that guards its life
+ static GRBenv * f_shared_env;
+ static std::mutex f_env_mutex;
+
+/*--------------------------------------------------------------------------*/
+ /// gives the model of this Solver the parameters this Solver was given
+ /** The environment being shared, a parameter cannot wait there for the
+  * model to be created: it waits in f_int_pars, f_dbl_pars and f_str_pars
+  * and this gives all of them to the environment of the model, together with
+  * the two the class sets on its own (the log, which stays off, and
+  * INFUNBDINFO, which keeps the certificates of infeasibility available).
+  * Called right after the model is created. */
+
+ void apply_env_parameters( void );
 
  // note: CutSepPar is now an inherited member of MILPSolver base
 

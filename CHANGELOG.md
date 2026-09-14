@@ -76,6 +76,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when the license service refuses it for a transient reason, so that a
   long computation is not lost to a momentary refusal
 
+- the Gurobi environment is one for the whole process, created by the first
+  GRBMILPSolver and released by the last one, since every environment is a
+  session of the license and one per Solver does not scale: a decomposition
+  with one component per Solver has the license service refuse the sessions
+  it asks for. What a Solver keeps to itself, i.e., the parameters, lives in
+  the environment of its own model, which is where `set_par()` writes them
+  and where they are read back from
+
+- the errors that have nothing to do with the model being solved, i.e., the
+  license service unreachable or refusing the request, are returned as
+  kError by GRBMILPSolver instead of being thrown, so that whoever asked
+  decides what to do with a computation that may have been running for hours
+
 - relaxed-integer LP cut-separation loop (`intRelaxIntVars == 2`) is
   now driven by the base `compute()`
 
