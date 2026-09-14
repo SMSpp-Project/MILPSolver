@@ -152,8 +152,20 @@ set_target_properties(${modName} PROPERTIES
         VERSION ${PROJECT_VERSION}
         SOVERSION ${soVersion})
 
-if (MSVC AND BUILD_SHARED_LIBS)
-    target_link_options(${modName} INTERFACE "/INCLUDE:SMSpp_force_load_${modName}")
+# The classes of the module register themselves in the factory from a static
+# initialiser, and a linker that drops what looks unused takes the
+# registration away with it: the target tells whoever links it to keep the
+# symbol that forces the module in, or the library as a whole where naming
+# the symbol is not enough.
+if (BUILD_SHARED_LIBS)
+    if (MSVC)
+        target_link_options(${modName} INTERFACE
+                "/INCLUDE:SMSpp_force_load_${modName}")
+    elseif (UNIX AND (NOT APPLE))
+        # the ELF linker decides by the symbols a regular object asks for, so
+        # naming the symbol is not enough and the library has to be kept
+        target_link_options(${modName} INTERFACE "LINKER:--no-as-needed")
+    endif ()
 endif ()
 
 # Ensure that the executables from /tools are run before adding the /include
