@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   while a structural change, or a group declaring a shape of its own, closes
   the batch, is executed on its own and opens the next one
 
+- the same three shapes executed by CPXMILPSolver, with one `CPXchgcoeflist`
+  and one `CPXchgobj` for the coefficients, one `CPXchgbds` for the bounds
+  and one `CPXchgrhs` plus one `CPXchgsense` for the sides, and by
+  HiGHSMILPSolver, with the `*BySet` calls, whose sets have to be ordered and
+  without repetitions; `Highs_changeCoeff` has no batched form, so on HiGHS a
+  group of coefficients is executed one change at a time. SCIPMILPSolver
+  implements none of the three and keeps the behaviour it had
+
 ### Fixed
 
 - the scan of `perform_separation()`, in all four back-ends, which looked for

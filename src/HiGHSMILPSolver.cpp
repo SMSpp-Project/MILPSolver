@@ -24,6 +24,7 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <map>
 #include <queue>
 
 #include <LinearFunction.h>
@@ -1070,6 +1071,256 @@ void HiGHSMILPSolver::bound_modification( const OneVarConstraintMod * mod )
               "invalid type of OneVarConstraintMod" ) );
   }
  }  // end( HiGHSMILPSolver::bound_modification )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::change_coefficients(
+                          const std::vector< const FunctionMod * > & mods )
+{
+ // nothing is written until the whole group has been read, so that a group
+ // that turns out not to be a plain change of coefficients can still be
+ // handed back to the one-by-one path
+ std::vector< int > rows , cols;
+ std::vector< double > vals;
+
+ // the costs, where a change is a delta on what the column has
+ std::vector< int > ocols;
+ std::vector< double > odeltas;
+
+ for( auto mod : mods ) {
+  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+  if( ! modl )
+   return( false );
+
+  auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+  if( ! lf )
+   return( false );
+
+  Subset idxs;
+  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+   idxs = lf->map_index( modl->vars() , modlr->range() );
+  else
+   if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+    idxs = lf->map_index( modl->vars() , modls->subset() );
+   else
+    return( false );
+
+  auto obs = lf->get_Observer();
+
+  if( auto con = dynamic_cast< const FRowConstraint * >( obs ) ) {
+   auto row = index_of_constraint( con );
+   if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
+    continue;                 // what the handler does with it one by one
+
+   auto & cp = lf->get_v_var();
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
+    if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
+     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+     double value = cp[ idx ].second;
+
+     // HiGHS reads a coefficient in ( 0 , 1e-9 ] as a zero and drops the
+     // Variable from the row, so it is given the smallest value it keeps
+     if( ( value > 0 ) && ( value <= 1e-9 ) )
+      value = 2e-9;
+
+     rows.push_back( row );
+     cols.push_back( index_of_variable( var ) );
+     vals.push_back( value );
+     }
+
+   continue;
+   }
+
+  if( dynamic_cast< const Objective * >( obs ) ) {
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
+    if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
+     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+     ocols.push_back( index_of_variable( var ) );
+     odeltas.push_back( modl->delta()[ i ] );
+     }
+
+   continue;
+   }
+
+  return( false );  // a Function of something this Solver does not have
+  }
+
+ // HiGHS has no set-based call for the entries of the matrix, so those go
+ // one at a time, in the order they were issued
+ for( Block::Index i = 0 ; i < rows.size() ; ++i )
+  Highs_changeCoeff( highs , rows[ i ] , cols[ i ] , vals[ i ] );
+
+ if( ! ocols.empty() ) {
+  // the old cost of a column is read once for the whole group, and the
+  // deltas of a column the group touches more than once are summed: the
+  // result is the one the Modification give one at a time, where each of
+  // them reads back what the previous one has written
+  std::map< int , double > newval;
+  for( Block::Index i = 0 ; i < ocols.size() ; ++i ) {
+   auto it = newval.find( ocols[ i ] );
+   if( it == newval.end() ) {
+    double oldval;
+    int num_col , num_nz;
+    Highs_getColsByRange( highs , ocols[ i ] , ocols[ i ] , & num_col ,
+                          & oldval , NULL , NULL , & num_nz , NULL , NULL ,
+                          NULL );
+    newval[ ocols[ i ] ] = oldval + odeltas[ i ];
+    }
+   else
+    it->second += odeltas[ i ];
+   }
+
+  // the set has to be given ordered and without repetitions, which is what
+  // the map gives
+  std::vector< int > oidx;
+  std::vector< double > oval;
+  oidx.reserve( newval.size() );
+  oval.reserve( newval.size() );
+  for( const auto & el : newval ) {
+   oidx.push_back( el.first );
+   oval.push_back( el.second );
+   }
+
+  Highs_changeColsCostBySet( highs , oidx.size() , oidx.data() ,
+                             oval.data() );
+  }
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::change_coefficients )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::change_bounds(
+                   const std::vector< const OneVarConstraintMod * > & mods )
+{
+ // the bounds of a column are written as a pair, so the last word on a
+ // column the group touches more than once is the one that goes out, and
+ // the set has to be ordered and without repetitions [see
+ // Highs_changeColsBoundsBySet()]
+ std::map< int , std::array< double , 2 > > bnds;
+
+ for( auto mod : mods ) {
+  switch( mod->type() ) {
+   case( RowConstraintMod::eChgLHS ):
+   case( RowConstraintMod::eChgRHS ):
+   case( RowConstraintMod::eChgBTS ):
+    break;
+   default:  // nothing has been written yet, so the group can still be
+    return( false );  // taken apart and each of them throw on its own
+   }
+
+  auto con = static_cast< OneVarConstraint * >( mod->constraint() );
+  auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
+  if( ! var )  // this should never happen
+   continue;   // but in case, there is nothing to do
+
+  // a fixed Variable has its bounds used to fix it, so a change of the
+  // bounds is ignored, exactly as it is one by one [see bound_modification()]
+  if( var->is_fixed() )
+   continue;
+
+  auto vi = index_of_variable( var );
+  if( vi == Inf< int >() )  // the ColVariable has been removed
+   continue;
+
+  bnds[ vi ] = HiGHSMILPSolver::get_problem_bounds( *var );
+  }
+
+ if( bnds.empty() )
+  return( true );
+
+ std::vector< int > idxs;
+ std::vector< double > lo , up;
+ idxs.reserve( bnds.size() );
+ lo.reserve( bnds.size() );
+ up.reserve( bnds.size() );
+ for( const auto & el : bnds ) {
+  idxs.push_back( el.first );
+  lo.push_back( el.second[ 0 ] );
+  up.push_back( el.second[ 1 ] );
+  }
+
+ Highs_changeColsBoundsBySet( highs , idxs.size() , idxs.data() , lo.data() ,
+                              up.data() );
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::change_bounds )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::change_sides(
+                      const std::vector< const RowConstraintMod * > & mods )
+{
+ // as for the bounds, the sides of a row are written as a pair and the set
+ // has to be ordered and without repetitions
+ std::map< int , std::array< double , 2 > > sides;
+
+ for( auto mod : mods ) {
+  switch( mod->type() ) {
+   case( RowConstraintMod::eChgLHS ):
+   case( RowConstraintMod::eChgRHS ):
+   case( RowConstraintMod::eChgBTS ):
+    break;
+   default:  // relaxing and enforcing a Constraint is not a side, and
+    return( false );  // nothing has been written yet
+   }
+
+  auto con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+  if( ! con )  // this should not happen
+   return( false );
+
+  auto index = index_of_constraint( con );
+  if( index == Inf< int >() )  // the FRowConstraint is not (yet?) there,
+   continue;                   // which is what the handler does one by one
+
+  auto con_lhs = con->get_lhs();
+  auto con_rhs = con->get_rhs();
+
+  double lhs , rhs;
+  if( con_lhs == con_rhs ) {
+   lhs = con_rhs;
+   rhs = con_rhs;
+   }
+  else
+   if( con_lhs == -Inf< double >() ) {
+    lhs = -kHighsInf;
+    rhs = con_rhs;
+    }
+   else
+    if( con_rhs == Inf< double >() ) {
+     lhs = con_lhs;
+     rhs = kHighsInf;
+     }
+    else {
+     lhs = con_lhs;
+     rhs = con_rhs;
+     }
+
+  sides[ index ] = { lhs , rhs };
+  }
+
+ if( sides.empty() )
+  return( true );
+
+ std::vector< int > idxs;
+ std::vector< double > lo , up;
+ idxs.reserve( sides.size() );
+ lo.reserve( sides.size() );
+ up.reserve( sides.size() );
+ for( const auto & el : sides ) {
+  idxs.push_back( el.first );
+  lo.push_back( el.second[ 0 ] );
+  up.push_back( el.second[ 1 ] );
+  }
+
+ Highs_changeRowsBoundsBySet( highs , idxs.size() , idxs.data() , lo.data() ,
+                              up.data() );
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::change_sides )
 
 /*--------------------------------------------------------------------------*/
 

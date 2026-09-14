@@ -20,8 +20,13 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Donato Meoli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
  * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
- *                   Niccolo' Iardella
+ *                   Niccolo' Iardella,
+ *                   Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -580,6 +585,29 @@ class CPXMILPSolver : public MILPSolver {
 
  /// handles a bound (OneVarConstraint) Modification
  void bound_modification( const OneVarConstraintMod * mod ) override;
+
+ /// changes the linear coefficients of a whole group in one operation
+ /** The entries of the rows go out with one CPXchgcoeflist() and the costs
+  * with one CPXchgobj(), with the old cost of each column read once for the
+  * whole group and the deltas of a column the group touches more than once
+  * summed [see MILPSolver::change_coefficients()]. */
+
+ bool change_coefficients(
+               const std::vector< const FunctionMod * > & mods ) override;
+
+ /// writes the bounds of a whole group of columns in one operation
+ /** One CPXchgbds() for all of them [see MILPSolver::change_bounds()]. */
+
+ bool change_bounds(
+        const std::vector< const OneVarConstraintMod * > & mods ) override;
+
+ /// writes the sides of a whole group of rows in one operation
+ /** One CPXchgrhs(), one CPXchgsense() and, for the ranged rows, one
+  * CPXchgrngval(); relaxing and enforcing a Constraint are left to the
+  * one-by-one path [see MILPSolver::change_sides()]. */
+
+ bool change_sides(
+        const std::vector< const RowConstraintMod * > & mods ) override;
 
  /// handles a Function Modification applied to the Objective
  void objective_function_modification( const FunctionMod * mod ) override;

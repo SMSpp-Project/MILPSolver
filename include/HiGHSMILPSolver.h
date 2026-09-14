@@ -537,6 +537,31 @@ void add_mip_starts(
  /// handles a bound (OneVarConstraint) Modification
  void bound_modification( const OneVarConstraintMod * mod ) override;
 
+ /// changes the linear coefficients of a whole group in one operation
+ /** The costs go out with one Highs_changeColsCostBySet(), with the old cost
+  * of each column read once for the whole group and the deltas of a column
+  * the group touches more than once summed; the entries of the rows go one by
+  * one, HiGHS having no set-based call for them [see
+  * MILPSolver::change_coefficients()]. */
+
+ bool change_coefficients(
+               const std::vector< const FunctionMod * > & mods ) override;
+
+ /// writes the bounds of a whole group of columns in one operation
+ /** One Highs_changeColsBoundsBySet() for all of them [see
+  * MILPSolver::change_bounds()]. */
+
+ bool change_bounds(
+        const std::vector< const OneVarConstraintMod * > & mods ) override;
+
+ /// writes the sides of a whole group of rows in one operation
+ /** One Highs_changeRowsBoundsBySet() for all of them; relaxing and enforcing
+  * a Constraint are left to the one-by-one path [see
+  * MILPSolver::change_sides()]. */
+
+ bool change_sides(
+        const std::vector< const RowConstraintMod * > & mods ) override;
+
  /// handles a Function Modification applied to the Objective
  void objective_function_modification( const FunctionMod * mod ) override;
 
