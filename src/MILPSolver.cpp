@@ -2216,9 +2216,13 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
  if( is_excluded( const_cast< Block * >( mod->get_Block() ) ) )
   return;
 
- // for a GroupModification, re-dispatch itself to all the sub-Modification
+ // for a GroupModification, first ask whether the whole of it is one single
+ // operation of the back-end [see process_group_modification()]; only if it
+ // is not, re-dispatch itself to all the sub-Modification
  if( auto gm = dynamic_cast< const GroupModification * >( mod ) ) {
   // DEBUG_LOG( "GroupModification containing:" << std::endl );
+  if( process_group_modification( gm ) )
+   return;
   for( const auto & submod : gm->sub_Modifications() )
    guts_of_process_modifications( submod.get() );
   return;
@@ -2280,6 +2284,63 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
  // any other Modification is ignored
 
  }  // end( MILPSolver::guts_of_process_modifications )
+
+/*--------------------------------------------------------------------------*/
+
+bool MILPSolver::process_group_modification( const GroupModification * gmod )
+{
+ // the only shape the core describes for now is the column, and it says so
+ // with the type of the group [see VariableGroupMod in Modification.h]
+ auto vgm = dynamic_cast< const VariableGroupMod * >( gmod );
+ if( ( ! vgm ) || vgm->vars().empty() )
+  return( false );
+
+ // a group is executed whole only if it contains nothing but the cascade
+ // that the column operation subsumes, i.e. the Variable appearing or
+ // disappearing and the coefficients that go with them: anything else in
+ // there, a nested group included, is dealt with one Modification at a time
+ int nstruct = 0;
+ for( const auto & submod : gmod->sub_Modifications() ) {
+  auto psub = submod.get();
+  if( dynamic_cast< const BlockModAD * >( psub ) )
+   ++nstruct;
+  else
+   if( ! dynamic_cast< const FunctionModVars * >( psub ) )
+    return( false );
+  if( is_excluded( const_cast< Block * >( psub->get_Block() ) ) )
+   return( false );
+  }
+
+ // without the Variable coming or going this is not a column operation, the
+ // type of the group notwithstanding
+ if( ! nstruct )
+  return( false );
+
+ if( vgm->type() == VariableGroupMod::VariableAdded )
+  return( add_columns( vgm->vars() , gmod ) );
+
+ if( vgm->type() == VariableGroupMod::VariableDeleted )
+  return( remove_columns( vgm->vars() , gmod ) );
+
+ return( false );
+
+ }  // end( MILPSolver::process_group_modification )
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::for_each_row_addition( const Modification * mod ,
+ const std::function< void( const BlockModAdd< FRowConstraint > * ) > & f )
+{
+ if( auto gm = dynamic_cast< const GroupModification * >( mod ) ) {
+  for( const auto & submod : gm->sub_Modifications() )
+   for_each_row_addition( submod.get() , f );
+  return;
+  }
+
+ if( auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >( mod ) )
+  f( tmod );
+
+ }  // end( MILPSolver::for_each_row_addition )
 
 /*--------------------------------------------------------------------------*/
 

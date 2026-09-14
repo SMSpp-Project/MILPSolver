@@ -2449,13 +2449,8 @@ void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
 
  rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
 
- // main loop: check all new Modification for a Constraint addition
- for( ; it != v_mod.end() ; ++it ) {
-  // check if the Modification indicates an added FRowConstraint
-  auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >(
-        it->get() );
-  if( ! tmod )  // if not
-   continue;    // next
+ // what is done with each addition of rows, wherever it is found
+ auto add_rows = [ & ]( const BlockModAdd< FRowConstraint > * tmod ) {
 
   // add all the new constraint to the matrix, one by one
   for( auto con : tmod->added() ) {
@@ -2516,7 +2511,14 @@ void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
   rmatbeg.push_back( rmatind.size() ); */
 
   }  // end( for each added FRowConstraint )
- }  // end( main loop )
+  };
+
+ // main loop: check all new Modification for a Constraint addition,
+ // the rows of a Block that generates them inside a channel arriving
+ // grouped
+ for( ; it != v_mod.end() ; ++it )
+  for_each_row_addition( it->get() , add_rows );
+
 }  // end( HiGHSMILPSolver::perform_separation )
 
 /*--------------------------------------------------------------------------*/

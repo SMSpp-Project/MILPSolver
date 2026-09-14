@@ -613,6 +613,25 @@ void add_mip_starts(
  // no point in defining it, just calls the base class method
  // void dynamic_modification( const BlockModAD * mod ) override;
 
+ /// adds the whole column of each of the given Variable in one operation
+ /** A column that the "abstract" representation describes as one new
+  * ColVariable plus one coefficient change per row is here one GRBaddvar()
+  * per column and, for all of them together, one GRBchgcoeffs() and one
+  * GRBsetdblattrlist(): the entries are read from the sub-Modification of
+  * the group, exactly as the handlers read them one by one [see
+  * MILPSolver::add_columns()]. */
+
+ bool add_columns( const std::vector< Variable * > & vars ,
+                   const GroupModification * gmod ) override;
+
+ /// removes the whole column of each of the given Variable in one operation
+ /** Deleting a column takes its coefficients away with it, so the rows it
+  * appears in are not touched at all, which is what the group would
+  * otherwise ask for one row at a time [see MILPSolver::remove_columns()]. */
+
+ bool remove_columns( const std::vector< Variable * > & vars ,
+                      const GroupModification * gmod ) override;
+
  /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
 

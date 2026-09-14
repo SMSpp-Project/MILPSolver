@@ -3186,6 +3186,150 @@ void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
 
 /*--------------------------------------------------------------------------*/
 
+bool GRBMILPSolver::add_columns( const std::vector< Variable * > & vars ,
+                                 const GroupModification * gmod )
+{
+ // Modification are processed when the Solver gets to them, and by then the
+ // Block has moved on: what a coefficient is now is not what has to be
+ // written, which is why the entries are replayed from the group exactly as
+ // the handlers replay them one at a time [see
+ // constraint_fvars_modification() and objective_fvars_modification()]
+
+ // the entries of all the columns together, as the ( row , column , value )
+ // triples GUROBI takes in one call
+ std::vector< int > rows , cols;
+ std::vector< double > vals;
+
+ // the cost of each of the new columns, summed over the Objective it is
+ // given by: the Objective of the Block and those of its sub-Block are one
+ // objective function of the model
+ std::vector< double > cost( vars.size() , 0 );
+
+ // where a Variable of the group sits in vars, and Inf for any other one
+ auto pos_of = [ & vars ]( const Variable * var ) -> Block::Index {
+  for( Block::Index i = 0 ; i < vars.size() ; ++i )
+   if( vars[ i ] == var )
+    return( i );
+  return( Inf< Block::Index >() );
+  };
+
+ // first pass: read the group without touching the model, so that a group
+ // that turns out not to be a plain column can still be handed back
+ for( const auto & submod : gmod->sub_Modifications() ) {
+  auto fvm = dynamic_cast< const FunctionModVars * >( submod.get() );
+  if( ! fvm )  // the Variable coming in, which vars already says
+   continue;
+
+  if( ! fvm->added() )  // a removal inside an addition is not a column
+   return( false );
+
+  auto lf = dynamic_cast< const LinearFunction * >( fvm->function() );
+  if( ! lf )  // a column of something that is not linear is not a column
+   return( false );
+
+  auto nav = lf->get_num_active_var();
+  auto obs = lf->get_Observer();
+
+  if( dynamic_cast< const Objective * >( obs ) ) {
+   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( fvm );
+   if( ! modl )
+    return( false );
+
+   for( Block::Index i = 0 ; i < fvm->vars().size() ; ++i ) {
+    auto p = pos_of( fvm->vars()[ i ] );
+    if( p == Inf< Block::Index >() )  // a column that was there already, whose
+     return( false );          // cost has to be read back from the model
+    if( lf->is_active( static_cast< const ColVariable * >( fvm->vars()[ i ] )
+                       ) < nav )
+     cost[ p ] += modl->coeff()[ i ];
+    }
+   continue;
+   }
+
+  auto con = dynamic_cast< const FRowConstraint * >( obs );
+  if( ! con )  // a Function of something this Solver does not have
+   continue;
+
+  auto cidx = grb_index_of_linear_constraint( con );
+  if( cidx == Inf< int >() )
+   continue;
+
+  for( auto v : fvm->vars() ) {
+   auto var = static_cast< const ColVariable * >( v );
+   if( pos_of( var ) == Inf< Block::Index >() )  // as above, a column that was
+    return( false );                      // there already
+   auto k = lf->is_active( var );
+   rows.push_back( cidx );
+   cols.push_back( 0 );  // the index of the column, filled in below
+   vals.push_back( k < nav ? lf->get_coefficient( k ) : 0 );
+   }
+  }
+
+ // second pass: the columns themselves, each born empty with its bounds and
+ // its type, exactly as it is when the Modification arrive one by one
+ std::vector< int > vidx( vars.size() );
+ for( Block::Index i = 0 ; i < vars.size() ; ++i ) {
+  auto var = static_cast< const ColVariable * >( vars[ i ] );
+  add_dynamic_variable( var );
+  vidx[ i ] = grb_index_of_variable( var );
+  }
+
+ // third pass: the column index of each entry, now that the columns exist
+ {
+  Block::Index e = 0;
+  for( const auto & submod : gmod->sub_Modifications() ) {
+   auto fvm = dynamic_cast< const FunctionModVars * >( submod.get() );
+   if( ! fvm )
+    continue;
+   auto lf = dynamic_cast< const LinearFunction * >( fvm->function() );
+   if( ( ! lf ) || dynamic_cast< const Objective * >( lf->get_Observer() ) )
+    continue;
+   auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
+   if( ( ! con ) || ( grb_index_of_linear_constraint( con ) == Inf< int >() ) )
+    continue;
+   for( auto v : fvm->vars() )
+    cols[ e++ ] = vidx[ pos_of( v ) ];
+   }
+  }
+
+ if( ! rows.empty() )
+  GRBchgcoeffs( model , rows.size() , rows.data() , cols.data() ,
+                vals.data() );
+
+ std::vector< int > oidx;
+ std::vector< double > oval;
+ for( Block::Index i = 0 ; i < vars.size() ; ++i )
+  if( cost[ i ] != 0 ) {  // the column is born with a zero cost
+   oidx.push_back( vidx[ i ] );
+   oval.push_back( cost[ i ] );
+   }
+
+ if( ! oidx.empty() )
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , oidx.size() , oidx.data() ,
+                     oval.data() );
+
+ f_model_dirty = true;
+
+ return( true );
+
+ }  // end( GRBMILPSolver::add_columns )
+
+/*--------------------------------------------------------------------------*/
+
+bool GRBMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
+                                    const GroupModification * gmod )
+{
+ // deleting the column takes its coefficients away with it, so not one of
+ // the rows it appears in is touched
+ for( auto v : vars )
+  remove_dynamic_variable( static_cast< const ColVariable * >( v ) );
+
+ return( true );
+
+ }  // end( GRBMILPSolver::remove_columns )
+
+/*--------------------------------------------------------------------------*/
+
 void GRBMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 {
  // no point in calling the method of MILPSolver, as it does nothing
@@ -3778,13 +3922,8 @@ void GRBMILPSolver::perform_separation( Configuration * cfg ,
 
  rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
 
- // main loop: check all new Modification for a Constraint addition
- for( ; it != v_mod.end() ; ++it ) {
-  // check if the Modification indicates an added FRowConstraint
-  auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >(
-								it->get() );
-  if( ! tmod )  // if not
-   continue;    // next
+ // what is done with each addition of rows, wherever it is found
+ auto add_rows = [ & ]( const BlockModAdd< FRowConstraint > * tmod ) {
 
   // add all the new constraint to the matrix, one by one
   for( auto con : tmod->added() ) {
@@ -3843,7 +3982,13 @@ void GRBMILPSolver::perform_separation( Configuration * cfg ,
    rmatbeg.push_back( rmatind.size() );
 
    }  // end( for each added FRowConstraint )
-  }  // end( main loop )
+  };
+
+ // main loop: check all new Modification for a Constraint addition, the
+ // rows of a Block that generates them inside a channel arriving grouped
+ for( ; it != v_mod.end() ; ++it )
+  for_each_row_addition( it->get() , add_rows );
+
  }  // end( GRBMILPSolver::perform_separation )
 
 /*--------------------------------------------------------------------------*/

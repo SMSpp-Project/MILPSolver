@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `process_group_modification()`, which is asked whether a whole
+  GroupModification is one single operation of the back-end before the group
+  is taken apart: the shape it recognises is the column, declared by a
+  `VariableGroupMod`, and it is handed to `add_columns()` / `remove_columns()`,
+  virtual and answering false unless a back-end implements them, so that a
+  back-end that does not keeps exactly the behaviour it had. GRBMILPSolver
+  implements both: a batch of columns is one `GRBaddvar` each plus one
+  `GRBchgcoeffs` and one `GRBsetdblattrlist` for all of them, and removing a
+  column is one `GRBdelvars` with none of the coefficient changes, which the
+  deletion does by itself
+
+- `for_each_row_addition()`, which walks a Modification and the groups inside
+  it looking for additions of FRowConstraint
+
+### Fixed
+
+- the scan of `perform_separation()`, in all four back-ends, which looked for
+  the added rows only at the first level of the Modification list: a Block
+  generating its dynamic Constraint inside an open channel had them arrive
+  inside a GroupModification, where the scan did not see them, and the cuts
+  were silently lost
+
 - native PolyhedralFunction path in all four backends, with the helper
   `scatter_lf_to_csr` factoring CSR scatter logic across them
 

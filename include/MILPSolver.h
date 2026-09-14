@@ -61,6 +61,8 @@
 
 #include <cmath>
 
+#include <functional>
+
 #include <limits>
 
 #include <unordered_set>
@@ -1444,6 +1446,72 @@ class MILPSolver : public CDASolver
  void guts_of_process_modifications( const p_Mod mod );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// executes a GroupModification whole, if the back-end knows how to
+ /** A GroupModification is a bunch of Modification that the :Block has
+  * declared to belong together, and some of these bunches are one single
+  * operation of the underlying solver rather than many: the obvious case is
+  * a whole column, which the "abstract" representation describes as one new
+  * Variable plus one coefficient change for each row the Variable appears
+  * in [see VariableGroupMod in Modification.h]. This method is asked whether
+  * \p gmod is one of those before the group is taken apart: if it answers
+  * true the group has been dealt with and nothing else is done with it, if
+  * it answers false the sub-Modification are dispatched one by one exactly
+  * as they are when they arrive alone.
+  *
+  * The implementation here recognises the shapes that the core describes and
+  * hands each of them to a method of its own [see add_columns() and
+  * remove_columns()], which is what a :MILPSolver overrides to turn the
+  * operation into one call of its own API. Since those answer false unless
+  * overridden, a back-end that does nothing keeps exactly the behaviour it
+  * has today.
+  *
+  * @param gmod the GroupModification to be executed whole
+  * @return true if the group has been executed, false to take it apart */
+
+ virtual bool process_group_modification( const GroupModification * gmod );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// adds the whole column of each of the given Variable in one operation
+ /** Called when a VariableGroupMod says that \p vars have been added to the
+  * Block, with all the coefficient changes that the addition has caused
+  * inside the same group [see process_group_modification()]. The Variable
+  * are in the Block already, hence each of them knows the Function it is
+  * active in and each Function knows its coefficient: the column is
+  * therefore available without reading the sub-Modification at all.
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the column has to be built one Modification at a time
+  * as usual.
+  *
+  * @param vars the Variable whose columns are being added
+  * @return true if the columns have been added */
+
+ virtual bool add_columns( const std::vector< Variable * > & vars ,
+                           const GroupModification * gmod ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// removes the whole column of each of the given Variable in one operation
+ /** The counterpart of add_columns(): \p vars are being removed from the
+  * Block, and with them every coefficient they have in any row, which is
+  * what deleting the column does by itself. Note that the Variable are
+  * still in the data structures of the :MILPSolver when this is called, and
+  * they are still those of the model, so their indices are the right ones.
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the column has to be emptied one Modification at a
+  * time as usual.
+  *
+  * @param vars the Variable whose columns are being removed
+  * @return true if the columns have been removed */
+
+ virtual bool remove_columns( const std::vector< Variable * > & vars ,
+                              const GroupModification * gmod ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// Checks if the given function is an objective function
  /** This method is meant to be used by process_modifications() when a
   * FunctionMod is catched, in order to discriminate between a modification
@@ -1481,6 +1549,17 @@ class MILPSolver : public CDASolver
 
  /// handles a dynamic modification
  virtual void dynamic_modification( const BlockModAD * mod );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// calls \p f on every addition of FRowConstraint inside \p mod
+ /** The rows that a Block generates may well arrive inside a
+  * GroupModification, which a scan of the first level alone does not see,
+  * and the rows would then silently disappear: this walks the group,
+  * however deep it is, and calls \p f on each BlockModAdd< FRowConstraint >
+  * in the order they were issued [see perform_separation()]. */
+
+ static void for_each_row_addition( const Modification * mod ,
+  const std::function< void( const BlockModAdd< FRowConstraint > * ) > & f );
 
  /// adds a single new dynamic constraint
  /** Notice that empty constraints, i.e., constraints with null function, are by
