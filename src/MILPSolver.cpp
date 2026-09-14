@@ -12,7 +12,12 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella
+ * \author Donato Meoli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; by Antonio Frangioni, Niccolo' Iardella,
+ *                      Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
