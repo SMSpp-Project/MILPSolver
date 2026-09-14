@@ -71,7 +71,7 @@ versions.
 These instructions will let you build MILPSolver on your system.
 
 The module also comes ready-made: `sudo apt install libsmspp-milp-dev` from the
-[PPA of the project](https://launchpad.net/~smspp/+archive/ubuntu/ppa), and
+[PPA of the project](https://launchpad.net/~smspp-project/+archive/ubuntu/smspp), and
 `vcpkg install "smspp[core,milp]"` from the [SMS++ vcpkg
 registry](https://gitlab.com/smspp/vcpkg-registry); `conda install -c
 conda-forge smspp-project` and `brew install smspp`, from the [tap of the
