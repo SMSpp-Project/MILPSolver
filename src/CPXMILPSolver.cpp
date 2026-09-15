@@ -2009,6 +2009,82 @@ void CPXMILPSolver::bound_modification( const OneVarConstraintMod * mod )
 
 /*--------------------------------------------------------------------------*/
 
+bool CPXMILPSolver::add_columns( const std::vector< Variable * > & vars ,
+                                 const GroupModification * gmod )
+{
+ // the entries are read before anything is written, so that a group that
+ // turns out not to be a plain column can still be handed back to the
+ // one-by-one path [see MILPSolver::read_column_group()]
+ std::vector< const FRowConstraint * > econs;
+ std::vector< Index > evars;
+ std::vector< double > evals;
+ std::vector< double > cost;
+
+ if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
+  return( false );
+
+
+ // the columns themselves, each born empty with its bounds and its type,
+ // exactly as it is when the Modification arrive one by one
+ std::vector< int > vidx( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i ) {
+  auto var = static_cast< const ColVariable * >( vars[ i ] );
+  add_dynamic_variable( var );
+  vidx[ i ] = cpx_index_of_variable( var );
+  }
+
+ // the entries of all the columns together, in one call
+ std::vector< int > rows , cols;
+ std::vector< double > vals;
+ rows.reserve( econs.size() );
+ cols.reserve( econs.size() );
+ vals.reserve( econs.size() );
+
+ for( Index e = 0 ; e < econs.size() ; ++e ) {
+  auto row = cpx_index_of_linear_constraint( econs[ e ] );
+  if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
+   continue;                  // what the handler does with it one by one
+
+  rows.push_back( row );
+  cols.push_back( vidx[ evars[ e ] ] );
+  vals.push_back( evals[ e ] );
+  }
+
+ if( ! rows.empty() )
+  CPXchgcoeflist( env , lp , rows.size() , rows.data() , cols.data() ,
+                  vals.data() );
+
+ std::vector< int > oidx;
+ std::vector< double > oval;
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  if( cost[ i ] != 0 ) {  // the column is born with a zero cost
+   oidx.push_back( vidx[ i ] );
+   oval.push_back( cost[ i ] );
+   }
+
+ if( ! oidx.empty() )
+  CPXchgobj( env , lp , oidx.size() , oidx.data() , oval.data() );
+
+ return( true );
+
+ }  // end( CPXMILPSolver::add_columns )
+
+/*--------------------------------------------------------------------------*/
+
+bool CPXMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
+                                    const GroupModification * gmod )
+{
+ // deleting the column takes its coefficients away with it, so not one of
+ // the rows it appears in is touched
+ for( auto v : vars )
+  remove_dynamic_variable( static_cast< const ColVariable * >( v ) );
+
+ return( true );
+
+ }  // end( CPXMILPSolver::remove_columns )
+
+/*--------------------------------------------------------------------------*/
+
 bool CPXMILPSolver::change_coefficients(
                           const std::vector< const FunctionMod * > & mods )
 {
@@ -2109,6 +2185,56 @@ bool CPXMILPSolver::change_coefficients(
  return( true );
 
  }  // end( CPXMILPSolver::change_coefficients )
+
+/*--------------------------------------------------------------------------*/
+
+bool CPXMILPSolver::change_variables(
+                          const std::vector< const VariableMod * > & mods )
+{
+ // a change of integrality is one call per column anyway, and it has to be
+ // executed in the order it comes with the fixings: the batch is refused
+ for( auto mod : mods )
+  if( ColVariable::is_integer( mod->old_state() ) !=
+      ColVariable::is_integer( mod->new_state() ) )
+   return( false );
+
+ std::vector< int > idxs;
+ std::vector< char > lu;
+ std::vector< double > bds;
+
+ for( auto mod : mods ) {
+  // the bookkeeping of the base class is the same it does one by one
+  MILPSolver::var_modification( mod );
+
+  if( Variable::is_fixed( mod->old_state() ) ==
+      Variable::is_fixed( mod->new_state() ) )
+   continue;  // nothing that reaches the model
+
+  auto var = static_cast< const ColVariable * >( mod->variable() );
+  auto vi = cpx_index_of_variable( var );
+  if( vi == Inf< int >() )  // the Variable is not (yet) there
+   continue;
+
+  std::array< double , 2 > bd;
+  if( Variable::is_fixed( mod->new_state() ) )  // fix it at its value
+   bd = { var->get_value() , var->get_value() };
+  else                                          // give its bounds back
+   bd = CPXMILPSolver::get_problem_bounds( *var );
+
+  idxs.push_back( vi );
+  lu.push_back( 'L' );
+  bds.push_back( bd[ 0 ] );
+  idxs.push_back( vi );
+  lu.push_back( 'U' );
+  bds.push_back( bd[ 1 ] );
+  }
+
+ if( ! idxs.empty() )
+  CPXchgbds( env , lp , idxs.size() , idxs.data() , lu.data() , bds.data() );
+
+ return( true );
+
+ }  // end( CPXMILPSolver::change_variables )
 
 /*--------------------------------------------------------------------------*/
 

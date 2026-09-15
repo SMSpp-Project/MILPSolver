@@ -1498,6 +1498,33 @@ class MILPSolver : public CDASolver
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// reads the entries of a group that declares a column
+ /** Reads what a group of the column shape holds, without touching the
+  * model, so that a group which turns out not to be a plain column can
+  * still be handed back to the one-by-one path: the entries of the new
+  * columns come back as the three parallel vectors \p econs (the row an
+  * entry belongs to), \p evars (which of \p vars the entry belongs to) and
+  * \p evals (its value), and the cost of each of \p vars, summed over the
+  * Objective it appears in, comes back in \p cost.
+  *
+  * Returns false, leaving the four untouched, if the group is not a plain
+  * addition of whole columns: something other than a linear Function, a
+  * removal inside an addition, or an entry of a Variable that was there
+  * already, whose cost would have to be read back from the model.
+  *
+  * The entries are replayed from the group rather than read from the Block,
+  * which by the time a Modification is processed has moved on: this is what
+  * the handlers do one at a time [see constraint_fvars_modification() and
+  * objective_fvars_modification()]. */
+
+ bool read_column_group( const std::vector< Variable * > & vars ,
+                         const GroupModification * gmod ,
+                         std::vector< const FRowConstraint * > & econs ,
+                         std::vector< Index > & evars ,
+                         std::vector< double > & evals ,
+                         std::vector< double > & cost );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// removes the whole column of each of the given Variable in one operation
  /** The counterpart of add_columns(): \p vars are being removed from the
   * Block, and with them every coefficient they have in any row, which is
@@ -1566,6 +1593,28 @@ class MILPSolver : public CDASolver
   * @param mods the changes, in the order they were issued
   * @return true if the sides have been written */
 
+ /// changes the state of a whole set of Variable in one operation
+ /** Executes a batch of VariableMod, i.e., of changes of the state of a
+  * Variable, all of which the Solver has collected out of one
+  * GroupModification [see process_group_modification()]; returns true if
+  * it has done so, false if the batch has to be executed one Modification
+  * at a time, which is what the implementation in the base class does.
+  *
+  * What a back-end can do in one operation here is the fixing and the
+  * unfixing, which is a change of the bounds of the columns; a batch
+  * carrying a change of integrality is refused, that one being a call per
+  * column anyway.
+  *
+  * A batch of these and a batch of changes of the bounds [see
+  * change_bounds()] are kept apart and executed in the order they were
+  * issued, both being about the same attribute of the model. */
+
+ virtual bool change_variables(
+                        const std::vector< const VariableMod * > & mods ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  virtual bool change_sides(
               const std::vector< const RowConstraintMod * > & mods ) {
   return( false );

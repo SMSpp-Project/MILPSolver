@@ -230,6 +230,20 @@ void GRBMILPSolver::apply_env_parameters( void )
 
 /*--------------------------------------------------------------------------*/
 
+void GRBMILPSolver::get_obj_coefficients( std::vector< int > & idxs ,
+                                          std::vector< double > & vals ) const
+{
+ vals.resize( idxs.size() );
+ if( idxs.empty() )
+  return;
+
+ GRBgetdblattrlist( updated_model() , GRB_DBL_ATTR_OBJ , int( idxs.size() ) ,
+                    idxs.data() , vals.data() );
+
+ }  // end( GRBMILPSolver::get_obj_coefficients )
+
+/*--------------------------------------------------------------------------*/
+
 GRBmodel * GRBMILPSolver::updated_model( void ) const
 {
  if( f_model_dirty ) {
@@ -2231,11 +2245,11 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
      throw( std::logic_error(
                 "GRBMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
-   std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
-   auto nvit = nval.begin();
+   std::vector< int > cidx;
+   std::vector< double > delta;
+   cidx.reserve( idxs.size() );
+   delta.reserve( idxs.size() );
    auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
 
    // we exploit the delta() vector of C05FunctionModLin, giving the difference
    // between the new and the old value of the linear coefficient, to update
@@ -2246,22 +2260,15 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     int vidx = grb_index_of_variable( var );
-     *(cidxit++) = vidx;
-      
-     // Retrieve old coefficient
-     double oldval;
-     GRBgetdblattrelement( updated_model() ,
-                           GRB_DBL_ATTR_OBJ , vidx , &oldval  );
-
-     // Update new coefficient
-     *(nvit++) = oldval + modl->delta()[ i ];
+     cidx.push_back( grb_index_of_variable( var ) );
+     delta.push_back( modl->delta()[ i ] );
      }
    }
 
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
-   nval.resize( nsz );
+   std::vector< double > nval;
+   get_obj_coefficients( cidx , nval );
+   for( std::size_t i = 0 ; i < nval.size() ; ++i )
+    nval[ i ] += delta[ i ];
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
 
@@ -2282,35 +2289,27 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
      throw( std::logic_error(
                 "GRBMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
-   std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
-   auto nvit = nval.begin();
+   std::vector< int > cidx;
+   std::vector< double > delta;
+   cidx.reserve( idxs.size() );
+   delta.reserve( idxs.size() );
    auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
 
-   // we exploit the delta() vector of C05FunctionModLin, giving the difference
-   // between the new and the old value of the linear coefficient, to update
-   // the objective values without having to recompute them: since they are
-   // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum
+   // see the linear case above for why the delta() vector is used, and
+   // get_obj_coefficients() for why the old values are read in one call
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     int vidx = grb_index_of_variable( var );
-     *(cidxit++) = vidx;
-      
-     // Retrieve old coefficient
-     double oldval;
-     GRBgetdblattrelement( updated_model() ,
-                           GRB_DBL_ATTR_OBJ , vidx , &oldval  );
-
-     // Update new coefficient
-     *(nvit++) = oldval + modl->delta()[ i ];
-
-     idx = vidx;
+     cidx.push_back( grb_index_of_variable( var ) );
+     delta.push_back( modl->delta()[ i ] );
      }
    }
+
+   std::vector< double > nval;
+   get_obj_coefficients( cidx , nval );
+   for( std::size_t i = 0 ; i < nval.size() ; ++i )
+    nval[ i ] += delta[ i ];
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
 
@@ -2368,34 +2367,34 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    c_Vec_p_Var * vars = & modlr->vars();
    c_v_coeff_pair * delta_coeff = & modlr->delta();
 
-   std::vector< double > nval( idxs.size() );
-   std::vector< int > cidxs( idxs.size() );
-   auto nvit = nval.begin();
+   std::vector< int > cidxs;
+   std::vector< double > ldelta;
+   std::vector< double > qdelta;
+   cidxs.reserve( idxs.size() );
+   ldelta.reserve( idxs.size() );
+   qdelta.reserve( idxs.size() );
    auto idxit = idxs.begin();
-   auto cidxit = cidxs.begin();
    auto dcoeffit = delta_coeff->begin();
 
    for( auto v : *vars )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     auto cidx = grb_index_of_variable( static_cast< const ColVariable * >( v ) );
-     *(cidxit++) = cidx ;
-      
-     // Retrieve old linear coefficient
-     double oldlinval;
-     GRBgetdblattrelement( updated_model() ,
-                           GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
-     // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit ); 
-
-     // quadratic coefficients need be changed one at a time
-     double q_delta = std::get< 1 >( *dcoeffit );
-     GRBaddqpterms( model, 1 , & cidx , & cidx , & q_delta );
-
+     cidxs.push_back( grb_index_of_variable(
+                                 static_cast< const ColVariable * >( v ) ) );
+     ldelta.push_back( std::get< 0 >( *dcoeffit ) );
+     qdelta.push_back( std::get< 1 >( *dcoeffit ) );
      dcoeffit++;
+     }
+
+   // the old linear coefficients are read in one call [see
+   // get_obj_coefficients()], the quadratic ones are written one at a time,
+   // which is the only form GUROBI has
+   std::vector< double > nval;
+   get_obj_coefficients( cidxs , nval );
+
+   for( std::size_t i = 0 ; i < nval.size() ; ++i ) {
+    nval[ i ] += ldelta[ i ];
+    GRBaddqpterms( model , 1 , & cidxs[ i ] , & cidxs[ i ] , & qdelta[ i ] );
     }
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidxs.resize( nsz );
-   nval.resize( nsz );
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidxs.size() , cidxs.data() , nval.data());
 
@@ -2415,35 +2414,33 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    c_Vec_p_Var * vars = & modls->vars();
    c_v_coeff_pair * delta_coeff = & modls->delta();
 
-   std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
-   auto nvit = nval.begin();
+   std::vector< int > cidx;
+   std::vector< double > ldelta;
+   std::vector< double > qdelta;
+   cidx.reserve( idxs.size() );
+   ldelta.reserve( idxs.size() );
+   qdelta.reserve( idxs.size() );
    auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
    auto dcoeffit = delta_coeff->begin();
 
    for( auto v : *vars )
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     int cidx = grb_index_of_variable( dynamic_cast< ColVariable * >( v ) );
-     *(cidxit++) = cidx;
-      
-     // Retrieve old linear coefficient
-     double oldlinval;
-     GRBgetdblattrelement( updated_model() ,
-                           GRB_DBL_ATTR_OBJ , cidx , &oldlinval  );
-     // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit ); 
-
-     // quadratic coefficients need be changed one at a time
-     double q_delta = std::get< 1 >( *dcoeffit );
-     GRBaddqpterms( model, 1 , & cidx , & cidx , & q_delta );
-
+     cidx.push_back( grb_index_of_variable(
+                                     dynamic_cast< ColVariable * >( v ) ) );
+     ldelta.push_back( std::get< 0 >( *dcoeffit ) );
+     qdelta.push_back( std::get< 1 >( *dcoeffit ) );
      dcoeffit++;
-    }
+     }
 
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
-   nval.resize( nsz );
+   // see the case above: the linear coefficients are read in one call, the
+   // quadratic ones are written one at a time
+   std::vector< double > nval;
+   get_obj_coefficients( cidx , nval );
+
+   for( std::size_t i = 0 ; i < nval.size() ; ++i ) {
+    nval[ i ] += ldelta[ i ];
+    GRBaddqpterms( model , 1 , & cidx[ i ] , & cidx[ i ] , & qdelta[ i ] );
+    }
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data());
 
@@ -2599,25 +2596,30 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // (potentially) a sum of terms, recomputing them would require fetching
   // back all the terms, while the coeff() can just be applied to the sum
   
+  std::vector< std::size_t > pos;
+
   for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
     if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
-      // Retrieve old coefficient
-      double oldval;
-      GRBgetdblattrelement( updated_model() ,
-                            GRB_DBL_ATTR_OBJ , idx , &oldval  );
-
       indices.push_back( idx );
-      if( mod->added() ) {
-        auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
-        auto cidx = lf->is_active( var );
-        values.push_back( cidx < nav ? oldval + modl->coeff()[ i ] : oldval );
-      }
-      else
-        values.push_back( 0 );
+      pos.push_back( i );
      }
    }
+
+  // the old coefficients are read in one call [see get_obj_coefficients()]
+  get_obj_coefficients( indices , values );
+
+  if( mod->added() ) {
+    auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
+    for( std::size_t k = 0 ; k < indices.size() ; ++k ) {
+      auto var = static_cast< const ColVariable * >( mod->vars()[ pos[ k ] ] );
+      if( lf->is_active( var ) < nav )
+        values[ k ] += modl->coeff()[ pos[ k ] ];
+     }
+   }
+  else
+    std::fill( values.begin() , values.end() , 0 );
 
   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
     indices.data() , values.data() );
@@ -2784,25 +2786,33 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // would require fetching back all the terms, while the coeff()
   // can just be applied to the sum
   
+  std::vector< std::size_t > pos;
+
   for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
     if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
-      // Retrieve old coefficient
-      double oldval;
-      GRBgetdblattrelement( updated_model() ,
-                            GRB_DBL_ATTR_OBJ , idx , &oldval  );
-
       indices.push_back( idx );
-      double nqval;
-      if( auto cidx = dqf->is_active( var ) ; cidx < nav ) {
-        values.push_back( oldval + modq->coeff()[ i ].first );
-        nqval = modq->coeff()[ i ].second;
-      }
+      pos.push_back( i );
+     }
+   }
 
-    GRBaddqpterms( model, 1 , & idx , & idx , & nqval );
-    }
-  }
+  // the old coefficients are read in one call [see get_obj_coefficients()],
+  // the quadratic ones are written one at a time, which is the only form
+  // GUROBI has
+  get_obj_coefficients( indices , values );
+
+  for( std::size_t k = 0 ; k < indices.size() ; ++k ) {
+    auto var = static_cast< const ColVariable * >( mod->vars()[ pos[ k ] ] );
+    // a Variable that the Function does not have changes nothing
+    double nqval = 0;
+    if( dqf->is_active( var ) < nav ) {
+      values[ k ] += modq->coeff()[ pos[ k ] ].first;
+      nqval = modq->coeff()[ pos[ k ] ].second;
+     }
+
+    GRBaddqpterms( model , 1 , & indices[ k ] , & indices[ k ] , & nqval );
+   }
 
   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
     indices.data() , values.data() );
@@ -3248,107 +3258,41 @@ void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
 bool GRBMILPSolver::add_columns( const std::vector< Variable * > & vars ,
                                  const GroupModification * gmod )
 {
- // Modification are processed when the Solver gets to them, and by then the
- // Block has moved on: what a coefficient is now is not what has to be
- // written, which is why the entries are replayed from the group exactly as
- // the handlers replay them one at a time [see
- // constraint_fvars_modification() and objective_fvars_modification()]
+ // the entries are read before anything is written, so that a group that
+ // turns out not to be a plain column can still be handed back to the
+ // one-by-one path [see MILPSolver::read_column_group()]
+ std::vector< const FRowConstraint * > econs;
+ std::vector< Index > evars;
+ std::vector< double > evals;
+ std::vector< double > cost;
 
- // the entries of all the columns together, as the ( row , column , value )
- // triples GUROBI takes in one call
- std::vector< int > rows , cols;
- std::vector< double > vals;
+ if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
+  return( false );
 
- // the cost of each of the new columns, summed over the Objective it is
- // given by: the Objective of the Block and those of its sub-Block are one
- // objective function of the model
- std::vector< double > cost( vars.size() , 0 );
-
- // where a Variable of the group sits in vars, and Inf for any other one
- auto pos_of = [ & vars ]( const Variable * var ) -> Block::Index {
-  for( Block::Index i = 0 ; i < vars.size() ; ++i )
-   if( vars[ i ] == var )
-    return( i );
-  return( Inf< Block::Index >() );
-  };
-
- // first pass: read the group without touching the model, so that a group
- // that turns out not to be a plain column can still be handed back
- for( const auto & submod : gmod->sub_Modifications() ) {
-  auto fvm = dynamic_cast< const FunctionModVars * >( submod.get() );
-  if( ! fvm )  // the Variable coming in, which vars already says
-   continue;
-
-  if( ! fvm->added() )  // a removal inside an addition is not a column
-   return( false );
-
-  auto lf = dynamic_cast< const LinearFunction * >( fvm->function() );
-  if( ! lf )  // a column of something that is not linear is not a column
-   return( false );
-
-  auto nav = lf->get_num_active_var();
-  auto obs = lf->get_Observer();
-
-  if( dynamic_cast< const Objective * >( obs ) ) {
-   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( fvm );
-   if( ! modl )
-    return( false );
-
-   for( Block::Index i = 0 ; i < fvm->vars().size() ; ++i ) {
-    auto p = pos_of( fvm->vars()[ i ] );
-    if( p == Inf< Block::Index >() )  // a column that was there already, whose
-     return( false );          // cost has to be read back from the model
-    if( lf->is_active( static_cast< const ColVariable * >( fvm->vars()[ i ] )
-                       ) < nav )
-     cost[ p ] += modl->coeff()[ i ];
-    }
-   continue;
-   }
-
-  auto con = dynamic_cast< const FRowConstraint * >( obs );
-  if( ! con )  // a Function of something this Solver does not have
-   continue;
-
-  auto cidx = grb_index_of_linear_constraint( con );
-  if( cidx == Inf< int >() )
-   continue;
-
-  for( auto v : fvm->vars() ) {
-   auto var = static_cast< const ColVariable * >( v );
-   if( pos_of( var ) == Inf< Block::Index >() )  // as above, a column that was
-    return( false );                      // there already
-   auto k = lf->is_active( var );
-   rows.push_back( cidx );
-   cols.push_back( 0 );  // the index of the column, filled in below
-   vals.push_back( k < nav ? lf->get_coefficient( k ) : 0 );
-   }
-  }
-
- // second pass: the columns themselves, each born empty with its bounds and
- // its type, exactly as it is when the Modification arrive one by one
+ // the columns themselves, each born empty with its bounds and its type,
+ // exactly as it is when the Modification arrive one by one
  std::vector< int > vidx( vars.size() );
- for( Block::Index i = 0 ; i < vars.size() ; ++i ) {
+ for( Index i = 0 ; i < vars.size() ; ++i ) {
   auto var = static_cast< const ColVariable * >( vars[ i ] );
   add_dynamic_variable( var );
   vidx[ i ] = grb_index_of_variable( var );
   }
 
- // third pass: the column index of each entry, now that the columns exist
- {
-  Block::Index e = 0;
-  for( const auto & submod : gmod->sub_Modifications() ) {
-   auto fvm = dynamic_cast< const FunctionModVars * >( submod.get() );
-   if( ! fvm )
-    continue;
-   auto lf = dynamic_cast< const LinearFunction * >( fvm->function() );
-   if( ( ! lf ) || dynamic_cast< const Objective * >( lf->get_Observer() ) )
-    continue;
-   auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
-   if( ( ! con ) || ( grb_index_of_linear_constraint( con ) == Inf< int >() ) )
-    continue;
-   for( auto v : fvm->vars() )
-    cols[ e++ ] = vidx[ pos_of( v ) ];
-   }
+ // the entries of all the columns together, in one call
+ std::vector< int > rows , cols;
+ std::vector< double > vals;
+ rows.reserve( econs.size() );
+ cols.reserve( econs.size() );
+ vals.reserve( econs.size() );
+
+ for( Index e = 0 ; e < econs.size() ; ++e ) {
+  auto row = grb_index_of_linear_constraint( econs[ e ] );
+  if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
+   continue;                  // what the handler does with it one by one
+
+  rows.push_back( row );
+  cols.push_back( vidx[ evars[ e ] ] );
+  vals.push_back( evals[ e ] );
   }
 
  if( ! rows.empty() )
@@ -3357,7 +3301,7 @@ bool GRBMILPSolver::add_columns( const std::vector< Variable * > & vars ,
 
  std::vector< int > oidx;
  std::vector< double > oval;
- for( Block::Index i = 0 ; i < vars.size() ; ++i )
+ for( Index i = 0 ; i < vars.size() ; ++i )
   if( cost[ i ] != 0 ) {  // the column is born with a zero cost
    oidx.push_back( vidx[ i ] );
    oval.push_back( cost[ i ] );
@@ -3405,7 +3349,53 @@ bool GRBMILPSolver::change_coefficients(
  std::vector< int > ocols;
  std::vector< double > odeltas;
 
+ // the diagonal quadratic terms of the Objective, which GUROBI only takes
+ // one at a time
+ std::vector< int > qcols;
+ std::vector< double > qdeltas;
+
+ // a change of the terms of a diagonal quadratic Function carries the two
+ // deltas together, and only the Objective can hold one here
+ auto quadratic = [ & ]( c_Vec_p_Var & vars , const Subset & idxs ,
+                         c_v_coeff_pair & delta ) {
+  auto dit = delta.begin();
+  for( Block::Index i = 0 ; i < vars.size() ; ++i )
+   if( idxs[ i ] < Inf< Index >() ) {
+    auto var = static_cast< const ColVariable * >( vars[ i ] );
+    auto col = grb_index_of_variable( var );
+    ocols.push_back( col );
+    odeltas.push_back( std::get< 0 >( *dit ) );
+    qcols.push_back( col );
+    qdeltas.push_back( std::get< 1 >( *dit ) );
+    ++dit;
+    }
+  };
+
  for( auto mod : mods ) {
+  if( auto modq = dynamic_cast< const DQuadFunctionModRngd * >( mod ) ) {
+   auto qf = dynamic_cast< const DQuadFunction * >( mod->function() );
+   if( ( ! qf ) ||
+       ( ! dynamic_cast< const Objective * >( qf->get_Observer() ) ) )
+    return( false );
+
+   quadratic( modq->vars() ,
+              qf->map_index( modq->vars() , modq->range() ) ,
+              modq->delta() );
+   continue;
+   }
+
+  if( auto modq = dynamic_cast< const DQuadFunctionModSbst * >( mod ) ) {
+   auto qf = dynamic_cast< const DQuadFunction * >( mod->function() );
+   if( ( ! qf ) ||
+       ( ! dynamic_cast< const Objective * >( qf->get_Observer() ) ) )
+    return( false );
+
+   quadratic( modq->vars() ,
+              qf->map_index( modq->vars() , modq->subset() ) ,
+              modq->delta() );
+   continue;
+   }
+
   auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
   if( ! modl )
    return( false );
@@ -3460,24 +3450,31 @@ bool GRBMILPSolver::change_coefficients(
   GRBchgcoeffs( model , rows.size() , rows.data() , cols.data() ,
                 vals.data() );
 
+ for( std::size_t i = 0 ; i < qcols.size() ; ++i )
+  GRBaddqpterms( model , 1 , & qcols[ i ] , & qcols[ i ] , & qdeltas[ i ] );
+
  if( ! ocols.empty() ) {
   // the old value of a column is read once for the whole group, and the
   // deltas of a column the group touches more than once are summed: the
   // result is the one the Modification give one at a time, where each of
   // them reads back what the previous one has written
-  auto grbmodel = updated_model();
+  // the columns the group touches, each named once
+  std::vector< int > once;
+  once.reserve( ocols.size() );
+  for( auto col : ocols )
+   once.push_back( col );
+  std::sort( once.begin() , once.end() );
+  once.erase( std::unique( once.begin() , once.end() ) , once.end() );
+
+  std::vector< double > oldval;
+  get_obj_coefficients( once , oldval );
+
   std::map< int , double > newval;
-  for( Block::Index i = 0 ; i < ocols.size() ; ++i ) {
-   auto it = newval.find( ocols[ i ] );
-   if( it == newval.end() ) {
-    double oldval;
-    GRBgetdblattrelement( grbmodel , GRB_DBL_ATTR_OBJ , ocols[ i ] ,
-                          & oldval );
-    newval[ ocols[ i ] ] = oldval + odeltas[ i ];
-    }
-   else
-    it->second += odeltas[ i ];
-   }
+  for( std::size_t i = 0 ; i < once.size() ; ++i )
+   newval[ once[ i ] ] = oldval[ i ];
+
+  for( Block::Index i = 0 ; i < ocols.size() ; ++i )
+   newval[ ocols[ i ] ] += odeltas[ i ];
 
   std::vector< int > oidx;
   std::vector< double > oval;
@@ -3560,6 +3557,62 @@ bool GRBMILPSolver::change_bounds(
  return( true );
 
  }  // end( GRBMILPSolver::change_bounds )
+
+/*--------------------------------------------------------------------------*/
+
+bool GRBMILPSolver::change_variables(
+                          const std::vector< const VariableMod * > & mods )
+{
+ // a change of integrality is one call per column anyway, and it has to be
+ // executed in the order it comes with the fixings: the batch is refused
+ for( auto mod : mods )
+  if( ColVariable::is_integer( mod->old_state() ) !=
+      ColVariable::is_integer( mod->new_state() ) )
+   return( false );
+
+ std::vector< int > idxs;
+ std::vector< double > lval , uval;
+ idxs.reserve( mods.size() );
+ lval.reserve( mods.size() );
+ uval.reserve( mods.size() );
+
+ for( auto mod : mods ) {
+  // the bookkeeping of the base class is the same it does one by one
+  MILPSolver::var_modification( mod );
+
+  if( Variable::is_fixed( mod->old_state() ) ==
+      Variable::is_fixed( mod->new_state() ) )
+   continue;  // nothing that reaches the model
+
+  auto var = static_cast< const ColVariable * >( mod->variable() );
+  auto idx = grb_index_of_variable( var );
+  if( idx == Inf< int >() )  // the Variable is not (yet) there
+   continue;
+
+  idxs.push_back( idx );
+
+  if( Variable::is_fixed( mod->new_state() ) ) {  // fix it at its value
+   lval.push_back( var->get_value() );
+   uval.push_back( var->get_value() );
+   }
+  else {                                          // give it its bounds back
+   auto bd = GRBMILPSolver::get_problem_bounds( *var );
+   lval.push_back( bd[ 0 ] );
+   uval.push_back( bd[ 1 ] );
+   }
+  }
+
+ if( ! idxs.empty() ) {
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_LB , idxs.size() , idxs.data() ,
+                     lval.data() );
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_UB , idxs.size() , idxs.data() ,
+                     uval.data() );
+  f_model_dirty = true;
+  }
+
+ return( true );
+
+ }  // end( GRBMILPSolver::change_variables )
 
 /*--------------------------------------------------------------------------*/
 

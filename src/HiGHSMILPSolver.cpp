@@ -1074,6 +1074,82 @@ void HiGHSMILPSolver::bound_modification( const OneVarConstraintMod * mod )
 
 /*--------------------------------------------------------------------------*/
 
+bool HiGHSMILPSolver::add_columns( const std::vector< Variable * > & vars ,
+                                   const GroupModification * gmod )
+{
+ // the entries are read before anything is written, so that a group that
+ // turns out not to be a plain column can still be handed back to the
+ // one-by-one path [see MILPSolver::read_column_group()]
+ std::vector< const FRowConstraint * > econs;
+ std::vector< Index > evars;
+ std::vector< double > evals;
+ std::vector< double > cost;
+
+ if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
+  return( false );
+
+
+ // the columns themselves, each born empty with its bounds and its type,
+ // exactly as it is when the Modification arrive one by one
+ std::vector< int > vidx( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i ) {
+  auto var = static_cast< const ColVariable * >( vars[ i ] );
+  add_dynamic_variable( var );
+  vidx[ i ] = index_of_variable( var );
+  }
+
+ // the entries: HiGHS has no batched form of a change of coefficient, hence
+ // they go one at a time, but the columns and the costs do not
+ for( Index e = 0 ; e < econs.size() ; ++e ) {
+  auto row = index_of_constraint( econs[ e ] );
+  if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
+   continue;                  // what the handler does with it one by one
+
+  double value = evals[ e ];
+
+  // see change_coefficients(): HiGHS reads a coefficient in ( 0 , 1e-9 ] as
+  // a zero and drops the Variable from the row
+  if( ( value > 0 ) && ( value <= 1e-9 ) )
+   value = 2e-9;
+
+  Highs_changeCoeff( highs , row , vidx[ evars[ e ] ] , value );
+  }
+
+ std::vector< int > oidx;
+ std::vector< double > oval;
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  if( cost[ i ] != 0 ) {  // the column is born with a zero cost
+   oidx.push_back( vidx[ i ] );
+   oval.push_back( cost[ i ] );
+   }
+
+ if( ! oidx.empty() ) {
+  // the set has to be ordered and without repetitions, and it is: each
+  // column of the group is named once, and they are born in order
+  Highs_changeColsCostBySet( highs , oidx.size() , oidx.data() ,
+                             oval.data() );
+  }
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::add_columns )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
+                                      const GroupModification * gmod )
+{
+ // deleting the column takes its coefficients away with it, so not one of
+ // the rows it appears in is touched
+ for( auto v : vars )
+  remove_dynamic_variable( static_cast< const ColVariable * >( v ) );
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::remove_columns )
+
+/*--------------------------------------------------------------------------*/
+
 bool HiGHSMILPSolver::change_coefficients(
                           const std::vector< const FunctionMod * > & mods )
 {
@@ -1188,6 +1264,63 @@ bool HiGHSMILPSolver::change_coefficients(
  return( true );
 
  }  // end( HiGHSMILPSolver::change_coefficients )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::change_variables(
+                          const std::vector< const VariableMod * > & mods )
+{
+ // a change of integrality is one call per column anyway, and it has to be
+ // executed in the order it comes with the fixings: the batch is refused
+ for( auto mod : mods )
+  if( ColVariable::is_integer( mod->old_state() ) !=
+      ColVariable::is_integer( mod->new_state() ) )
+   return( false );
+
+ // the set has to be ordered and without repetitions, which is what the map
+ // does; a column named twice keeps the last state, exactly as it does when
+ // the Modification arrive one by one [see Highs_changeColsBoundsBySet()]
+ std::map< int , std::array< double , 2 > > bnds;
+
+ for( auto mod : mods ) {
+  // the bookkeeping of the base class is the same it does one by one
+  MILPSolver::var_modification( mod );
+
+  if( Variable::is_fixed( mod->old_state() ) ==
+      Variable::is_fixed( mod->new_state() ) )
+   continue;  // nothing that reaches the model
+
+  auto var = static_cast< const ColVariable * >( mod->variable() );
+  auto vi = index_of_variable( var );
+  if( vi == Inf< int >() )  // the Variable is not (yet) there
+   continue;
+
+  if( Variable::is_fixed( mod->new_state() ) )  // fix it at its value
+   bnds[ vi ] = { var->get_value() , var->get_value() };
+  else                                          // give its bounds back
+   bnds[ vi ] = HiGHSMILPSolver::get_problem_bounds( *var );
+  }
+
+ if( bnds.empty() )
+  return( true );
+
+ std::vector< int > idxs;
+ std::vector< double > lo , up;
+ idxs.reserve( bnds.size() );
+ lo.reserve( bnds.size() );
+ up.reserve( bnds.size() );
+ for( const auto & el : bnds ) {
+  idxs.push_back( el.first );
+  lo.push_back( el.second[ 0 ] );
+  up.push_back( el.second[ 1 ] );
+  }
+
+ Highs_changeColsBoundsBySet( highs , idxs.size() , idxs.data() , lo.data() ,
+                              up.data() );
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::change_variables )
 
 /*--------------------------------------------------------------------------*/
 

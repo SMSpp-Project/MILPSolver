@@ -41,6 +41,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   group of coefficients is executed one change at a time. SCIPMILPSolver
   implements none of the three and keeps the behaviour it had
 
+- the column, i.e., `add_columns()` and `remove_columns()`, also on
+  CPXMILPSolver and HiGHSMILPSolver: what a group of the column shape holds
+  is read once and for all by `read_column_group()` in the base class, each
+  back-end writing it with the calls it has
+
+- the shape of a batch of fixings, i.e., of VariableMod, executed by
+  `change_variables()`: fixing a column is writing its two bounds, hence a
+  whole set of them is two calls on GUROBI, one on CPLEX and one on HiGHS.
+  A batch of fixings and one of changes of the bounds are executed in the
+  order they were issued, both being about the same attribute of the model,
+  and a batch carrying a change of integrality is refused
+
 ### Fixed
 
 - the scan of `perform_separation()`, in all four back-ends, which looked for
@@ -66,6 +78,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus the pips\_pars header-generator tool
 
 ### Changed
+
+- a Modification that the Solver does not execute no longer closes the batch
+  of a group: a PolyhedralFunctionMod is one, the PolyhedralFunctionBlock
+  answering it with the equivalent changes of the abstract representation,
+  and closing the batch on it had the cascade of a whole bundle of cuts come
+  out one cut at a time
+
+- the coefficients of the Objective a change has to be read back from are
+  read in one call rather than one column at a time, which also brings the
+  model up to date once instead of once per column
 
 - GRBMILPSolver maps GRB_SUBOPTIMAL to kLowPrecision rather than to kOK,
   since a solution that does not satisfy the optimality tolerances carries

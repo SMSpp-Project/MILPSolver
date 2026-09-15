@@ -592,12 +592,38 @@ class CPXMILPSolver : public MILPSolver {
   * whole group and the deltas of a column the group touches more than once
   * summed [see MILPSolver::change_coefficients()]. */
 
+ /// adds the whole column of each of the given Variable in one operation
+ /** The columns are born empty and get their entries in one
+   * CPXchgcoeflist() and their costs in one CPXchgobj() [see
+   * MILPSolver::add_columns()]. */
+
+ bool add_columns( const std::vector< Variable * > & vars ,
+                   const GroupModification * gmod ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// removes the whole column of each of the given Variable
+ /** One deletion per column, and none of the coefficients is touched: the
+   * deletion takes them away [see MILPSolver::remove_columns()]. */
+
+ bool remove_columns( const std::vector< Variable * > & vars ,
+                      const GroupModification * gmod ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  bool change_coefficients(
                const std::vector< const FunctionMod * > & mods ) override;
 
  /// writes the bounds of a whole group of columns in one operation
  /** One CPXchgbds() for all of them [see MILPSolver::change_bounds()]. */
 
+ /// One CPXchgbds() for the whole set of fixings
+ /** Fixing a column is writing its two bounds; a batch carrying a
+   * change of integrality is refused [see
+   * MILPSolver::change_variables()]. */
+
+ bool change_variables(
+             const std::vector< const VariableMod * > & mods ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  bool change_bounds(
         const std::vector< const OneVarConstraintMod * > & mods ) override;
 

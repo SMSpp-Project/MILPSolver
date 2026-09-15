@@ -661,6 +661,15 @@ void add_mip_starts(
   * goes back to the one-by-one path, which knows how to do that [see
   * const_modification()]. */
 
+ /// one GRBsetdblattrlist() per bound for a whole set of fixings
+ /** Fixing a column is writing its two bounds, hence a batch of them is two
+   * calls; a batch carrying a change of integrality is refused [see
+   * MILPSolver::change_variables()]. */
+
+ bool change_variables(
+             const std::vector< const VariableMod * > & mods ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  bool change_sides(
         const std::vector< const RowConstraintMod * > & mods ) override;
 
@@ -742,6 +751,18 @@ void add_mip_starts(
   * updated, so the three methods deleting a row or a column update on the
   * spot and clear the mark [see remove_dynamic_constraint()]. */
  GRBmodel * updated_model( void ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// the objective coefficients of the given columns, read in one call
+ /** Reads the linear coefficient of the Objective for each of the given
+  * columns, in one call and therefore bringing the model up to date once
+  * rather than once per column: a coefficient that has to be changed by a
+  * delta has to be read first, and reading one at a time inside the loop
+  * flushes the pending changes as many times as there are columns [see
+  * updated_model()]. */
+
+ void get_obj_coefficients( std::vector< int > & idxs ,
+                            std::vector< double > & vals ) const;
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/

@@ -2294,6 +2294,85 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
 
 /*--------------------------------------------------------------------------*/
 
+bool MILPSolver::read_column_group(
+                      const std::vector< Variable * > & vars ,
+                      const GroupModification * gmod ,
+                      std::vector< const FRowConstraint * > & econs ,
+                      std::vector< Index > & evars ,
+                      std::vector< double > & evals ,
+                      std::vector< double > & cost )
+{
+ std::vector< const FRowConstraint * > cns;
+ std::vector< Index > pos;
+ std::vector< double > val;
+ std::vector< double > cst( vars.size() , 0 );
+
+ // where a Variable of the group sits in vars, and Inf for any other one
+ auto pos_of = [ & vars ]( const Variable * var ) -> Index {
+  for( Index i = 0 ; i < vars.size() ; ++i )
+   if( vars[ i ] == var )
+    return( i );
+  return( Inf< Index >() );
+  };
+
+ for( const auto & submod : gmod->sub_Modifications() ) {
+  auto fvm = dynamic_cast< const FunctionModVars * >( submod.get() );
+  if( ! fvm )  // the Variable coming in, which vars already says
+   continue;
+
+  if( ! fvm->added() )  // a removal inside an addition is not a column
+   return( false );
+
+  auto lf = dynamic_cast< const LinearFunction * >( fvm->function() );
+  if( ! lf )  // a column of something that is not linear is not a column
+   return( false );
+
+  auto nav = lf->get_num_active_var();
+  auto obs = lf->get_Observer();
+
+  if( dynamic_cast< const Objective * >( obs ) ) {
+   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( fvm );
+   if( ! modl )
+    return( false );
+
+   for( Index i = 0 ; i < fvm->vars().size() ; ++i ) {
+    auto p = pos_of( fvm->vars()[ i ] );
+    if( p == Inf< Index >() )  // a column that was there already, whose cost
+     return( false );          // would have to be read back from the model
+    if( lf->is_active( static_cast< const ColVariable * >( fvm->vars()[ i ] )
+                       ) < nav )
+     cst[ p ] += modl->coeff()[ i ];
+    }
+   continue;
+   }
+
+  auto con = dynamic_cast< const FRowConstraint * >( obs );
+  if( ! con )  // a Function of something this Solver does not have
+   continue;
+
+  for( auto v : fvm->vars() ) {
+   auto var = static_cast< const ColVariable * >( v );
+   auto p = pos_of( var );
+   if( p == Inf< Index >() )  // as above, a column that was there already
+    return( false );
+   auto k = lf->is_active( var );
+   cns.push_back( con );
+   pos.push_back( p );
+   val.push_back( k < nav ? lf->get_coefficient( k ) : 0 );
+   }
+  }
+
+ econs = std::move( cns );
+ evars = std::move( pos );
+ evals = std::move( val );
+ cost = std::move( cst );
+
+ return( true );
+
+ }  // end( MILPSolver::read_column_group )
+
+/*--------------------------------------------------------------------------*/
+
 bool MILPSolver::process_group_modification( const GroupModification * gmod )
 {
  // the shape a group declares: the column, said by the type of the group
@@ -2351,6 +2430,7 @@ bool MILPSolver::process_group_modification( const GroupModification * gmod )
  std::vector< const FunctionMod * > fmods;
  std::vector< const OneVarConstraintMod * > bmods;
  std::vector< const RowConstraintMod * > rmods;
+ std::vector< const VariableMod * > vmods;
 
  // executes what has been collected so far, each kind in one operation if
  // the back-end can, one Modification at a time if it cannot
@@ -2375,6 +2455,13 @@ bool MILPSolver::process_group_modification( const GroupModification * gmod )
     for( auto mod : rmods )
      guts_of_process_modifications( const_cast< RowConstraintMod * >( mod ) );
    rmods.clear();
+   }
+
+  if( ! vmods.empty() ) {
+   if( ! change_variables( vmods ) )
+    for( auto mod : vmods )
+     guts_of_process_modifications( const_cast< VariableMod * >( mod ) );
+   vmods.clear();
    }
   };
 
@@ -2402,14 +2489,47 @@ bool MILPSolver::process_group_modification( const GroupModification * gmod )
      continue;
      }
 
+    /* A Modification this Solver does not act upon changes nothing in the
+     * model, hence it does not close the batch either: a
+     * PolyhedralFunctionMod is one, the PolyhedralFunctionBlock that owns
+     * the PolyhedralFunction answering it with the equivalent changes of
+     * the abstract representation, which are the ones collected here [see
+     * guts_of_process_modifications()]. Were it to close the batch, the
+     * cascade of a whole bundle of cuts would come out one cut at a time,
+     * since the two alternate. */
+    if( dynamic_cast< const PolyhedralFunctionMod * >( psub ) )
+     continue;
+
     if( auto fm = dynamic_cast< const C05FunctionModLin * >( psub ) ) {
      fmods.push_back( fm );
      continue;
      }
 
-    // a bound is a OneVarConstraint, hence it is asked for before the rows
+    /* A bound is a OneVarConstraint, hence it is asked for before the
+     * rows. Fixing a Variable changes the bounds of its column just like
+     * this does, so the two batches are not independent: whichever of the
+     * two comes goes out before the other one starts, which keeps between
+     * them the order they were issued in. */
     if( auto bm = dynamic_cast< const OneVarConstraintMod * >( psub ) ) {
+     if( ! vmods.empty() ) {
+      if( ! change_variables( vmods ) )
+       for( auto mod : vmods )
+        guts_of_process_modifications( const_cast< VariableMod * >( mod ) );
+      vmods.clear();
+      }
      bmods.push_back( bm );
+     continue;
+     }
+
+    if( auto vm = dynamic_cast< const VariableMod * >( psub ) ) {
+     if( ! bmods.empty() ) {
+      if( ! change_bounds( bmods ) )
+       for( auto mod : bmods )
+        guts_of_process_modifications(
+                            const_cast< OneVarConstraintMod * >( mod ) );
+      bmods.clear();
+      }
+     vmods.push_back( vm );
      continue;
      }
 
