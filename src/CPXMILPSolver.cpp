@@ -93,6 +93,20 @@ SMSpp_insert_in_factory_cpp_0( CPXMILPSolver );
 /*----------------------------- FUNCTIONS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+// the value of a bound or of a side of a row as CPLEX takes it: an infinite
+// one is CPX_INFBOUND
+
+static inline double cpx_bound( double b )
+{
+ if( b == Inf< double >() )
+  return( CPX_INFBOUND );
+ if( b == -Inf< double >() )
+  return( -CPX_INFBOUND );
+ return( b );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 int CPXMILPSolver_callback( CPXCALLBACKCONTEXTptr context ,
 			    CPXLONG contextid , void * userhandle )
 {
@@ -1960,6 +1974,10 @@ void CPXMILPSolver::const_modification( const ConstraintMod * mod )
       rngval = con_rhs - con_lhs;
       }
 
+   // a row with both sides infinite (e.g., a lower bound just removed from
+   // a row with no upper bound) is 'L' with an infinite right-hand side,
+   // which CPLEX only takes as CPX_INFBOUND
+   rhs = cpx_bound( rhs );
    CPXchgrhs( env , lp , 1 , & index , & rhs );
    CPXchgsense( env , lp , 1 , & index , & sense );
    if( sense == 'R' )
@@ -2374,12 +2392,12 @@ bool CPXMILPSolver::change_sides(
   else
    if( con_lhs == -Inf< double >() ) {
     senses.push_back( 'L' );
-    rhss.push_back( con_rhs );
+    rhss.push_back( cpx_bound( con_rhs ) );
     }
    else
     if( con_rhs == Inf< double >() ) {
      senses.push_back( 'G' );
-     rhss.push_back( con_lhs );
+     rhss.push_back( cpx_bound( con_lhs ) );
      }
     else {
      senses.push_back( 'R' );
@@ -3104,6 +3122,8 @@ void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
      rhs = con_lhs;
      rngval = con_rhs - con_lhs;
      }
+
+ rhs = cpx_bound( rhs );
 
  // push the row into the CPLEX model. The CPXaddrows signature is
  // (env, lp, ccnt = 0, rcnt = 1, nzcnt, rhs, sense, rmatbeg, rmatind,

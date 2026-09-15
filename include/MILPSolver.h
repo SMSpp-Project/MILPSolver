@@ -1077,11 +1077,13 @@ class MILPSolver : public CDASolver
   * The following vectors are used in order to keep track between the
   * Variables and Constraints of the Block and the constraint matrix.
   *
-  *  - svar_to_idx, scon_to_idx, scon_to_idx : vectors of tuples 
-  *    that store 1) the address of the first element of each group of static 
-  *    variables and constraints, respectively, 2) the 
-  *    corresponding index in constraint matrix (column or row) and 3) 
-  *    the number of elements in the group.
+  *  - svar_to_idx, scon_to_idx : vectors of tuples that store 1) the
+  *    address of the first element of each run of static variables and
+  *    constraints, respectively, 2) the corresponding index in constraint
+  *    matrix (column or row) and 3) the number of elements in the run. A run
+  *    is a set of elements of a group that are contiguous in memory: a group
+  *    that is a single array is one run, a group made of many arrays (e.g.,
+  *    a std::vector of std::vector) has one run per array.
   *    The vectors are kept sorted in ascending order by address.
   *
   *  - dvar_to_idx, dcon_to_idx : vectors of pairs that store the addresses
@@ -1091,7 +1093,7 @@ class MILPSolver : public CDASolver
   *
   *  - idx_to_svar, idx_to_scon : vectors of pairs that store the indices
   *    of columns and rows, respectively, of the constraint matrix and the
-  *    address of the corresponding (group of) static variables and
+  *    address of the corresponding (run of) static variables and
   *    constraints. The vectors are kept sorted in ascending order by index.
   *
   *  - idx_to_dvar, idx_to_dcon : vectors that store the addresses of dynamic

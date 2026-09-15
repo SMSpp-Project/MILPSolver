@@ -55,6 +55,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- a group of static Variable or Constraint made of several arrays, i.e., a
+  `std::vector` of `std::vector` or a `boost::multi_array` of `std::vector`,
+  was mapped to the rows and columns of the matrix as if it were one array,
+  from the address of its first element, and with more than one array the
+  back-end got a broken problem (CPLEX crashing, HiGHS refusing it): each run
+  of contiguous elements of a group is now mapped on its own
+
+- CPXMILPSolver passed an infinite side to CPLEX when a row changed so as to
+  have no bound at all (e.g., the lower bound of a `>=` row removed), and
+  CPLEX answered NaN; a side changed by a Modification, or of a dynamic row,
+  is now CPX_INFBOUND when infinite, as it already was when loading
+
 - the scan of `perform_separation()`, in all four back-ends, which looked for
   the added rows only at the first level of the Modification list: a Block
   generating its dynamic Constraint inside an open channel had them arrive

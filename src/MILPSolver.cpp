@@ -690,9 +690,6 @@ template< typename T >
     rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
   }
 
-  // Add number of elements of the group
-  if( elements )
-    std::get< 2 >( scon_to_idx.back() ) = elements;
  }
  else if( typeid( T * ) == typeid( ColVariable * ) ) {
   // Scanning a group of Variables
@@ -717,9 +714,6 @@ template< typename T >
    colname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
   }
 
-  // Add number of elements of the group
-  if( elements )
-   std::get< 2 >( svar_to_idx.back() ) = elements;
 
   // If the option single_bound is true, we have to check that maximum one
   // OneVarConstraint is associated with a single variable.
@@ -804,9 +798,6 @@ template< typename T >
      rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
      }
 
-     // Add number of elements of the group
-     if( elements )
-      std::get< 2 >( scon_to_idx.back() ) = elements;
 
      // The linearization produced by ma->data() for the 2D multi_array
      // stores elements in row-major order. Therefore, we should increment
@@ -851,9 +842,6 @@ template< typename T >
       colname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
      }
       
-     // Add number of elements of the group
-     if( elements )
-      std::get< 2 >( svar_to_idx.back() ) = elements;
 
      // The linearization produced by ma->data() for the 2D multi_array
      // stores elements in row-major order. Therefore, we should increment
@@ -932,9 +920,6 @@ template< typename T >
      }
     }
     
-    // Add number of elements of the group
-    if( elements )
-     std::get< 2 >( scon_to_idx.back() ) = elements;
    }
    else if( typeid( T * ) == typeid( ColVariable * ) ) {
     // Variable group
@@ -984,9 +969,6 @@ template< typename T >
      }
     }
 
-    // Add number of elements of the group
-    if( elements )
-     std::get< 2 >( svar_to_idx.back() ) = elements;
    }
    else
     throw( std::runtime_error(
@@ -1051,9 +1033,6 @@ template< typename T >
       rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
      }
 
-     // Add number of elements of the group
-     if( elements )
-      std::get< 2 >( scon_to_idx.back() ) = elements;
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
@@ -1103,9 +1082,6 @@ template< typename T >
       colname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
      }
 
-     // Add number of elements of the group
-     if( elements )
-      std::get< 2 >( svar_to_idx.back() ) = elements;
 
      // The linearization produced by ma->data() for the 3D multi_array
      // stores elements in row-major order.
@@ -1193,9 +1169,6 @@ template< typename T >
      }
     }
     
-    // Add number of elements of the group
-    if( elements )
-     std::get< 2 >( scon_to_idx.back() ) = elements;
    }
    else if( typeid( T * ) == typeid( ColVariable * ) ) {
     // Variable group
@@ -1251,9 +1224,6 @@ template< typename T >
      }
     }
     
-    // Add number of elements of the group
-    if( elements )
-     std::get< 2 >( svar_to_idx.back() ) = elements;
    }
    else
     throw( std::runtime_error(
@@ -1588,10 +1558,16 @@ const FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
 void MILPSolver::scan_static_variable( const ColVariable & var , Index & n ,
 				       Index & col )
 {
- if( ! n++ ) {  // the tuple's third field will be filled later
+ // a group is recorded as the runs of elements that are contiguous in
+ // memory: one run for a group that is a single array, one per array for a
+ // group made of many of them (e.g., a std::vector of std::vector)
+ if( ( ! n++ ) ||
+     ( & var != std::get< 0 >( svar_to_idx.back() ) +
+                std::get< 2 >( svar_to_idx.back() ) ) ) {
   svar_to_idx.emplace_back( & var , col , 0 );
   idx_to_svar.emplace_back( col , & var );
   }
+ ++std::get< 2 >( svar_to_idx.back() );
 
  scan_variable( var , col );
  }
@@ -1691,10 +1667,16 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
 void MILPSolver::scan_static_constraint( const FRowConstraint & con ,
 					 Index & n , Index & row )
 {
- if( ! n++ ) {  // the tuple's third field will be filled later
+ // a group is recorded as the runs of elements that are contiguous in
+ // memory: one run for a group that is a single array, one per array for a
+ // group made of many of them (e.g., a std::vector of std::vector)
+ if( ( ! n++ ) ||
+     ( & con != std::get< 0 >( scon_to_idx.back() ) +
+                std::get< 2 >( scon_to_idx.back() ) ) ) {
   scon_to_idx.emplace_back( & con , row , 0 );
   idx_to_scon.emplace_back( row , & con );
   }
+ ++std::get< 2 >( scon_to_idx.back() );
 
  scan_constraint( con , row );
  }
@@ -3910,15 +3892,16 @@ void MILPSolver::check_status( void )
   }
  }
 
- if( idx_to_svar.size() != svg ) {
+ // a group has one entry per run of contiguous elements, hence at least one
+ if( idx_to_svar.size() < svg ) {
   DEBUG_LOG( "Size of idx_to_svar is " << idx_to_svar.size()
-                                       << ", it should be " << sv
+                                       << ", it should be at least " << svg
                                        << std::endl );
  }
 
- if( svar_to_idx.size() != svg ) {
+ if( svar_to_idx.size() < svg ) {
   DEBUG_LOG( "Size of svar_to_idx is " << svar_to_idx.size()
-                                       << ", it should be " << svg
+                                       << ", it should be at least " << svg
                                        << std::endl );
  }
 
@@ -3984,15 +3967,16 @@ void MILPSolver::check_status( void )
   }
  }
 
- if( idx_to_scon.size() != scg ) {
+ // a group has one entry per run of contiguous elements, hence at least one
+ if( idx_to_scon.size() < scg ) {
   DEBUG_LOG( "Size of idx_to_scon is " << idx_to_scon.size()
-                                       << ", it should be " << scg
+                                       << ", it should be at least " << scg
                                        << std::endl );
  }
 
- if( scon_to_idx.size() != scg ) {
+ if( scon_to_idx.size() < scg ) {
   DEBUG_LOG( "Size of scon_to_idx is " << scon_to_idx.size()
-                                       << ", it should be " << scg
+                                       << ", it should be at least " << scg
                                        << std::endl );
  }
 
