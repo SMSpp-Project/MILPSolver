@@ -73,6 +73,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   been retired and any Solver can now be told to skip a subset of
   the Block tree
 
+## [0.9.1] - 2026-09-13
+
+### Changed
+
+- the start of the Gurobi environment is retried, with a growing wait,
+  when the license service refuses it for a transient reason, so that a
+  long computation is not lost to a momentary refusal
+
+## [0.9.0] - 2026-09-12
+
+### Added
+
 - PIPSMILPSolver, providing the interface with the parallel
   interior-point solver PIPS-IPM++ (LP problems, Linux only),
   plus the pips\_pars header-generator tool
@@ -113,6 +125,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - relaxed-integer LP cut-separation loop (`intRelaxIntVars == 2`) is
   now driven by the base `compute()`
+- the version of the module is the git tag of its repository, or the
+  VERSION.txt of a release tarball, and the shared library carries it: its
+  SONAME is major.minor while the major is 0, and it is installed with an
+  RPATH relative to itself, so that an installed tree keeps working wherever
+  it is moved
 
 ### Fixed
 
@@ -137,6 +154,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   crashed inside GUROBI itself. It only showed with the integer variables
   on, the callback being called only in a MIP context
 
+- FindCPLEX, FindGUROBI and FindSCIP compute ARCH when it is not given, as for
+  a module built on its own or a project using the installed one, where the
+  umbrella does not set it
 
 ## [0.8.0] - 2025-12-12
 
@@ -335,7 +355,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.8.0...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...develop
+[0.9.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.8.0...0.9.0
 [0.8.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.7.1...0.8.0
 [0.7.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.7.0...0.7.1
 [0.7.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.6.0...0.7.0

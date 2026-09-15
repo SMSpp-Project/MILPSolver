@@ -117,14 +117,55 @@ add_subdirectory(tools)
 # This will generate a *Config.h header in the build directory.
 configure_file(cmake/${modName}Config.h.in ${modName}Config.h)
 
+# ----- RPATH --------------------------------------------------------------- #
+# The installed libraries and executables look for the libraries of the same
+# installation relative to their own location, so that the installed tree can
+# be moved as a whole; the directories of the external libraries are kept.
+include(GNUInstallDirs)
+if (NOT CMAKE_INSTALL_RPATH)
+    if (APPLE)
+        set(rpathOrigin "@loader_path")
+    else ()
+        set(rpathOrigin "$ORIGIN")
+    endif ()
+    file(RELATIVE_PATH binToLib ${CMAKE_INSTALL_FULL_BINDIR}
+            ${CMAKE_INSTALL_FULL_LIBDIR})
+    set(CMAKE_INSTALL_RPATH "${rpathOrigin}" "${rpathOrigin}/${binToLib}")
+endif ()
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 # ----- Library ------------------------------------------------------------- #
 # With the BUILD_SHARED_LIBS variable we can specify if the library will
 # be STATIC or SHARED, so no reason to do it now.
 add_library(${modName})
 target_compile_features(${modName} PUBLIC cxx_std_17)
 
-if (MSVC AND BUILD_SHARED_LIBS)
-    target_link_options(${modName} INTERFACE "/INCLUDE:SMSpp_force_load_${modName}")
+# The name of the shared library carries the version of its binary interface,
+# which any minor release may change while the major version is 0, and then
+# any major release.
+if (PROJECT_VERSION_MAJOR EQUAL 0)
+    set(soVersion ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
+else ()
+    set(soVersion ${PROJECT_VERSION_MAJOR})
+endif ()
+set_target_properties(${modName} PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${soVersion})
+
+# The classes of the module register themselves in the factory from a static
+# initialiser, and a linker that drops what looks unused takes the
+# registration away with it: the target tells whoever links it to keep the
+# symbol that forces the module in, or the library as a whole where naming
+# the symbol is not enough.
+if (BUILD_SHARED_LIBS)
+    if (MSVC)
+        target_link_options(${modName} INTERFACE
+                "/INCLUDE:SMSpp_force_load_${modName}")
+    elseif (UNIX AND (NOT APPLE))
+        # the ELF linker decides by the symbols a regular object asks for, so
+        # naming the symbol is not enough and the library has to be kept
+        target_link_options(${modName} INTERFACE "LINKER:--no-as-needed")
+    endif ()
 endif ()
 
 # Ensure that the executables from /tools are run before adding the /include

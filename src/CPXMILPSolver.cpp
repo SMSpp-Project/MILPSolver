@@ -785,13 +785,15 @@ int CPXMILPSolver::decode_lqp_status( int status )
   case( CPX_STAT_NUM_BEST ):
    // Solution is available, but not proved optimal,
    // due to numeric difficulties during optimization.
+   return( kLowPrecision );
   case( CPX_STAT_OPTIMAL ):
    // Optimal solution is available.
   case( CPX_STAT_OPTIMAL_FACE_UNBOUNDED ):
    // Model has an unbounded optimal face.
+   return( kOK );
   case( CPX_STAT_OPTIMAL_INFEAS ):
    // Optimal solution is available, but with infeasibilities after unscaling.
-   return( kOK );
+   return( kLowPrecision );
   case( CPX_STAT_UNBOUNDED ):
    // Problem has an unbounded ray.
    return( kUnbounded );
@@ -1619,6 +1621,14 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
  // [see MILPSolver::f_dual_direction_value]
  f_dual_direction_value = proof;
 
+ // the second output of CPXdualfarkas is the value the dual objective takes
+ // along the certificate, in the sign convention of y, which here is the one
+ // of CPXgetpi and is therefore left alone: for min 0 s.t. x >= 2 , x <= -3
+ // with x free, y is ( 1 , -1 ) and the value is 5 = y' b, the same number
+ // Gurobi reports once its own y is flipped
+ // [see MILPSolver::f_dual_direction_value]
+ f_dual_direction_value = proof;
+
  // CPXdjfrompi computes reduced costs from dual values
  // dj = c - A'y
 
@@ -1626,6 +1636,20 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
   throw( std::runtime_error(
              "CPXMILPSolver::get_dual_direction: "
              "an error occurred in CPXdjfrompi()" ) );
+
+ // with intHomogeneousDirection the multipliers of the columns are - A' y,
+ // the ray of the homogeneous system, and what CPXdjfrompi() gives is
+ // c - A' y, so the objective is taken back out
+ // [see MILPSolver::intHomogeneousDirection]
+ if( homogeneous_direction ) {
+  std::vector< double > cobj( numcols , 0 );
+  if( CPXgetobj( env , lp , cobj.data() , 0 , numcols - 1 ) )
+   throw( std::runtime_error(
+              "CPXMILPSolver::get_dual_direction: "
+              "an error occurred in CPXgetobj()" ) );
+  for( int j = 0 ; j < numcols ; ++j )
+   dj[ j ] -= cobj[ j ];
+  }
 
  // with intHomogeneousDirection the multipliers of the columns are - A' y,
  // the ray of the homogeneous system, and what CPXdjfrompi() gives is

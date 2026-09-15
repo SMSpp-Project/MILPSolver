@@ -69,6 +69,23 @@ that happen, please upgrade.
 
 These instructions will let you build MILPSolver on your system.
 
+The module also comes ready-made, in any of
+
+```sh
+sudo add-apt-repository ppa:smspp-project/smspp   # Ubuntu
+sudo apt install libsmspp-milp-dev
+
+conda install -c conda-forge smspp-project        # Linux, macOS, Windows
+
+brew tap SMSpp-Project/smspp                      # macOS, Linux
+brew install smspp
+
+vcpkg install "smspp[core,milp]"                  # from the sources
+```
+
+where apt and the port give the module alone, while conda and the tap carry
+the whole framework. What follows is about building it yourself.
+
 ### Requirements
 
 - [SMS++ core library](https://gitlab.com/smspp/smspp)
