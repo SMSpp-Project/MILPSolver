@@ -91,6 +91,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- a batch of changes of the sides that holds a row GUROBI keeps as a ranged
+  one is executed whole rather than refused: such a row is an equality whose
+  range lives in the upper bound of the auxiliary column standing for its
+  slack, and those are three lists like any other. Only the row that becomes
+  ranged for the first time goes on its own, a column having to be created
+  for it
+
 - a Modification that the Solver does not execute no longer closes the batch
   of a group: a PolyhedralFunctionMod is one, the PolyhedralFunctionBlock
   answering it with the equivalent changes of the abstract representation,

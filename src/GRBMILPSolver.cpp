@@ -3623,6 +3623,35 @@ bool GRBMILPSolver::change_sides(
  std::vector< char > senses;
  std::vector< double > rhss;
 
+ // a row that GUROBI keeps as a ranged one carries its range in the upper
+ // bound of the auxiliary column that stands for its slack [see
+ // const_modification()], hence the sides of such a row are written here too
+ std::vector< int > auxs;
+ std::vector< double > auxubs;
+
+ // writes what has been collected so far: the two lists of the rows and the
+ // one of the slacks, each in one call
+ auto flush = [ & ]() {
+  if( ! idxs.empty() ) {
+   GRBsetcharattrlist( model , GRB_CHAR_ATTR_SENSE , idxs.size() ,
+                       idxs.data() , senses.data() );
+   GRBsetdblattrlist( model , GRB_DBL_ATTR_RHS , idxs.size() , idxs.data() ,
+                      rhss.data() );
+   idxs.clear();
+   senses.clear();
+   rhss.clear();
+   }
+
+  if( ! auxs.empty() ) {
+   GRBsetdblattrlist( model , GRB_DBL_ATTR_UB , auxs.size() , auxs.data() ,
+                      auxubs.data() );
+   auxs.clear();
+   auxubs.clear();
+   }
+
+  f_model_dirty = true;
+  };
+
  for( auto mod : mods ) {
   switch( mod->type() ) {
    case( RowConstraintMod::eChgLHS ):
@@ -3641,16 +3670,39 @@ bool GRBMILPSolver::change_sides(
   if( index == Inf< int >() )  // the FRowConstraint is not (yet?) there,
    continue;                   // which is what the handler does one by one
 
-  // a row that is ranged already, or that these sides would make ranged,
-  // takes an auxiliary column and is left to the one-by-one path
-  if( std::find_if( map_rng_con_aux_var.begin() , map_rng_con_aux_var.end() ,
-                    [ index ]( const std::pair< int , int > & el ) {
-                     return( el.first == index );
-                     } ) != map_rng_con_aux_var.end() )
-   return( false );
+  auto it_rng = std::find_if( map_rng_con_aux_var.begin() ,
+                              map_rng_con_aux_var.end() ,
+                              [ index ]( const std::pair< int , int > & el ) {
+                               return( el.first == index );
+                               } );
+  const bool is_rng = ( it_rng != map_rng_con_aux_var.end() );
 
   auto con_lhs = con->get_lhs();
   auto con_rhs = con->get_rhs();
+  const bool two_sided = ( con_lhs != con_rhs ) &&
+                         ( con_lhs != -Inf< double >() ) &&
+                         ( con_rhs != Inf< double >() );
+
+  /* A row that has to become ranged and has no slack column yet needs one
+   * created, with its coefficient in the row: that is a change of the
+   * structure of the model and not of an attribute, so what has been
+   * collected goes out first and that one Modification is executed on its
+   * own, which keeps the order between the two. */
+  if( two_sided && ( ! is_rng ) ) {
+   flush();
+   const_modification( mod );
+   continue;
+   }
+
+  idxs.push_back( index );
+
+  if( two_sided ) {        // it stays ranged: the row is an equality and the
+   senses.push_back( GRB_EQUAL );   // range lives in the slack
+   rhss.push_back( con_rhs );
+   auxs.push_back( it_rng->second );
+   auxubs.push_back( con_rhs - con_lhs );
+   continue;
+   }
 
   if( con_lhs == con_rhs ) {
    senses.push_back( GRB_EQUAL );
@@ -3661,25 +3713,21 @@ bool GRBMILPSolver::change_sides(
     senses.push_back( GRB_LESS_EQUAL );
     rhss.push_back( con_rhs );
     }
-   else
-    if( con_rhs == Inf< double >() ) {
-     senses.push_back( GRB_GREATER_EQUAL );
-     rhss.push_back( con_lhs );
-     }
-    else  // it would become a ranged row
-     return( false );
+   else {
+    senses.push_back( GRB_GREATER_EQUAL );
+    rhss.push_back( con_lhs );
+    }
 
-  idxs.push_back( index );
+  /* It was ranged and is not any more: the slack stays where it is, fixed at
+   * zero, so that  a'x + s = rhs  is  a'x = rhs  again [see
+   * const_modification(), which does the same]. */
+  if( is_rng ) {
+   auxs.push_back( it_rng->second );
+   auxubs.push_back( 0.0 );
+   }
   }
 
- if( ! idxs.empty() ) {
-  GRBsetcharattrlist( model , GRB_CHAR_ATTR_SENSE , idxs.size() ,
-                      idxs.data() , senses.data() );
-  GRBsetdblattrlist( model , GRB_DBL_ATTR_RHS , idxs.size() , idxs.data() ,
-                     rhss.data() );
-  }
-
- f_model_dirty = true;
+ flush();
 
  return( true );
 
