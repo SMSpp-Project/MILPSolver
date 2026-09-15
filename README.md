@@ -2,7 +2,7 @@
 
 A generic MILP Solver meta-interface for SMS++, with modules for interfacing
 with some actual solvers. Supports `LinearFunction`, `DQuadFunction` (diagonal
-quadratic) and `QuadFunction` (general quadratic, both the last cases not
+quadratic) and `QuadFunction` (general quadratic, the last two cases not
 necessarily convex) both in the `FRealObjective` and in the `FRowConstraint`,
 so it is actually an interface for MI-QCQP in its full generality.
 
@@ -20,7 +20,7 @@ i.e.:
 
 - all inner `Function` in the `FRealObjective` and `FRowConstraint` are
   `LinearFunction` or `DQuadFunction` (diagonal quadratic) or `QuadFunction`
-  (general quadratic, both the last cases not necessarily convex)
+  (general quadratic, the last two cases not necessarily convex)
 
 However, `MILPSolver` only reads the abstract representation and prepares
 data structures representing the classic (sparse) coefficient matrix of
@@ -58,12 +58,11 @@ Currently available derived classes are:
   only, Linux only; see also its
   [website](https://pips-ipmpp.gitlab.io/index.html))
 
-Basically all current versions of the underlying solvers should be supported
-due to a mechanism that automatically generates *\_defs.h and *\_maps.h files
-for the version found in the system either when installing with cmake or when
-compiling with make (see below for details). However, older versions may fail
-due to changes in the interface. Should this happen, just upgrade to newer
-versions.
+Recent versions of every underlying solver are supported via a mechanism
+that auto-generates the `*_defs.h` and `*_maps.h` files for the version
+found on the system, both with CMake and with the makefiles (see below
+for details). Older versions may fail if the upstream API changed: should
+that happen, please upgrade.
 
 
 ## Getting started
@@ -138,6 +137,9 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_GUROBI`  | Use GUROBI     | ON            |
 | `MILPSolver_USE_HiGHS`   | Use HiGHS      | ON            |
 | `MILPSolver_USE_PIPS`    | Use PIPS-IPM++ | ON            |
+
+At least one of the four backends must be enabled at build time for the
+library to be able to actually solve problems.
 
 Optionally, install the library in the system with:
 
@@ -246,6 +248,10 @@ conduct, and the process for submitting merge requests to us.
   Dipartimento di Informatica  
   Università di Pisa
 
+- **Donato Meoli**  
+  Dipartimento di Informatica  
+  Università di Pisa
+
 ### Contributors
 
 - **Rafael Durbano Lobato**  
@@ -279,6 +285,6 @@ any way officially connected with IBM or Gurobi, or any of their subsidiaries
 or affiliates. The names IBM, ILOG, CPLEX and Gurobi as well as related
 names, marks, emblems and images are registered trademarks of their
 respective owners. The authors also do not claim any affiliation with the
-open-source projects developing SCIP and HiHGS: any fault in the code
-interfacing SMS++ with those is all and enturely ours.
+open-source projects developing SCIP and HiGHS: any fault in the code
+interfacing SMS++ with those is all and entirely ours.
 

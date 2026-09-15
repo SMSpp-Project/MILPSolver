@@ -17,7 +17,11 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Enrico Calandrini, Antonio Frangioni
+ * \author Donato Meoli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; Enrico Calandrini, Antonio Frangioni, Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -533,6 +537,58 @@ void add_mip_starts(
  /// handles a bound (OneVarConstraint) Modification
  void bound_modification( const OneVarConstraintMod * mod ) override;
 
+ /// changes the linear coefficients of a whole group in one operation
+ /** The costs go out with one Highs_changeColsCostBySet(), with the old cost
+  * of each column read once for the whole group and the deltas of a column
+  * the group touches more than once summed; the entries of the rows go one by
+  * one, HiGHS having no set-based call for them [see
+  * MILPSolver::change_coefficients()]. */
+
+ /// adds the whole column of each of the given Variable in one operation
+ /** The columns are born empty and get their entries and their costs
+   * afterwards, the costs in one Highs_changeColsCostBySet(); HiGHS has no
+   * batched form of a change of coefficient, so the entries go one at a
+   * time [see MILPSolver::add_columns()]. */
+
+ bool add_columns( const std::vector< Variable * > & vars ,
+                   const GroupModification * gmod ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// removes the whole column of each of the given Variable
+ /** One deletion per column, and none of the coefficients is touched: the
+   * deletion takes them away [see MILPSolver::remove_columns()]. */
+
+ bool remove_columns( const std::vector< Variable * > & vars ,
+                      const GroupModification * gmod ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ bool change_coefficients(
+               const std::vector< const FunctionMod * > & mods ) override;
+
+ /// writes the bounds of a whole group of columns in one operation
+ /** One Highs_changeColsBoundsBySet() for all of them [see
+  * MILPSolver::change_bounds()]. */
+
+ /// One Highs_changeColsBoundsBySet() for the whole set of fixings
+ /** Fixing a column is writing its two bounds; a batch carrying a
+   * change of integrality is refused [see
+   * MILPSolver::change_variables()]. */
+
+ bool change_variables(
+             const std::vector< const VariableMod * > & mods ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ bool change_bounds(
+        const std::vector< const OneVarConstraintMod * > & mods ) override;
+
+ /// writes the sides of a whole group of rows in one operation
+ /** One Highs_changeRowsBoundsBySet() for all of them; relaxing and enforcing
+  * a Constraint are left to the one-by-one path [see
+  * MILPSolver::change_sides()]. */
+
+ bool change_sides(
+        const std::vector< const RowConstraintMod * > & mods ) override;
+
  /// handles a Function Modification applied to the Objective
  void objective_function_modification( const FunctionMod * mod ) override;
 
@@ -553,6 +609,15 @@ void add_mip_starts(
 
  /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
+
+ /// batch-adds a sequence of new dynamic FRowConstraints
+ /** Override the default loop implementation by routing the whole
+  * batch through a single Highs_addRows call, which avoids the
+  * per-row overhead of repeatedly touching the back-end's internal
+  * model when a BlockModAdd<FRowConstraint> arrives with many rows. */
+
+ void add_dynamic_constraints(
+          const std::vector< const FRowConstraint * > & cons ) override;
 
  /// adds a single new dynamic bound (OneVarConstraint)
  void add_dynamic_bound( const OneVarConstraint * con ) override;

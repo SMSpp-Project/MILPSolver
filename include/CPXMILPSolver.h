@@ -20,8 +20,13 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Donato Meoli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
  * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
- *                   Niccolo' Iardella
+ *                   Niccolo' Iardella,
+ *                   Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -581,6 +586,55 @@ class CPXMILPSolver : public MILPSolver {
  /// handles a bound (OneVarConstraint) Modification
  void bound_modification( const OneVarConstraintMod * mod ) override;
 
+ /// changes the linear coefficients of a whole group in one operation
+ /** The entries of the rows go out with one CPXchgcoeflist() and the costs
+  * with one CPXchgobj(), with the old cost of each column read once for the
+  * whole group and the deltas of a column the group touches more than once
+  * summed [see MILPSolver::change_coefficients()]. */
+
+ /// adds the whole column of each of the given Variable in one operation
+ /** The columns are born empty and get their entries in one
+   * CPXchgcoeflist() and their costs in one CPXchgobj() [see
+   * MILPSolver::add_columns()]. */
+
+ bool add_columns( const std::vector< Variable * > & vars ,
+                   const GroupModification * gmod ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// removes the whole column of each of the given Variable
+ /** One deletion per column, and none of the coefficients is touched: the
+   * deletion takes them away [see MILPSolver::remove_columns()]. */
+
+ bool remove_columns( const std::vector< Variable * > & vars ,
+                      const GroupModification * gmod ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ bool change_coefficients(
+               const std::vector< const FunctionMod * > & mods ) override;
+
+ /// writes the bounds of a whole group of columns in one operation
+ /** One CPXchgbds() for all of them [see MILPSolver::change_bounds()]. */
+
+ /// One CPXchgbds() for the whole set of fixings
+ /** Fixing a column is writing its two bounds; a batch carrying a
+   * change of integrality is refused [see
+   * MILPSolver::change_variables()]. */
+
+ bool change_variables(
+             const std::vector< const VariableMod * > & mods ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ bool change_bounds(
+        const std::vector< const OneVarConstraintMod * > & mods ) override;
+
+ /// writes the sides of a whole group of rows in one operation
+ /** One CPXchgrhs(), one CPXchgsense() and, for the ranged rows, one
+  * CPXchgrngval(); relaxing and enforcing a Constraint are left to the
+  * one-by-one path [see MILPSolver::change_sides()]. */
+
+ bool change_sides(
+        const std::vector< const RowConstraintMod * > & mods ) override;
+
  /// handles a Function Modification applied to the Objective
  void objective_function_modification( const FunctionMod * mod ) override;
 
@@ -601,6 +655,16 @@ class CPXMILPSolver : public MILPSolver {
 
  /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
+
+ /// batch-adds a sequence of new dynamic FRowConstraints
+ /** Override the default loop implementation by routing the whole
+  * batch through a single CPXaddrows call. Ranged rows (which need
+  * the separate CPXchgrngval post-step) and rows flagged as inverted
+  * (f_inverted_rows) are filtered out of the batch and added one by
+  * one via the base add_dynamic_constraint fallback. */
+
+ void add_dynamic_constraints(
+          const std::vector< const FRowConstraint * > & cons ) override;
 
  /// adds a single new dynamic bound (OneVarConstraint)
  void add_dynamic_bound( const OneVarConstraint * con ) override;

@@ -16,8 +16,13 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Donato Meoli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
  * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
- *                      Niccolo' Iardella
+ *                      Niccolo' Iardella,
+ *                      Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
@@ -205,7 +210,8 @@ void SCIPMILPSolver::load_problem( void )
                 con_rhs = SCIPinfinity( scip );
 	        break;
    case( 'R' ): con_lhs = con_rhs = rhs[ i ];
-                // TODO Check this
+                // ranged row: rngval gives the signed extent of the
+                // additional side, matching CPLEX/Gurobi semantics
                 if( rngval[ i ] > 0 )
 		 con_rhs += rngval[ i ];
 		else
@@ -498,7 +504,9 @@ Solver::OFValue SCIPMILPSolver::get_lb( void )
     default:             lower_bound += SCIPgetPrimalbound( scip );
     }
    break;
-  default: throw( std::runtime_error( "Objective type not yet defined" ) );
+  default:
+   throw( std::runtime_error(
+              "SCIPMILPSolver::get_lb: Objective type not yet defined" ) );
   }
 
  return( lower_bound );
@@ -527,7 +535,9 @@ Solver::OFValue SCIPMILPSolver::get_ub( void )
     }
    break;
 
-  default: throw( std::runtime_error( "Objective type not yet defined" ) );
+  default:
+   throw( std::runtime_error(
+              "SCIPMILPSolver::get_ub: Objective type not yet defined" ) );
   }
 
  return( upper_bound );
@@ -560,7 +570,9 @@ Solver::OFValue SCIPMILPSolver::get_var_value( void )
   case( SCIP_OBJSENSE_MINIMIZE ): return( get_ub() );
   case( SCIP_OBJSENSE_MAXIMIZE ): return( get_lb() );
   default:
-   throw( std::runtime_error( "Objective type not yet defined" ) );
+   throw( std::runtime_error(
+              "SCIPMILPSolver::get_var_value: "
+              "Objective type not yet defined" ) );
   }
  }
 
@@ -576,7 +588,9 @@ void SCIPMILPSolver::get_var_solution( Configuration * solc )
  SCIP_RETCODE status = SCIPgetSolVals( scip , sol , numcols ,
 				       vars.data() , x.data() );
  if( status != SCIP_OKAY )
-  throw( std::runtime_error( "Unable to get the SCIP solution values" ) );
+  throw( std::runtime_error(
+             "SCIPMILPSolver::get_var_solution: "
+             "unable to get the SCIP solution values" ) );
 
  MILPSolver::write_var_solution( x );
  } 
@@ -614,8 +628,10 @@ bool SCIPMILPSolver::has_dual_solution( void )
   print = TRUE;
 
  if( ComputeDuals == 0 )
-  throw( std::runtime_error( "To retrieve dual values you must specify the "
-    "parameter intComputeDuals " ) );
+  throw( std::runtime_error(
+             "SCIPMILPSolver::has_dual_solution: "
+             "to retrieve dual values you must specify the "
+             "intComputeDuals parameter" ) );
 
  has_dual_solution = SCIPisDualSolAvailable( scip , print );
  
@@ -629,7 +645,14 @@ bool SCIPMILPSolver::has_dual_solution( void )
 
 bool SCIPMILPSolver::is_dual_feasible( void )
 {
- return( false );  // TODO
+ // The contract of is_dual_feasible() is to tell whether the CURRENT
+ // solution maintained by the solver (the one accessible during a
+ // callback) is provably dual-feasible. SCIP has no API equivalent to
+ // CPLEX's CPXsolninfo for this query, so the only safe answer is a
+ // conservative `false`: any attempt to derive dual-feasibility from
+ // the global status code would conflate primal feasibility with dual
+ // feasibility, which is unsound.
+ return( false );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -798,7 +821,8 @@ void SCIPMILPSolver::objective_modification( const ObjectiveMod * mod )
    break;
 
   default:
-   throw( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
+   throw( std::invalid_argument(
+              "SCIPMILPSolver: invalid type of ObjectiveMod" ) );
   }
  }
 
@@ -855,7 +879,8 @@ void SCIPMILPSolver::const_modification( const ConstraintMod * mod )
    break;
 
   default:
-   throw( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
+   throw( std::invalid_argument(
+              "SCIPMILPSolver: invalid type of ObjectiveMod" ) );
   }
  }  // end( SCIPMILPSolver::const_modification )
 
@@ -943,7 +968,9 @@ void SCIPMILPSolver::bound_modification( const OneVarConstraintMod * mod )
    }
 
   default:
-   throw( std::invalid_argument( "Invalid type of OneVarConstraintMod" ) );
+   throw( std::invalid_argument(
+              "SCIPMILPSolver::bound_modification: "
+              "invalid type of OneVarConstraintMod" ) );
   }
  }  // end( SCIPMILPSolver::bound_modification )
 
@@ -973,7 +1000,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
      idxs = lf->map_index( modl->vars() , modls->subset() );
     else
-     throw( std::logic_error( "unknown type of C05FunctionModLinRngd" ) );
+     throw( std::logic_error(
+                "SCIPMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
    auto idxit = idxs.begin();
 
@@ -1009,7 +1037,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
      idxs = qf->map_index( modl->vars() , modls->subset() );
     else
-     throw( std::logic_error( "unknown type of C05FunctionModLinRngd" ) );
+     throw( std::logic_error(
+                "SCIPMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
    auto idxit = idxs.begin();
    
@@ -1036,7 +1065,9 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
   }
 
   // This should never happen
-  throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+  throw( std::invalid_argument(
+             "SCIPMILPSolver::objective_function_modification: "
+             "unknown type of Objective Function" ) );
   }
 
  // C05FunctionMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1051,7 +1082,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
        ( shift == - FunctionMod::INFshift ) ||
        ( std::isnan( shift ) ) )
     throw( std::logic_error(
-     "unexpected *C05FunctionMod* from Objective Function" ) );
+               "SCIPMILPSolver::objective_function_modification: "
+               "unexpected *C05FunctionMod* from Objective Function" ) );
 
    constant_value += shift;
    return;
@@ -1061,7 +1093,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
   auto dqf = dynamic_cast< const DQuadFunction * >( f );
   if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
-		       "unexpected *C05FunctionMod* from Linear Objective" ) );
+               "SCIPMILPSolver::objective_function_modification: "
+               "unexpected *C05FunctionMod* from Linear Objective" ) );
 
   // Select correct quadratic function
   auto fqf = ( qf ) ? qf : dqf;
@@ -1128,7 +1161,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
          // Remove the term from the quadratic function (at the moment not 
          // supported by SCIP ).
          throw( std::logic_error(
-		      "SCIP does not currently support the removal of quadratic terms "
+                    "SCIPMILPSolver: SCIP does not currently support "
+                    "the removal of quadratic terms "
           "from the objective function." ) );
         else
          exprcoeffs[ pos ] = exprcoeffs[ pos ] - delta_qcoeff;
@@ -1224,7 +1258,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
          // Remove the term from the quadratic function (at the moment not 
          // supported by SCIP ).
          throw( std::logic_error(
-		      "SCIP does not currently support the removal of quadratic terms "
+                    "SCIPMILPSolver: SCIP does not currently support "
+                    "the removal of quadratic terms "
           "from the objective function." ) );
         else
          exprcoeffs[ pos ] = exprcoeffs[ pos ] - delta_qcoeff;
@@ -1278,7 +1313,9 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    if( idxs.size() != 2 )
     throw( std::logic_error(
-		       "Expected single coefficient Modification in QuadFunctionModSbst" ) );
+               "SCIPMILPSolver::objective_function_modification: "
+               "expected single coefficient Modification in "
+               "QuadFunctionModSbst" ) );
 
    int idx1 = index_of_variable( dynamic_cast< ColVariable * >( mod_vars[ 0 ] ) );
    int idx2 = index_of_variable( dynamic_cast< ColVariable * >( mod_vars[ 1 ] ) );
@@ -1316,7 +1353,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
        // Remove the term from the quadratic function (at the moment not 
        // supported by SCIP ).
        throw( std::logic_error(
-		    "SCIP does not currently support the removal of quadratic terms "
+                  "SCIPMILPSolver: SCIP does not currently support "
+                  "the removal of quadratic terms "
         "from the objective function." ) );
       else
        exprcoeffs[ pos ] = exprcoeffs[ pos ] - delta_coeff;
@@ -1357,7 +1395,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
   }
   else
-    throw( std::logic_error( "unknown type of *QuadFunctionMod*" ) );
+    throw( std::logic_error(
+               "SCIPMILPSolver: unknown type of *QuadFunctionMod*" ) );
  }
 
  // Fallback method - Update all costs
@@ -1393,7 +1432,9 @@ void SCIPMILPSolver::constraint_function_modification(
 
  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
  if( ! modl )
-  throw( std::logic_error( "unexpected *C05FunctionModLin* from FRowConstraint" ) );
+  throw( std::logic_error(
+             "SCIPMILPSolver: "
+             "unexpected *C05FunctionModLin* from FRowConstraint" ) );
 
  Subset idxs;
  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
@@ -1402,7 +1443,9 @@ void SCIPMILPSolver::constraint_function_modification(
   if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
    idxs = lf->map_index( modl->vars() , modls->subset() );
   else
-   throw( std::logic_error( "unknown type of C05FunctionModLinRngd" ) );
+   throw( std::logic_error(
+              "SCIPMILPSolver::constraint_function_modification: "
+              "unknown type of C05FunctionModLinRngd" ) );
 
  auto idxit = idxs.begin();
  auto & cp = lf->get_v_var();
@@ -1446,8 +1489,9 @@ void SCIPMILPSolver::objective_fvars_modification(
      ( ! dynamic_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
-  throw( std::invalid_argument( "This type of FunctionModVars is not handled"
-				) );
+  throw( std::invalid_argument(
+             "SCIPMILPSolver::objective_fvars_modification: "
+             "this type of FunctionModVars is not handled" ) );
 
  auto f = mod->function();
  auto nav = f->get_num_active_var();
@@ -1524,7 +1568,8 @@ void SCIPMILPSolver::objective_fvars_modification(
             // Remove the term from the quadratic function (at the moment not 
             // supported by SCIP ).
             throw( std::logic_error(
-		          "SCIP does not currently support the removal of quadratic terms "
+                       "SCIPMILPSolver: SCIP does not currently "
+                       "support the removal of quadratic terms "
               "from the objective function." ) );
 
             /*auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
@@ -1535,8 +1580,8 @@ void SCIPMILPSolver::objective_fvars_modification(
             qidx1_it = find( qidx1_it + 1 , qobj_idx1.end() , idx );
         }
       }
-    // TODO: BUilt a specific Modification to include non diagonal terms
-    // to be set to 0.
+    // Note: non-diagonal Q coefficients are not zeroed here; the
+    // surrounding Modification only reaches the diagonal block.
     }
   return;
   }
@@ -1544,7 +1589,9 @@ void SCIPMILPSolver::objective_fvars_modification(
   auto modq = dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
-    throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
+    throw( std::invalid_argument(
+               "SCIPMILPSolver: "
+               "unexpected type of Objective Function Modification" ) );
 
   // we exploit the od_terms() vector of QuadFunctionModVarsAddd, giving the sum
   // between the new and the old value of the quadratic coefficient, to update 
@@ -1643,7 +1690,8 @@ void SCIPMILPSolver::objective_fvars_modification(
             // Remove the term from the quadratic function (at the moment not 
             // supported by SCIP ).
             throw( std::logic_error(
-		          "SCIP does not currently support the removal of quadratic terms "
+                       "SCIPMILPSolver: SCIP does not currently "
+                       "support the removal of quadratic terms "
               "from the objective function." ) );
 
             /*auto exprcoeffs = SCIPgetCoefsExprSum( qexpr );
@@ -1661,7 +1709,9 @@ void SCIPMILPSolver::objective_fvars_modification(
   auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
-    throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
+    throw( std::invalid_argument(
+               "SCIPMILPSolver: "
+               "unexpected type of Objective Function Modification" ) );
 
   // we exploit the coeff() vector of DQuadFunctionModVarsAddd, giving the sum
   // between the new and the old value of both the linear and quadratic
@@ -1728,7 +1778,9 @@ void SCIPMILPSolver::objective_fvars_modification(
  }
  
  // This should never happen
- throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+ throw( std::invalid_argument(
+            "SCIPMILPSolver::objective_fvars_modification: "
+            "unknown type of Objective Function" ) );
 
  }  // end( SCIPMILPSolver::objective_fvars_modification )
 
@@ -1752,8 +1804,9 @@ void SCIPMILPSolver::constraint_fvars_modification(
  if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
-  throw( std::invalid_argument( "This type of FunctionModVars is not handled"
-				) );
+  throw( std::invalid_argument(
+             "SCIPMILPSolver::constraint_fvars_modification: "
+             "this type of FunctionModVars is not handled" ) );
 
  auto con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
  if( ! con )
@@ -1798,37 +1851,50 @@ void SCIPMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::add_dynamic_constraint( con );
 
- if( auto f = con->get_function() ) {
-  auto lf = dynamic_cast< const LinearFunction * >( f );
-  if( ! lf )
-   throw( std::invalid_argument( "The Constraint is not linear" ) );
+ auto f = con->get_function();
+ if( ! f )
+  return;
+ auto lf = dynamic_cast< const LinearFunction * >( f );
+ if( ! lf )
+  throw( std::invalid_argument(
+            "SCIPMILPSolver::add_dynamic_constraint: "
+            "the FRowConstraint is not linear" ) );
 
-  if( SCIPisTransformed( scip ) )
-   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
+ // SCIP wants a freshly-transformed problem before any structural
+ // change; if the model has already been transformed, release the
+ // transformed copy first
+ if( SCIPisTransformed( scip ) )
+  SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
-  SCIP_CONS * scip_con = nullptr;
+ SCIP_CONS * scip_con = nullptr;
 
-  SCIP_Real con_lhs = con->get_lhs() == -Inf< double >() ?
-                      -SCIPinfinity( scip ) : con->get_lhs();
-  SCIP_Real con_rhs = con->get_rhs() == Inf< double >() ?
-                      SCIPinfinity( scip ) : con->get_rhs();
+ const SCIP_Real con_lhs = con->get_lhs() == -Inf< double >() ?
+                           -SCIPinfinity( scip ) : con->get_lhs();
+ const SCIP_Real con_rhs = con->get_rhs() ==  Inf< double >() ?
+                            SCIPinfinity( scip ) : con->get_rhs();
 
-  char name[ 32 ];
-  std::snprintf( name , sizeof( name ) , "%p" , ( void * ) con );
-  SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip , & scip_con , name , 0 ,
-                                              nullptr , nullptr ,
-                                              con_lhs , con_rhs ) );
+ // name the row after the pointer of the originating FRowConstraint so
+ // every row in the SCIP problem can be uniquely identified for log
+ // / debug purposes
+ char name[ 32 ];
+ std::snprintf( name , sizeof( name ) , "%p" , ( const void * ) con );
+ SCIP_CALL_ABORT( SCIPcreateConsBasicLinear( scip , & scip_con , name , 0 ,
+                                             nullptr , nullptr ,
+                                             con_lhs , con_rhs ) );
 
-  // get the coefficients to fill the matrix
-  for( auto & el : lf->get_v_var() )
-   if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() )
-    SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , scip_con , vars[ idx ] ,
-                                        el.second ) );
+ // push the row's coefficients one variable at a time; SCIP does not
+ // expose a CSR-style "add many coefficients" entry point, so the
+ // scatter loop runs locally (the shared MILPSolver::scatter_lf_to_csr
+ // helper targets CSR-friendly back-ends like CPLEX / Gurobi / HiGHS)
+ for( auto & el : lf->get_v_var() )
+  if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() )
+   SCIP_CALL_ABORT( SCIPaddCoefLinear( scip , scip_con , vars[ idx ] ,
+                                       el.second ) );
 
-  SCIP_CALL_ABORT( SCIPaddCons( scip , scip_con ) );
-  cons.push_back( scip_con );
-  SCIP_CALL_ABORT( SCIPreleaseCons( scip , & scip_con ) );
-  }
+ SCIP_CALL_ABORT( SCIPaddCons( scip , scip_con ) );
+ cons.push_back( scip_con );
+ SCIP_CALL_ABORT( SCIPreleaseCons( scip , & scip_con ) );
+
  }  // end( SCIPMILPSolver::add_dynamic_constraint )
 
 /*--------------------------------------------------------------------------*/
@@ -1877,11 +1943,15 @@ void SCIPMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 
  auto var = static_cast< ColVariable * >( con->get_active_var( 0 ) );
  if( ! var )
-  throw( std::logic_error( "SCIPMILPSolver: added a bound on no Variable" ) );
+  throw( std::logic_error(
+             "SCIPMILPSolver::add_dynamic_bound: "
+             "added a bound on no Variable" ) );
 
  auto idx = index_of_variable( var );
  if( idx == Inf< int >() )
-  throw( std::logic_error( "SCIPMILPSolver: added a bound on unknown Variable"
+  throw( std::logic_error(
+             "SCIPMILPSolver::add_dynamic_bound: "
+             "added a bound on unknown Variable"
 			   ) );
 
  SCIP_VAR * scip_var = vars[ idx ];
@@ -1909,7 +1979,9 @@ void SCIPMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
   MILPSolver::remove_dynamic_constraint( con );
   }
  else
-  throw( std::runtime_error( "Dynamic constraint not found" ) );
+  throw( std::runtime_error(
+             "SCIPMILPSolver::remove_dynamic_constraint: "
+             "dynamic constraint not found" ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1933,7 +2005,9 @@ void SCIPMILPSolver::remove_dynamic_variable( const ColVariable * var )
   MILPSolver::remove_dynamic_variable( var );
   }
  else
-  throw( std::runtime_error( "Dynamic variable not found" ) );
+  throw( std::runtime_error(
+             "SCIPMILPSolver::remove_dynamic_variable: "
+             "dynamic variable not found" ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2027,20 +2101,16 @@ void SCIPMILPSolver::perform_separation( Configuration * cfg ,
 
  rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
 
- // main loop: check all new Modification for a Constraint addition
- for( ; it != v_mod.end() ; ++it ) {
-  // check if the Modification indicates an added FRowConstraint
-  auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >(
-								it->get() );
-  if( ! tmod )  // if not
-   continue;    // next
+ // what is done with each addition of rows, wherever it is found
+ auto add_rows = [ & ]( const BlockModAdd< FRowConstraint > * tmod ) {
 
   // add all the new constraint to the matrix, one by one
   for( auto con : tmod->added() ) {
    if( auto f = con->get_function() ) {
     auto * lf = dynamic_cast< const LinearFunction * >( f );
     if( ! lf )
-     throw( std::invalid_argument( "The Constraint is not linear" ) );
+     throw( std::invalid_argument(
+                "SCIPMILPSolver: the Constraint is not linear" ) );
 
     auto nzcnt = lf->get_num_active_var();
     auto sz = rmatind.size();
@@ -2065,7 +2135,14 @@ void SCIPMILPSolver::perform_separation( Configuration * cfg ,
     rmatbeg.push_back( rmatind.size() );
     }
    }  // end( for each added FRowConstraint )
-  }  // end( main loop )
+  };
+
+ // main loop: check all new Modification for a Constraint addition,
+ // the rows of a Block that generates them inside a channel arriving
+ // grouped
+ for( ; it != v_mod.end() ; ++it )
+  for_each_row_addition( it->get() , add_rows );
+
  }  // end( SCIPMILPSolver::perform_separation )
 
 /*--------------------------------------------------------------------------*/
@@ -2080,7 +2157,8 @@ void SCIPMILPSolver::set_f_cb_mutex( ) {
  // lock()-ing the Block
  bool owned = f_Block->is_owned_by( f_id );
  if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
-   throw( std::runtime_error( "Unable to lock the Block" ) );
+   throw( std::runtime_error(
+              "SCIPMILPSolver: unable to lock the Block" ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2128,6 +2206,13 @@ void SCIPMILPSolver::set_par( idx_type par, int value )
    SCIP_CALL_ABORT( SCIPsetIntParam(scip, "propagating/maxroundsroot", 0) );
    SCIP_CALL_ABORT( SCIPsetIntParam(scip, "propagating/maxrounds", 0) );
    SCIP_CALL_ABORT( SCIPsetHeuristics(scip, SCIP_PARAMSETTING_OFF, TRUE) );
+   // and the dual reductions, which keep a primal optimum but are free to
+   // destroy the dual one: with them on the values below are those of a
+   // problem that is not the one whose duals were asked for
+   SCIP_CALL_ABORT( SCIPsetBoolParam(scip, "misc/allowstrongdualreds",
+                                     FALSE) );
+   SCIP_CALL_ABORT( SCIPsetBoolParam(scip, "misc/allowweakdualreds",
+                                     FALSE) );
 
    return;
   case( intMaxIter ):
@@ -2174,10 +2259,13 @@ void SCIPMILPSolver::set_par( idx_type par , double value )
   case( dblMaxTime ):
    SCIP_CALL_ABORT( SCIPsetRealParam( scip , "limits/time" , value ) );
    return;
-   // case( dblRelAcc ): // TODO
-   //  return;
-   // case( dblAbsAcc ): // TODO
-   //  return;
+  case( dblRelAcc ):
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip , "numerics/feastol" , value ) );
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip , "numerics/dualfeastol" , value ) );
+   return;
+  case( dblAbsAcc ):
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip , "numerics/epsilon" , value ) );
+   return;
   case( dblUpCutOff ): UpCutOff = value; return;
   case( dblLwCutOff ): LwCutOff = value; return;
   case( dblRAccSol ):
@@ -2381,15 +2469,17 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const
 {
  double value;
 
- // sxolver parameters explicitly mapped in SCIP
+ // solver parameters explicitly mapped in SCIP
  switch( par ) {
   case( dblMaxTime ):
    SCIP_CALL_ABORT( SCIPgetRealParam( scip , "limits/time" , & value ) );
    return( value );
-   // case( dblRelAcc ):   // TODO
-   //  return( 1e-6 );
-   // case( dblAbsAcc ):   // TODO
-   //  return( Inf< OFValue >() );
+  case( dblRelAcc ):
+   SCIP_CALL_ABORT( SCIPgetRealParam( scip , "numerics/feastol" , & value ) );
+   return( value );
+  case( dblAbsAcc ):
+   SCIP_CALL_ABORT( SCIPgetRealParam( scip , "numerics/epsilon" , & value ) );
+   return( value );
   case( dblUpCutOff ): return( UpCutOff );
   case( dblLwCutOff ): return( LwCutOff );
   case( dblRAccSol ):
@@ -2526,10 +2616,12 @@ double SCIPMILPSolver::get_dflt_dbl_par( idx_type par ) const
   case( dblMaxTime ):
    param = SCIPgetParam( scip , "limits/time" );
    return( SCIPparamGetRealDefault( param ) );
-   // case( dblRelAcc ):   // TODO
-   //  return( 1e-6 );
-   // case( dblAbsAcc ):   // TODO
-   //  return( Inf< OFValue >() );
+  case( dblRelAcc ):
+   param = SCIPgetParam( scip , "numerics/feastol" );
+   return( SCIPparamGetRealDefault( param ) );
+  case( dblAbsAcc ):
+   param = SCIPgetParam( scip , "numerics/epsilon" );
+   return( SCIPparamGetRealDefault( param ) );
   case( dblUpCutOff ): return( Inf< double >() );
   case( dblLwCutOff ): return( -Inf< double >() );
   case( dblRAccSol ):

@@ -9,9 +9,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-### Changed
+- `process_group_modification()`, which is asked whether a whole
+  GroupModification is one single operation of the back-end before the group
+  is taken apart: the shape it recognises is the column, declared by a
+  `VariableGroupMod`, and it is handed to `add_columns()` / `remove_columns()`,
+  virtual and answering false unless a back-end implements them, so that a
+  back-end that does not keeps exactly the behaviour it had. GRBMILPSolver
+  implements both: a batch of columns is one `GRBaddvar` each plus one
+  `GRBchgcoeffs` and one `GRBsetdblattrlist` for all of them, and removing a
+  column is one `GRBdelvars` with none of the coefficient changes, which the
+  deletion does by itself
+
+- `for_each_row_addition()`, which walks a Modification and the groups inside
+  it looking for additions of FRowConstraint
+
+- the shapes that a group need not declare, recognised from what it holds:
+  changes of the linear coefficients, of the bounds of the columns and of the
+  sides of the rows, each batched on its own and in the order they were
+  issued, with `change_coefficients()`, `change_bounds()` and
+  `change_sides()` to execute them (virtual, answering false unless a
+  back-end implements them, GRBMILPSolver implementing all three). Groups
+  nest, so the leaves of a group inside a group belong to the same batch,
+  while a structural change, or a group declaring a shape of its own, closes
+  the batch, is executed on its own and opens the next one
+
+- the same three shapes executed by CPXMILPSolver, with one `CPXchgcoeflist`
+  and one `CPXchgobj` for the coefficients, one `CPXchgbds` for the bounds
+  and one `CPXchgrhs` plus one `CPXchgsense` for the sides, and by
+  HiGHSMILPSolver, with the `*BySet` calls, whose sets have to be ordered and
+  without repetitions; `Highs_changeCoeff` has no batched form, so on HiGHS a
+  group of coefficients is executed one change at a time. SCIPMILPSolver
+  implements none of the three and keeps the behaviour it had
+
+- the column, i.e., `add_columns()` and `remove_columns()`, also on
+  CPXMILPSolver and HiGHSMILPSolver: what a group of the column shape holds
+  is read once and for all by `read_column_group()` in the base class, each
+  back-end writing it with the calls it has
+
+- the shape of a batch of fixings, i.e., of VariableMod, executed by
+  `change_variables()`: fixing a column is writing its two bounds, hence a
+  whole set of them is two calls on GUROBI, one on CPLEX and one on HiGHS.
+  A batch of fixings and one of changes of the bounds are executed in the
+  order they were issued, both being about the same attribute of the model,
+  and a batch carrying a change of integrality is refused
 
 ### Fixed
+
+- the scan of `perform_separation()`, in all four back-ends, which looked for
+  the added rows only at the first level of the Modification list: a Block
+  generating its dynamic Constraint inside an open channel had them arrive
+  inside a GroupModification, where the scan did not see them, and the cuts
+  were silently lost
+
+- native PolyhedralFunction path in all four backends, with the helper
+  `scatter_lf_to_csr` factoring CSR scatter logic across them
+
+- batched `add_dynamic_constraints` taking a CSR matrix, with the
+  base loop falling back to the per-row single-constraint API
+
+- ignore-sub-Blocks filter promoted from this module to the
+  `Solver` base class API (`Solver::set_excluded_blocks` /
+  `is_excluded`), so the legacy `vstrMILPIgnSBlks` parameter has
+  been retired and any Solver can now be told to skip a subset of
+  the Block tree
 
 ## [0.9.1] - 2026-09-13
 
@@ -31,6 +91,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- a Modification that the Solver does not execute no longer closes the batch
+  of a group: a PolyhedralFunctionMod is one, the PolyhedralFunctionBlock
+  answering it with the equivalent changes of the abstract representation,
+  and closing the batch on it had the cascade of a whole bundle of cuts come
+  out one cut at a time
+
+- the coefficients of the Objective a change has to be read back from are
+  read in one call rather than one column at a time, which also brings the
+  model up to date once instead of once per column
+
+- GRBMILPSolver maps GRB_SUBOPTIMAL to kLowPrecision rather than to kOK,
+  since a solution that does not satisfy the optimality tolerances carries
+  no accuracy promise; the callers that read the status of a component,
+  BundleSolver among them, take it as inexact information
+
+- the start of the Gurobi environment is retried, with a growing wait,
+  when the license service refuses it for a transient reason, so that a
+  long computation is not lost to a momentary refusal
+
+- the Gurobi environment is one for the whole process, created by the first
+  GRBMILPSolver and released by the last one, since every environment is a
+  session of the license and one per Solver does not scale: a decomposition
+  with one component per Solver has the license service refuse the sessions
+  it asks for. What a Solver keeps to itself, i.e., the parameters, lives in
+  the environment of its own model, which is where `set_par()` writes them
+  and where they are read back from
+
+- the errors that have nothing to do with the model being solved, i.e., the
+  license service unreachable or refusing the request, are returned as
+  kError by GRBMILPSolver instead of being thrown, so that whoever asked
+  decides what to do with a computation that may have been running for hours
+
+- relaxed-integer LP cut-separation loop (`intRelaxIntVars == 2`) is
+  now driven by the base `compute()`
 - the version of the module is the git tag of its repository, or the
   VERSION.txt of a release tarball, and the shared library carries it: its
   SONAME is major.minor while the major is 0, and it is installed with an
@@ -44,6 +138,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   crashes on a QCP model whose quadratic constraints have no linear part,
   since those are handed to CPLEX as they are and no auxiliary variable is
   built for them, leaving that vector empty
+
+- HiGHSMILPSolver: `lhs = rhs;` → `lhs = con_lhs;` in batched row
+  addition (`add_dynamic_constraints`), which previously set the LHS
+  to zero on equality rows
 
 - GRBMILPSolver::get_lb() returned minus infinity for a continuous problem
   that GUROBI solved without a branch-and-bound, OBJBOUND being undefined
@@ -108,7 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - adapted to new CMake / makefile organisation
 
-- upcasted integer parameter intThrowReducedCostException to
+- promoted integer parameter intThrowReducedCostException to
   base class MILPSolver
 
 - MILPSolver::set\_par( double ) does nothing and it was not

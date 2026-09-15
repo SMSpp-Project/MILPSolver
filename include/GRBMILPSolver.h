@@ -16,7 +16,11 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Enrico Calandrini
+ * \author Donato Meoli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; Antonio Frangioni, Enrico Calandrini, Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -29,6 +33,8 @@
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+#include <mutex>
 
 #include <gurobi_c.h>
 
@@ -609,8 +615,77 @@ void add_mip_starts(
  // no point in defining it, just calls the base class method
  // void dynamic_modification( const BlockModAD * mod ) override;
 
+ /// adds the whole column of each of the given Variable in one operation
+ /** A column that the "abstract" representation describes as one new
+  * ColVariable plus one coefficient change per row is here one GRBaddvar()
+  * per column and, for all of them together, one GRBchgcoeffs() and one
+  * GRBsetdblattrlist(): the entries are read from the sub-Modification of
+  * the group, exactly as the handlers read them one by one [see
+  * MILPSolver::add_columns()]. */
+
+ bool add_columns( const std::vector< Variable * > & vars ,
+                   const GroupModification * gmod ) override;
+
+ /// removes the whole column of each of the given Variable in one operation
+ /** Deleting a column takes its coefficients away with it, so the rows it
+  * appears in are not touched at all, which is what the group would
+  * otherwise ask for one row at a time [see MILPSolver::remove_columns()]. */
+
+ bool remove_columns( const std::vector< Variable * > & vars ,
+                      const GroupModification * gmod ) override;
+
+ /// changes the linear coefficients of a whole group in one operation
+ /** The entries of the rows go out with one GRBchgcoeffs() and those of the
+  * Objective with one GRBsetdblattrlist(); for the Objective the old value
+  * of each column, which a change is a delta on, is read once for the whole
+  * group rather than once per Modification, and the deltas of a column that
+  * the group touches more than once are summed [see
+  * MILPSolver::change_coefficients()]. */
+
+ bool change_coefficients(
+               const std::vector< const FunctionMod * > & mods ) override;
+
+ /// writes the bounds of a whole group in one operation
+ /** One GRBsetdblattrlist() for the lower bounds and one for the upper ones,
+  * with the value of each of them computed exactly as it is when the
+  * Modification arrive one by one [see MILPSolver::change_bounds()]. */
+
+ bool change_bounds(
+        const std::vector< const OneVarConstraintMod * > & mods ) override;
+
+ /// writes the sides of a whole group of rows in one operation
+ /** One GRBsetcharattrlist() for the senses and one GRBsetdblattrlist() for
+  * the right-hand sides. A row that is ranged, or that the change would make
+  * ranged, is not written here: GUROBI has no range sense to set on an
+  * existing row and models it with an auxiliary column, so the whole group
+  * goes back to the one-by-one path, which knows how to do that [see
+  * const_modification()]. */
+
+ /// one GRBsetdblattrlist() per bound for a whole set of fixings
+ /** Fixing a column is writing its two bounds, hence a batch of them is two
+   * calls; a batch carrying a change of integrality is refused [see
+   * MILPSolver::change_variables()]. */
+
+ bool change_variables(
+             const std::vector< const VariableMod * > & mods ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ bool change_sides(
+        const std::vector< const RowConstraintMod * > & mods ) override;
+
  /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
+
+ /// batch-adds a sequence of new dynamic FRowConstraints
+ /** Override the default loop implementation by routing the whole
+  * batch through a single GRBaddconstrs call. Ranged rows (which
+  * require GRBaddrangeconstr and the bookkeeping in
+  * map_rng_con_aux_var) are filtered out of the batch and added one
+  * by one via the base add_dynamic_constraint fallback, mirroring the
+  * single-row code path. */
+
+ void add_dynamic_constraints(
+          const std::vector< const FRowConstraint * > & cons ) override;
 
  /// adds a single new dynamic bound (OneVarConstraint)
  void add_dynamic_bound( const OneVarConstraint * con ) override;
@@ -660,13 +735,83 @@ void add_mip_starts(
  std::string grb_dbl_par_map( idx_type par ) const;
 
 /*--------------------------------------------------------------------------*/
+ /// the model with all the pending changes digested by GUROBI
+ /** GUROBI shows an attribute query the model as of the last
+  * GRBupdatemodel(), so anything that reads the model back has to go
+  * through this rather than through \p model: changing the model only
+  * records that there is something to digest, and the update is done here,
+  * once, when it is actually needed.
+  *
+  * The other half of the bargain is that EVERY method changing the model
+  * has to say so by setting f_model_dirty, since nothing else does it for
+  * it, and that a method reading the model back in the middle of its own
+  * changes has to set it again afterwards, because the read consumes the
+  * mark. A deletion is the one change that cannot be deferred at all: the
+  * indices GUROBI accepts are the ones before it until the model is
+  * updated, so the three methods deleting a row or a column update on the
+  * spot and clear the mark [see remove_dynamic_constraint()]. */
+ GRBmodel * updated_model( void ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// the objective coefficients of the given columns, read in one call
+ /** Reads the linear coefficient of the Objective for each of the given
+  * columns, in one call and therefore bringing the model up to date once
+  * rather than once per column: a coefficient that has to be changed by a
+  * delta has to be read first, and reading one at a time inside the loop
+  * flushes the pending changes as many times as there are columns [see
+  * updated_model()]. */
+
+ void get_obj_coefficients( std::vector< int > & idxs ,
+                            std::vector< double > & vals ) const;
+
+/*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
 
- GRBenv * env; ///< Gurobi environment
+ GRBenv * env; ///< Gurobi environment, shared by all the GRBMILPSolver
+ /**< Every environment is a session of the licence and a round trip to the
+  * licence service, so one per Solver does not scale: a decomposition with
+  * one component per Solver asks for as many sessions as there are
+  * components, and the service starts refusing them (status 10022, measured
+  * at around 700 components) well before the memory or the time do. The
+  * environment is therefore one for the whole process, created when the
+  * first GRBMILPSolver is built and released when the last one goes [see
+  * f_env_users]. What a Solver must keep to itself, i.e., the parameters,
+  * lives in the environment of its own model, which GUROBI gives each model
+  * as a copy [see apply_env_parameters()]. */
  GRBmodel * model;   ///< Gurobi LP problem
 
+ /// the parameters set on this Solver, to be given to its model
+ /**< A parameter can be set before the model exists; the environment being
+  * shared, it cannot wait there, for every other Solver would be given it,
+  * so it waits here and reaches the model as soon as that is created [see
+  * apply_env_parameters()]. */
+ std::map< std::string , int > f_int_pars;
+ std::map< std::string , double > f_dbl_pars;
+ std::map< std::string , std::string > f_str_pars;
+
+ /// true if the model has changes GUROBI has not digested yet
+ mutable bool f_model_dirty = false;
+
  bool f_callback_set;  // true if the callback has been set
+
+ /// how many GRBMILPSolver are using the shared environment
+ static unsigned int f_env_users;
+
+ /// the shared environment itself, and the lock that guards its life
+ static GRBenv * f_shared_env;
+ static std::mutex f_env_mutex;
+
+/*--------------------------------------------------------------------------*/
+ /// gives the model of this Solver the parameters this Solver was given
+ /** The environment being shared, a parameter cannot wait there for the
+  * model to be created: it waits in f_int_pars, f_dbl_pars and f_str_pars
+  * and this gives all of them to the environment of the model, together with
+  * the two the class sets on its own (the log, which stays off, and
+  * INFUNBDINFO, which keeps the certificates of infeasibility available).
+  * Called right after the model is created. */
+
+ void apply_env_parameters( void );
 
  // note: CutSepPar is now an inherited member of MILPSolver base
 
@@ -718,7 +863,7 @@ void add_mip_starts(
   *                   is called. Since we only call it at the end of the loading phase,
   *                   we assume that all auxiliary ranged variables are located in
   *                   the last columns of the Gurobi matrix.
-  * */
+  */
  // the vector of pair ( ranged constraint - axiliary variable )
  std::vector<std::pair < int , int >> map_rng_con_aux_var;
 

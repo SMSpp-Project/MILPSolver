@@ -12,7 +12,11 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Enrico Calandrini, Antonio Frangioni
+ * \author Donato Meoli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; Enrico Calandrini, Antonio Frangioni, Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
@@ -20,6 +24,7 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <map>
 #include <queue>
 
 #include <LinearFunction.h>
@@ -158,8 +163,9 @@ void HiGHSMILPSolver::load_problem( void )
     case( 'N' ): highs_xctype[ i ] = kHighsVarTypeSemiInteger;
                 break;
     default:
-     throw( std::runtime_error( "xctype[" + std::to_string( i ) +
-            "] not a valid type" ) );
+     throw( std::runtime_error(
+                "HiGHSMILPSolver::load_problem: xctype[" +
+                std::to_string( i ) + "] not a valid type" ) );
      break;
    }
   }
@@ -230,7 +236,9 @@ void HiGHSMILPSolver::load_problem( void )
                         );
 
   if( status == kHighsStatusError )
-    throw( std::runtime_error( "Highs_passLp returned with kHighsStatus " +
+    throw( std::runtime_error(
+               "HiGHSMILPSolver::load_problem: "
+               "Highs_passLp returned with kHighsStatus " +
 			      std::to_string( status ) ) );
   }
  else{ // MIP problem
@@ -243,7 +251,9 @@ void HiGHSMILPSolver::load_problem( void )
                           );
 
   if( status == kHighsStatusError )
-    throw( std::runtime_error( "Highs_passMip returned with kHighsStatus " +
+    throw( std::runtime_error(
+               "HiGHSMILPSolver::load_problem: "
+               "Highs_passMip returned with kHighsStatus " +
 			      std::to_string( status ) ) );
  }
  
@@ -267,12 +277,16 @@ void HiGHSMILPSolver::load_problem( void )
                       );
     
   if( status == kHighsStatusError )
-   throw( std::runtime_error( "Highs_passHessian returned with kHighsStatus " +
+   throw( std::runtime_error(
+              "HiGHSMILPSolver::load_problem: "
+              "Highs_passHessian returned with kHighsStatus " +
         std::to_string( status ) ) );
  }
 
  if( is_qcp )
-  throw( std::runtime_error( "HiGHS cannot solve QCP models" ) );
+  throw( std::runtime_error(
+             "HiGHSMILPSolver::load_problem: "
+             "HiGHS cannot solve QCP models" ) );
 
  // names must be added manually
  if( use_custom_names ) {
@@ -339,7 +353,9 @@ int HiGHSMILPSolver::guts_of_compute( void )
  if( ( int_vars > 0 ) && ( q_obj_val.size() > 0 ) )
   if( relax_int_vars == 0 ) // we are not relaxing int variables
     throw( std::runtime_error(
-  "HiGHS cannot solve QP models where some of the variables must take integer values" ) );
+               "HiGHSMILPSolver::guts_of_compute: "
+               "HiGHS cannot solve QP models where some of the variables "
+               "must take integer values" ) );
 
  // if required, write the problem to file- - - - - - - - - - - - - - - - - -
  if( ! output_file.empty() ) {
@@ -369,7 +385,8 @@ int HiGHSMILPSolver::guts_of_compute( void )
 
    if( CutSepPar & 3 ) // we do user cut separation
     throw( std::runtime_error(
-      "HiGHS still doesn't support user cut separation" ) );
+               "HiGHSMILPSolver::guts_of_compute: "
+               "HiGHS still doesn't support user cut separation" ) );
 
    if( CutSepPar & 4 )  // we do lazy constraint separation
     Highs_startCallback( highs , kHighsCallbackMipImprovingSolution );
@@ -499,7 +516,9 @@ int HiGHSMILPSolver::decode_model_status( int status )
   default:;
  }
 
- throw( std::runtime_error( "HiGHS_ModelStatus returned unknown status " +
+ throw( std::runtime_error(
+            "HiGHSMILPSolver::decode_model_status: "
+            "HiGHS_ModelStatus returned unknown status " +
 			    std::to_string( status ) ) );
  }
 
@@ -521,7 +540,8 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
     case( kStopTime ):
     case( kUnEval ): // Sometimes it could be asked also during the computation
 
-      // TODO: Here we should retrieve the bound
+      // best dual-side bound on early-stop / mid-compute is not exposed
+      // by the C API; fall back to the latest objective value
       lower_bound = Highs_getObjectiveValue( highs );
       lower_bound += constant_value;
       break;
@@ -560,7 +580,9 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
     }
    break;
 
-  default: throw( std::runtime_error( "Objective type not yet defined" ) );
+  default:
+   throw( std::runtime_error(
+              "HiGHSMILPSolver::get_lb: Objective type not yet defined" ) );
   }
 
  return( lower_bound );
@@ -614,7 +636,8 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
     case( kStopTime ):
     case( kUnEval ): // Sometimes it could be asked also during the computation
 
-     // TODO: Here we should retrieve the bound
+     // best primal-side bound on early-stop / mid-compute is not exposed
+     // by the C API; fall back to the latest objective value
      upper_bound = Highs_getObjectiveValue( highs );
      upper_bound += constant_value;
      break;
@@ -625,7 +648,9 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
    break;
 
   // Sense not defined
-  default: throw( std::runtime_error( "Objective type not yet defined" ) );
+  default:
+   throw( std::runtime_error(
+              "HiGHSMILPSolver::get_ub: Objective type not yet defined" ) );
   }
 
  return( upper_bound );
@@ -640,8 +665,10 @@ bool HiGHSMILPSolver::has_var_solution( void )
 				 &sol_status );
 
  if( status == kHighsStatusError )
-  throw( std::runtime_error( 
-  "An error occurred in getting primal_solution_status with Highs_getIntInfoValue" ) );
+  throw( std::runtime_error(
+             "HiGHSMILPSolver::has_var_solution: "
+             "an error occurred in getting primal_solution_status "
+             "with Highs_getIntInfoValue" ) );
 
  if( sol_status == kHighsSolutionStatusFeasible )  // the solution is feasible
   return( true );
@@ -659,7 +686,10 @@ Solver::OFValue HiGHSMILPSolver::get_var_value( void )
  switch( objsense ) {
   case( kHighsObjSenseMinimize ): return( get_ub() );
   case( kHighsObjSenseMaximize ): return( get_lb() );
-  default: throw( std::runtime_error( "Objective type not yet defined" ) );
+  default:
+   throw( std::runtime_error(
+              "HiGHSMILPSolver::get_var_value: "
+              "Objective type not yet defined" ) );
   }
  }
 
@@ -677,7 +707,9 @@ void HiGHSMILPSolver::get_var_solution( Configuration * solc )
                             row_value.data() , row_dual.data() );
 
  if( status == kHighsStatusError )
-  throw( std::runtime_error( "An error occurred in Highs_getSolution()" ) );
+  throw( std::runtime_error(
+             "HiGHSMILPSolver::get_var_solution: "
+             "an error occurred in Highs_getSolution()" ) );
 
  MILPSolver::write_var_solution( col_value );
  }
@@ -703,7 +735,9 @@ void HiGHSMILPSolver::get_var_direction( Configuration * dirc )
  status = Highs_getPrimalRay( highs , & has_primal_ray , col_value.data() );
 
  if( status == kHighsStatusError )
-  throw( std::runtime_error( "An error occurred in Highs_getSolution()" ) );
+  throw( std::runtime_error(
+             "HiGHSMILPSolver::get_var_direction: "
+             "an error occurred in Highs_getPrimalRay()" ) );
 
  MILPSolver::write_var_solution( col_value );
 }
@@ -723,7 +757,9 @@ bool HiGHSMILPSolver::has_dual_solution( void )
   case( kHighsSolutionStatusFeasible ): // The solution is feasible.
    return( true );
   default:
-   throw( std::runtime_error( "dual_solution_status not recognized" ) );
+   throw( std::runtime_error(
+              "HiGHSMILPSolver::has_dual_solution: "
+              "dual_solution_status not recognized" ) );
  }
 
  return( false );
@@ -744,7 +780,9 @@ bool HiGHSMILPSolver::is_dual_feasible( void )
   case( kHighsSolutionStatusFeasible ): // The solution is feasible.
    return( true );
   default:
-   throw( std::runtime_error( "dual_solution_status not recognized" ) );
+   throw( std::runtime_error(
+              "HiGHSMILPSolver::is_dual_feasible: "
+              "dual_solution_status not recognized" ) );
  }
 
  return( false );
@@ -764,7 +802,9 @@ void HiGHSMILPSolver::get_dual_solution( Configuration * solc )
                             row_value.data() , row_dual.data() );
 
  if( status == kHighsStatusError )
-  throw( std::runtime_error( "An error occurred in Highs_getSolution()" ) );
+  throw( std::runtime_error(
+             "HiGHSMILPSolver::get_dual_solution: "
+             "an error occurred in Highs_getSolution()" ) );
 
  // Call the method of the base class
  MILPSolver::write_dual_solution( row_dual , col_dual );
@@ -794,14 +834,18 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
  //   If it is a >= constraint then y[ i ] >= 0 holds.
 
  if( Highs_getDualRay( highs , & has_dual_ray , y.data() ) == kHighsStatusError )
-  throw( std::runtime_error( "an error occurred in getting Farkas certificate" ) );
+  throw( std::runtime_error(
+             "HiGHSMILPSolver::get_dual_direction: "
+             "an error occurred in getting Farkas certificate" ) );
 
  // reverse the sign of y due to Gurobi approach
  //for( auto i = y.begin() ; i != y.end() ; ++i  )
   //*i = -*i;
 
  if( Highs_getSolution( highs , NULL , NULL , dj.data() , NULL ) == kHighsStatusError )
-  throw( std::runtime_error( "Unable to get reduced costs with Highs_getSolution") );
+  throw( std::runtime_error(
+             "HiGHSMILPSolver::get_dual_direction: "
+             "unable to get reduced costs with Highs_getSolution()" ) );
 
  // Highs_getDualRay gives the direction and nothing else, so the value the
  // dual objective takes along it is left unset and has_dual_direction_value()
@@ -897,7 +941,10 @@ void HiGHSMILPSolver::objective_modification( const ObjectiveMod * mod )
   case( ObjectiveMod::eSetMax ):
    Highs_changeObjectiveSense( highs , kHighsObjSenseMaximize );
    break;
-  default: throw( std::invalid_argument( "Invalid type of ObjectiveMod" ) );
+  default:
+   throw( std::invalid_argument(
+              "HiGHSMILPSolver::objective_modification: "
+              "invalid type of ObjectiveMod" ) );
   }
  }
 
@@ -970,7 +1017,9 @@ void HiGHSMILPSolver::const_modification( const ConstraintMod * mod )
    break;
 
   default:
-   throw( std::invalid_argument( "Invalid type of ConstraintMod" ) );
+   throw( std::invalid_argument(
+              "HiGHSMILPSolver::const_modification: "
+              "invalid type of ConstraintMod" ) );
   }
  }  // end( HiGHSMILPSolver::const_modification )
 
@@ -995,8 +1044,7 @@ void HiGHSMILPSolver::bound_modification( const OneVarConstraintMod * mod )
  // fixed variables are implemented in HiGHSMILPSolver by changing the bounds;
  // therefore, actual changes of the bounds are ignored here. note that we
  // are assuming the new bounds do not make the fixed value of the variable
- // unfeasible, as this will make the whole problem unfeasible
- // TODO: check this
+ // unfeasible, as this would make the whole problem unfeasible
  if( var->is_fixed() )
   return;
 
@@ -1018,9 +1066,394 @@ void HiGHSMILPSolver::bound_modification( const OneVarConstraintMod * mod )
       break;
 
   default:
-   throw( std::invalid_argument( "Invalid type of OneVarConstraintMod" ) );
+   throw( std::invalid_argument(
+              "HiGHSMILPSolver::bound_modification: "
+              "invalid type of OneVarConstraintMod" ) );
   }
  }  // end( HiGHSMILPSolver::bound_modification )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::add_columns( const std::vector< Variable * > & vars ,
+                                   const GroupModification * gmod )
+{
+ // the entries are read before anything is written, so that a group that
+ // turns out not to be a plain column can still be handed back to the
+ // one-by-one path [see MILPSolver::read_column_group()]
+ std::vector< const FRowConstraint * > econs;
+ std::vector< Index > evars;
+ std::vector< double > evals;
+ std::vector< double > cost;
+
+ if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
+  return( false );
+
+
+ // the columns themselves, each born empty with its bounds and its type,
+ // exactly as it is when the Modification arrive one by one
+ std::vector< int > vidx( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i ) {
+  auto var = static_cast< const ColVariable * >( vars[ i ] );
+  add_dynamic_variable( var );
+  vidx[ i ] = index_of_variable( var );
+  }
+
+ // the entries: HiGHS has no batched form of a change of coefficient, hence
+ // they go one at a time, but the columns and the costs do not
+ for( Index e = 0 ; e < econs.size() ; ++e ) {
+  auto row = index_of_constraint( econs[ e ] );
+  if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
+   continue;                  // what the handler does with it one by one
+
+  double value = evals[ e ];
+
+  // see change_coefficients(): HiGHS reads a coefficient in ( 0 , 1e-9 ] as
+  // a zero and drops the Variable from the row
+  if( ( value > 0 ) && ( value <= 1e-9 ) )
+   value = 2e-9;
+
+  Highs_changeCoeff( highs , row , vidx[ evars[ e ] ] , value );
+  }
+
+ std::vector< int > oidx;
+ std::vector< double > oval;
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  if( cost[ i ] != 0 ) {  // the column is born with a zero cost
+   oidx.push_back( vidx[ i ] );
+   oval.push_back( cost[ i ] );
+   }
+
+ if( ! oidx.empty() ) {
+  // the set has to be ordered and without repetitions, and it is: each
+  // column of the group is named once, and they are born in order
+  Highs_changeColsCostBySet( highs , oidx.size() , oidx.data() ,
+                             oval.data() );
+  }
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::add_columns )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
+                                      const GroupModification * gmod )
+{
+ // deleting the column takes its coefficients away with it, so not one of
+ // the rows it appears in is touched
+ for( auto v : vars )
+  remove_dynamic_variable( static_cast< const ColVariable * >( v ) );
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::remove_columns )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::change_coefficients(
+                          const std::vector< const FunctionMod * > & mods )
+{
+ // nothing is written until the whole group has been read, so that a group
+ // that turns out not to be a plain change of coefficients can still be
+ // handed back to the one-by-one path
+ std::vector< int > rows , cols;
+ std::vector< double > vals;
+
+ // the costs, where a change is a delta on what the column has
+ std::vector< int > ocols;
+ std::vector< double > odeltas;
+
+ for( auto mod : mods ) {
+  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+  if( ! modl )
+   return( false );
+
+  auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+  if( ! lf )
+   return( false );
+
+  Subset idxs;
+  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+   idxs = lf->map_index( modl->vars() , modlr->range() );
+  else
+   if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+    idxs = lf->map_index( modl->vars() , modls->subset() );
+   else
+    return( false );
+
+  auto obs = lf->get_Observer();
+
+  if( auto con = dynamic_cast< const FRowConstraint * >( obs ) ) {
+   auto row = index_of_constraint( con );
+   if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
+    continue;                 // what the handler does with it one by one
+
+   auto & cp = lf->get_v_var();
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
+    if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
+     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+     double value = cp[ idx ].second;
+
+     // HiGHS reads a coefficient in ( 0 , 1e-9 ] as a zero and drops the
+     // Variable from the row, so it is given the smallest value it keeps
+     if( ( value > 0 ) && ( value <= 1e-9 ) )
+      value = 2e-9;
+
+     rows.push_back( row );
+     cols.push_back( index_of_variable( var ) );
+     vals.push_back( value );
+     }
+
+   continue;
+   }
+
+  if( dynamic_cast< const Objective * >( obs ) ) {
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
+    if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
+     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+     ocols.push_back( index_of_variable( var ) );
+     odeltas.push_back( modl->delta()[ i ] );
+     }
+
+   continue;
+   }
+
+  return( false );  // a Function of something this Solver does not have
+  }
+
+ // HiGHS has no set-based call for the entries of the matrix, so those go
+ // one at a time, in the order they were issued
+ for( Block::Index i = 0 ; i < rows.size() ; ++i )
+  Highs_changeCoeff( highs , rows[ i ] , cols[ i ] , vals[ i ] );
+
+ if( ! ocols.empty() ) {
+  // the old cost of a column is read once for the whole group, and the
+  // deltas of a column the group touches more than once are summed: the
+  // result is the one the Modification give one at a time, where each of
+  // them reads back what the previous one has written
+  std::map< int , double > newval;
+  for( Block::Index i = 0 ; i < ocols.size() ; ++i ) {
+   auto it = newval.find( ocols[ i ] );
+   if( it == newval.end() ) {
+    double oldval;
+    int num_col , num_nz;
+    Highs_getColsByRange( highs , ocols[ i ] , ocols[ i ] , & num_col ,
+                          & oldval , NULL , NULL , & num_nz , NULL , NULL ,
+                          NULL );
+    newval[ ocols[ i ] ] = oldval + odeltas[ i ];
+    }
+   else
+    it->second += odeltas[ i ];
+   }
+
+  // the set has to be given ordered and without repetitions, which is what
+  // the map gives
+  std::vector< int > oidx;
+  std::vector< double > oval;
+  oidx.reserve( newval.size() );
+  oval.reserve( newval.size() );
+  for( const auto & el : newval ) {
+   oidx.push_back( el.first );
+   oval.push_back( el.second );
+   }
+
+  Highs_changeColsCostBySet( highs , oidx.size() , oidx.data() ,
+                             oval.data() );
+  }
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::change_coefficients )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::change_variables(
+                          const std::vector< const VariableMod * > & mods )
+{
+ // a change of integrality is one call per column anyway, and it has to be
+ // executed in the order it comes with the fixings: the batch is refused
+ for( auto mod : mods )
+  if( ColVariable::is_integer( mod->old_state() ) !=
+      ColVariable::is_integer( mod->new_state() ) )
+   return( false );
+
+ // the set has to be ordered and without repetitions, which is what the map
+ // does; a column named twice keeps the last state, exactly as it does when
+ // the Modification arrive one by one [see Highs_changeColsBoundsBySet()]
+ std::map< int , std::array< double , 2 > > bnds;
+
+ for( auto mod : mods ) {
+  // the bookkeeping of the base class is the same it does one by one
+  MILPSolver::var_modification( mod );
+
+  if( Variable::is_fixed( mod->old_state() ) ==
+      Variable::is_fixed( mod->new_state() ) )
+   continue;  // nothing that reaches the model
+
+  auto var = static_cast< const ColVariable * >( mod->variable() );
+  auto vi = index_of_variable( var );
+  if( vi == Inf< int >() )  // the Variable is not (yet) there
+   continue;
+
+  if( Variable::is_fixed( mod->new_state() ) )  // fix it at its value
+   bnds[ vi ] = { var->get_value() , var->get_value() };
+  else                                          // give its bounds back
+   bnds[ vi ] = HiGHSMILPSolver::get_problem_bounds( *var );
+  }
+
+ if( bnds.empty() )
+  return( true );
+
+ std::vector< int > idxs;
+ std::vector< double > lo , up;
+ idxs.reserve( bnds.size() );
+ lo.reserve( bnds.size() );
+ up.reserve( bnds.size() );
+ for( const auto & el : bnds ) {
+  idxs.push_back( el.first );
+  lo.push_back( el.second[ 0 ] );
+  up.push_back( el.second[ 1 ] );
+  }
+
+ Highs_changeColsBoundsBySet( highs , idxs.size() , idxs.data() , lo.data() ,
+                              up.data() );
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::change_variables )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::change_bounds(
+                   const std::vector< const OneVarConstraintMod * > & mods )
+{
+ // the bounds of a column are written as a pair, so the last word on a
+ // column the group touches more than once is the one that goes out, and
+ // the set has to be ordered and without repetitions [see
+ // Highs_changeColsBoundsBySet()]
+ std::map< int , std::array< double , 2 > > bnds;
+
+ for( auto mod : mods ) {
+  switch( mod->type() ) {
+   case( RowConstraintMod::eChgLHS ):
+   case( RowConstraintMod::eChgRHS ):
+   case( RowConstraintMod::eChgBTS ):
+    break;
+   default:  // nothing has been written yet, so the group can still be
+    return( false );  // taken apart and each of them throw on its own
+   }
+
+  auto con = static_cast< OneVarConstraint * >( mod->constraint() );
+  auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
+  if( ! var )  // this should never happen
+   continue;   // but in case, there is nothing to do
+
+  // a fixed Variable has its bounds used to fix it, so a change of the
+  // bounds is ignored, exactly as it is one by one [see bound_modification()]
+  if( var->is_fixed() )
+   continue;
+
+  auto vi = index_of_variable( var );
+  if( vi == Inf< int >() )  // the ColVariable has been removed
+   continue;
+
+  bnds[ vi ] = HiGHSMILPSolver::get_problem_bounds( *var );
+  }
+
+ if( bnds.empty() )
+  return( true );
+
+ std::vector< int > idxs;
+ std::vector< double > lo , up;
+ idxs.reserve( bnds.size() );
+ lo.reserve( bnds.size() );
+ up.reserve( bnds.size() );
+ for( const auto & el : bnds ) {
+  idxs.push_back( el.first );
+  lo.push_back( el.second[ 0 ] );
+  up.push_back( el.second[ 1 ] );
+  }
+
+ Highs_changeColsBoundsBySet( highs , idxs.size() , idxs.data() , lo.data() ,
+                              up.data() );
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::change_bounds )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::change_sides(
+                      const std::vector< const RowConstraintMod * > & mods )
+{
+ // as for the bounds, the sides of a row are written as a pair and the set
+ // has to be ordered and without repetitions
+ std::map< int , std::array< double , 2 > > sides;
+
+ for( auto mod : mods ) {
+  switch( mod->type() ) {
+   case( RowConstraintMod::eChgLHS ):
+   case( RowConstraintMod::eChgRHS ):
+   case( RowConstraintMod::eChgBTS ):
+    break;
+   default:  // relaxing and enforcing a Constraint is not a side, and
+    return( false );  // nothing has been written yet
+   }
+
+  auto con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+  if( ! con )  // this should not happen
+   return( false );
+
+  auto index = index_of_constraint( con );
+  if( index == Inf< int >() )  // the FRowConstraint is not (yet?) there,
+   continue;                   // which is what the handler does one by one
+
+  auto con_lhs = con->get_lhs();
+  auto con_rhs = con->get_rhs();
+
+  double lhs , rhs;
+  if( con_lhs == con_rhs ) {
+   lhs = con_rhs;
+   rhs = con_rhs;
+   }
+  else
+   if( con_lhs == -Inf< double >() ) {
+    lhs = -kHighsInf;
+    rhs = con_rhs;
+    }
+   else
+    if( con_rhs == Inf< double >() ) {
+     lhs = con_lhs;
+     rhs = kHighsInf;
+     }
+    else {
+     lhs = con_lhs;
+     rhs = con_rhs;
+     }
+
+  sides[ index ] = { lhs , rhs };
+  }
+
+ if( sides.empty() )
+  return( true );
+
+ std::vector< int > idxs;
+ std::vector< double > lo , up;
+ idxs.reserve( sides.size() );
+ lo.reserve( sides.size() );
+ up.reserve( sides.size() );
+ for( const auto & el : sides ) {
+  idxs.push_back( el.first );
+  lo.push_back( el.second[ 0 ] );
+  up.push_back( el.second[ 1 ] );
+  }
+
+ Highs_changeRowsBoundsBySet( highs , idxs.size() , idxs.data() , lo.data() ,
+                              up.data() );
+
+ return( true );
+
+ }  // end( HiGHSMILPSolver::change_sides )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1045,7 +1478,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
      idxs = lf->map_index( modl->vars() , modls->subset() );
     else
-     throw( std::logic_error( "unknown type of C05FunctionModLinRngd" ) );
+     throw( std::logic_error(
+                "HiGHSMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
    std::vector< double > nval( idxs.size() );
    std::vector< int > cidx( idxs.size() );
@@ -1094,7 +1528,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
      idxs = qf->map_index( modl->vars() , modls->subset() );
     else
-     throw( std::logic_error( "unknown type of C05FunctionModLinRngd" ) );
+     throw( std::logic_error(
+                "HiGHSMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
    std::vector< double > nval( idxs.size() );
    std::vector< int > cidx( idxs.size() );
@@ -1130,7 +1565,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
    }
 
   // This should never happen
-  throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+  throw( std::invalid_argument(
+             "HiGHSMILPSolver: unknown type of Objective Function" ) );
   }
 
  // C05FunctionMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1145,7 +1581,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
        ( shift == - FunctionMod::INFshift ) ||
        ( std::isnan( shift ) ) )
     throw( std::logic_error(
-     "unexpected *C05FunctionMod* from Objective Function" ) );
+               "HiGHSMILPSolver::objective_function_modification: "
+               "unexpected *C05FunctionMod* from Objective Function" ) );
 
    constant_value += shift;
    return;
@@ -1155,7 +1592,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
   auto dqf = dynamic_cast< const DQuadFunction * >( f );
   if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
-		       "unexpected *C05FunctionMod* from Linear Objective" ) );
+               "HiGHSMILPSolver::objective_function_modification: "
+               "unexpected *C05FunctionMod* from Linear Objective" ) );
 
   // Select correct quadratic function
   auto fqf = ( qf ) ? qf : dqf;
@@ -1272,8 +1710,9 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
                       );
                   
    if( status == kHighsStatusError )
-      throw( std::runtime_error( 
-      "Redefinition of HiGHS hessian matrix returned with kHighsStatus " + 
+      throw( std::runtime_error(
+                 "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
+                 "returned with kHighsStatus " +
           std::to_string( status ) ) );
 
    auto nsz = std::distance( nval.begin() , nvit );
@@ -1396,8 +1835,9 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
                       );
                   
    if( status == kHighsStatusError )
-      throw( std::runtime_error( 
-      "Redefinition of HiGHS hessian matrix returned with kHighsStatus " + 
+      throw( std::runtime_error(
+                 "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
+                 "returned with kHighsStatus " +
           std::to_string( status ) ) );
 
    auto nsz = std::distance( nval.begin() , nvit );
@@ -1428,7 +1868,9 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    if( idxs.size() != 2 )
     throw( std::logic_error(
-		       "Expected single coefficient Modification in QuadFunctionModSbst" ) );
+               "HiGHSMILPSolver::objective_function_modification: "
+               "expected single coefficient Modification in "
+               "QuadFunctionModSbst" ) );
 
    int idx1 = index_of_variable( dynamic_cast< ColVariable * >( vars[ 0 ] ) );
    int idx2 = index_of_variable( dynamic_cast< ColVariable * >( vars[ 1 ] ) );
@@ -1494,13 +1936,15 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
                       );
                   
    if( status == kHighsStatusError )
-      throw( std::runtime_error( 
-      "Redefinition of HiGHS hessian matrix returned with kHighsStatus " + 
+      throw( std::runtime_error(
+                 "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
+                 "returned with kHighsStatus " +
           std::to_string( status ) ) );
    return;
   }
   else
-    throw( std::logic_error( "unknown type of *QuadFunctionMod*" ) );
+    throw( std::logic_error(
+               "HiGHSMILPSolver: unknown type of *QuadFunctionMod*" ) );
  }
 
  // Fallback method - Update all costs
@@ -1529,7 +1973,9 @@ void HiGHSMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
  if( ! modl )
-  throw( std::logic_error( "unexpected *C05FunctionModLin* from FRowConstraint" ) );
+  throw( std::logic_error(
+             "HiGHSMILPSolver::constraint_function_modification: "
+             "unexpected *C05FunctionModLin* from FRowConstraint" ) );
 
  Subset idxs;
  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
@@ -1538,7 +1984,9 @@ void HiGHSMILPSolver::constraint_function_modification( const FunctionMod *mod )
   if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
    idxs = lf->map_index( modl->vars() , modls->subset() );
   else
-   throw( std::logic_error( "unknown type of C05FunctionModLinRngd" ) );
+   throw( std::logic_error(
+              "HiGHSMILPSolver::constraint_function_modification: "
+              "unknown type of C05FunctionModLinRngd" ) );
 
  auto idxit = idxs.begin();
  auto & cp = lf->get_v_var();
@@ -1585,7 +2033,8 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
      ( ! dynamic_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
-  throw( std::invalid_argument( "This type of FunctionModVars is not handled"
+  throw( std::invalid_argument(
+             "HiGHSMILPSolver: this type of FunctionModVars is not handled"
 				) );
 
  std::vector< int > indices;
@@ -1677,8 +2126,8 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
         indices.push_back( idx );
         values.push_back( 0 );
       }
-      // TODO: BUilt a specific Modification to include non diagonal terms
-      // to be set to 0.
+      // Note: non-diagonal Q coefficients are not zeroed here; the
+      // surrounding Modification only reaches the diagonal block.
     }
     // Update all linear coefficient at ones
     Highs_changeColsCostBySet( highs , indices.size() , indices.data() , values.data() );
@@ -1691,8 +2140,9 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
                         );
                     
       if( status == kHighsStatusError )
-        throw( std::runtime_error( 
-          "Redefinition of HiGHS hessian matrix returned with kHighsStatus " + 
+        throw( std::runtime_error(
+                   "HiGHSMILPSolver: redefinition of HiGHS hessian "
+                   "matrix returned with kHighsStatus " +
             std::to_string( status ) ) );
     }             
     return;
@@ -1701,7 +2151,9 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   auto modq = dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
-    throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
+    throw( std::invalid_argument(
+               "HiGHSMILPSolver: unexpected type of Objective Function "
+               "Modification" ) );
 
   // we exploit the od_terms() vector of QuadFunctionModVarsAddd, giving the sum
   // between the new and the old value of the quadratic coefficient, to update 
@@ -1765,8 +2217,9 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
                         );
                     
   if( status == kHighsStatusError )
-    throw( std::runtime_error( 
-      "Redefinition of HiGHS hessian matrix returned with kHighsStatus " + 
+    throw( std::runtime_error(
+               "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
+               "returned with kHighsStatus " + 
             std::to_string( status ) ) );
   // Here we don't need any return, as we know that any QuadFunction
   // derives from a DQuadFunction
@@ -1822,8 +2275,9 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
                         );
                     
       if( status == kHighsStatusError )
-        throw( std::runtime_error( 
-         "Redefinition of HiGHS hessian matrix returned with kHighsStatus " + 
+        throw( std::runtime_error(
+                   "HiGHSMILPSolver: redefinition of HiGHS hessian "
+                   "matrix returned with kHighsStatus " +
             std::to_string( status ) ) );
     }             
     return;
@@ -1832,7 +2286,9 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
-    throw( std::invalid_argument( "Unexpected type of Objective Function Modification" ) );
+    throw( std::invalid_argument(
+               "HiGHSMILPSolver: unexpected type of Objective Function "
+               "Modification" ) );
 
   // we exploit the coeff() vector of DQuadFunctionModVarsAddd, giving the sum
   // between the new and the old value of both the linear and quadratic
@@ -1894,14 +2350,17 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
                         );
                     
   if( status == kHighsStatusError )
-    throw( std::runtime_error( 
-      "Redefinition of HiGHS hessian matrix returned with kHighsStatus " + 
+    throw( std::runtime_error(
+               "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
+               "returned with kHighsStatus " + 
             std::to_string( status ) ) );
   return;
  }
 
  // This should never happen
- throw( std::invalid_argument( "Unknown type of Objective Function" ) );
+ throw( std::invalid_argument(
+            "HiGHSMILPSolver::objective_fvars_modification: "
+            "unknown type of Objective Function" ) );
 
  }  // end( HiGHSMILPSolver::objective_fvars_modification )
 
@@ -1929,11 +2388,12 @@ void HiGHSMILPSolver::constraint_fvars_modification(
  if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
      ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
-  throw( std::invalid_argument( "This type of FunctionModVars is not handled"
+  throw( std::invalid_argument(
+             "HiGHSMILPSolver: this type of FunctionModVars is not handled"
 				) );
 
  auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
- if( ! con )  // TODO: Throw exception?
+ if( ! con )  // non-FRowConstraint Mods are silently ignored
   return;
 
  auto cidx = index_of_constraint( con );
@@ -1988,31 +2448,32 @@ void HiGHSMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
 
  auto lf = dynamic_cast< const LinearFunction * >( con->get_function() );
  if( ! lf )
-  throw( std::invalid_argument( "the FRowConstraint is not linear" ) );
+  throw( std::invalid_argument(
+            "HiGHSMILPSolver::add_dynamic_constraint: "
+            "the FRowConstraint is not linear" ) );
 
- int nzcnt = lf->get_num_active_var();
-
+ const int nzcnt = lf->get_num_active_var();
  std::vector< int > rmatind;
  rmatind.reserve( nzcnt );
  std::vector< double > rmatval;
  rmatval.reserve( nzcnt );
 
- // get the coefficients to fill the matrix
- for( auto & el : lf->get_v_var() )
-  if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
-   rmatind.push_back( idx );
-   rmatval.push_back( el.second );
-   }
+ // gather the row in CSR form via the shared base-class helper
+ scatter_lf_to_csr( lf ,
+                    [ this ]( const ColVariable * v ) {
+                     return( index_of_variable( v ) );
+                     } ,
+                    rmatind , rmatval );
 
- // get the bounds
+ // decode the (lhs, rhs) pair into HiGHS' native double-sided format
+ // (lhs <= a.x <= rhs). Equality row -> lhs = rhs; "<=" -> lhs = -kHighsInf;
+ // ">=" -> rhs = +kHighsInf; ranged row -> finite (lhs, rhs)
  auto con_lhs = con->get_lhs();
  auto con_rhs = con->get_rhs();
- double lhs = 0;
- double rhs = 0;
- char sense;
+ double lhs , rhs;
 
  if( con_lhs == con_rhs ) {
-  lhs = rhs;
+  lhs = con_lhs;
   rhs = con_rhs;
   }
  else
@@ -2030,10 +2491,87 @@ void HiGHSMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
     rhs = con_rhs;
     }
 
-  Highs_addRow( highs , lhs , rhs , rmatind.size() ,
-              rmatind.data() , rmatval.data() );
+ Highs_addRow( highs , lhs , rhs , int( rmatind.size() ) ,
+               rmatind.data() , rmatval.data() );
 
  }  // end( HiGHSMILPSolver::add_dynamic_constraint )
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::add_dynamic_constraints(
+          const std::vector< const FRowConstraint * > & cons )
+{
+ if( cons.empty() )
+  return;
+
+ // build the CSR matrix for Highs_addRows. Unlike CPLEX / Gurobi the
+ // HiGHS interface natively supports double-sided rows (lhs <= a.x <=
+ // rhs), so a single pass over `cons` is enough: equality / one-sided
+ // inequality / ranged rows all map to the same (lhs[], rhs[], starts[],
+ // index[], value[]) layout
+ const int n = int( cons.size() );
+ std::vector< double > lhs;
+ lhs.reserve( n );
+ std::vector< double > rhs;
+ rhs.reserve( n );
+ std::vector< int > starts;
+ starts.reserve( n );
+ std::vector< int > index;
+ std::vector< double > value;
+
+ const auto idx_of = [ this ]( const ColVariable * v ) {
+                      return( index_of_variable( v ) );
+                      };
+
+ for( auto * c : cons ) {
+  if( ! c )
+   continue;
+
+  auto lf = dynamic_cast< const LinearFunction * >( c->get_function() );
+  if( ! lf )
+   throw( std::invalid_argument(
+             "HiGHSMILPSolver::add_dynamic_constraints: "
+             "the FRowConstraint is not linear" ) );
+
+  starts.push_back( int( index.size() ) );
+  scatter_lf_to_csr( lf , idx_of , index , value );
+
+  auto con_lhs = c->get_lhs();
+  auto con_rhs = c->get_rhs();
+  if( con_lhs == con_rhs ) {
+   lhs.push_back( con_lhs );
+   rhs.push_back( con_rhs );
+   }
+  else
+   if( con_lhs == -Inf< double >() ) {
+    lhs.push_back( -kHighsInf );
+    rhs.push_back( con_rhs );
+    }
+   else
+    if( con_rhs == Inf< double >() ) {
+     lhs.push_back( con_lhs );
+     rhs.push_back( kHighsInf );
+     }
+    else {
+     lhs.push_back( con_lhs );
+     rhs.push_back( con_rhs );
+     }
+  }
+ const int nnz = int( index.size() );
+
+ // update the dictionaries (only) for every batched row, in the same
+ // order they appear in the CSR layout. This mirrors the dictionary
+ // refresh that the base MILPSolver::add_dynamic_constraint does on
+ // the single-row path before delegating to the derived solver's
+ // back-end call
+ for( auto * c : cons )
+  if( c )
+   MILPSolver::add_dynamic_constraint( c );
+
+ Highs_addRows( highs , int( lhs.size() ) , lhs.data() , rhs.data() ,
+                nnz , starts.data() , index.data() , value.data() );
+
+ }  // end( HiGHSMILPSolver::add_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
 
@@ -2072,11 +2610,15 @@ void HiGHSMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 
  auto var = static_cast< const ColVariable * >( con->get_active_var( 0 ) );
  if( ! var )
-  throw( std::logic_error( "HiGHSMILPSolver: added a bound on no Variable" ) );
+  throw( std::logic_error(
+             "HiGHSMILPSolver::add_dynamic_bound: "
+             "added a bound on no Variable" ) );
 
  auto idx = index_of_variable( var );
  if( idx == Inf< int >() )
-  throw( std::logic_error( "HiGHSMILPSolver: added a bound on unknown Variable"
+  throw( std::logic_error(
+             "HiGHSMILPSolver::add_dynamic_bound: "
+             "added a bound on unknown Variable"
 			   ) );
 
  auto bd = HiGHSMILPSolver::get_problem_bounds( *var );
@@ -2090,7 +2632,9 @@ void HiGHSMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 {
  int index = index_of_dynamic_constraint( con );
  if( index == Inf< int >() )
-  throw( std::runtime_error( "Dynamic constraint not found" ) );
+  throw( std::runtime_error(
+             "HiGHSMILPSolver::remove_dynamic_constraint: "
+             "dynamic constraint not found" ) );
 
  Highs_deleteRowsByRange( highs , index , index );
 
@@ -2104,7 +2648,9 @@ void HiGHSMILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
  int index = index_of_dynamic_variable( var );
  if( index == Inf< int >() )
-  throw( std::runtime_error( "Dynamic variable not found" ) );
+  throw( std::runtime_error(
+             "HiGHSMILPSolver::remove_dynamic_variable: "
+             "dynamic variable not found" ) );
 
  Highs_deleteColsByRange( highs , index , index );
 
@@ -2197,7 +2743,8 @@ int HiGHSMILPSolver::callback( const int callback_type,
    // lock()-ing the Block
    bool owned = f_Block->is_owned_by( f_id );
    if( ( ! owned ) && ( ! f_Block->lock( f_id ) ) )
-    throw( std::runtime_error( "Unable to lock the Block" ) );
+    throw( std::runtime_error(
+               "HiGHSMILPSolver: unable to lock the Block" ) );
 
    // get the feasible solution
    std::vector< double > x( numcols );
@@ -2222,8 +2769,9 @@ int HiGHSMILPSolver::callback( const int callback_type,
 
    // if any lazy constraint was generated, add them
    if( ! rmatbeg.empty() ) {
-    // Here we should add the lazy constraints generated, but this feature
-    // is currently under development in HiGHS. TBD
+    // Pushing the lazy constraints back into HiGHS from within a callback
+    // is not supported by the public C API yet; once upstream exposes the
+    // hook this is where the cuts would be injected.
     std::cerr << "WARNING: Detected a new lazy constraint during HiGHS "
       "callback but this feature is not supported yet" << std::endl;
     }
@@ -2285,19 +2833,15 @@ void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
 
  rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
 
- // main loop: check all new Modification for a Constraint addition
- for( ; it != v_mod.end() ; ++it ) {
-  // check if the Modification indicates an added FRowConstraint
-  auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >(
-        it->get() );
-  if( ! tmod )  // if not
-   continue;    // next
+ // what is done with each addition of rows, wherever it is found
+ auto add_rows = [ & ]( const BlockModAdd< FRowConstraint > * tmod ) {
 
   // add all the new constraint to the matrix, one by one
   for( auto con : tmod->added() ) {
   auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
   if( ! lf )
-   throw( std::invalid_argument( "The Constraint is not linear" ) );
+   throw( std::invalid_argument(
+              "HiGHSMILPSolver: the Constraint is not linear" ) );
 
   auto nzcnt = lf->get_num_active_var();
   auto sz = rmatind.size();
@@ -2316,7 +2860,8 @@ void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
   auto con_lhs = con->get_lhs();
   auto con_rhs = con->get_rhs();
 
-  /* TBD: Modify this based on HiGHS version of lazy constraints.
+  /* Placeholder: shape of the sense/rhs encoding to apply once HiGHS
+     exposes a stable API for lazy-constraint injection during callbacks.
   if( con_lhs == con_rhs ) {
    sense.push_back( GRB_EQUAL );
    rhs.push_back( con_rhs );
@@ -2350,7 +2895,14 @@ void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
   rmatbeg.push_back( rmatind.size() ); */
 
   }  // end( for each added FRowConstraint )
- }  // end( main loop )
+  };
+
+ // main loop: check all new Modification for a Constraint addition,
+ // the rows of a Block that generates them inside a channel arriving
+ // grouped
+ for( ; it != v_mod.end() ; ++it )
+  for_each_row_addition( it->get() , add_rows );
+
 }  // end( HiGHSMILPSolver::perform_separation )
 
 /*--------------------------------------------------------------------------*/
@@ -2432,8 +2984,9 @@ void HiGHSMILPSolver::set_par( idx_type par , int value )
       Highs_setIntOptionValue( highs , highs_opt.data() , value);
       break;
     default:
-      throw( std::logic_error( 
-      "Option type not int or bool in set_par( idx_type par , int value )" ) );
+      throw( std::logic_error(
+                 "HiGHSMILPSolver::set_par: "
+                 "Option type not int or bool in set_par( int )" ) );
    }
   return;
   }
@@ -2593,8 +3146,9 @@ int HiGHSMILPSolver::get_dflt_int_par( idx_type par ) const
                                 NULL , & default_value);
       break;
     default:
-      throw( std::logic_error( 
-    "Option type not int or bool in get_dflt_int_par( idx_type par )" ) );
+      throw( std::logic_error(
+                 "HiGHSMILPSolver::get_dflt_int_par: "
+                 "Option type not int or bool" ) );
    }
    return( default_value );
   }
@@ -2714,8 +3268,9 @@ int HiGHSMILPSolver::get_int_par( idx_type par ) const
       Highs_getIntOptionValue( highs , highs_opt.data() , & value );
       break;
     default:
-      throw( std::logic_error( 
-        "Option type not int or bool in get_int_par( idx_type par )" ) );
+      throw( std::logic_error(
+                 "HiGHSMILPSolver::get_int_par: "
+                 "Option type not int or bool" ) );
    }
 
    return( value );
@@ -3119,7 +3674,8 @@ void HiGHSMILPSolver::reload_objective( Function * f )
 /*
 void HiGHSMILPSolver::update_problem_type( bool quad )
 {
- // TODO: I'm not really sure if this is done automatically by CPLEX, check
+ // (preserved skeleton from the CPLEX backend; kept here for reference
+ // while the HiGHS equivalent is not needed)
 
  if( ! quad ) {
   switch( CPXgetprobtype( env , lp ) ) {
