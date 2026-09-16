@@ -25,6 +25,8 @@
 /*--------------------------------------------------------------------------*/
 
 #include <map>
+#include <mutex>
+#include <numeric>
 #include <queue>
 
 #include <LinearFunction.h>
@@ -97,9 +99,9 @@ HiGHSMILPSolver::~HiGHSMILPSolver()
  Highs_destroy(highs);
 
  // Free auxiliary structures
- q_obj_begin.clear();
- q_obj_ind.clear();
- q_obj_val.clear();
+ q_hessian.clear();
+ q_hessian_nnz = 0;
+ f_hessian_changed = false;
  }
 
  /*--------------------------------------------------------------------------*/
@@ -123,6 +125,9 @@ void HiGHSMILPSolver::clear_problem( unsigned int what )
  MILPSolver::clear_problem( 0 );
 
  Highs_clearModel(highs);
+ q_hessian.clear();
+ q_hessian_nnz = 0;
+ f_hessian_changed = false;
  }
 
  /*--------------------------------------------------------------------------*/
@@ -131,9 +136,9 @@ void HiGHSMILPSolver::load_problem( void )
 {
  MILPSolver::load_problem();
 
- q_obj_begin.clear();
- q_obj_ind.clear();
- q_obj_val.clear();
+ q_hessian.clear();
+ q_hessian_nnz = 0;
+ f_hessian_changed = false;
 
  int model_status = Highs_getModelStatus( highs );
  if( model_status == kHighsModelStatusModelEmpty )
@@ -259,29 +264,11 @@ void HiGHSMILPSolver::load_problem( void )
  
  if( is_sqp || is_qp ) { // QP problem, the Hessian matrix need to be added
 
-  /* HiGHS read the Hessian matrix in sparse column form, so we have 
-  * to prepare three different vector:
-  * - q_obj_begin: An array of length [ numcols ] containing the starting index
-  *   of each column in `index`;
-  * - q_obj_ind: An array of length [ num_nz_q ] with indices of hessian matrix
-  *   entries 
-  * - q_obj_val: An array of length [ num_nz_q ] with values of hessian matrix
-  *   entries. */
-
-  // Call specific function to generate the structures required
-  generate_qobj_hessian( );
-
-  status = Highs_passHessian( highs, numcols , q_obj_val.size() ,
-                      kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                      q_obj_ind.data() , q_obj_val.data() 
-                      );
-    
-  if( status == kHighsStatusError )
-   throw( std::runtime_error(
-              "HiGHSMILPSolver::load_problem: "
-              "Highs_passHessian returned with kHighsStatus " +
-        std::to_string( status ) ) );
- }
+  generate_qobj_hessian();
+  pass_hessian( "load_problem" );
+  }
+ else
+  q_hessian.assign( numcols , {} );
 
  if( is_qcp )
   throw( std::runtime_error(
@@ -343,14 +330,64 @@ std::array< double , 2 > HiGHSMILPSolver::get_problem_bounds(
 
 /*--------------------------------------------------------------------------*/
 
+// HiGHS keeps one scheduler of threads per process, sized by the first run,
+// and refuses any later run whose "threads" option says otherwise; since a
+// process may hold several HiGHSMILPSolver with different values of it, the
+// scheduler is sized again whenever this happens while nobody else runs
+
+static std::mutex highs_scheduler_mutex;
+static int highs_running = 0;
+static HighsInt highs_scheduler_threads = -1;  // -1 = never started here
+
+int HiGHSMILPSolver::run_highs( void )
+{
+ HighsInt threads;
+ Highs_getIntOptionValue( highs , "threads" , & threads );
+ HighsInt asked = threads;
+
+ {
+  std::lock_guard< std::mutex > lock( highs_scheduler_mutex );
+  if( threads != highs_scheduler_threads ) {
+   if( ! highs_running ) {
+    if( highs_scheduler_threads >= 0 )
+     Highs_resetGlobalScheduler( 1 );
+    highs_scheduler_threads = threads;
+    }
+   else {  // somebody runs on the scheduler as it is, and so does this one
+    threads = highs_scheduler_threads;
+    Highs_setIntOptionValue( highs , "threads" , threads );
+    }
+   }
+  ++highs_running;
+  }
+
+ const auto status = Highs_run( highs );
+
+ {
+  std::lock_guard< std::mutex > lock( highs_scheduler_mutex );
+  --highs_running;
+  }
+
+ if( threads != asked )
+  Highs_setIntOptionValue( highs , "threads" , asked );
+
+ return( status );
+
+ }  // end( HiGHSMILPSolver::run_highs )
+
+/*--------------------------------------------------------------------------*/
+
 int HiGHSMILPSolver::guts_of_compute( void )
 {
  // Note: locking, process_modifications() and the LP cut separation loop
  // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
  // This method is only responsible for the actual HiGHS call.
 
+ // the changes to the Hessian made by the Modification are passed in one go
+ pass_hessian( "guts_of_compute" );
+
  // HiGHS doesn't actually support MIQP problem
- if( ( int_vars > 0 ) && ( q_obj_val.size() > 0 ) )
+ if( ( int_vars > 0 ) && ( q_hessian_nnz > 0 ) )
   if( relax_int_vars == 0 ) // we are not relaxing int variables
     throw( std::runtime_error(
                "HiGHSMILPSolver::guts_of_compute: "
@@ -405,7 +442,7 @@ int HiGHSMILPSolver::guts_of_compute( void )
    }
 
  // Call HiGHS to solve the problem
- if( Highs_run( highs ) == -1 ) {
+ if( run_highs() == -1 ) {
   // An error happened during the call of HiGHS_run. Notice that this is not
   // an error related to the model and so the model status could be incorrect.
   std::cerr << "WARNING: An unmanaged error occurred during the execution of  " <<
@@ -424,7 +461,7 @@ int HiGHSMILPSolver::guts_of_compute( void )
   Highs_clearSolver( highs );
 
   // Call HiGHS to solve the problem
-  if( Highs_run( highs ) == -1 ) {
+  if( run_highs() == -1 ) {
    // An error happened during the call of HiGHS_run. Notice that this is not
    // an error related to the model and so the model status could be incorrect.
    std::cerr << "WARNING: An unmanaged error occurred during the execution of  " <<
@@ -439,14 +476,14 @@ int HiGHSMILPSolver::guts_of_compute( void )
  // different algorithm and can often recover a definite status. Keep this
  // fallback LP-only, since "solver = ipm" is not valid for MIP models.
  if( ( m_status == kHighsModelStatusUnknown ) && ( int_vars == 0 ) &&
-     q_obj_val.empty() ) {
+     ( q_hessian_nnz == 0 ) ) {
   std::array< char , kHighsMaximumStringLength > solver_option = {};
   Highs_getStringOptionValue( highs , "solver" , solver_option.data() );
 
   Highs_clearSolver( highs );
   Highs_setStringOptionValue( highs , "solver" , "ipm" );
 
-  if( Highs_run( highs ) == kHighsStatusError )
+  if( run_highs() == kHighsStatusError )
    std::cerr << "WARNING: An unmanaged error occurred during the execution "
                 "of HiGHS_run with the IPM fallback" << std::endl;
 
@@ -859,6 +896,8 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
 
 void HiGHSMILPSolver::write_lp( const std::string & filename )
 {
+ pass_hessian( "write_lp" );
+
  std::string output_file_lp;
  std::stringstream X(output_file);
  std::getline( X , output_file_lp , '.');
@@ -1231,34 +1270,7 @@ bool HiGHSMILPSolver::change_coefficients(
   // deltas of a column the group touches more than once are summed: the
   // result is the one the Modification give one at a time, where each of
   // them reads back what the previous one has written
-  std::map< int , double > newval;
-  for( Block::Index i = 0 ; i < ocols.size() ; ++i ) {
-   auto it = newval.find( ocols[ i ] );
-   if( it == newval.end() ) {
-    double oldval;
-    int num_col , num_nz;
-    Highs_getColsByRange( highs , ocols[ i ] , ocols[ i ] , & num_col ,
-                          & oldval , NULL , NULL , & num_nz , NULL , NULL ,
-                          NULL );
-    newval[ ocols[ i ] ] = oldval + odeltas[ i ];
-    }
-   else
-    it->second += odeltas[ i ];
-   }
-
-  // the set has to be given ordered and without repetitions, which is what
-  // the map gives
-  std::vector< int > oidx;
-  std::vector< double > oval;
-  oidx.reserve( newval.size() );
-  oval.reserve( newval.size() );
-  for( const auto & el : newval ) {
-   oidx.push_back( el.first );
-   oval.push_back( el.second );
-   }
-
-  Highs_changeColsCostBySet( highs , oidx.size() , oidx.data() ,
-                             oval.data() );
+  change_obj_costs( ocols , odeltas , true );
   }
 
  return( true );
@@ -1481,40 +1493,25 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      throw( std::logic_error(
                 "HiGHSMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
-   std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
-   auto nvit = nval.begin();
+   std::vector< int > cidx;
+   std::vector< double > delta;
+   cidx.reserve( idxs.size() );
+   delta.reserve( idxs.size() );
    auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
 
    // we exploit the delta() vector of C05FunctionModLin, giving the difference
    // between the new and the old value of the linear coefficient, to update
    // the objective values without having to recompute them: since they are
    // (potentially) a sum of terms, recomputing them would require fetching
    // back all the terms, while the delta() can just be applied to the sum
-   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
-    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
-
-    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
-     int vidx = index_of_variable( var );
-     *( cidxit++ ) = vidx;
-      
-     // Retrieve old coefficient
-     double oldval;
-     int num_col, num_nz;
-     Highs_getColsByRange( highs , vidx , vidx , &num_col, &oldval, NULL, NULL,
-      &num_nz , NULL , NULL , NULL );
-
-     // Update new coefficient
-     *( nvit++ ) = oldval + modl->delta()[ i ];
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
+    if( *( idxit++ ) < Inf< Index >() ) {
+     cidx.push_back( index_of_variable(
+                   static_cast< const ColVariable * >( modl->vars()[ i ] ) ) );
+     delta.push_back( modl->delta()[ i ] );
      }
-   }
 
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
-   nval.resize( nsz );
-
-   Highs_changeColsCostBySet( highs , cidx.size() , cidx.data() , nval.data() );
+   change_obj_costs( cidx , delta , true );
    return;
   }
 
@@ -1531,36 +1528,25 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
      throw( std::logic_error(
                 "HiGHSMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
-   std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
-   auto nvit = nval.begin();
+   std::vector< int > cidx;
+   std::vector< double > delta;
+   cidx.reserve( idxs.size() );
+   delta.reserve( idxs.size() );
    auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
 
    // we exploit the delta() vector of C05FunctionModLin, giving the difference
    // between the new and the old value of the linear coefficient, to update
    // the objective values without having to recompute them: since they are
    // (potentially) a sum of terms, recomputing them would require fetching
    // back all the terms, while the delta() can just be applied to the sum
-   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
-    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
-
-    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
-     int vidx = index_of_variable( var );
-     *( cidxit++ ) = vidx;
-      
-     // Retrieve old coefficient
-     double oldval;
-     int num_col, num_nz;
-     Highs_getColsByRange( highs , vidx , vidx , &num_col, &oldval, NULL, NULL,
-      &num_nz , NULL , NULL , NULL );
-
-     // Update new coefficient
-     *( nvit++ ) = oldval + modl->delta()[ i ];
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
+    if( *( idxit++ ) < Inf< Index >() ) {
+     cidx.push_back( index_of_variable(
+                   static_cast< const ColVariable * >( modl->vars()[ i ] ) ) );
+     delta.push_back( modl->delta()[ i ] );
      }
-   }
 
-   Highs_changeColsCostBySet( highs , cidx.size() , cidx.data() , nval.data() );
+   change_obj_costs( cidx , delta , true );
    return;
    }
 
@@ -1598,350 +1584,64 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
   // Select correct quadratic function
   auto fqf = ( qf ) ? qf : dqf;
 
-  if( auto modlr = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ) {
-   // we exploit the delta() vector of DQuadFunctionModRngd, giving the difference
-   // between the new and the old value of both linear and quadratic coefficient,
-   // to update the objective values without having to recompute them: since they are
-   // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum
-   Subset idxs = fqf->map_index( modlr->vars() , modlr->range() );
-   c_Vec_p_Var * vars = & modlr->vars();
-   c_v_coeff_pair * delta_coeff = & modlr->delta();
+  if( auto modld = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ;
+      modld || dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
+   // we exploit the delta() vector of DQuadFunctionModRngd/Sbst, giving the
+   // difference between the new and the old value of both linear and
+   // quadratic coefficient, to update the objective values without having
+   // to recompute them: since they are (potentially) a sum of terms,
+   // recomputing them would require fetching back all the terms, while the
+   // delta() can just be applied to the sum
+   Subset idxs;
+   c_Vec_p_Var * vars;
+   c_v_coeff_pair * delta_coeff;
+   if( modld ) {
+    idxs = fqf->map_index( modld->vars() , modld->range() );
+    vars = & modld->vars();
+    delta_coeff = & modld->delta();
+    }
+   else {
+    auto modls = static_cast< const DQuadFunctionModSbst * >( modl );
+    idxs = fqf->map_index( modls->vars() , modls->subset() );
+    vars = & modls->vars();
+    delta_coeff = & modls->delta();
+    }
 
-   std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
-   auto nvit = nval.begin();
+   std::vector< int > cidx;
+   std::vector< double > delta;
+   cidx.reserve( idxs.size() );
+   delta.reserve( idxs.size() );
    auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
    auto dcoeffit = delta_coeff->begin();
 
-   // In HiGHS we can pass quadratic coefficients to the model only by providing
-   // the whole Hessian matrix. Thus, it is important to retrieve the old matrix 
-   // and fill it with the new values.
-   int nnz_old_hessian = q_obj_val.size();
-   int nnz_new_hessian = nnz_old_hessian;
-
    for( auto v : *vars ) {
-    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
-     auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
-     *( cidxit++ ) = cidx;
-      
-     // Retrieve old linear coefficient
-     double oldlinval;
-     int num_col, num_nz;
-     Highs_getColsByRange( highs , cidx , cidx , &num_col, &oldlinval, NULL, NULL,
-      &num_nz , NULL , NULL , NULL );
-     // Update new linear coefficient
-     *( nvit++ ) = oldlinval + std::get< 0 >( *dcoeffit );
-
-     // Retrieve old quadratic coefficient.
-     // Note: In HiGHS we store the Hessian matrix in sparse column form using 
-     // the 3 vectors described in HiGHSMILPSolver.h. Moreover, the Hessian matrix
-     // should be kept in upper triangular form. Thus, the diagonal term can be
-     // found at the first position correponding to the coefficients related to
-     // column cidx.
-     if( std::get< 1 >( *dcoeffit ) != 0 ) {
-      if( q_obj_begin.empty() ) {
-        // This could happen when we started with a LinearFunction on the objective,
-        // and now we are trying to add quadratic terms for already active variables.
-        q_obj_begin.resize( numcols , 0 );
-        q_obj_val.push_back( 2 * std::get< 1 >( *dcoeffit ) );
-        q_obj_ind.push_back( cidx );
-        ++nnz_new_hessian;
-        
-        // Update q_obj_begin for all the variables having a greater index
-        auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-        while( it_q_begin != q_obj_begin.end() ) {
-        ++( *it_q_begin );
-        ++it_q_begin;
-        }
-      }
-      else{
-        int var_coeff_begin = q_obj_begin[ cidx ];
-        auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit ); 
-        if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
-          // no quadratic coefficient was already set for the diagonal term and
-          // the quadratic coefficient is nonzero
-          ++nnz_new_hessian;
-          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-          
-          // Update q_obj_begin for all the variables having a greater index
-          while( it_q_begin != q_obj_begin.end() ) {
-          ++( *it_q_begin );
-          ++it_q_begin;
-          }
-
-          // Insert new term in the other vectors
-          q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
-                        delta_q_coeff );
-          q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
-        }
-        else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
-        // there was already a value in the hessian diagonal for the variable cidx
-          if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
-          // the delta value is the opposite of the old one (i.e. we are removing
-          // the term from the hessian matrix)
-          --nnz_new_hessian;
-          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-          // Update q_obj_begin
-          while( it_q_begin != q_obj_begin.end() ) {
-            --( *it_q_begin );
-            ++it_q_begin;
-            }
-            q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
-            q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
-          }
-          else{ // just update the array q_obj_val with the new value
-            q_obj_val[ var_coeff_begin ] += delta_q_coeff;
-          }
-        }
-      }
+    if( *( idxit++ ) < Inf< Index >() ) {
+     auto c = index_of_variable( static_cast< const ColVariable * >( v ) );
+     cidx.push_back( c );
+     delta.push_back( std::get< 0 >( *dcoeffit ) );
+     add_to_hessian( c , c , 2 * std::get< 1 >( *dcoeffit ) );
      }
+    ++dcoeffit;
     }
-    dcoeffit++;
-   }
 
-   // Update Hessian
-   int status = 0;
-   if( !q_obj_begin.empty() )
-    status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
-                      kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                      q_obj_ind.data() , q_obj_val.data()
-                      );
-                  
-   if( status == kHighsStatusError )
-      throw( std::runtime_error(
-                 "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
-                 "returned with kHighsStatus " +
-          std::to_string( status ) ) );
-
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
-   nval.resize( nsz );
-
-   // Update linear coefficients
-   Highs_changeColsCostBySet( highs , cidx.size() , cidx.data() , nval.data() );
-   return;
-   }
-  else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
-   // we exploit the delta() vector of DQuadFunctionModSbst, giving the difference
-   // between the new and the old value of both linear and quadratic coefficient,
-   // to update the objective values without having to recompute them: since they are
-   // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum
-   Subset idxs = fqf->map_index( modls->vars() , modls->subset() );
-   c_Vec_p_Var * vars = & modls->vars();
-   c_v_coeff_pair * delta_coeff = & modls->delta();
-
-   std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
-   auto nvit = nval.begin();
-   auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
-   auto dcoeffit = delta_coeff->begin();
-
-   // In HiGHS we can pass quadratic coefficients to the model only by providing
-   // the whole Hessian matrix. Thus, it is important to retrieve the old matrix 
-   // and fill it with the new values.
-   int nnz_old_hessian = q_obj_val.size();
-   int nnz_new_hessian = nnz_old_hessian;
-
-   for( auto v : *vars ) {
-    if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
-     auto cidx = index_of_variable( static_cast< const ColVariable * >( v ) );
-     *( cidxit++ ) = cidx;
-      
-     // Retrieve old linear coefficient
-     double oldlinval;
-     int num_col, num_nz;
-     Highs_getColsByRange( highs , cidx , cidx , &num_col, &oldlinval, NULL, NULL,
-      &num_nz , NULL , NULL , NULL );
-     // Update new linear coefficient
-     *( nvit++ ) = oldlinval + std::get< 0 >( *dcoeffit );
-
-     // Retrieve old quadratic coefficient.
-     // Note: In HiGHS we store the Hessian matrix in sparse column form using 
-     // the 3 vectors described in HiGHSMILPSolver.h. Moreover, the Hessian matrix
-     // should be kept in upper triangular form. Thus, the diagonal term can be
-     // found at the first position corresponding to the coefficients related to
-     // column cidx.
-     if( std::get< 1 >( *dcoeffit ) != 0 ) {
-      if( q_obj_begin.empty() ) {
-        // This could happen when we started with a LinearFunction on the objective,
-        // and now we are trying to add quadratic terms for already active variables.
-        q_obj_begin.resize( numcols , 0 );
-        q_obj_val.push_back( 2 * std::get< 1 >( *dcoeffit ) );
-        q_obj_ind.push_back( cidx );
-        ++nnz_new_hessian;
-        
-        // Update q_obj_begin for all the variables having a greater index
-        auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-        while( it_q_begin != q_obj_begin.end() ) {
-        ++( *it_q_begin );
-        ++it_q_begin;
-        }
-      }
-      else{
-        int var_coeff_begin = q_obj_begin[ cidx ];
-        auto delta_q_coeff = 2 * std::get< 1 >( *dcoeffit );
-        if( ( q_obj_ind[ var_coeff_begin ] != cidx ) && ( delta_q_coeff != 0 ) ) {
-          // no quadratic coefficient was already set for the diagonal term and
-          // the quadratic coefficient is nonzero
-          ++nnz_new_hessian;
-          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-          
-          // Update q_obj_begin for all the variables having a greater index
-          while( it_q_begin != q_obj_begin.end() ) {
-          ++( *it_q_begin );
-          ++it_q_begin;
-          }
-
-          // Insert new term in the other vectors
-          q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) ,
-                        delta_q_coeff );
-          q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , cidx );
-        }
-        else if( q_obj_ind[ var_coeff_begin ] == cidx ) {
-        // there was already a value in the hessian diagonal for the variable cidx
-          if( q_obj_val[ var_coeff_begin ] == - delta_q_coeff ) {
-          // the delta value is the opposite of the old one (i.e. we are removing
-          // the term from the hessian matrix)
-          --nnz_new_hessian;
-          auto it_q_begin = std::next( q_obj_begin.begin() , cidx + 1 );
-          // Update q_obj_begin
-          while( it_q_begin != q_obj_begin.end() ) {
-            --( *it_q_begin );
-            ++it_q_begin;
-            }
-            q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
-            q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
-          }
-          else{ // just update the array q_obj_val with the new value
-            q_obj_val[ var_coeff_begin ] += delta_q_coeff;
-          }
-        }
-      }
-     }
-    }
-    dcoeffit++;
-   }
-   
-   // Update Hessian
-   int status = 0;
-   if( !q_obj_begin.empty() )
-    status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
-                      kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                      q_obj_ind.data() , q_obj_val.data()
-                      );
-                  
-   if( status == kHighsStatusError )
-      throw( std::runtime_error(
-                 "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
-                 "returned with kHighsStatus " +
-          std::to_string( status ) ) );
-
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
-   nval.resize( nsz );
-
-   // Update linear coefficients
-   Highs_changeColsCostBySet( highs , cidx.size() , cidx.data() , nval.data() );
+   change_obj_costs( cidx , delta , true );
    return;
    }
   else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
-   // we exploit the delta() vector of QuadFunctionModSbst, giving the difference
-   // between the new and the old value of both linear and quadratic coefficient,
-   // to update the objective values without having to recompute them: since they are
-   // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum.
-   // NOTE: in the actual version of QuadFunction, we expect to recieve one 
+   // NOTE: in the actual version of QuadFunction, we expect to recieve one
    // coefficient at time for each Modification.
-   Subset idxs = fqf->map_index( modlq->vars() , modlq->subset() );
    c_Vec_p_Var vars = modlq->vars();
-   Coefficient delta_coeff = 2 * modlq->delta();
-
-   // In HiGHS we can pass quadratic coefficients to the model only by providing
-   // the whole Hessian matrix. Thus, it is important to retrieve the old matrix 
-   // and fill it with the new values.
-   int nnz_old_hessian = q_obj_val.size();
-   int nnz_new_hessian = nnz_old_hessian;
-
-   if( idxs.size() != 2 )
+   if( vars.size() != 2 )
     throw( std::logic_error(
                "HiGHSMILPSolver::objective_function_modification: "
                "expected single coefficient Modification in "
                "QuadFunctionModSbst" ) );
 
-   int idx1 = index_of_variable( dynamic_cast< ColVariable * >( vars[ 0 ] ) );
-   int idx2 = index_of_variable( dynamic_cast< ColVariable * >( vars[ 1 ] ) );
-
-   // Retrieve old quadratic coefficient.
-   // Note: In HiGHS we store the Hessian matrix in sparse column form using 
-   // the 3 vectors described in HiGHSMILPSolver.h. 
-   int var1_coeff_begin = q_obj_begin[ idx1 ];
-   int var1_coeff_end = q_obj_begin[ idx1 + 1 ];
-   // Iterator pointing to the right term
-   auto qobj_indit = std::find( q_obj_ind.begin() + var1_coeff_begin , 
-                                 q_obj_ind.begin() + var1_coeff_end , 
-                                 idx2 );
-
-   if( ( qobj_indit == q_obj_ind.begin() + var1_coeff_end ) &&
-       ( delta_coeff != 0 ) ) {
-    // no quadratic coefficient was already set for the term and
-    // the quadratic coefficient is nonzero
-    ++nnz_new_hessian;
-    auto it_q_begin = std::next( q_obj_begin.begin() , idx1 + 1 );
-      
-    // Update q_obj_begin for all the variables having a greater index
-    while( it_q_begin != q_obj_begin.end() ) {
-     ++( *it_q_begin );
-     ++it_q_begin;
-     }
-
-    // Find the right position to insert the term to keep the UT form
-    auto itpos_to_insert = std::upper_bound( q_obj_ind.begin() + var1_coeff_begin , 
-                                 q_obj_ind.begin() + var1_coeff_end , 
-                                 idx2 );
-    int pos_to_insert = std::distance( q_obj_ind.begin() , itpos_to_insert );
-
-    // Insert new term in the other vectors
-    q_obj_val.insert( std::next( q_obj_val.begin() , pos_to_insert ) ,
-                     delta_coeff );
-    q_obj_ind.insert( std::next( q_obj_ind.begin() , pos_to_insert ) , idx2 );
-    }
-   else if( qobj_indit != q_obj_ind.begin() + var1_coeff_end ) {
-    // there was already a value in the hessian diagonal for the variable cidx
-    int rpos = std::distance( q_obj_ind.begin() , qobj_indit );
-    if( q_obj_val[ rpos ] == - delta_coeff ) {
-      // the delta value is the opposite of the old one (i.e. we are removing
-      // the term from the hessian matrix)
-      --nnz_new_hessian;
-      auto it_q_begin = std::next( q_obj_begin.begin() , idx1 + 1 );
-      // Update q_obj_begin
-      while( it_q_begin != q_obj_begin.end() ) {
-       --( *it_q_begin );
-       ++it_q_begin;
-       }
-      q_obj_val.erase( std::next( q_obj_val.begin() , rpos ) );
-      q_obj_ind.erase( std::next( q_obj_ind.begin() , rpos ) );
-     }
-    else{ // just update the array q_obj_val with the new value
-        q_obj_val[ rpos ] += delta_coeff;
-      }
-     }
-   // Update Hessian
-   int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
-                      kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                      q_obj_ind.data() , q_obj_val.data()
-                      );
-                  
-   if( status == kHighsStatusError )
-      throw( std::runtime_error(
-                 "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
-                 "returned with kHighsStatus " +
-          std::to_string( status ) ) );
+   int idx1 = index_of_variable( static_cast< ColVariable * >( vars[ 0 ] ) );
+   int idx2 = index_of_variable( static_cast< ColVariable * >( vars[ 1 ] ) );
+   add_to_hessian( idx1 , idx2 , 2 * modlq->delta() );
    return;
-  }
+   }
   else
     throw( std::logic_error(
                "HiGHSMILPSolver: unknown type of *QuadFunctionMod*" ) );
@@ -2052,310 +1752,114 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
-  if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
-  
+
   // we exploit the coeff() vector of LinearFunctionModVarsAddd, giving the sum
   // between the new and the old value of the linear coefficient, to update
   // the objective values without having to recompute them: since they are
   // (potentially) a sum of terms, recomputing them would require fetching
   // back all the terms, while the coeff() can just be applied to the sum
-  
+  auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+
   for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
-    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
-
-    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
-      indices.push_back( idx );
-
-      if( mod->added() ) {
-        auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
-
-        // Retrieve old coefficient
-        double oldval;
-        int num_col, num_nz;
-        Highs_getColsByRange( highs , idx , idx , &num_col, &oldval, NULL, NULL,
-          &num_nz , NULL , NULL , NULL );
-        
-        auto cidx = lf->is_active( var );
-        values.push_back( cidx < nav ? oldval + modl->coeff()[ i ] : oldval );
-      }
-      else
-        values.push_back( 0 );
-     }
+   auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
+   if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+    indices.push_back( idx );
+    if( mod->added() )
+     values.push_back( lf->is_active( var ) < nav ? modl->coeff()[ i ] : 0 );
+    else
+     values.push_back( 0 );
+    }
    }
 
-  Highs_changeColsCostBySet( highs , indices.size() , indices.data() , values.data() );
+  change_obj_costs( indices , values , mod->added() );
   return;
- }
+  }
 
  if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
 
-  // In HiGHS we can pass quadratic coefficients to the model only by providing
-  // the whole Hessian matrix. Thus, it is important to retrieve the old matrix 
-  // and fill it with the new values.
-  int nnz_old_hessian = Highs_getHessianNumNz( highs );
-  int nnz_new_hessian = nnz_old_hessian;
-  
-  // Firstly check if we are simply removing variables
-  if( ! mod->added() ) {
-    for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
-      auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
-
-      if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
-       // Retrieve old quadratic coefficient.
-       // Note: In HiGHS we store the Hessian matrix in sparse column form using 
-       // the 3 vectors described in HiGHSMILPSolver.h. Moreover, the Hessian matrix
-       // should be kept in upper triangular form. Thus, the diagonal term can be
-       // found at the first position correponding to the coefficients related to
-       // column cidx.
-       int var_coeff_begin = q_obj_begin[ idx ];
-       if( q_obj_ind[ var_coeff_begin ] == idx ) {
-        // There was a diagonal term set for variable of index idx
-        --nnz_new_hessian;
-        auto it_q_begin = std::next( q_obj_begin.begin() , idx + 1 );
-        // Update q_obj_begin
-        while( it_q_begin != q_obj_begin.end() ) {
-         --( *it_q_begin );
-         ++it_q_begin;
-        }
-        q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
-        q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
-       }
-
-        indices.push_back( idx );
-        values.push_back( 0 );
-      }
-      // Note: non-diagonal Q coefficients are not zeroed here; the
-      // surrounding Modification only reaches the diagonal block.
-    }
-    // Update all linear coefficient at ones
-    Highs_changeColsCostBySet( highs , indices.size() , indices.data() , values.data() );
-
-    // Update all quadratic coefficient at ones if something changed
-    if( nnz_old_hessian != nnz_new_hessian ) {
-      int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
-                        kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                        q_obj_ind.data() , q_obj_val.data()
-                        );
-                    
-      if( status == kHighsStatusError )
-        throw( std::runtime_error(
-                   "HiGHSMILPSolver: redefinition of HiGHS hessian "
-                   "matrix returned with kHighsStatus " +
-            std::to_string( status ) ) );
-    }             
-    return;
-  }
-
-  auto modq = dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
-  if( ! modq )
-    // This should never happen
-    throw( std::invalid_argument(
-               "HiGHSMILPSolver: unexpected type of Objective Function "
-               "Modification" ) );
-
-  // we exploit the od_terms() vector of QuadFunctionModVarsAddd, giving the sum
-  // between the new and the old value of the quadratic coefficient, to update 
-  // the objective values without having to recompute them: since they are 
-  // (potentially) a sum of terms, recomputing them would require fetching back 
-  // all the terms, while the coeff() can just be applied to the sum.
-  
-  for( auto t : modq->od_terms() ) {
-    int loc_idx1 = std::get<0>( t );
-    int loc_idx2 = std::get<1>( t );
-
-    auto var1 = qf->get_active_var( loc_idx1 );
-    auto var2 = qf->get_active_var( loc_idx2 );
-
-    int glob_idx1 = index_of_variable( dynamic_cast< ColVariable * >( var1 ) );
-    int glob_idx2 = index_of_variable( dynamic_cast< ColVariable * >( var2 ) );
-
-    // Retrieve old quadratic coefficient.
-    // Note: In HiGHS we store the Hessian matrix in sparse column form using 
-    // the 3 vectors described in HiGHSMILPSolver.h. 
-    int var1_coeff_begin = q_obj_begin[ glob_idx1 ];
-    int var1_coeff_end = q_obj_begin[ glob_idx1 + 1 ];
-    // Iterator pointing to the right term
-    auto qobj_indit = std::find( q_obj_ind.begin() + var1_coeff_begin , 
-                                 q_obj_ind.begin() + var1_coeff_end , 
-                                 glob_idx2 );
-
-    if( qobj_indit == q_obj_ind.begin() + var1_coeff_end ) {
-     // no quadratic coefficient was already set for the term
-     ++nnz_new_hessian;
-     auto it_q_begin = std::next( q_obj_begin.begin() , glob_idx1 + 1 );
-      
-     // Update q_obj_begin for all the variables having a greater index
-     while( it_q_begin != q_obj_begin.end() ) {
-      ++( *it_q_begin );
-      ++it_q_begin;
+  if( ! mod->added() ) {  // the Variable leave the Objective, and so does
+   // every term they appear in
+   for( auto v : mod->vars() )
+    if( auto idx = index_of_variable( static_cast< const ColVariable * >( v ) )
+        ; idx < Inf< int >() ) {
+     for( int j = 0 ; j <= idx ; ++j )
+      set_hessian( idx , j , 0 );
+     for( int i = idx + 1 ; i < int( q_hessian.size() ) ; ++i )
+      set_hessian( i , idx , 0 );
+     indices.push_back( idx );
+     values.push_back( 0 );
      }
 
-     // Find the right position to insert the term to keep the UT form
-     auto itpos_to_insert = std::upper_bound( q_obj_ind.begin() + var1_coeff_begin , 
-                                 q_obj_ind.begin() + var1_coeff_end , 
-                                 glob_idx2 );
-     int pos_to_insert = std::distance( q_obj_ind.begin() , itpos_to_insert );
+   change_obj_costs( indices , values , false );
+   return;
+   }
 
-     // Insert new term in the other vectors
-     q_obj_val.insert( std::next( q_obj_val.begin() , pos_to_insert ) ,
-                      2 * std::get<2>( t ) );
-     q_obj_ind.insert( std::next( q_obj_ind.begin() , pos_to_insert ) , 
-                      glob_idx2 );
-    }
-    else{ 
-     // there was already a value in the hessian diagonal for the variable term
-     int rpos = std::distance( q_obj_ind.begin() , qobj_indit );
-     q_obj_val[ rpos ] += 2 * std::get<2>( t );
-    }
-  }
-  // Update all quadratic coefficient at ones
-  int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
-                        kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                        q_obj_ind.data() , q_obj_val.data()
-                        );
-                    
-  if( status == kHighsStatusError )
-    throw( std::runtime_error(
-               "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
-               "returned with kHighsStatus " + 
-            std::to_string( status ) ) );
+  auto modq = dynamic_cast< const QuadFunctionModVarsAddd * >( mod );
+  if( ! modq )
+   // This should never happen
+   throw( std::invalid_argument(
+              "HiGHSMILPSolver: unexpected type of Objective Function "
+              "Modification" ) );
+
+  // we exploit the od_terms() vector of QuadFunctionModVarsAddd, giving the
+  // sum between the new and the old value of the quadratic coefficient, to
+  // update the objective values without having to recompute them
+  for( auto t : modq->od_terms() ) {
+   auto var1 = qf->get_active_var( std::get< 0 >( t ) );
+   auto var2 = qf->get_active_var( std::get< 1 >( t ) );
+   int idx1 = index_of_variable( static_cast< const ColVariable * >( var1 ) );
+   int idx2 = index_of_variable( static_cast< const ColVariable * >( var2 ) );
+   if( ( idx1 < Inf< int >() ) && ( idx2 < Inf< int >() ) )
+    add_to_hessian( idx1 , idx2 , 2 * std::get< 2 >( t ) );
+   }
   // Here we don't need any return, as we know that any QuadFunction
   // derives from a DQuadFunction
- }
-
- if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ) {
-  // Separable quadratic objective function modification
-
-  // In HiGHS we can pass quadratic coefficients to the model only by providing
-  // the whole Hessian matrix. Thus, it is important to retrieve the old matrix 
-  // and fill it with the new values.
-  int nnz_old_hessian = Highs_getHessianNumNz( highs );
-  int nnz_new_hessian = nnz_old_hessian;
-
-  // Firstly check if we are simply removing variables
-  if( ! mod->added() ) {
-    for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
-      auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
-
-      if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
-       // Retrieve old quadratic coefficient.
-       // Note: In HiGHS we store the Hessian matrix in sparse column form using 
-       // the 3 vectors described in HiGHSMILPSolver.h. Moreover, the Hessian matrix
-       // should be kept in upper triangular form. Thus, the diagonal term can be
-       // found at the first position correponding to the coefficients related to
-       // column cidx.
-       int var_coeff_begin = q_obj_begin[ idx ];
-       if( q_obj_ind[ var_coeff_begin ] == idx ) {
-        // There was a diagonal term set for variable of index idx
-        --nnz_new_hessian;
-        auto it_q_begin = std::next( q_obj_begin.begin() , idx + 1 );
-        // Update q_obj_begin
-        while( it_q_begin != q_obj_begin.end() ) {
-         --( *it_q_begin );
-         ++it_q_begin;
-        }
-        q_obj_val.erase( std::next( q_obj_val.begin() , var_coeff_begin ) );
-        q_obj_ind.erase( std::next( q_obj_ind.begin() , var_coeff_begin ) );
-       }
-
-        indices.push_back( idx );
-        values.push_back( 0 );
-      }
-    }
-    // Update all linear coefficient at ones
-    Highs_changeColsCostBySet( highs , indices.size() , indices.data() , values.data() );
-
-    // Update all quadratic coefficient at ones if something changed
-    if( nnz_old_hessian != nnz_new_hessian ) {
-      int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
-                        kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                        q_obj_ind.data() , q_obj_val.data()
-                        );
-                    
-      if( status == kHighsStatusError )
-        throw( std::runtime_error(
-                   "HiGHSMILPSolver: redefinition of HiGHS hessian "
-                   "matrix returned with kHighsStatus " +
-            std::to_string( status ) ) );
-    }             
-    return;
   }
 
-  auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+ if( dynamic_cast< const DQuadFunction * >( f ) ) {
+  // Separable quadratic objective function modification
+
+  if( ! mod->added() ) {  // the Variable leave the Objective
+   for( auto v : mod->vars() )
+    if( auto idx = index_of_variable( static_cast< const ColVariable * >( v ) )
+        ; idx < Inf< int >() ) {
+     set_hessian( idx , idx , 0 );
+     indices.push_back( idx );
+     values.push_back( 0 );
+     }
+
+   change_obj_costs( indices , values , false );
+   return;
+   }
+
+  auto modq = dynamic_cast< const DQuadFunctionModVarsAddd * >( mod );
   if( ! modq )
-    // This should never happen
-    throw( std::invalid_argument(
-               "HiGHSMILPSolver: unexpected type of Objective Function "
-               "Modification" ) );
+   // This should never happen
+   throw( std::invalid_argument(
+              "HiGHSMILPSolver: unexpected type of Objective Function "
+              "Modification" ) );
 
   // we exploit the coeff() vector of DQuadFunctionModVarsAddd, giving the sum
   // between the new and the old value of both the linear and quadratic
-  // coefficient, to update the objective values without having to recompute 
-  // them: since they are (potentially) a sum of terms, recomputing them 
-  // would require fetching back all the terms, while the coeff()
-  // can just be applied to the sum
-  
+  // coefficient, to update the objective values without having to recompute
+  // them: since they are (potentially) a sum of terms, recomputing them
+  // would require fetching back all the terms, while the coeff() can just be
+  // applied to the sum
   for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
-    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
-    
-    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
-     indices.push_back( idx );
-
-     // Retrieve old linear coefficient
-     double lin_oldval;
-     int num_col, num_nz;
-     Highs_getColsByRange( highs , idx , idx , &num_col, &lin_oldval, NULL, NULL,
-        &num_nz , NULL , NULL , NULL );
-       
-     // add new linear coefficient to final vector
-     values.push_back( lin_oldval + modq->coeff()[ i ].first );
-
-     if( modq->coeff()[ i ].second != 0 ) {
-      // Search for the quadratic coefficient associated to idx
-      // Note: In HiGHS we store the Hessian matrix in sparse column form using 
-      // the 3 vectors described in HiGHSMILPSolver.h. Moreover, the Hessian matrix
-      // should be kept in upper triangular form. Thus, the diagonal term can be
-      // found at the first position correponding to the coefficients related to
-      // column idx.
-      int var_coeff_begin = q_obj_begin[ idx ];
-      if( q_obj_ind[ var_coeff_begin ] == idx ) {
-        // Simply update the coefficient
-        q_obj_val[ var_coeff_begin ] += 2 * modq->coeff()[ i ].second;
-      }
-      else{
-        // we have actually to add an entry in the Hessian matrix
-        ++nnz_new_hessian;
-        auto it_q_begin = std::next( q_obj_begin.begin() , idx );
-        // Update q_obj_begin
-        while( it_q_begin != q_obj_begin.end() ) {
-          ++( *it_q_begin );
-          ++it_q_begin;
-          }
-        q_obj_val.insert( std::next( q_obj_val.begin() , var_coeff_begin ) , 
-                          2 * modq->coeff()[ i ].second );
-        q_obj_ind.insert( std::next( q_obj_ind.begin() , var_coeff_begin ) , idx );
-      }
-     }
+   auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
+   if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+    indices.push_back( idx );
+    values.push_back( modq->coeff()[ i ].first );
+    add_to_hessian( idx , idx , 2 * modq->coeff()[ i ].second );
     }
-  }
-  // Update all linear coefficient at ones
-  Highs_changeColsCostBySet( highs , indices.size() , indices.data() , values.data() );
+   }
 
-  // Update all quadratic coefficient at ones
-  int status = Highs_passHessian( highs , numcols , nnz_new_hessian ,
-                        kHighsHessianFormatTriangular , q_obj_begin.data() ,
-                        q_obj_ind.data() , q_obj_val.data()
-                        );
-                    
-  if( status == kHighsStatusError )
-    throw( std::runtime_error(
-               "HiGHSMILPSolver: redefinition of HiGHS hessian matrix "
-               "returned with kHighsStatus " + 
-            std::to_string( status ) ) );
+  change_obj_costs( indices , values , true );
   return;
- }
+  }
 
  // This should never happen
  throw( std::invalid_argument(
@@ -2599,6 +2103,12 @@ void HiGHSMILPSolver::add_dynamic_variable( const ColVariable * var )
  Highs_addVar( highs , bd[0] , bd[1] );
  Highs_changeColIntegrality( highs , numcols - 1 , new_ctype );
 
+ // the column is born with no quadratic term, but a Hessian that is there
+ // has to be passed again with one more column
+ q_hessian.resize( numcols );
+ if( q_hessian_nnz > 0 )
+  f_hessian_changed = true;
+
  }  // end( HiGHSMILPSolver::add_dynamic_variable )
 
 /*--------------------------------------------------------------------------*/
@@ -2653,6 +2163,9 @@ void HiGHSMILPSolver::remove_dynamic_variable( const ColVariable * var )
              "dynamic variable not found" ) );
 
  Highs_deleteColsByRange( highs , index , index );
+
+ // HiGHS takes the column away from its own Hessian, the copy follows
+ remove_hessian_column( index );
 
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::remove_dynamic_variable( var );
@@ -3721,49 +3234,213 @@ Configuration * HiGHSMILPSolver::get_cfg( Index ci ) const
 
 void HiGHSMILPSolver::generate_qobj_hessian( void )
 {
- q_obj_begin.resize( numcols , 0 );
+ q_hessian.assign( numcols , {} );
+ q_hessian_nnz = 0;
 
- // In MILPSolver we are storing the strictly lower triangular part of the 
- // matrix. IN HiGHS we need to pass the upper one, so we have to "transpose" the
- // data.
- int count_nnz_col = 0;
- for( int j = 0 ; j < numcols ; j++ ) {
-  // Update qmatbeg with the results found in the previous iteration
-  if( j > 0)
-    q_obj_begin[ j ] = q_obj_begin[ j - 1 ] + count_nnz_col;
-
-  // Reinitialize counter of column nonzeros
-  count_nnz_col = 0;
-
-  // Firstly, search if the diagonal term is non-zero
+ // the diagonal first, so that each column is born ordered, then the terms
+ // x_i x_j, i != j, that MILPSolver keeps in the three parallel vectors
+ for( int j = 0 ; j < numcols ; ++j )
   if( q_objective[ j ] != 0 ) {
-    // Update count for variable j
-    count_nnz_col++;
-
-    q_obj_val.push_back( 2*q_objective[ j ] );
-    q_obj_ind.push_back( j );
+   q_hessian[ j ].emplace_back( j , 2 * q_objective[ j ] );
+   ++q_hessian_nnz;
    }
 
-  // Search for the first quadratic terms x_j*x_h 
-  auto it_row = find( ndq_colind.begin() , ndq_colind.end() , j );
+ for( Index k = 0 ; k < ndq_objective.size() ; ++k )
+  add_to_hessian( ndq_rowind[ k ] , ndq_colind[ k ] , ndq_objective[ k ] );
 
-  while( it_row != ndq_colind.end() ) {
-    int pos = it_row - ndq_colind.begin();
-    int var2_ind = ndq_rowind[ pos ]; // collect h (h should be always lower than j)
-    double q_coeff = ndq_objective[ pos ];
-    
-    // Update count for variable j
-    count_nnz_col++;
-    
-    q_obj_val.push_back( q_coeff );
-    q_obj_ind.push_back( var2_ind );
+ f_hessian_changed = true;
 
-    // Search for the next occurrence of j
-    it_row = find( it_row + 1 , ndq_colind.end() , j );
+ }  // end( HiGHSMILPSolver::generate_qobj_hessian )
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::add_to_hessian( int i , int j , double delta )
+{
+ if( delta == 0 )
+  return;
+
+ if( i < j )
+  std::swap( i , j );
+
+ auto & col = q_hessian[ j ];
+ auto it = std::lower_bound( col.begin() , col.end() , i ,
+                             []( const auto & e , int r ) {
+                              return( e.first < r );
+                              } );
+
+ if( ( it != col.end() ) && ( it->first == i ) ) {
+  it->second += delta;
+  if( it->second == 0 ) {  // the term is gone
+   col.erase( it );
+   --q_hessian_nnz;
+   }
+  }
+ else {
+  col.emplace( it , i , delta );
+  ++q_hessian_nnz;
   }
 
-  } // end( main loop )*/
- } // end( HiGHSMILPSolver::generate_qobj_hessian )
+ f_hessian_changed = true;
+
+ }  // end( HiGHSMILPSolver::add_to_hessian )
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::set_hessian( int i , int j , double value )
+{
+ if( i < j )
+  std::swap( i , j );
+
+ auto & col = q_hessian[ j ];
+ auto it = std::lower_bound( col.begin() , col.end() , i ,
+                             []( const auto & e , int r ) {
+                              return( e.first < r );
+                              } );
+
+ if( ( it != col.end() ) && ( it->first == i ) ) {
+  if( value == 0 ) {
+   col.erase( it );
+   --q_hessian_nnz;
+   }
+  else
+   it->second = value;
+  }
+ else {
+  if( value == 0 )
+   return;
+  col.emplace( it , i , value );
+  ++q_hessian_nnz;
+  }
+
+ f_hessian_changed = true;
+
+ }  // end( HiGHSMILPSolver::set_hessian )
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::remove_hessian_column( int c )
+{
+ if( c >= int( q_hessian.size() ) )
+  return;
+
+ if( q_hessian_nnz == 0 ) {  // nothing to renumber
+  q_hessian.erase( q_hessian.begin() + c );
+  return;
+  }
+
+ // the terms of the column go with it, the ones of the row are found in the
+ // columns before it, and every index past c moves back by one
+ q_hessian_nnz -= q_hessian[ c ].size();
+ bool changed = ! q_hessian[ c ].empty();
+ q_hessian.erase( q_hessian.begin() + c );
+
+ for( int j = 0 ; j < int( q_hessian.size() ) ; ++j ) {
+  auto & col = q_hessian[ j ];
+  if( col.empty() || ( col.back().first < c ) )
+   continue;
+  auto it = std::lower_bound( col.begin() , col.end() , c ,
+                              []( const auto & e , int r ) {
+                               return( e.first < r );
+                               } );
+  if( ( it != col.end() ) && ( it->first == c ) ) {
+   it = col.erase( it );
+   --q_hessian_nnz;
+   changed = true;
+   }
+  for( ; it != col.end() ; ++it )
+   --( it->first );
+  }
+
+ if( changed )
+  f_hessian_changed = true;
+
+ }  // end( HiGHSMILPSolver::remove_hessian_column )
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::pass_hessian( const char * caller )
+{
+ if( ! f_hessian_changed )
+  return;
+
+ f_hessian_changed = false;
+
+ // HiGHS wants the lower triangle column by column, which is what q_hessian
+ // is: only the starts have to be counted
+ std::vector< HighsInt > start( numcols + 1 , 0 );
+ std::vector< HighsInt > index;
+ std::vector< double > value;
+ index.reserve( q_hessian_nnz );
+ value.reserve( q_hessian_nnz );
+
+ for( int j = 0 ; j < numcols ; ++j ) {
+  start[ j ] = HighsInt( index.size() );
+  if( j < int( q_hessian.size() ) )
+   for( const auto & e : q_hessian[ j ] ) {
+    index.push_back( e.first );
+    value.push_back( e.second );
+    }
+  }
+
+ const auto status = Highs_passHessian( highs , numcols , index.size() ,
+                                        kHighsHessianFormatTriangular ,
+                                        start.data() , index.data() ,
+                                        value.data() );
+
+ if( status == kHighsStatusError )
+  throw( std::runtime_error( std::string( "HiGHSMILPSolver::" ) + caller +
+                             ": Highs_passHessian returned with kHighsStatus "
+                             + std::to_string( status ) ) );
+
+ }  // end( HiGHSMILPSolver::pass_hessian )
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::change_obj_costs( std::vector< int > & idx ,
+                                        std::vector< double > & val ,
+                                        bool add )
+{
+ if( idx.empty() )
+  return;
+
+ // HiGHS wants the set ordered and without repetitions: a column named more
+ // than once takes the sum of its deltas if they are added to the old cost,
+ // and the last value otherwise
+ std::vector< Index > perm( idx.size() );
+ std::iota( perm.begin() , perm.end() , 0 );
+ std::stable_sort( perm.begin() , perm.end() ,
+                   [ & idx ]( Index a , Index b ) {
+                    return( idx[ a ] < idx[ b ] );
+                    } );
+
+ std::vector< HighsInt > set;
+ std::vector< double > nval;
+ set.reserve( idx.size() );
+ nval.reserve( idx.size() );
+ for( auto p : perm )
+  if( set.empty() || ( set.back() != idx[ p ] ) ) {
+   set.push_back( idx[ p ] );
+   nval.push_back( val[ p ] );
+   }
+  else
+   if( add )
+    nval.back() += val[ p ];
+   else
+    nval.back() = val[ p ];
+
+ if( add ) {  // the old costs are read once for the whole set
+  std::vector< double > old( set.size() );
+  HighsInt num_col , num_nz;
+  Highs_getColsBySet( highs , set.size() , set.data() , & num_col ,
+                      old.data() , nullptr , nullptr , & num_nz , nullptr ,
+                      nullptr , nullptr );
+  for( Index k = 0 ; k < set.size() ; ++k )
+   nval[ k ] += old[ k ];
+  }
+
+ Highs_changeColsCostBySet( highs , set.size() , set.data() , nval.data() );
+
+ }  // end( HiGHSMILPSolver::change_obj_costs )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- End File HiGHSMILPSolver.cpp -------------------------*/

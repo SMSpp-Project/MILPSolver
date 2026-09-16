@@ -698,17 +698,20 @@ void add_mip_starts(
   * of the Highs threads for the critical sections of the callback(). */
  std::mutex f_callback_mutex;
 
- /* HiGHS read the Hessian matrix in sparse column form, so we have 
-    * to prepare three different vector:
-    * - q_obj_begin: An array of length [numcols] containing the starting index 
-    *   of each column in `index`;
-    * - q_obj_ind: An array of length [num_nz_q] with indices of hessian matrix 
-    *   entries 
-    * - q_obj_val: An array of length [num_nz_q] with values of hessian matrix 
-    *   entries */
-  std::vector< int > q_obj_begin;
-  std::vector< int > q_obj_ind;
-  std::vector< double > q_obj_val;
+ /// the Hessian of the objective, one element per column of the model
+ /** HiGHS only takes the Hessian as a whole, so this is the copy that every
+  * change is applied to before it is passed again [see pass_hessian()]. The
+  * element j holds the pairs ( i , value ) of column j with i >= j, ordered
+  * by i, i.e., the lower triangle with the diagonal first; the elements
+  * follow the columns of the model as they are added and removed, and so do
+  * the indices in the pairs. */
+ std::vector< std::vector< std::pair< int , double > > > q_hessian;
+
+ /// the number of nonzeros in q_hessian
+ int q_hessian_nnz = 0;
+
+ /// true if q_hessian has changed since it was last passed to HiGHS
+ bool f_hessian_changed = false;
   
  /** @name Handling of Highs parameters (options)
   *
@@ -765,6 +768,29 @@ void add_mip_starts(
  /** Create the structures used to provide the quadratic objective matrix 
   * to HiGHS with the function Highs_passHessian(). */
  void generate_qobj_hessian( void );
+
+ /// adds delta to the entry ( i , j ) of the Hessian, removing it if it zeroes
+ void add_to_hessian( int i , int j , double delta );
+
+ /// sets the entry ( i , j ) of the Hessian to value, zero meaning removed
+ void set_hessian( int i , int j , double value );
+
+ /// the column c of the model is gone: so is it in the Hessian
+ void remove_hessian_column( int c );
+
+ /// calls Highs_run(), sizing again the scheduler of HiGHS if needed
+ int run_highs( void );
+
+ /// passes q_hessian to HiGHS, the name of the caller going in the error
+ void pass_hessian( const char * caller );
+
+ /// changes the costs of the columns idx, adding val to them or setting them
+ /** Changes the costs of the columns in idx in one call, reading the old ones
+  * in one call as well if add is true. The indices need not be ordered, and
+  * a column named twice gets the sum of its values if add is true and the
+  * last one otherwise. */
+ void change_obj_costs( std::vector< int > & idx , std::vector< double > & val ,
+                        bool add );
 
 /*--------------------------------------------------------------------------*/
 
