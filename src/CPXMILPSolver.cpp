@@ -2703,7 +2703,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    // convexity. If the sign is ambiguous due to its small value, we 
    // should assign it a value of 0.
    double eps = 1e-12;
-   double newval = oldqval + 2 * delta_coeff;
+   double newval = oldqval + delta_coeff;
    if( abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
     CPXchgqpcoef( env , lp , idx1 , idx2 , 0 );
    else
@@ -2905,8 +2905,8 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     CPXgetqpcoef( env , lp , glob_idx1 , glob_idx2 , &oldqval ); 
 
     // quadratic coefficients need be changed one at a time
-    CPXchgqpcoef( env , lp , glob_idx1 , glob_idx2 , 
-     ( oldqval + 2 * std::get<2>( t ) ) );
+    CPXchgqpcoef( env , lp , glob_idx1 , glob_idx2 ,
+                  oldqval + std::get< 2 >( t ) );
   }
   // Here we don't need any return, as we know that any QuadFunction
   // derives from a DQuadFunction

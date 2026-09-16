@@ -1639,7 +1639,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    int idx1 = index_of_variable( static_cast< ColVariable * >( vars[ 0 ] ) );
    int idx2 = index_of_variable( static_cast< ColVariable * >( vars[ 1 ] ) );
-   add_to_hessian( idx1 , idx2 , 2 * modlq->delta() );
+   add_to_hessian( idx1 , idx2 , modlq->delta() );
    return;
    }
   else
@@ -1813,7 +1813,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
    int idx1 = index_of_variable( static_cast< const ColVariable * >( var1 ) );
    int idx2 = index_of_variable( static_cast< const ColVariable * >( var2 ) );
    if( ( idx1 < Inf< int >() ) && ( idx2 < Inf< int >() ) )
-    add_to_hessian( idx1 , idx2 , 2 * std::get< 2 >( t ) );
+    add_to_hessian( idx1 , idx2 , std::get< 2 >( t ) );
    }
   // Here we don't need any return, as we know that any QuadFunction
   // derives from a DQuadFunction

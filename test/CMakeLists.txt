@@ -77,6 +77,13 @@ add_test(NAME test_dual
          COMMAND test_dual
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_quad_modify ---------------------------------------------------- #
+
+add_milp_test(test_quad_modify test_quad_modify.cpp)
+add_test(NAME test_quad_modify
+         COMMAND test_quad_modify
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)
