@@ -657,17 +657,16 @@ template< typename T >
   return;
   }
 
- // the indices of a cell, the grid being stored in row-major order
- std::vector< Index > size( rank );
- for( unsigned char d = 0 ; d < rank ; ++d )
-  size[ d ] = group.get_size( d );
+ // the name of an element from the two dimensions of the grid it sits in,
+ // which the group knows and hands over
+ auto indices_of = [ & group , rank ]( Index cell ) {
+  std::array< Index , BaseGroup::max_rank > index;
+  group.get_multi_index( cell , index.data() );
 
- auto indices_of = [ & size , rank ]( Index cell ) {
-  std::string is;
-  for( unsigned char d = rank ; d-- ; ) {
-   is = std::to_string( cell % size[ d ] ) + ( is.empty() ? "" : "_" ) + is;
-   cell /= size[ d ];
-   }
+  std::string is = std::to_string( index[ 0 ] );
+  for( unsigned char d = 1 ; d < rank ; ++d )
+   is += "_" + std::to_string( index[ d ] );
+
   return( is );
   };
 
