@@ -1180,6 +1180,10 @@ class MILPSolver : public CDASolver
   * every method that traverses the attached Block through #v_BFS. */
  std::vector< Block * > v_BFS;
 
+ /** The same Block pointers as #v_BFS, stored for constant-time membership
+  * queries while constructing and updating the MILP matrix. */
+ std::unordered_set< Block * > BFS_set;
+
  std::string prob_name;    ///< problem name
  std::string output_file;  ///< output file
 
@@ -1413,15 +1417,10 @@ class MILPSolver : public CDASolver
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
- /// returns true if b is "mine" (f_Block or one of its descendants)
+ /// returns true if b belongs to the Block subtree loaded in this Solver
 
  bool is_mine( Block * b ) const {
-  while( b ) {
-   if( b == f_Block )
-    return( true );
-   b = b->get_f_Block();
-   }
-  return( false );
+  return( b && ( BFS_set.count( b ) > 0 ) );
   }
 
 /*--------------------------------------------------------------------------*/

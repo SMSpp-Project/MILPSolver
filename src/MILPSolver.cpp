@@ -191,6 +191,7 @@ void MILPSolver::load_problem( void )
  const auto & ignored = get_excluded_blocks();
 
  v_BFS.clear();
+ BFS_set.clear();
  if( ignored.count( f_Block ) == 0 )
   v_BFS.push_back( f_Block );
  for( Index i = 0 ; i < v_BFS.size() ; ++i )
@@ -199,6 +200,8 @@ void MILPSolver::load_problem( void )
     v_BFS.push_back( el );
 
  v_BFS.shrink_to_fit();
+
+ BFS_set.insert( v_BFS.begin() , v_BFS.end() );
 
  // count variables and constraints - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
