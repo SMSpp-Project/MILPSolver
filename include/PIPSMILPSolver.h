@@ -516,20 +516,13 @@ class PIPSMILPSolver : public MILPSolver
  Index collect_subtree( Block * block , std::vector< Block * > & subtree ,
 			Index parent_leaf );
 
- /// scans a group of Variable / Constraint, dispatching to the right scan
- template< typename T >
- void scan_group( const boost::any & gr , Block * qb , Index num_node ,
-		  un_any_type< T > );
+ /// scans a static group of FRowConstraint or ColVariable
+ /** Visits the elements of the group in storage order, whatever the shape of
+  * the group, assigning each of them to \p num_node. */
 
- /// scans a simple (non multi-array) group of Variable / Constraint
  template< typename T >
- void scan_simple_group( const boost::any & gr , Block * qb ,
-			 Index num_node , un_any_type< T > );
-
- /// scans a multi-array group of Variable / Constraint
- template< typename T >
- void scan_multiarray_group( const boost::any & gr , Block * qb ,
-			     Index num_node , un_any_type< T > );
+ void scan_group( const BaseGroup & group , Block * qb , Index num_node ,
+                  un_any_type< T > );
 
  /// classifies one constraint as node-local or global-linking
  void scan_constraint( const FRowConstraint & con , Index num_node );
