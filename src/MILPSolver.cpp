@@ -598,16 +598,24 @@ template< typename T >
 {
  constexpr bool is_constraint = std::is_same_v< T , FRowConstraint >;
  const Index start = counter;
- Index elements = 0;  // elements seen in the group, for the runs
 
- // scan the elements in storage order; scan_static_*() records each run of
- // contiguous ones, so a group made of many arrays gives many runs
- const bool scanned = group.for_each_as< T >(
-  [ this , & elements , & counter ]( const T & element ) {
-   if constexpr( is_constraint )
-    scan_static_constraint( element , elements , counter );
-   else
-    scan_static_variable( element , elements , counter );
+ // the group gives its elements one run of contiguous ones at a time, which
+ // is what the dictionaries record: inside a run the index of an element is
+ // a subtraction from the first, across two runs it is not
+ const bool scanned = group.for_each_run_as< T >(
+  [ this , & counter ]( const T * first , Index n ) {
+   if constexpr( is_constraint ) {
+    scon_to_idx.emplace_back( first , counter , n );
+    idx_to_scon.emplace_back( counter , first );
+    for( Index i = 0 ; i < n ; ++i )
+     scan_constraint( first[ i ] , counter );
+    }
+   else {
+    svar_to_idx.emplace_back( first , counter , n );
+    idx_to_svar.emplace_back( counter , first );
+    for( Index i = 0 ; i < n ; ++i )
+     scan_variable( first[ i ] , counter );
+    }
    } );
 
  if( ! scanned )
@@ -1039,25 +1047,6 @@ const FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
 /*------------- AUXILIARY METHODS FOR POPULATING THE PROBLEM  --------------*/
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_static_variable( const ColVariable & var , Index & n ,
-				       Index & col )
-{
- // a group is recorded as the runs of elements that are contiguous in
- // memory: one run for a group that is a single array, one per array for a
- // group made of many of them (e.g., a std::vector of std::vector)
- if( ( ! n++ ) ||
-     ( & var != std::get< 0 >( svar_to_idx.back() ) +
-                std::get< 2 >( svar_to_idx.back() ) ) ) {
-  svar_to_idx.emplace_back( & var , col , 0 );
-  idx_to_svar.emplace_back( col , & var );
-  }
- ++std::get< 2 >( svar_to_idx.back() );
-
- scan_variable( var , col );
- }
-
-/*--------------------------------------------------------------------------*/
-
 void MILPSolver::scan_dynamic_variable( const ColVariable & var ,
 					Index & col )
 {
@@ -1144,25 +1133,6 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
    }
   }
  ++col;
- }
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::scan_static_constraint( const FRowConstraint & con ,
-					 Index & n , Index & row )
-{
- // a group is recorded as the runs of elements that are contiguous in
- // memory: one run for a group that is a single array, one per array for a
- // group made of many of them (e.g., a std::vector of std::vector)
- if( ( ! n++ ) ||
-     ( & con != std::get< 0 >( scon_to_idx.back() ) +
-                std::get< 2 >( scon_to_idx.back() ) ) ) {
-  scon_to_idx.emplace_back( & con , row , 0 );
-  idx_to_scon.emplace_back( row , & con );
-  }
- ++std::get< 2 >( scon_to_idx.back() );
-
- scan_constraint( con , row );
  }
 
 /*--------------------------------------------------------------------------*/

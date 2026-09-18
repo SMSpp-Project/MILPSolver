@@ -1720,21 +1720,10 @@ class MILPSolver : public CDASolver
  * All of them, except scan_objective(), take integer counters as input
  * parameters. That's because they are meant to be used by
  * un_any_const_static() and un_any_const_dynamic() template functions
- * on boost::any containers, and the counters keep track of the elements
- * inside the containers.
+ * on the groups of the Block, and the counters keep track of the elements
+ * inside them.
  * @{ */
 
- /** Scans a static ColVariable and fills the dictionaries accordingly
-  *
-  * @param var a reference to a ColVariable
-  * @param n   an counter that should be 0 when var is the first
-  *            element of a vector of static ColVariables
-  * @param col a counter for variables/columns */
-
- void scan_static_variable( const ColVariable & var , Index & n ,
-			    Index & col );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a dynamic ColVariable and fills the dictionaries accordingly
   *
   * @param var a reference to a ColVariable
@@ -1743,26 +1732,9 @@ class MILPSolver : public CDASolver
  void scan_dynamic_variable( const ColVariable & var , Index & col );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// common part of scan_static_variable() and scan_dynamic_variable()
+ /// fills the dictionaries and the matrix with one ColVariable
 
  void scan_variable( const ColVariable & var , Index & col );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /** Scans a static FRowConstraint and fills the dictionaries accordingly.
-  *
-  * Notice that empty constraints, i.e., constraints with null function, are by
-  * definition equals to zero, so as in some cases it might be useful to
-  * handle them, if FRowConstraint::get_function() returns nullptr, then the
-  * constraint will be considered since, formally speaking, an empty
-  * constraint is linear since the identical function zero is.
-  *
-  * @param con a reference to a FRowConstraint
-  * @param n a counter that should be 0 when row is the first
-  *            element of a vector of linear static FRowConstraints
-  * @param row a counter for constraints/rows */
-
- void scan_static_constraint( const FRowConstraint & con , Index & n,
-			      Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a dynamic FRowConstraint and fills the dictionaries accordingly.
@@ -1779,7 +1751,7 @@ class MILPSolver : public CDASolver
  void scan_dynamic_constraint( const FRowConstraint & con , Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// common part of scan_static_constraint() and scan_dynamic_constraint()
+ /// fills the dictionaries and the matrix with one FRowConstraint
 
  void scan_constraint( const FRowConstraint & con , Index & row );
 
