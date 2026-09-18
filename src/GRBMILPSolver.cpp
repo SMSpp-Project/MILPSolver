@@ -1784,11 +1784,13 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
 
 void GRBMILPSolver::write_lp( const std::string & filename )
 {
- std::string output_file_lp;
- std::stringstream X(output_file);
- std::getline( X , output_file_lp , '.');
- output_file_lp = output_file_lp.append(".lp");
- GRBwrite( updated_model() , output_file_lp.c_str() );
+ // the format is chosen from the extension of the file, so a name that has
+ // none is written as an LP
+ std::string name = filename;
+ if( name.find_last_of( '.' ) == std::string::npos )
+  name += ".lp";
+
+ GRBwrite( updated_model() , name.c_str() );
  }
 
 /*--------------------------------------------------------------------------*/

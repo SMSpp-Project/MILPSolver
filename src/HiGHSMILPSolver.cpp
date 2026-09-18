@@ -898,11 +898,13 @@ void HiGHSMILPSolver::write_lp( const std::string & filename )
 {
  pass_hessian( "write_lp" );
 
- std::string output_file_lp;
- std::stringstream X(output_file);
- std::getline( X , output_file_lp , '.');
- output_file_lp = output_file_lp.append(".lp");
- Highs_writeModel( highs , output_file_lp.c_str() );
+ // the format is chosen from the extension of the file, so a name that has
+ // none is written as an LP
+ std::string name = filename;
+ if( name.find_last_of( '.' ) == std::string::npos )
+  name += ".lp";
+
+ Highs_writeModel( highs , name.c_str() );
  }
 
 /*--------------------------------------------------------------------------*/
