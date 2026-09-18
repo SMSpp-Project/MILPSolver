@@ -400,6 +400,17 @@ class MILPSolver : public CDASolver
  void scan_group( const BaseGroup & group , Block * qb , Index num_block ,
                   Index set , Index & counter , un_any_type< T > );
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// scans a dynamic group of FRowConstraint or ColVariable
+ /** The dynamic counterpart of scan_group(): the elements of a dynamic group
+  * come and go one by one, so each of them gets its own entry of the
+  * dictionaries. */
+
+ template< typename T >
+ void scan_dynamic_group( const BaseGroup & group , Block * qb ,
+                          Index num_block , Index set , Index & counter ,
+                          un_any_type< T > );
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Getters for the vectors of the MILP problem.

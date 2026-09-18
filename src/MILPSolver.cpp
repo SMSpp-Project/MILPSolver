@@ -250,16 +250,17 @@ void MILPSolver::load_problem( void )
    }
 
   // Dynamic constraints
-  for( const auto & i : qb->get_dynamic_constraints() ) {
-   auto count = un_any_thing_count_dynamic( FRowConstraint , i );
-   if( count != Inf< std::size_t >() ) {
-    numrows += count;
+  for( const auto & group : qb->get_dynamic_constraint_groups() ) {
+   if( ! group )
+    continue;
+
+   if( group->elements_are< FRowConstraint >() ) {
+    numrows += group->get_num_elements();
     continue;
     }
 
-   // if it's not FRowConstraint, accept any known OneVarConstraint silently
-   // note that the second argument of the macro is empty
-   if( un_any_thing_OneVarConstraint_dynamic( i , ) )
+   // if it's not FRowConstraint, accept any OneVarConstraint silently
+   if( group->elements_are< OneVarConstraint >() )
     continue;
 
    throw( std::invalid_argument(
@@ -291,13 +292,13 @@ void MILPSolver::load_problem( void )
       ++ndy_quadrow;
    };
 
-  for( const auto & i : qb->get_static_constraints() )
-   un_any_const_static( i , counter_static_lin_quad_row ,
-			un_any_type< FRowConstraint >() );
+  for( const auto & group : qb->get_static_constraint_groups() )
+   if( group )
+    group->for_each_as< FRowConstraint >( counter_static_lin_quad_row );
 
-  for( const auto & i : qb->get_dynamic_constraints() )
-   un_any_const_dynamic( i , counter_dynamic_lin_quad_row , 
-			 un_any_type< FRowConstraint >() );
+  for( const auto & group : qb->get_dynamic_constraint_groups() )
+   if( group )
+    group->for_each_as< FRowConstraint >( counter_dynamic_lin_quad_row );
 
   // Fill number of quadratic rows
   numquadrows = nst_quadrow + ndy_quadrow;
@@ -316,12 +317,13 @@ void MILPSolver::load_problem( void )
    static_var_grps += group->get_num_cells();
    }
 
-  for( const auto & i : qb->get_dynamic_variables() ) {
-   auto count = un_any_thing_count_dynamic( ColVariable , i );
-   if( count == Inf< std::size_t >() )
+  for( const auto & group : qb->get_dynamic_variable_groups() ) {
+   if( ! group )
+    continue;
+   if( ! group->elements_are< ColVariable >() )
     throw( std::invalid_argument(
                "MILPSolver::load_problem: not a ColVariable" ) );
-   numcols += count;
+   numcols += group->get_num_elements();
    }
 
   auto counter = [ this , & nzelements ]( ColVariable & var ) {
@@ -337,11 +339,11 @@ void MILPSolver::load_problem( void )
         ++nzelements;
    };
 
-  for( const auto & i : qb->get_static_variables() )
-   un_any_const_static( i , counter , un_any_type< ColVariable >() );
-
-  for( const auto & i : qb->get_dynamic_variables() )
-   un_any_const_dynamic( i , counter , un_any_type< ColVariable >() );
+  for( auto groups : { & qb->get_static_variable_groups() ,
+		       & qb->get_dynamic_variable_groups() } )
+   for( const auto & group : *groups )
+    if( group )
+     group->for_each_as< ColVariable >( counter );
 
   ++num_block;
   }
@@ -447,28 +449,11 @@ void MILPSolver::load_problem( void )
  for( auto qb : v_BFS ) {
   int set = 0; // Counter for the constraint groups
 
-  for( const auto & i : qb->get_dynamic_constraints() ) {
-   Index start = row;
+  for( const auto & group : qb->get_dynamic_constraint_groups() ) {
+   if( group )
+    scan_dynamic_group( *group , qb , num_block , set , row ,
+  		      un_any_type< FRowConstraint >() );
 
-   auto scan = [ this , & row ]
-    ( const FRowConstraint & c ) { scan_dynamic_constraint( c , row ); };
-   un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
-
-   //  write names
-   auto base = qb->get_d_const_name()[ set ];
-   Index end = row - start;
-   for( Index n = 0 ; n < end ; ++n ) {
-    std::string name;
-    if( base.empty() )
-     name = "cs_" + std::to_string( num_block )
-          + "_" + std::to_string( set ) + "_" + std::to_string( n );
-    else
-     name = base + "_" + std::to_string( num_block )
-          + "_" + std::to_string( n );
-
-    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] ,
-				   name.c_str() );
-    }
    set++;
    }
   num_block++;
@@ -505,42 +490,13 @@ void MILPSolver::load_problem( void )
  for( auto qb : v_BFS ) {
   Index set = 0;   // Counter for the variable groups
 
-  for( const auto & i : qb->get_dynamic_variables() ) {
-   Index start = col;
-   auto scan = [ this , & col ]( const ColVariable & v ) {
-    scan_dynamic_variable( v ,  col );
-    };
-   un_any_const_dynamic( i , scan , un_any_type< ColVariable >() );
+  for( const auto & group : qb->get_dynamic_variable_groups() ) {
+   if( group )
+    scan_dynamic_group( *group , qb , num_block , set , col ,
+  		      un_any_type< ColVariable >() );
 
-   // write names
-   auto base = qb->get_d_var_name()[ set ];
-   Index end = col - start;
-   for( Index n = 0 ; n < end ; ++n ) {
-    std::string name;
-    if( base.empty() )
-     name = "xv_" + std::to_string( num_block )
-            + "_" + std::to_string( set ) + "_" + std::to_string( n );
-    else
-     name = base + "_" + std::to_string( num_block )
-          + "_" + std::to_string( n );
-
-    colname[ start + n ] = strcpy( new char[ name.length() + 1 ] ,
-				   name.c_str() );
-    }
    set++;
-
-   // If the option single_bound is true, we have to check that maximum one
-   // OneVarConstraint is associated with a single variable.
-   // Moreover, the vector linking the variable with the associated bound,
-   // needs to be filled.
-   if( single_bound ) {
-    auto scan_bound = [ this ]( const ColVariable & v ) {
-      scan_dynamic_variable_bound( v );
-    };
-    
-    un_any_const_dynamic( i , scan_bound , un_any_type< ColVariable >() );
-    }
-  }
+   }
   num_block++;
   }
 
@@ -551,7 +507,6 @@ void MILPSolver::load_problem( void )
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
   num_block = 0;
-  //quad_row = nst_linrow + ndy_linrow; // quadratic rows starts after linear ones
   for( auto qb : v_BFS ) {
    Index set = 0;  // counter for the constraint groups
 
@@ -559,51 +514,33 @@ void MILPSolver::load_problem( void )
     // Call specific function to scan the new group of Constraints
     if( group )
      scan_group( *group , qb , num_block , set , row ,
-   		 un_any_type< FRowConstraint >() );
+		 un_any_type< FRowConstraint >() );
 
     set++;
     }
-  num_block++;
-  }
- std::sort( scon_to_idx.begin() , scon_to_idx.end() );
-
- // scan the dynamic constraints- - - - - - - - - - - - - - - - - - - - - - -
- // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
- num_block = 0;
- for( auto qb : v_BFS ) {
-  int set = 0; // Counter for the constraint groups
-
-  for( const auto & i : qb->get_dynamic_constraints() ) {
-   Index start = row;
-
-   auto scan = [ this , & row ]
-      ( const FRowConstraint & c ) {
-        scan_dynamic_constraint( c , row );
-    };
-   un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
-
-   //  write names
-   auto base = qb->get_d_const_name()[ set ];
-   Index end = row - start;
-   for( Index n = 0 ; n < end ; ++n ) {
-    std::string name;
-    if( base.empty() )
-     name = "cs_" + std::to_string( num_block )
-          + "_" + std::to_string( set ) + "_" + std::to_string( n );
-    else
-     name = base + "_" + std::to_string( num_block )
-          + "_" + std::to_string( n );
-
-    rowname[ start + n ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
-    }
-   set++;
+   num_block++;
    }
-  num_block++;
-  }
+  std::sort( scon_to_idx.begin() , scon_to_idx.end() );
 
- std::sort( dcon_to_idx.begin() , dcon_to_idx.end() );
- } // end if( numquadrows != 0)
+  // scan the dynamic constraints - - - - - - - - - - - - - - - - - - - - - -
+  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+  num_block = 0;
+  for( auto qb : v_BFS ) {
+   Index set = 0;  // counter for the constraint groups
+
+   for( const auto & group : qb->get_dynamic_constraint_groups() ) {
+    if( group )
+     scan_dynamic_group( *group , qb , num_block , set , row ,
+			 un_any_type< FRowConstraint >() );
+
+    set++;
+    }
+   num_block++;
+   }
+
+  std::sort( dcon_to_idx.begin() , dcon_to_idx.end() );
+  } // end if( numquadrows != 0 )
 
  // scan the objective- - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -739,6 +676,54 @@ template< typename T >
    write_name( position++ , is + "_" + std::to_string( n ) );
   } );
  } // end( MILPSolver::scan_group )
+
+/*--------------------------------------------------------------------------*/
+
+template< typename T >
+ void MILPSolver::scan_dynamic_group( const BaseGroup & group , Block * qb ,
+				      Index num_block , Index set ,
+				      Index & counter , un_any_type< T > )
+{
+ constexpr bool is_constraint = std::is_same_v< T , FRowConstraint >;
+ const Index start = counter;
+
+ // a dynamic group holds its elements one by one, so each of them gets its
+ // own entry of the dictionaries, and the names are one sequence
+ const bool scanned = group.for_each_as< T >(
+  [ this , & counter ]( const T & element ) {
+   if constexpr( is_constraint )
+    scan_dynamic_constraint( element , counter );
+   else
+    scan_dynamic_variable( element , counter );
+   } );
+
+ if( ! scanned )
+  // the group holds something else, e.g., :OneVarConstraint, which are the
+  // bounds of their Variable and not rows of the problem
+  return;
+
+ if( ( ! is_constraint ) && single_bound )
+  group.for_each_as< ColVariable >( [ this ]( const ColVariable & var ) {
+   scan_dynamic_variable_bound( var ); } );
+
+ const auto & base = group.get_name();
+
+ for( Index n = 0 ; n < counter - start ; ++n ) {
+  std::string name;
+  if( base.empty() )
+   name = ( is_constraint ? "cs_" : "xv_" ) + std::to_string( num_block ) +
+          "_" + std::to_string( set ) + "_" + std::to_string( n );
+  else
+   name = base + "_" + std::to_string( num_block ) + "_" +
+          std::to_string( n );
+
+  auto entry = strcpy( new char[ name.length() + 1 ] , name.c_str() );
+  if constexpr( is_constraint )
+   rowname[ start + n ] = entry;
+  else
+   colname[ start + n ] = entry;
+  }
+ } // end( MILPSolver::scan_dynamic_group )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3281,64 +3266,74 @@ void MILPSolver::check_status( void )
   for( auto * i : q_Block->get_nested_Blocks() )
    Q.push( i );
 
-  for( const auto & i : q_Block->get_static_constraints() ) {
-   auto count = un_any_thing_count_static( FRowConstraint , i );
-   if( count != Inf< std::size_t >() ) {
+  for( const auto & group : q_Block->get_static_constraint_groups() ) {
+   if( ! group )
+    continue;
+
+   if( group->elements_are< FRowConstraint >() ) {
+    const auto count = group->get_num_elements();
     if( count > 0 )
-      ++scg;
-    
+     // the dictionaries have one entry per run of contiguous elements
+     scg += group->get_num_cells();
+
     c += count;
     sc += count;
     continue;
-   }
+    }
 
-   // if it's not FRowConstraint, accept any known OneVarConstraint silently
-   if( un_any_thing_OneVarConstraint_static( i , [](){}() ) )
+   // if it's not FRowConstraint, accept any OneVarConstraint silently
+   if( group->elements_are< OneVarConstraint >() )
     continue;
 
    throw( std::invalid_argument(
               "MILPSolver::check_status: static Constraint is neither "
               "FRowConstraint nor OneVarConstraint" ) );
-  }
-
-  for( const auto & i : q_Block->get_dynamic_constraints() ) {
-   auto count = un_any_thing_count_dynamic( FRowConstraint , i );
-   if( count != Inf< std::size_t >() ) {
-    c += count;
-    continue;
    }
 
-   // if it's not FRowConstraint, accept any known OneVarConstraint silently
-   if( un_any_thing_OneVarConstraint_dynamic( i , [](){}() ) )
+  for( const auto & group : q_Block->get_dynamic_constraint_groups() ) {
+   if( ! group )
+    continue;
+
+   if( group->elements_are< FRowConstraint >() ) {
+    c += group->get_num_elements();
+    continue;
+    }
+
+   // if it's not FRowConstraint, accept any OneVarConstraint silently
+   if( group->elements_are< OneVarConstraint >() )
     continue;
 
    throw( std::invalid_argument(
               "MILPSolver::check_status: dynamic Constraint is neither "
               "FRowConstraint nor OneVarConstraint" ) );
-  }
+   }
 
   dc = c - sc;
 
-  for( const auto & i : q_Block->get_static_variables() ) {
-   auto count = un_any_thing_count_static( ColVariable , i );
-   if( count == Inf< std::size_t >() )
+  for( const auto & group : q_Block->get_static_variable_groups() ) {
+   if( ! group )
+    continue;
+   if( ! group->elements_are< ColVariable >() )
     throw( std::invalid_argument(
                "MILPSolver::check_status: not a ColVariable" ) );
 
+   const auto count = group->get_num_elements();
    if( count > 0 )
-    ++svg;
+    // the dictionaries have one entry per run of contiguous elements
+    svg += group->get_num_cells();
 
-    v += count;
+   v += count;
    sv += count;
-  }
+   }
 
-  for( const auto & i : q_Block->get_dynamic_variables() ) {
-   auto count = un_any_thing_count_dynamic( ColVariable , i );
-   if( count == Inf< std::size_t >() )
+  for( const auto & group : q_Block->get_dynamic_variable_groups() ) {
+   if( ! group )
+    continue;
+   if( ! group->elements_are< ColVariable >() )
     throw( std::invalid_argument(
                "MILPSolver::check_status: not a ColVariable" ) );
-   v += count;
-  }
+   v += group->get_num_elements();
+   }
 
   dv = v - sv;
  }
@@ -3538,10 +3533,10 @@ void MILPSolver::write_var_solution( const std::vector< double > & x )
   v.set_value( x[ col++ ] );
   };
 
- for( auto qb : v_BFS ) {
-  for( const auto & vi : qb->get_static_variables() )
-   un_any_const_static( vi , set , un_any_type< ColVariable >() );
-  }
+ for( auto qb : v_BFS )
+  for( const auto & group : qb->get_static_variable_groups() )
+   if( group )
+    group->for_each_as< ColVariable >( set );
 
  // Dynamic columns are appended to the solver in modification-arrival order,
  // which is generally different from the block/BFS order above (for example,
