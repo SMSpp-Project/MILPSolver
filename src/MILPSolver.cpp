@@ -657,11 +657,13 @@ template< typename T >
   return;
   }
 
- // the name of an element from the two dimensions of the grid it sits in,
- // which the group knows and hands over
- auto indices_of = [ & group , rank ]( Index cell ) {
+ // the name of an element says where it sits in the grid, whose shape the
+ // group hands over once for all the cells
+ const auto grid = group.get_grid();
+
+ auto indices_of = [ & grid , rank ]( Index cell ) {
   std::array< Index , BaseGroup::max_rank > index;
-  group.get_multi_index( cell , index.data() );
+  grid.get_multi_index( cell , index.data() );
 
   std::string is = std::to_string( index[ 0 ] );
   for( unsigned char d = 1 ; d < rank ; ++d )
