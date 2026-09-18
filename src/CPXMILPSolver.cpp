@@ -3953,6 +3953,7 @@ int CPXMILPSolver::cpx_int_par_map( idx_type par ) const
   case( intMaxIter ): return( - CPXPARAM_MIP_Limits_Nodes );
   case( intMaxSol ):  return( CPXPARAM_MIP_Pool_Capacity );
   case( intLogVerb ): return( CPXPARAM_ScreenOutput );
+  case( intMaxThread ): return( CPXPARAM_Threads );
   }
 
  // CPLEX parameters

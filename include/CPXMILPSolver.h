@@ -281,6 +281,9 @@ class CPXMILPSolver : public MILPSolver {
   * parameters of MILPSolver that CPXMILPSolver actually "listens to" and all
   * parameters supported by Cplex:
   *
+  * - intMaxThread: maps to CPXPARAM_Threads. The current and default values
+  *   are read from CPLEX.
+  *
   * - intCutSepPar [0]: coded bit-wise, indicate if and when separation of
   *                     either user cuts or lazy constraints is performed:
   *
