@@ -213,10 +213,6 @@ void GRBMILPSolver::apply_env_parameters( void )
 
  GRBsetintparam( menv , GRB_INT_PAR_LOGTOCONSOLE , 0 );  // suppress the log
 
- // always have Farkas / unbounded-ray certificates available, mirroring
- // CPLEX where CPXdualfarkas() needs no prior opt-in
- GRBsetintparam( menv , GRB_INT_PAR_INFUNBDINFO , 1 );
-
  for( const auto & el : f_int_pars )
   GRBsetintparam( menv , el.first.c_str() , el.second );
 
@@ -827,12 +823,47 @@ int GRBMILPSolver::guts_of_compute( void )
   }
 
  sol_status = decode_model_status( m_status );
+
+ // the status is decided by a solve that leaves INFUNBDINFO alone, since
+ // on 13.0 the dual simplex answers that a model is optimal when it is
+ // unbounded and that parameter is on; the certificate, which only an
+ // infeasible or an unbounded model has, comes from a solve of its own
+ if( ( sol_status == kInfeasible ) || ( sol_status == kUnbounded ) )
+  compute_certificate( m_status );
+
  return( sol_status );
 
  }  // end( GRBMILPSolver::guts_of_compute )
 
 /*--------------------------------------------------------------------------*/
 
+void GRBMILPSolver::compute_certificate( int m_status )
+{
+ auto menv = GRBgetenv( model );
+
+ int infunbd;
+ GRBgetintparam( menv , GRB_INT_PAR_INFUNBDINFO , & infunbd );
+
+ int method;
+ GRBgetintparam( menv , GRB_INT_PAR_METHOD , & method );
+
+ GRBsetintparam( menv , GRB_INT_PAR_INFUNBDINFO , 1 );
+
+ // the ray of an unbounded model comes out of the primal simplex alone:
+ // the barrier has no basis to read it from, and the dual simplex answers
+ // that the model is optimal, which it is not [see the comment in
+ // guts_of_compute()]
+ if( m_status == GRB_UNBOUNDED )
+  GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_PRIMAL );
+
+ GRBoptimize( updated_model() );
+
+ GRBsetintparam( menv , GRB_INT_PAR_INFUNBDINFO , infunbd );
+ GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
+
+ }  // end( GRBMILPSolver::compute_certificate )
+
+/*--------------------------------------------------------------------------*/
 
 int GRBMILPSolver::decode_model_status( int status )
 {
@@ -1315,14 +1346,16 @@ bool GRBMILPSolver::has_var_direction( void )
  int m_status;
  GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
 
- int infunbd_info = 0;
- GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
+ int n_ranged_con = map_rng_con_aux_var.size();
+ int n_aux_quad_var = grb_idx_aux_qvar.size();
+ std::vector< double > ray( numcols + n_ranged_con + n_aux_quad_var , 0 );
 
- if( ( m_status != GRB_UNBOUNDED ) || ( ! infunbd_info ) ) {
-    
+ if( ( m_status != GRB_UNBOUNDED ) ||
+     GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_UNBDRAY , 0 ,
+                         int( ray.size() ) , ray.data() ) ) {
+
     std::string msg = std::string("GRBMILPSolver Warning [")
-      + __func__ + "]: In order to ask for the unbounded direction of "
-      "the model, the parameter InfUnbdInfo should be set to 1"". \n";
+      + __func__ + "]: the model has no unbounded direction to give"". \n";
 
     // Print warning message in Gurobi log
     GRBmsg( GRBgetenv(model), msg.c_str() );
@@ -1410,16 +1443,16 @@ bool GRBMILPSolver::has_dual_solution( void )
  int m_status;
  GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
 
- int infunbd_info = 0;
- GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_INFUNBDINFO , &infunbd_info );
+ std::vector< double > farkas( numrows , 0 );
 
- if( ( m_status == GRB_INFEASIBLE || m_status == GRB_INF_OR_UNBD || 
-        m_status == GRB_UNBOUNDED ) && ( ! infunbd_info ) ) {
-    
+ if( ( m_status == GRB_INFEASIBLE || m_status == GRB_INF_OR_UNBD ||
+        m_status == GRB_UNBOUNDED ) &&
+     GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_FARKASDUAL , 0 ,
+                         numrows , farkas.data() ) ) {
+
     // Warning message
     std::string msg = std::string("GRBMILPSolver Warning [")
-      + __func__ + "]: To retrieve the model's dual solution, "
-      "set the parameter InfUnbdInfo to 1.\n";
+      + __func__ + "]: the model has no dual solution to give.\n";
 
     // Print warning message in Gurobi log
     GRBmsg( GRBgetenv(model), msg.c_str() );
@@ -1613,13 +1646,11 @@ bool GRBMILPSolver::has_dual_direction( void )
     return( false );                       
  }
 
- int infunbd_info;
- GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_INFUNBDINFO , & infunbd_info );
- if( ! infunbd_info ) {
+ if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_FARKASDUAL , 0 ,
+                         numrows , y.data() ) ) {
     // Warning message
     std::string msg = std::string("GRBMILPSolver Warning [") 
-      + __func__ + "]: To retrieve the model's dual solution, "
-    "set the parameter InfUnbdInfo to 1.\n";
+      + __func__ + "]: the model has no dual ray to give.\n";
 
     // Print warning message in Gurobi log
     GRBmsg( GRBgetenv( model ) ,  msg.c_str() );

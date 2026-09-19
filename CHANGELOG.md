@@ -55,6 +55,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- GRBMILPSolver set `InfUnbdInfo` on every model, so that a certificate of
+  infeasibility or of unboundedness was always there as it is in CPLEX; on
+  GUROBI 13.0 a model that the dual simplex solves with that parameter on is
+  answered "optimal" although it is unbounded, and the Solver returned a
+  finite value for a problem that has none (12.0 answers it correctly, with
+  every method). The status is now decided by a solve that leaves the
+  parameter alone, and a model that turns out to be infeasible or unbounded
+  is solved again with the parameter on, and with the primal simplex when it
+  is unbounded, which is the method the ray comes out of; a model that is
+  neither no longer gives up the reductions that parameter disables
+
 - a group of static Variable or Constraint made of several arrays, i.e., a
   `std::vector` of `std::vector` or a `boost::multi_array` of `std::vector`,
   was mapped to the rows and columns of the matrix as if it were one array,

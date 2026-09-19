@@ -197,11 +197,11 @@ class GRBMILPSolver : public MILPSolver {
  void get_var_direction( Configuration * dirc = nullptr ) override;
 
  /** The following methods provide access to dual information of the
- *  current solution.
- *
- *  Note: When using Gurobi, the parameter InfUnbdInfo must be set to 1
- *  to make this information available. Otherwise, SMS++ will return
- *  false when such information is requested.
+ *  current solution. A certificate of infeasibility or of unboundedness
+ *  is there whenever the model has one, the solve that finds the model
+ *  infeasible or unbounded being followed by the one that computes it
+ *  [see compute_certificate()]; these methods answer false when GUROBI
+ *  has none to give.
  */
 
  /// tells whether a dual solution is available
@@ -807,11 +807,27 @@ void add_mip_starts(
  /** The environment being shared, a parameter cannot wait there for the
   * model to be created: it waits in f_int_pars, f_dbl_pars and f_str_pars
   * and this gives all of them to the environment of the model, together with
-  * the two the class sets on its own (the log, which stays off, and
-  * INFUNBDINFO, which keeps the certificates of infeasibility available).
+  * the one the class sets on its own (the log, which stays off).
   * Called right after the model is created. */
 
  void apply_env_parameters( void );
+
+/*--------------------------------------------------------------------------*/
+ /// solves the model again so that its certificate is available
+ /** GUROBI computes the certificate of infeasibility or of unboundedness
+  * only when INFUNBDINFO is set before the solve, and setting it on every
+  * solve is not free: the model gives up the reductions that parameter
+  * disables whether or not anyone will ask for a certificate, and on 13.0
+  * a model that the dual simplex solves with INFUNBDINFO on is answered
+  * "optimal" although it is unbounded (12.0 answers it correctly, with
+  * every method). The status of the model is therefore decided by a solve
+  * that leaves the parameter alone, and this re-solves the models that
+  * turn out to be infeasible or unbounded, which are the only ones that
+  * have a certificate, with the parameter on and, for an unbounded one,
+  * with the primal simplex, which is the method that gives the ray.
+  * @param m_status the GUROBI status the model has been found to have. */
+
+ void compute_certificate( int m_status );
 
  // note: CutSepPar is now an inherited member of MILPSolver base
 
