@@ -433,8 +433,7 @@ void MILPSolver::load_problem( void )
   for( const auto & group : qb->get_static_constraint_groups() ) {
    // Call specific function to scan the new group of Constraints
    if( group )
-    scan_group( *group , qb , num_block , set , row ,
-  		 un_any_type< FRowConstraint >() );
+    scan_group< FRowConstraint >( *group , qb , num_block , set , row  );
 
    set++;
    }
@@ -451,8 +450,7 @@ void MILPSolver::load_problem( void )
 
   for( const auto & group : qb->get_dynamic_constraint_groups() ) {
    if( group )
-    scan_dynamic_group( *group , qb , num_block , set , row ,
-  		      un_any_type< FRowConstraint >() );
+    scan_dynamic_group< FRowConstraint >( *group , qb , num_block , set , row  );
 
    set++;
    }
@@ -473,8 +471,7 @@ void MILPSolver::load_problem( void )
   for( const auto & group : qb->get_static_variable_groups() ) {
    // Call specific function to scan the new group of Variables
    if( group )
-    scan_group( *group , qb , num_block , set , col ,
-		un_any_type< ColVariable >() );
+    scan_group< ColVariable >( *group , qb , num_block , set , col  );
 
    set++;
    }
@@ -492,8 +489,7 @@ void MILPSolver::load_problem( void )
 
   for( const auto & group : qb->get_dynamic_variable_groups() ) {
    if( group )
-    scan_dynamic_group( *group , qb , num_block , set , col ,
-  		      un_any_type< ColVariable >() );
+    scan_dynamic_group< ColVariable >( *group , qb , num_block , set , col  );
 
    set++;
    }
@@ -513,8 +509,7 @@ void MILPSolver::load_problem( void )
    for( const auto & group : qb->get_static_constraint_groups() ) {
     // Call specific function to scan the new group of Constraints
     if( group )
-     scan_group( *group , qb , num_block , set , row ,
-		 un_any_type< FRowConstraint >() );
+     scan_group< FRowConstraint >( *group , qb , num_block , set , row  );
 
     set++;
     }
@@ -531,8 +526,7 @@ void MILPSolver::load_problem( void )
 
    for( const auto & group : qb->get_dynamic_constraint_groups() ) {
     if( group )
-     scan_dynamic_group( *group , qb , num_block , set , row ,
-			 un_any_type< FRowConstraint >() );
+     scan_dynamic_group< FRowConstraint >( *group , qb , num_block , set , row  );
 
     set++;
     }
@@ -593,8 +587,7 @@ void MILPSolver::load_problem( void )
 
 template< typename T >
  void MILPSolver::scan_group( const BaseGroup & group , Block * qb ,
-			      Index num_block , Index set , Index & counter ,
-			      un_any_type< T > )
+			      Index num_block , Index set , Index & counter )
 {
  constexpr bool is_constraint = std::is_same_v< T , FRowConstraint >;
  const Index start = counter;
@@ -691,7 +684,7 @@ template< typename T >
 template< typename T >
  void MILPSolver::scan_dynamic_group( const BaseGroup & group , Block * qb ,
 				      Index num_block , Index set ,
-				      Index & counter , un_any_type< T > )
+				      Index & counter )
 {
  constexpr bool is_constraint = std::is_same_v< T , FRowConstraint >;
  const Index start = counter;
@@ -3560,13 +3553,9 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
      c.set_dual( - pi[ row ] );
    };
 
-  for( auto qb : v_BFS ) {
-   for( const auto & ci : qb->get_static_constraints() )
-    un_any_const_static( ci , set , un_any_type< FRowConstraint >() );
-
-   for( const auto & ci : qb->get_dynamic_constraints() )
-    un_any_const_dynamic( ci , set , un_any_type< FRowConstraint >() );
-   }
+  for( auto qb : v_BFS )
+   qb->for_each_constraint_group( [ & set ]( const BaseGroup & group ) {
+     group.for_each_as< FRowConstraint >( set ); } );
   }  // end( ! p.empty() )
 
  // handle reduced costs, if any - - - - - - - - - - - - - - - - - - - - - -
@@ -3665,14 +3654,11 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
    col += 1;  // update variable counter
    };
 
- for( auto qb : v_BFS ) {
-  // write all static variables first
-  for( const auto & vi : qb->get_static_variables() )
-   un_any_const_static( vi , set_bound , un_any_type< ColVariable >() );
-  // write all dynamic variables
-  for( const auto & vi : qb->get_dynamic_variables() )
-   un_any_const_dynamic( vi , set_bound , un_any_type< ColVariable >() );
-  }
+ // the static Variable first and then the dynamic ones, which is the order
+ // in which the columns were built
+ for( auto qb : v_BFS )
+  qb->for_each_variable_group( [ & set_bound ]( const BaseGroup & group ) {
+    group.for_each_as< ColVariable >( set_bound ); } );
  }  // end( MILPSolver::write_dual_solution )
 
 /*--------------------------------------------------------------------------*/

@@ -398,7 +398,7 @@ class MILPSolver : public CDASolver
 
  template< typename T >
  void scan_group( const BaseGroup & group , Block * qb , Index num_block ,
-                  Index set , Index & counter , un_any_type< T > );
+                  Index set , Index & counter );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// scans a dynamic group of FRowConstraint or ColVariable
@@ -408,8 +408,7 @@ class MILPSolver : public CDASolver
 
  template< typename T >
  void scan_dynamic_group( const BaseGroup & group , Block * qb ,
-                          Index num_block , Index set , Index & counter ,
-                          un_any_type< T > );
+                          Index num_block , Index set , Index & counter );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1718,10 +1717,9 @@ class MILPSolver : public CDASolver
  *
  * These methods are used in load_problem() to read data from the Block.
  * All of them, except scan_objective(), take integer counters as input
- * parameters. That's because they are meant to be used by
- * un_any_const_static() and un_any_const_dynamic() template functions
- * on the groups of the Block, and the counters keep track of the elements
- * inside them.
+ * parameters. That's because they are meant to be used while walking the
+ * groups of the Block, and the counters keep track of the elements inside
+ * them.
  * @{ */
 
  /** Scans a dynamic ColVariable and fills the dictionaries accordingly

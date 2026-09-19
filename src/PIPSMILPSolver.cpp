@@ -232,20 +232,13 @@ void PIPSMILPSolver::load_problem( void )
     for( const auto & group : qb->get_static_variable_groups() ){
      // Call specific function to scan the new group of Variables
      if( group )
-      scan_group( *group , qb , num_node , un_any_type< ColVariable >() );
+      scan_group< ColVariable >( *group , qb , num_node  );
     }
 
-    for( const auto & i : qb->get_dynamic_variables() ){
+    for( const auto & group : qb->get_dynamic_variable_groups() ){
      // Call specific function to scan the new group of Variables
-     auto push_var_to_node = [ this , num_node ]
-      ( const ColVariable & c ) {
-      n_var_node[ num_node ] += 1;
-      var_node[ num_node ].push_back( &c );
-      var_to_node.emplace( &c , num_node );
-     };
-
-     un_any_const_dynamic( i , push_var_to_node ,
-                            un_any_type< ColVariable >() );
+     if( group )
+      scan_group< ColVariable >( *group , qb , num_node );
     }
   }
   num_node++;
@@ -261,18 +254,13 @@ void PIPSMILPSolver::load_problem( void )
     for( const auto & group : qb->get_static_constraint_groups() ){
      // Call specific function to scan the new group of constraints
      if( group )
-      scan_group( *group , qb , num_node , un_any_type< FRowConstraint >() );
+      scan_group< FRowConstraint >( *group , qb , num_node  );
     }
 
-    for( const auto & i : qb->get_dynamic_constraints() ){
+    for( const auto & group : qb->get_dynamic_constraint_groups() ){
      // Call specific function to scan the new group of constraints
-     // Scanning a group of Constraints
-     auto scan = [ this , num_node ]
-      ( const FRowConstraint & c ) {
-        scan_constraint( c , num_node );
-     };
-
-     un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
+     if( group )
+      scan_group< FRowConstraint >( *group , qb , num_node );
     }
   }
   num_node++;
@@ -1195,7 +1183,7 @@ Block::Index PIPSMILPSolver::collect_subtree( Block * block ,
 
 template< typename T >
  void PIPSMILPSolver::scan_group( const BaseGroup & group , Block * qb ,
-				  Index num_node , un_any_type< T > )
+				  Index num_node )
 {
  // the elements are visited in storage order, whatever the shape of the
  // group: here only the order matters, not where a cell begins

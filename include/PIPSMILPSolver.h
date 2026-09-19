@@ -521,8 +521,8 @@ class PIPSMILPSolver : public MILPSolver
   * the group, assigning each of them to \p num_node. */
 
  template< typename T >
- void scan_group( const BaseGroup & group , Block * qb , Index num_node ,
-                  un_any_type< T > );
+ void scan_group( const BaseGroup & group , Block * qb ,
+                  Index num_node );
 
  /// classifies one constraint as node-local or global-linking
  void scan_constraint( const FRowConstraint & con , Index num_node );
