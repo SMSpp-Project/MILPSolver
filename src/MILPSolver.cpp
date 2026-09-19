@@ -227,8 +227,8 @@ void MILPSolver::load_problem( void )
 
   // Static constraints
   for( const auto & group : qb->get_static_constraint_groups() ) {
-   if( ! group )
-    continue;
+   if( ( ! group ) || ( ! group->get_num_elements() ) )
+    continue;   // an empty group says nothing about its type
 
    if( group->elements_are< FRowConstraint >() ) {
     const auto count = group->get_num_elements();
@@ -252,6 +252,11 @@ void MILPSolver::load_problem( void )
   // Dynamic constraints
   for( const auto & group : qb->get_dynamic_constraint_groups() ) {
    if( ! group )
+    continue;
+
+   // an empty group holds nothing, and says nothing about the type of what
+   // it will hold: a dynamic group starts empty and fills up later
+   if( ! group->get_num_elements() )
     continue;
 
    if( group->elements_are< FRowConstraint >() ) {
@@ -3231,8 +3236,8 @@ void MILPSolver::check_status( void )
    Q.push( i );
 
   for( const auto & group : q_Block->get_static_constraint_groups() ) {
-   if( ! group )
-    continue;
+   if( ( ! group ) || ( ! group->get_num_elements() ) )
+    continue;   // an empty group says nothing about its type
 
    if( group->elements_are< FRowConstraint >() ) {
     const auto count = group->get_num_elements();
@@ -3255,8 +3260,8 @@ void MILPSolver::check_status( void )
    }
 
   for( const auto & group : q_Block->get_dynamic_constraint_groups() ) {
-   if( ! group )
-    continue;
+   if( ( ! group ) || ( ! group->get_num_elements() ) )
+    continue;   // an empty group says nothing about its type
 
    if( group->elements_are< FRowConstraint >() ) {
     c += group->get_num_elements();
