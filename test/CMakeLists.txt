@@ -84,6 +84,20 @@ add_test(NAME test_quad_modify
          COMMAND test_quad_modify
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_farkas --------------------------------------------------------- #
+
+add_milp_test(test_farkas test_farkas.cpp)
+add_test(NAME test_farkas
+         COMMAND test_farkas
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_groups --------------------------------------------------------- #
+
+add_milp_test(test_groups test_groups.cpp)
+add_test(NAME test_groups
+         COMMAND test_groups
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)

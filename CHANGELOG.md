@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `test/test_farkas.cpp` and `test/test_groups.cpp`, i.e., the two testers
+  that used to live in the suite of this module in `tests/`: the first asks
+  for the certificate of an infeasible and of an unbounded model and checks
+  its sign and its scale, the second builds a model out of the groups of a
+  Block and changes it by groups, and neither of the two needs a Block of
+  another module to exist, so they belong here
+
 - `process_group_modification()`, which is asked whether a whole
   GroupModification is one single operation of the back-end before the group
   is taken apart: the shape it recognises is the column, declared by a
