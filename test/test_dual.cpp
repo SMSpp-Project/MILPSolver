@@ -22,6 +22,10 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <cmath>
+#include <iostream>
+#include <list>
+
 #include "AbstractBlock.h"
 
 #include "BlockSolverConfig.h"
@@ -35,6 +39,7 @@
 #include "CDASolver.h"
 
 #include "OneVarConstraint.h"
+#include "Solver.h"
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- NAMESPACE ------------------------------------*/
@@ -314,7 +319,121 @@ void test_equality( Objective::of_type sense , const bool frow_constraint ) {
 
 /*--------------------------------------------------------------------------*/
 
-void run() {
+int test_dynamic_in_wrapper( void ) {
+ /* The coupling row of a Benders subproblem is a dynamic Constraint of a
+  * Block whose sub-Blocks carry the model:
+  *
+  *    wrapper                     y[ 1 ] <= 1   (dynamic)
+  *     +-- inner
+  *          +-- sub 0    min - y[ 0 ] , y[ 0 ] <= 2 , 0 <= y[ 0 ] <= 10
+  *          +-- sub 1    min - 2 y[ 1 ] , y[ 1 ] <= 3 , 0 <= y[ 1 ] <= 10
+  *
+  * whose optimum is - 2 - 2 = - 4 and whose derivative in the right-hand
+  * side of the dynamic row is - 2, that row being the one that binds
+  * y[ 1 ]. The dynamic rows reach the Solver after all the static ones,
+  * whatever Block they belong to, so a dual written by walking the groups
+  * of each Block in turn lands on the wrong row. The checks are explicit
+  * rather than assert()-ed, an optimized build having no assert(). */
+
+ int failures = 0;
+
+ for( const std::string name :
+       { "CPXMILPSolver" , "GRBMILPSolver" , "HiGHSMILPSolver" } ) {
+  Solver * solver;
+  try {
+   solver = Solver::new_Solver( name );
+   }
+  catch( ... ) {
+   std::cout << name << ": not in the factory, skipped" << std::endl;
+   continue;
+   }
+  solver->set_par( Solver::intLogVerb , 0 );
+
+  auto wrapper = new AbstractBlock;
+  auto inner = new AbstractBlock( wrapper );
+  wrapper->add_nested_Block( inner );
+
+  ColVariable * y[ 2 ];
+  FRowConstraint * cap[ 2 ];
+
+  for( int k = 0 ; k < 2 ; ++k ) {
+   auto sub = new AbstractBlock( inner );
+
+   y[ k ] = new ColVariable;
+   y[ k ]->set_type( ColVariable::kContinuous );
+   sub->add_static_variable( * y[ k ] , "y" );
+
+   auto box = new BoxConstraint;
+   box->set_variable( y[ k ] );
+   box->set_lhs( 0 );
+   box->set_rhs( 10 );
+   sub->add_static_constraint( * box , "box" );
+
+   cap[ k ] = new FRowConstraint;
+   auto cf = new LinearFunction();
+   cf->add_variable( y[ k ] , 1.0 );
+   cap[ k ]->set_function( cf );
+   cap[ k ]->set_lhs( - Inf< double >() );
+   cap[ k ]->set_rhs( 2.0 + k );
+   sub->add_static_constraint( * cap[ k ] , "cap" );
+
+   auto of = new LinearFunction();
+   of->add_variable( y[ k ] , - 1.0 - k );
+   auto objective = new FRealObjective( sub , of );
+   objective->set_sense( Objective::eMin );
+   sub->set_objective( objective );
+
+   inner->add_nested_Block( sub );
+   }
+
+  auto wobj = new FRealObjective( wrapper , new LinearFunction() );
+  wobj->set_sense( Objective::eMin );
+  wrapper->set_objective( wobj );
+
+  auto link = new std::list< FRowConstraint >( 1 );
+  auto lf = new LinearFunction();
+  lf->add_variable( y[ 1 ] , 1.0 );
+  link->front().set_function( lf );
+  link->front().set_lhs( - Inf< double >() );
+  link->front().set_rhs( 1.0 );
+  wrapper->add_dynamic_constraint( * link , "link" );
+
+  wrapper->register_Solver( solver );
+
+  const auto status = solver->compute();
+  auto CDASp = dynamic_cast< CDASolver * >( solver );
+
+  bool ok = ( status == Solver::kOK ) && CDASp && CDASp->has_dual_solution();
+  if( ok ) {
+   solver->get_var_solution();
+   CDASp->get_dual_solution();
+
+   ok = ( std::abs( solver->get_var_value() + 4.0 ) <= 1e-9 ) &&
+        ( std::abs( link->front().get_dual() - 2.0 ) <= 1e-9 ) &&
+        ( std::abs( cap[ 0 ]->get_dual() - 1.0 ) <= 1e-9 ) &&
+        ( std::abs( cap[ 1 ]->get_dual() ) <= 1e-9 );
+   }
+
+  std::cout << name << ": value = " << solver->get_var_value()
+            << ", dual of the dynamic row = " << link->front().get_dual()
+            << " (2 expected), of the static ones = "
+            << cap[ 0 ]->get_dual() << " (1) and " << cap[ 1 ]->get_dual()
+            << " (0)" << ( ok ? " -> OK" : " -> KO" ) << std::endl;
+
+  if( ! ok )
+   ++failures;
+
+  wrapper->unregister_Solver( solver );
+  delete solver;
+  delete wrapper;
+  }
+
+ return( failures );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int run() {
 
  // Test dual solution
 
@@ -325,14 +444,16 @@ void run() {
    test_equality( sense , frow_constraint );
   }
  }
+
+ // the dual of a dynamic row of a Block whose sub-Blocks carry the model
+ return( test_dynamic_in_wrapper() );
 }
 
 /*--------------------------------------------------------------------------*/
 
 int main( int argc , char ** argv )
 {
- run();
- return( 0 );
+ return( run() );
 }
 
 /*--------------------------------------------------------------------------*/

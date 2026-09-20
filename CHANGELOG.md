@@ -55,6 +55,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The dual of a dynamic Constraint was the dual of some other row. The rows of
+  the model are numbered with the static ones of every Block first and the
+  dynamic ones after them, while the duals were written back by walking the
+  groups of each Block in turn with a running counter, so that a dynamic row
+  was handed the dual of a static one. The static rows are now written by that
+  counter alone and the dynamic ones through `idx_to_dcon`, the map kept in
+  the actual solver-row order, as `write_var_solution()` already did for the
+  dynamic columns with `idx_to_dvar`. A Benders decomposition, whose coupling
+  rows are dynamic Constraint of the Block that wraps a subproblem, read from
+  them the prices of unrelated rows and built cuts that were not valid, which
+  is how this came out; `test/test_dual.cpp` has the case.
+
 - GRBMILPSolver set `InfUnbdInfo` on every model, so that a certificate of
   infeasibility or of unboundedness was always there as it is in CPLEX; on
   GUROBI 13.0 a model that the dual simplex solves with that parameter on is

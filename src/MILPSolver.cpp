@@ -3542,25 +3542,32 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
       row++;
    };
 
-  /* The dynamic rows are appended to the solver in modification-arrival
-   * order, which is generally different from the block/BFS order the static
-   * ones are written in: a running counter would therefore scramble the
-   * duals across the dynamic groups, exactly as it did for the dynamic
-   * columns [see write_var_solution()]. The row of each of them is asked
-   * for instead. */
-
-  auto set_dynamic = [ this , & pi ]( FRowConstraint & c ) {
-    if( ! dynamic_cast< LinearFunction * >( c.get_function() ) )
-     return;   // skip quadratic rows
-
-    const int row = index_of_constraint( & c );
-    if( row < int( get_numrows() ) )
-     c.set_dual( - pi[ row ] );
-   };
+  /* The static rows are written in the block/BFS order they were loaded in,
+   * which is the order of the running counter. */
 
   for( auto qb : v_BFS )
-   qb->for_each_constraint_group( [ & set ]( const BaseGroup & group ) {
-     group.for_each_as< FRowConstraint >( set ); } );
+   for( const auto & group : qb->get_static_constraint_groups() )
+    if( group )
+     group->for_each_as< FRowConstraint >( set );
+
+  /* The dynamic rows are appended to the solver in modification-arrival
+   * order, which is generally different from the block/BFS order the static
+   * ones are written in, and they all come after the static ones: a running
+   * counter walking the groups of each Block in turn would therefore hand a
+   * dynamic row the dual of some static one, exactly as it did for the
+   * dynamic columns [see write_var_solution()]. idx_to_dcon is the map kept
+   * in the actual solver-row order, hence the one to read them off. */
+
+  for( std::size_t i = 0 ; i < idx_to_dcon.size() ; ++i ) {
+   auto c = const_cast< FRowConstraint * >( idx_to_dcon[ i ] );
+   if( ! c )
+    continue;
+   if( ! dynamic_cast< LinearFunction * >( c->get_function() ) )
+    continue;   // skip quadratic rows
+   const std::size_t row = static_cons + i;
+   if( row < pi.size() )
+    c->set_dual( - pi[ row ] );
+   }
   }  // end( ! p.empty() )
 
  // handle reduced costs, if any - - - - - - - - - - - - - - - - - - - - - -
