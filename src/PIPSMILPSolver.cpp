@@ -1114,13 +1114,13 @@ std::vector< int > PIPSMILPSolver::compute_cons_global_idxs(
  Index row = 0;
 
  for( auto con : cons ) {
-  Index static_idx = index_of_static_constraint( con );
+  int static_idx = index_of_static_constraint( con );
 
-  if( static_idx < Inf< Index >() )
+  if( static_idx < Inf< int >() )
    global_idxs[ row ] = static_idx;
   else {
-   Index dynamic_idx = index_of_dynamic_constraint( con );
-   if( dynamic_idx < Inf< Index >() )
+   int dynamic_idx = index_of_dynamic_constraint( con );
+   if( dynamic_idx < Inf< int >() )
     global_idxs[ row ] = dynamic_idx;
    else
     throw( std::runtime_error(
@@ -1142,13 +1142,13 @@ std::vector< int > PIPSMILPSolver::compute_vars_global_idxs(
  Index col = 0;
 
  for( auto var : vars ) {
-  Index static_idx = index_of_static_variable( var );
+  int static_idx = index_of_static_variable( var );
 
-  if( static_idx < Inf< Index >() )
+  if( static_idx < Inf< int >() )
    global_idxs[ col ] = static_idx;
   else {
-   Index dynamic_idx = index_of_dynamic_variable( var );
-   if( dynamic_idx < Inf< Index >() )
+   int dynamic_idx = index_of_dynamic_variable( var );
+   if( dynamic_idx < Inf< int >() )
     global_idxs[ col ] = dynamic_idx;
    else
     throw( std::runtime_error(

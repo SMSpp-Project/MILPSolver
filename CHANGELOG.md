@@ -62,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- PIPSMILPSolver takes dynamic Constraint and Variable: the index of a static
+  one, an `int` whose absence is `Inf< int >()`, was compared with
+  `Inf< Index >()`, which is larger, so that every dynamic element was given
+  the row or column `Inf< int >()` and the callbacks threw; the Benders form
+  of `tssb_solver -k`, whose coupling is dynamic, is now solved, with the
+  here-and-now Variable in the first stage of PIPS-IPM++
+
 - The dual of a dynamic Constraint was the dual of some other row. The rows of
   the model are numbered with the static ones of every Block first and the
   dynamic ones after them, while the duals were written back by walking the
