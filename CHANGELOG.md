@@ -411,17 +411,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.1...develop
+[0.9.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...0.9.1
 [0.9.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.8.0...0.9.0
-[0.8.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.7.1...0.8.0
-[0.7.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.7.0...0.7.1
-[0.7.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.6.0...0.7.0
+[0.8.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.6.0...0.8.0
 [0.6.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.2...0.6.0
 [0.5.2]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.1...0.5.2
 [0.5.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.0...0.5.1
 [0.5.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.4.0...0.5.0
 [0.4.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.3.0...0.4.0
 [0.3.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.2.0...0.3.0
-[0.2.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.1.0...0.2.0
+[0.2.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.1.1...0.2.0
 [0.1.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.1.0...0.1.1
 [0.1.0]: https://gitlab.com/smspp/milpsolver/-/tags/0.1.0
