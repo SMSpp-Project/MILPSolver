@@ -1,3 +1,10 @@
+# The CHANGELOG of the module, held to the format and, on a merge request, to
+# the commits of the branch [see ci/changelog.yml of the umbrella].
+include:
+  - project: smspp/smspp-project
+    ref: develop
+    file: /ci/changelog.yml
+
 default:
   image: registry.gitlab.com/smspp/smspp-project
 
