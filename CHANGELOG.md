@@ -60,6 +60,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   order they were issued, both being about the same attribute of the model,
   and a batch carrying a change of integrality is refused
 
+### Changed
+
+- `grb_pars` probes by name the parameters that the enumeration of Gurobi
+  does not return, so that the table it writes carries them as well
+- the makefile asks for `-O3 -DNDEBUG` and nothing else, the macro of the
+  patch for `boost::any` on macOS having no reason to be there since there is
+  no `boost::any` left in the core
+- whoever links the module keeps it: the classes of a module register
+  themselves in the factory from a static initialiser, and a linker that
+  drops what looks unused takes the registration away with it, so the target
+  now tells whoever links it to keep the symbol that forces the module in,
+  and on ELF, where naming the symbol is not enough, the library as a whole
+
 ### Fixed
 
 - PIPSMILPSolver takes dynamic Constraint and Variable: the index of a static
@@ -303,20 +316,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for modifying a quadratic objective function in SCIP.
 
-
 ## [0.7.0] - 2023-08-01
 
 ### Added
 
 - HiGHS interface
 
-
 ## [0.6.0] - 2023-07-03
 
 ### Added
 
 - Gurobi interface
-
 
 ## [0.5.2] - 2023-05-17
 
@@ -329,7 +339,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Destroy the problem before constructing a new one in
   load\_problem() (in SCIPMILPSolver and CPXMILPSolver).
-
 
 ## [0.5.1] - 2022-07-01
 
@@ -364,7 +373,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Variable type change handling.
 
-
 ## [0.4.0] - 2021-05-02
 
 ### Added
@@ -379,13 +387,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Too many individual fixes to list.
 
-
 ## [0.3.0] - 2020-09-16
 
 ### Added
 
 - Support for concurrency.
-
 
 ## [0.2.0] - 2020-03-06
 
@@ -397,13 +403,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Minor bugs.
 
-
 ## [0.1.1] - 2020-02-10
 
 ### Fixed
 
 - Minor fix in makefile support.
-
 
 ## [0.1.0] - 2020-01-30
 
