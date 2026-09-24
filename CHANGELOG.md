@@ -64,14 +64,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `grb_pars` probes by name the parameters that the enumeration of Gurobi
   does not return, so that the table it writes carries them as well
+
 - the makefile asks for `-O3 -DNDEBUG` and nothing else, the macro of the
   patch for `boost::any` on macOS having no reason to be there since there is
   no `boost::any` left in the core
+
 - whoever links the module keeps it: the classes of a module register
   themselves in the factory from a static initialiser, and a linker that
   drops what looks unused takes the registration away with it, so the target
   now tells whoever links it to keep the symbol that forces the module in,
   and on ELF, where naming the symbol is not enough, the library as a whole
+
 - GRBMILPSolver says out loud when the license service refuses the request:
   the errors that have nothing to do with the model that was being solved
   (`GRB_ERROR_NO_LICENSE`, `GRB_ERROR_NETWORK`, `GRB_ERROR_JOB_REJECTED`,
@@ -99,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of `tssb_solver -k`, whose coupling is dynamic, is now solved, with the
   here-and-now Variable in the first stage of PIPS-IPM++
 
-- The dual of a dynamic Constraint was the dual of some other row. The rows of
+- the dual of a dynamic Constraint was the dual of some other row. The rows of
   the model are numbered with the static ones of every Block first and the
   dynamic ones after them, while the duals were written back by walking the
   groups of each Block in turn with a running counter, so that a dynamic row
@@ -109,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dynamic columns with `idx_to_dvar`. A Benders decomposition, whose coupling
   rows are dynamic Constraint of the Block that wraps a subproblem, read from
   them the prices of unrelated rows and built cuts that were not valid, which
-  is how this came out; `test/test_dual.cpp` has the case.
+  is how this came out; `test/test_dual.cpp` has the case
 
 - GRBMILPSolver set `InfUnbdInfo` on every model, so that a certificate of
   infeasibility or of unboundedness was always there as it is in CPLEX; on
@@ -192,10 +195,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no accuracy promise; the callers that read the status of a component,
   BundleSolver among them, take it as inexact information
 
-- the start of the Gurobi environment is retried, with a growing wait,
-  when the license service refuses it for a transient reason, so that a
-  long computation is not lost to a momentary refusal
-
 - the Gurobi environment is one for the whole process, created by the first
   GRBMILPSolver and released by the last one, since every environment is a
   session of the license and one per Solver does not scale: a decomposition
@@ -211,6 +210,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - relaxed-integer LP cut-separation loop (`intRelaxIntVars == 2`) is
   now driven by the base `compute()`
+
 - the version of the module is the git tag of its repository, or the
   VERSION.txt of a release tarball, and the shared library carries it: its
   SONAME is major.minor while the major is 0, and it is installed with an
@@ -303,7 +303,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new coefficients are obtained by adding modl->delta() to the
   old ones
 
-- improved query of variables bound in MILPSolver 
+- improved query of variables bound in MILPSolver
 
 ### Fixed
 
@@ -311,7 +311,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - set\_par( intMaxTime ) in GRBMILPSolver
 
-- writing of dual_values in the Block 
+- writing of dual_values in the Block
 
 - error in SCIPMILPSolver::get\_dual\_solution()
 
@@ -321,7 +321,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a Block is its own Objective plus the Objective of all the
   sub-Block, recursively" was *not at all* correctly implemented
   in *MILPSolver
-  
+
 - several minor ones
 
 ## [0.7.1] - 2024-02-01
@@ -350,6 +350,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Support for constant term in the objective function.
+
 - Support for all-important SCIP 8.0.3.
 
 ### Fixed
@@ -362,14 +363,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Support to SCIP 8.0.0 and Cplex 22.1.
+
 - Separation of user cuts and lazy constraints.
 
 ### Fixed
 
 - Invert the sign of the dual solution in CPXMILPSolver to follow the
   RowConstraint conventions.
+
 - Scan of ColVariable in CPXMILPSolver.
+
 - Blunder in bound changes in CPXMILPSolver.
+
 - Callback for Cplex versions prior to 12.10.
 
 ## [0.5.0] - 2021-12-08
