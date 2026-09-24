@@ -53,6 +53,47 @@ using namespace SMSpp_di_unipi_it;
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+/// reads the BlockSolverConfig, naming a :MILPSolver this build does have
+/** The file names one :MILPSolver, which is not necessarily one the build
+ * has; each name it does not have is replaced by the first of these that the
+ * factory does hold, so that the same file works wherever it is run. */
+
+BlockSolverConfig * get_lpbsc( void )
+{
+ static const std::vector< std::string > SolverNames =
+  { "CPXMILPSolver" , "GRBMILPSolver" , "HiGHSMILPSolver" , "SCIPMILPSolver" };
+
+ auto lpbsc = dynamic_cast< BlockSolverConfig * >(
+		     Configuration::deserialize( "LPPar-dual.txt" ) );
+ if( ! lpbsc ) {
+  std::cerr << "Error: configuration file not a BlockSolverConfig"
+            << std::endl;
+  exit( 1 );
+  }
+
+ for( Block::Index i = 0 ; i < lpbsc->num_ComputeConfig() ; ++i ) {
+  if( Solver::has_Solver( lpbsc->get_SolverName( i ) ) )
+   continue;
+  std::string found;
+  for( const auto & name : SolverNames )
+   if( Solver::has_Solver( name ) ) {
+    found = name;
+    break;
+    }
+  if( found.empty() ) {
+   std::cerr << "Error: no :MILPSolver in this build" << std::endl;
+   exit( 1 );
+   }
+  std::cout << lpbsc->get_SolverName( i ) << " is not in the factory, "
+            << found << " takes its place" << std::endl;
+  lpbsc->set_Solver_name( i , std::move( found ) );
+  }
+
+ return( lpbsc );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 double get_obj_sign( Objective::of_type sense ) {
  switch( sense ) {
   case( Objective::eMin ): return( -1 );
@@ -113,12 +154,7 @@ void test_lower( Objective::of_type sense , const bool frow_constraint ) {
 
  // Solver
 
- auto lpbsc = dynamic_cast< BlockSolverConfig * >(
-		     Configuration::deserialize( "LPPar-dual.txt" ) );
- if( ! lpbsc ) {
-  std::cerr << "Error: configuration file not a BlockSolverConfig" << std::endl;
-  exit( 1 );    
-  }
+ auto lpbsc = get_lpbsc();
 
  lpbsc->apply( lp );
  lpbsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup
@@ -201,12 +237,7 @@ void test_upper( Objective::of_type sense , const bool frow_constraint ) {
 
  // Solver
 
- auto lpbsc = dynamic_cast< BlockSolverConfig * >(
-		     Configuration::deserialize( "LPPar-dual.txt" ) );
- if( ! lpbsc ) {
-  std::cerr << "Error: configuration file not a BlockSolverConfig" << std::endl;
-  exit( 1 );    
-  }
+ auto lpbsc = get_lpbsc();
 
  lpbsc->apply( lp );
  lpbsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup
@@ -283,12 +314,7 @@ void test_equality( Objective::of_type sense , const bool frow_constraint ) {
 
  // Solver
 
- auto lpbsc = dynamic_cast< BlockSolverConfig * >(
-		     Configuration::deserialize( "LPPar-dual.txt" ) );
- if( ! lpbsc ) {
-  std::cerr << "Error: configuration file not a BlockSolverConfig" << std::endl;
-  exit( 1 );    
-  }
+ auto lpbsc = get_lpbsc();
 
  lpbsc->apply( lp );
  lpbsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup

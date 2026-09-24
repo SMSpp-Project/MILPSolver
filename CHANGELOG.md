@@ -72,8 +72,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drops what looks unused takes the registration away with it, so the target
   now tells whoever links it to keep the symbol that forces the module in,
   and on ELF, where naming the symbol is not enough, the library as a whole
+- GRBMILPSolver says out loud when the license service refuses the request:
+  the errors that have nothing to do with the model that was being solved
+  (`GRB_ERROR_NO_LICENSE`, `GRB_ERROR_NETWORK`, `GRB_ERROR_JOB_REJECTED`,
+  `GRB_ERROR_CSWORKER`, `GRB_ERROR_CLOUD` and `GRB_ERROR_SECURITY`) were
+  mapped to `kError` in silence, so that a batch running into one of them,
+  which is what happens when too many sessions of the same license are open
+  at the same moment, showed a failure indistinguishable from a wrong
+  answer; the status is unchanged, a line on `cerr` now names the reason
 
 ### Fixed
+
+- the testers that try each :MILPSolver in turn skipped the ones the build
+  does not have by constructing them, while `Solver::new_Solver()` throws
+  rather than returning `nullptr` on a name the factory does not hold, so
+  `test_dual`, `test_farkas` and `test_groups` died with `CPXMILPSolver not
+  present in Solver factory` wherever CPLEX is not installed; they ask
+  `Solver::has_Solver()` first, and the BlockSolverConfig read by `test_dual`,
+  which names one :MILPSolver, has a name the factory does not hold replaced
+  by the first one it does, saying which took its place
 
 - PIPSMILPSolver takes dynamic Constraint and Variable: the index of a static
   one, an `int` whose absence is `Inf< int >()`, was compared with

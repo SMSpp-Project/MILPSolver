@@ -258,10 +258,8 @@ int main( void )
 
  for( const auto & name : SolverNames ) {
   // skip the :MILPSolver that are not in the build
-  auto probe = Solver::new_Solver( name );
-  if( ! probe )
+  if( ! Solver::has_Solver( name ) )
    continue;
-  delete probe;
   any_solver = true;
 
   for( int shape = eFlat ; shape <= eMultiArrayOfList ; ++shape )

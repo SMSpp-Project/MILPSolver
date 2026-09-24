@@ -1002,6 +1002,12 @@ int GRBMILPSolver::decode_grb_error( int error )
   case( GRB_ERROR_CSWORKER ):
   case( GRB_ERROR_CLOUD ):
   case( GRB_ERROR_SECURITY ):
+   // said out loud, and not only through the status: a failure of the
+   // license service is not a failure of the model, and whoever reads a
+   // batch of results has no other way of telling the two apart
+   std::cerr << "GRBMILPSolver::decode_grb_error: warning: the license "
+                "service refused the request [GUROBI error " << error
+             << "], the model was not solved" << std::endl;
    return( kError );
   }
 

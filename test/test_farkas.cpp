@@ -302,9 +302,9 @@ int main( void )
 
  for( const auto & name : SolverNames ) {
 
-  auto solver = Solver::new_Solver( name );
-  if( ! solver )
+  if( ! Solver::has_Solver( name ) )
    continue;                 // this one is not in the build, nothing to say
+  auto solver = Solver::new_Solver( name );
   any_solver = true;
 
   // silence the solver's own log, and ask for the duals: SCIP does not
