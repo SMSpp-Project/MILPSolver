@@ -86,6 +86,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the two configurations of the testers of the duals asked for
+  `CPXPARAM_MIP_Tolerances_Integrality`, a parameter of CPLEX alone and an
+  integrality tolerance in a configuration for an LP: a build without CPLEX,
+  where the :MILPSolver that reads them is another one, died on the name.
+  It is commented out as the other parameters of CPLEX in the same files
+  already are
+
 - the testers that try each :MILPSolver in turn skipped the ones the build
   does not have by constructing them, while `Solver::new_Solver()` throws
   rather than returning `nullptr` on a name the factory does not hold, so

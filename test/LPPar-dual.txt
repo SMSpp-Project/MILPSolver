@@ -42,13 +42,13 @@ intThrowReducedCostException 1
 #CPXPARAM_Preprocessing_Presolve  0
 #CPXPARAM_Preprocessing_QCPDuals  2 # e.g., CPX_QCPDUALS_FORCE
 
-2  # number of double parameters
+1  # number of double parameters
 
 # now all the double parameters
 dblRelAcc                    1e-08
 
 ## All specific CPLEX parameter (uncomment based on Solver)
-CPXPARAM_MIP_Tolerances_Integrality     1e-07
+#CPXPARAM_MIP_Tolerances_Integrality     1e-07
 
 ## All specific HiGHS parameter (uncomment based on Solver)
 #mip_feasibility_tolerance     1e-07
