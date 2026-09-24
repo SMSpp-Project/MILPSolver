@@ -865,6 +865,19 @@ void GRBMILPSolver::compute_certificate( int m_status )
 
 /*--------------------------------------------------------------------------*/
 
+// what a status that is a failure of the run says before it becomes kError:
+// the caller reads a failure and not an answer about the model, and kError
+// on its own tells neither which failure it was nor that the model is fine
+static int failed( int status , const char * why )
+{
+ std::cerr << "GRBMILPSolver::decode_model_status: warning: GUROBI stopped on "
+           << why << " [status " << status << "], the model was not solved"
+           << std::endl;
+ return( Solver::kError );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 int GRBMILPSolver::decode_model_status( int status )
 {
  DEBUG_LOG( "GRB_STATUS returned " << status << std::endl );
@@ -918,11 +931,11 @@ int GRBMILPSolver::decode_model_status( int status )
    return( kOK );
   case( GRB_INTERRUPTED ):
    //  Optimization was terminated by the user
-   return( kError );
+   return( failed( status , "the run was interrupted" ) );
   case( GRB_NUMERIC ):
    // Optimization was terminated due to unrecoverable numerical
    // difficulties
-   return( kError );
+   return( failed( status , "numerical difficulties it cannot recover from" ) );
   case( GRB_SUBOPTIMAL ):
    // Unable to satisfy optimality tolerances; a sub-optimal solution is
    // available, i.e., one with no accuracy promise attached, which is what
@@ -933,14 +946,15 @@ int GRBMILPSolver::decode_model_status( int status )
   case( GRB_INPROGRESS ):
    // An asynchronous optimization call was made, but the 
    // associated optimization run is not yet complete
-   return( kError );
+   return( failed( status , "an asynchronous run that is not over" ) );
   case( GRB_USER_OBJ_LIMIT ):
    // User specified an objective limit (a bound on either the best
    // objective or the best bound), and that limit has been reached
    return( kOK );
   case( GRB_WORK_LIMIT ):
+   return( failed( status , "the work limit" ) );
   case( GRB_MEM_LIMIT ):
-   return( kError );
+   return( failed( status , "the memory limit" ) );
   default:;
  }
 

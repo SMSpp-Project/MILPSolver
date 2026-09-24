@@ -75,6 +75,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now tells whoever links it to keep the symbol that forces the module in,
   and on ELF, where naming the symbol is not enough, the library as a whole
 
+- GRBMILPSolver says out loud which status stopped it when that status is a
+  failure of the run and not an answer about the model: an interrupt,
+  numerical difficulties it cannot recover from, an asynchronous run that is
+  not over and the work and memory limits all reached the caller as `kError`
+  and nothing else, so that a batch showed a failure indistinguishable from a
+  wrong answer, and from the refusal of the license below
+
 - GRBMILPSolver says out loud when the license service refuses the request:
   the errors that have nothing to do with the model that was being solved
   (`GRB_ERROR_NO_LICENSE`, `GRB_ERROR_NETWORK`, `GRB_ERROR_JOB_REJECTED`,
