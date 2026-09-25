@@ -80,7 +80,15 @@ namespace SMSpp_di_unipi_it {
  * Moreover, the user can include in the configuration all the options
  * supported by Highs_setIntOptionValue(), Highs_setDoubleOptionValue(),
  * Highs_setStringOptionValue() and Highs_setBoolOptionValue
- * (See HiGHS List of options on HiGHS Documentation for all of them). */
+ * (See HiGHS List of options on HiGHS Documentation for all of them).
+ *
+ * The one option whose default differs from that of HiGHS is
+ * qp_regularization_value, which is QPRegularization instead of 1e-7: with
+ * the default of HiGHS its active set QP solver declares non-convex some
+ * convex QPs, e.g., the master problem of a proximal bundle, a single free
+ * column with a quadratic term and the others linear, whether it does
+ * depending only on the order of the columns. The option only acts on QPs,
+ * and it can be set to any value in the configuration as any other one. */
 
 class HiGHSMILPSolver : public MILPSolver {
 
@@ -111,6 +119,9 @@ class HiGHSMILPSolver : public MILPSolver {
   /// first allowed new double parameter for derived classes
   dblLastAlgParHiGHS = dblFirstHiGHSPar + HiGHS_NUM_DBL_PARS
   };
+
+ /// default of the HiGHS option qp_regularization_value [see the class]
+ static constexpr double QPRegularization = 1e-5;
 
  /// enum for string parameters (options in HiGHS)
  enum str_par_type_HiGHS {

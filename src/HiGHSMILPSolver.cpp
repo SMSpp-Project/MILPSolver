@@ -87,6 +87,12 @@ HiGHSMILPSolver::HiGHSMILPSolver( void ) :
 
  // Set default HiGHS log to 0
  Highs_setBoolOptionValue( highs , "output_flag" , 0 );
+
+ // the active set QP solver of HiGHS declares a convex QP non-convex, the
+ // outcome depending on the order of the columns, unless the Hessian is
+ // regularized more than its own default does (see QPRegularization)
+ Highs_setDoubleOptionValue( highs , "qp_regularization_value" ,
+                             QPRegularization );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2684,6 +2690,8 @@ double HiGHSMILPSolver::get_dflt_dbl_par( idx_type par ) const
  if( highs_opt.size() > 0 ) {
   if( highs_opt == "NoPar" )
     return( 0 );
+  if( highs_opt == "qp_regularization_value" )
+    return( QPRegularization );
   else{
     double value, default_value;
     Highs_getDoubleOptionValues( highs , highs_opt.data() , & value, NULL ,

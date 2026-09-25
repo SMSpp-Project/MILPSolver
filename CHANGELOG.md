@@ -113,6 +113,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the active set QP solver of HiGHS declared some convex QPs non-convex,
+  e.g., the master problem of the proximal BundleSolver, which then failed
+  at most iterations: whether it did depended only on the order of the
+  columns, the same model written in the order of a `.lp` file being solved.
+  `qp_regularization_value` now defaults to 1e-5 instead of the 1e-7 of
+  HiGHS, which solves them and moves the optimum by less than 1e-10; it only
+  acts on QPs, and a configuration can still set it
+
 - the two configurations of the testers of the duals asked for
   `CPXPARAM_MIP_Tolerances_Integrality`, a parameter of CPLEX alone and an
   integrality tolerance in a configuration for an LP: a build without CPLEX,
