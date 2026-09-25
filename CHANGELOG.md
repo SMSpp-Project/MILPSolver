@@ -101,6 +101,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at the same moment, showed a failure indistinguishable from a wrong
   answer; the status is unchanged, a line on `cerr` now names the reason
 
+- GRBMILPSolver asks again when the license service refuses an optimization,
+  as it already did for the start of the environment: the refusal comes in
+  the middle of a run, when the token of the session is renewed while the
+  license has as many sessions open on other machines as it allows, and a
+  single one made the Solver fail, and with it, e.g., a nested Lagrangian
+  dual 30 minutes into its run. `GRBoptimize()` is now attempted up to 16
+  times, the wait doubling up to 30 seconds (about 6 minutes in all), with a
+  line on `cerr` at the first refusal; after the last one the status is the
+  `kError` of before
+
 ### Fixed
 
 - the two configurations of the testers of the duals asked for

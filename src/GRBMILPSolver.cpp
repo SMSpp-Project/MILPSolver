@@ -65,6 +65,51 @@ namespace {
 
 constexpr unsigned int GRBenvTrials = 8;
 
+/// how many times an optimization refused by the license service is attempted
+/** How many times GRBoptimize() is attempted when the license service
+ * refuses it, the wait between two attempts doubling up to 30 seconds, so
+ * about 6 minutes in all. A session of the same license held by another
+ * machine lasts until that machine closes it or its token expires, which
+ * takes minutes, hence the patience is longer than that of GRBenvTrials. */
+
+constexpr unsigned int GRBoptTrials = 16;
+
+/// true if a Gurobi error means that the license service refused the request
+bool is_license_refusal( int status )
+{
+ return( ( status == GRB_ERROR_NO_LICENSE ) ||
+         ( status == GRB_ERROR_NETWORK ) ||
+         ( status == GRB_ERROR_JOB_REJECTED ) ||
+         ( status == GRB_ERROR_CSWORKER ) ||
+         ( status == GRB_ERROR_CLOUD ) ||
+         ( status == GRB_ERROR_SECURITY ) );
+ }
+
+/// GRBoptimize(), repeated while the license service refuses the request
+/** The license service can refuse an optimization in the middle of a run,
+ * when the token of the session is renewed and the license has as many
+ * sessions open elsewhere as it allows. Nothing is wrong with the model, and
+ * a single refusal would otherwise make the Solver fail, and with it a
+ * computation that may have been running for hours, so the call is repeated
+ * [see GRBoptTrials]; the returned value is that of the last attempt. */
+
+int optimize( GRBmodel * model )
+{
+ for( unsigned int trial = 0 ; ; ) {
+  int status = GRBoptimize( model );
+  if( ( ! is_license_refusal( status ) ) || ( ++trial >= GRBoptTrials ) )
+   return( status );
+
+  if( trial == 1 )
+   std::cerr << "GRBMILPSolver::compute: warning: the license service "
+                "refused the request [GUROBI error " << status
+             << "], trying again" << std::endl;
+
+  std::this_thread::sleep_for( std::chrono::seconds(
+                                 std::min( 1u << ( trial - 1 ) , 30u ) ) );
+  }
+ }
+
 }  // end( anonymous namespace )
 
 /*--------------------------------------------------------------------------*/
@@ -769,7 +814,7 @@ int GRBMILPSolver::guts_of_compute( void )
     }
   }
 
-  if( int status = GRBoptimize( updated_model() ) ) { //error
+  if( int status = optimize( updated_model() ) ) { //error
 
    sol_status = decode_grb_error( status );
    return( sol_status );
@@ -792,7 +837,7 @@ int GRBMILPSolver::guts_of_compute( void )
   f_callback_set = false;
   }
 
- if( int status = GRBoptimize( updated_model() ) ) {
+ if( int status = optimize( updated_model() ) ) {
   sol_status = decode_grb_error( status );
   return( sol_status );
   }
@@ -813,7 +858,7 @@ int GRBMILPSolver::guts_of_compute( void )
   int saved;
   GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , & saved );
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , 0 );
-  if( int status = GRBoptimize( updated_model() ) ) {
+  if( int status = optimize( updated_model() ) ) {
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
    sol_status = decode_grb_error( status );
    return( sol_status );
@@ -856,7 +901,7 @@ void GRBMILPSolver::compute_certificate( int m_status )
  if( m_status == GRB_UNBOUNDED )
   GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_PRIMAL );
 
- GRBoptimize( updated_model() );
+ optimize( updated_model() );
 
  GRBsetintparam( menv , GRB_INT_PAR_INFUNBDINFO , infunbd );
  GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
