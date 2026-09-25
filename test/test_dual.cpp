@@ -30,6 +30,8 @@
 
 #include "BlockSolverConfig.h"
 
+#include "test_common.h"
+
 #include "FRealObjective.h"
 
 #include "FRowConstraint.h"
@@ -65,11 +67,7 @@ BlockSolverConfig * get_lpbsc( void )
 
  auto lpbsc = dynamic_cast< BlockSolverConfig * >(
 		     Configuration::deserialize( "LPPar-dual.txt" ) );
- if( ! lpbsc ) {
-  std::cerr << "Error: configuration file not a BlockSolverConfig"
-            << std::endl;
-  exit( 1 );
-  }
+ keep_available_Solvers( lpbsc , "LPPar-dual.txt" , 1 );
 
  for( Block::Index i = 0 ; i < lpbsc->num_ComputeConfig() ; ++i ) {
   if( Solver::has_Solver( lpbsc->get_SolverName( i ) ) )

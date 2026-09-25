@@ -104,4 +104,19 @@ add_milp_test(test_dynamic test_dynamic.cpp)
 add_batch_test(test_dynamic batch-dynamic)
 add_batch_test(test_dynamic batch-dynamic-L)
 
+# ----- labels and the status of a test that has nothing to do -------------- #
+
+# The label lets the module CI select exactly the tests exercising this module
+# with `ctest -L <module>` (see tests/cmake/TestLabels.cmake in the umbrella
+# for the system-tests counterpart): without it these tests are built and
+# never run.
+#
+# A test whose configuration names more :MILPSolver than this build has gives
+# up with 77 rather than failing [see keep_available_Solvers() of
+# test_common.h], which is what a machine without CPLEX does to test_dynamic,
+# and ctest reads that status as "skipped".
+get_property(_tests DIRECTORY PROPERTY TESTS)
+set_tests_properties(${_tests} PROPERTIES LABELS "${modName}"
+                                          SKIP_RETURN_CODE 77)
+
 # --------------------------------------------------------------------------- #

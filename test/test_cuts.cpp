@@ -82,6 +82,8 @@
 
 #include "BlockSolverConfig.h"
 
+#include "test_common.h"
+
 #include "LinearFunction.h"
 
 #include "FRowConstraint.h"
@@ -489,10 +491,7 @@ int main( int argc , char **argv )
  
  auto bsc = dynamic_cast< BlockSolverConfig * >(
 		               Configuration::deserialize( "MILPPar.txt" ) );
- if( ! bsc ) {
-  cerr << "Error: configuration file not a BlockSolverConfig" << endl;
-  exit( 1 );    
-  }
+ keep_available_Solvers( bsc , "MILPPar.txt" , 1 );
 
  bsc->apply( & NCCB );
  bsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup

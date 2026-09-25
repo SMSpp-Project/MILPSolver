@@ -131,6 +131,8 @@
 
 #include "BlockSolverConfig.h"
 
+#include "test_common.h"
+
 #include "FRealObjective.h"
 
 #include "FRowConstraint.h"
@@ -1038,10 +1040,7 @@ int main( int argc , char **argv )
  
  auto lpbsc = dynamic_cast< BlockSolverConfig * >(
 		     Configuration::deserialize( "LPPar-dynamic.txt" ) );
- if( ! lpbsc ) {
-  cerr << "Error: configuration file not a BlockSolverConfig" << endl;
-  exit( 1 );    
-  }
+ keep_available_Solvers( lpbsc , "LPPar-dynamic.txt" , 2 );
 
  lpbsc->apply( LPBlock );
  lpbsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup

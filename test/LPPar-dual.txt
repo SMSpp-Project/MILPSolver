@@ -1,10 +1,8 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - LPPar.txt - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - -  LPPar-dual.txt - - - - - - - - - - - - - - -
 #
 # A txt description of a BlockSolverConfig for a LPBlock having
 # one attached :MILPSolver
-#
-#   Antonio Frangioni
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -14,14 +12,14 @@ BlockSolverConfig     # exact type of the Configuration object
 
 1  # the BlockSolverConfig is a "differential" one: values are being set
 
-1  # number of (the names of) Solver in this BlockSolverConfig
+4  # number of (the names of) Solver in this BlockSolverConfig
 # now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
 CPXMILPSolver    # name of Solver
-#GRBMILPSolver   # name of Solver
-#SCIPMILPSolver  # name of Solver
-#HiGHSMILPSolver # name of Solver
+GRBMILPSolver    # name of Solver, if it is in the build
+SCIPMILPSolver   # name of Solver, if it is in the build
+HiGHSMILPSolver  # name of Solver, if it is in the build
 
-1  # number of ComputeConfig in this BlockSolverConfig
+4  # number of ComputeConfig in this BlockSolverConfig
 
 # now all the ComputeConfig
 # 1st ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -76,4 +74,162 @@ dblRelAcc                    1e-08
 # pointer to the "extra" Configuration
 * # [none]
 
-# end of 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - 
+# end of 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# the ComputeConfig of GRBMILPSolver
+
+ComputeConfig # exact type of the ComputeConfig object
+
+1  # f_diff == 0 ==> all non-provided parameters are set to the default value
+   # f_diff == 1 ==> all non-provided parameters are not changed
+
+3  # number of integer parameters
+
+# now all the integer parameters
+intLogVerb                   0
+intSingleBound               1
+intThrowReducedCostException 1
+
+## All specific CPLEX parameter (uncomment based on Solver)
+#CPXPARAM_Preprocessing_Presolve  0
+#CPXPARAM_Preprocessing_QCPDuals  2 # e.g., CPX_QCPDUALS_FORCE
+
+1  # number of double parameters
+
+# now all the double parameters
+dblRelAcc                    1e-08
+
+## All specific CPLEX parameter (uncomment based on Solver)
+
+## All specific HiGHS parameter (uncomment based on Solver)
+#mip_feasibility_tolerance     1e-07
+
+0  # number of string parameters
+
+# now all the string parameters
+#strOutputFile               bk.lp
+
+0  # number of vector-of-int parameters
+
+# now all the vector-of-int parameters
+# [none]
+
+0  # number of vector-of-double parameters
+
+# now all the vector-of-double parameters
+# [none]
+
+0  # number of vector-of-string parameters
+
+# now all the vector-of-string parameters
+# [none]
+
+# pointer to the "extra" Configuration
+* # [none]
+
+# the ComputeConfig of SCIPMILPSolver
+
+ComputeConfig # exact type of the ComputeConfig object
+
+1  # f_diff == 0 ==> all non-provided parameters are set to the default value
+   # f_diff == 1 ==> all non-provided parameters are not changed
+
+3  # number of integer parameters
+
+# now all the integer parameters
+intLogVerb                   0
+intSingleBound               1
+intThrowReducedCostException 1
+
+## All specific CPLEX parameter (uncomment based on Solver)
+#CPXPARAM_Preprocessing_Presolve  0
+#CPXPARAM_Preprocessing_QCPDuals  2 # e.g., CPX_QCPDUALS_FORCE
+
+1  # number of double parameters
+
+# now all the double parameters
+dblRelAcc                    1e-08
+
+## All specific CPLEX parameter (uncomment based on Solver)
+
+## All specific HiGHS parameter (uncomment based on Solver)
+#mip_feasibility_tolerance     1e-07
+
+0  # number of string parameters
+
+# now all the string parameters
+#strOutputFile               bk.lp
+
+0  # number of vector-of-int parameters
+
+# now all the vector-of-int parameters
+# [none]
+
+0  # number of vector-of-double parameters
+
+# now all the vector-of-double parameters
+# [none]
+
+0  # number of vector-of-string parameters
+
+# now all the vector-of-string parameters
+# [none]
+
+# pointer to the "extra" Configuration
+* # [none]
+
+# the ComputeConfig of HiGHSMILPSolver
+
+ComputeConfig # exact type of the ComputeConfig object
+
+1  # f_diff == 0 ==> all non-provided parameters are set to the default value
+   # f_diff == 1 ==> all non-provided parameters are not changed
+
+3  # number of integer parameters
+
+# now all the integer parameters
+intLogVerb                   0
+intSingleBound               1
+intThrowReducedCostException 1
+
+## All specific CPLEX parameter (uncomment based on Solver)
+#CPXPARAM_Preprocessing_Presolve  0
+#CPXPARAM_Preprocessing_QCPDuals  2 # e.g., CPX_QCPDUALS_FORCE
+
+1  # number of double parameters
+
+# now all the double parameters
+dblRelAcc                    1e-08
+
+## All specific CPLEX parameter (uncomment based on Solver)
+
+## All specific HiGHS parameter (uncomment based on Solver)
+#mip_feasibility_tolerance     1e-07
+
+0  # number of string parameters
+
+# now all the string parameters
+#strOutputFile               bk.lp
+
+0  # number of vector-of-int parameters
+
+# now all the vector-of-int parameters
+# [none]
+
+0  # number of vector-of-double parameters
+
+# now all the vector-of-double parameters
+# [none]
+
+0  # number of vector-of-string parameters
+
+# now all the vector-of-string parameters
+# [none]
+
+# pointer to the "extra" Configuration
+* # [none]
+
+# - - - - - - - - - - - - - -  END LPPar-dual.txt - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

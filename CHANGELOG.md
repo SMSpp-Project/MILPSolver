@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- the tests of this directory carry the label of the module, so that the
+  pipeline, which selects with `ctest -L <module>`, runs them: they were built
+  and never run. The configurations they read name the four `:MILPSolver`
+  backends, each with the `ComputeConfig` that goes with it, and
+  `keep_available_Solvers()` of the new `test_common.h` keeps the first ones
+  this build has before the configuration is applied, so that the same file
+  works wherever it is run; a test needing more backends than there are gives
+  up with the 77 that `ctest` reads as "skipped" rather than failing, which is
+  what `test_dynamic`, which needs two of them, does on a machine with one
+
 - `test/test_farkas.cpp` and `test/test_groups.cpp`, i.e., the two testers
   that used to live in the suite of this module in `tests/`: the first asks
   for the certificate of an infeasible and of an unbounded model and checks
