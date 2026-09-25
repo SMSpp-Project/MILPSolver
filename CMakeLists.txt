@@ -165,6 +165,11 @@ if (BUILD_SHARED_LIBS)
         # the ELF linker decides by the symbols a regular object asks for, so
         # naming the symbol is not enough and the library has to be kept
         target_link_options(${modName} INTERFACE "LINKER:--no-as-needed")
+    elseif (APPLE)
+        # ld64 keeps a dylib that provides a symbol to the link, one asked
+        # for by -u included, even under -dead_strip_dylibs
+        target_link_options(${modName} INTERFACE
+                "LINKER:-u,_SMSpp_force_load_${modName}")
     endif ()
 endif ()
 
