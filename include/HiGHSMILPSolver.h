@@ -233,6 +233,14 @@ class HiGHSMILPSolver : public MILPSolver {
  /// loads the problem into HiGHS
  void load_problem( void ) override;
 
+ /// true if the interior point is the algorithm: HiGHS is loaded again
+ /** With solver = ipm, HiGHS may fail on a problem changed in place when
+  * the crossover is imprecise and the simplex cleans the solution up, which
+  * it does not on the same problem loaded whole: with that algorithm the
+  * problem is loaded again as soon as a Modification is pending. */
+
+ bool reload_on_modification( void ) override;
+
  /** 
  * Adds a single MIP starts to a MIP problem. This function allows the solver 
  * to receive a single set of starting values by providing vectors of variable 

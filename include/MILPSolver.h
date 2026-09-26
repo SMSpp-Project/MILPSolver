@@ -1430,6 +1430,15 @@ class MILPSolver : public CDASolver
  /// processes all the pending modifications
  void process_modifications( void );
 
+ /// whether a pending Modification makes the problem be loaded again whole
+ /** If this returns true, process_modifications() does not change the
+  * problem of the back-end Modification by Modification: as soon as one is
+  * pending, the whole problem is loaded again from the Block, as for an
+  * NBModification. This is for a back-end that is not reliable on a problem
+  * changed in place with the algorithm it has been asked to use. */
+
+ virtual bool reload_on_modification( void ) { return( false ); }
+
  /// process all not-GroupModification (bulk of the work)
  void guts_of_process_modifications( const p_Mod mod );
 

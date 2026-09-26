@@ -113,6 +113,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `:HiGHSMILPSolver` loads the problem again whole, as for an
+  NBModification, whenever a Modification is pending and the algorithm is
+  the interior point (`solver ipm`): on a problem changed in place, HiGHS
+  1.15.1 can end in a segmentation fault when the crossover is imprecise and
+  the simplex cleans the solution up, which it does not on the same problem
+  loaded whole. `MILPSolver::reload_on_modification()` is the hook, false
+  for every other back-end
+
 - `GRBMILPSolver::has_dual_solution()` probes the reduced costs of a model
   with no rows, which has no multiplier to probe: it used to ask Gurobi for
   the first one, which fails, and answer that there is no dual solution

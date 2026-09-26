@@ -362,6 +362,16 @@ int HiGHSMILPSolver::run_highs( void )
 
 /*--------------------------------------------------------------------------*/
 
+bool HiGHSMILPSolver::reload_on_modification( void )
+{
+ std::array< char , kHighsMaximumStringLength > solver = {};
+ Highs_getStringOptionValue( highs , "solver" , solver.data() );
+ return( std::string( solver.data() ) == "ipm" );
+
+ }  // end( HiGHSMILPSolver::reload_on_modification )
+
+/*--------------------------------------------------------------------------*/
+
 int HiGHSMILPSolver::guts_of_compute( void )
 {
  // Note: locking, process_modifications() and the LP cut separation loop

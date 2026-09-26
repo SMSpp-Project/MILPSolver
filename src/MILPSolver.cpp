@@ -1619,6 +1619,17 @@ void MILPSolver::process_modifications( void )
   * e.g., OneVarConstraintMod before RowConstraintMod before ConstraintMod,
   * otherwise the generic cases will intercept the more specialized ones. */
 
+ // a back-end that is not reliable on a problem changed in place has it
+ // loaded again whole as soon as a Modification is pending
+ if( reload_on_modification() ) {
+  if( pop() ) {
+   f_reset = false;
+   load_problem();
+   mod_clear();
+   }
+  return;
+  }
+
  for( ; ; )                 // process all the Modification loop
   if( auto mod = pop() ) {  // get next Modification, if any
    auto pmod = mod.get();   // down to regular Modification *
