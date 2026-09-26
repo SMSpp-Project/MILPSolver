@@ -36,6 +36,12 @@ build:
     # for, which CMake initializes again, the objects being kept all the same
     - git -C smspp-project submodule foreach --quiet 'echo $sm_path' | xargs -r git -C smspp-project submodule deinit --quiet --force --
     - rm -f smspp-project/build/CMakeCache.txt
+    # the module is built at the commit of this pipeline, not at the one the
+    # umbrella pins, which lags behind until the pin is moved: its submodule is
+    # initialized and moved to that commit before CMake, which then leaves it
+    - git -C smspp-project submodule update --init --quiet "$CI_PROJECT_TITLE"
+    - git -C "smspp-project/$CI_PROJECT_TITLE" fetch --quiet origin "$CI_COMMIT_SHA"
+    - git -C "smspp-project/$CI_PROJECT_TITLE" checkout --quiet "$CI_COMMIT_SHA"
     - cmake -S smspp-project -B smspp-project/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MILPSolver=ON -DBUILD_tests=ON
     - cmake --build smspp-project/build --target install
   artifacts:
