@@ -113,6 +113,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `:HiGHSMILPSolver` sizes the scheduler of threads of HiGHS per calling
+  thread, since that is how HiGHS keeps it: with a count shared by the whole
+  process, a thread whose scheduler had started with the default number of
+  threads could be asked to run with another one (e.g., the one of a master
+  with `intMaxThread` 1) while other threads were running, and HiGHS refused
+  the run with an error, which is what made the subproblems of a
+  `ParallelSDDPSolver` fail when all of them used HiGHS
+
 - `CPXMILPSolver::get_lb()` and `get_ub()` give a bound when CPLEX ends in
   `kLowPrecision`, instead of an infinite one on both sides: on the side of
   the value of a solution the value is given if CPLEX says the solution is

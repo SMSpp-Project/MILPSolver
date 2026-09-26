@@ -336,48 +336,27 @@ std::array< double , 2 > HiGHSMILPSolver::get_problem_bounds(
 
 /*--------------------------------------------------------------------------*/
 
-// HiGHS keeps one scheduler of threads per process, sized by the first run,
-// and refuses any later run whose "threads" option says otherwise; since a
-// process may hold several HiGHSMILPSolver with different values of it, the
-// scheduler is sized again whenever this happens while nobody else runs
+// HiGHS keeps one scheduler of threads per calling thread, sized by the first
+// run on that thread, and refuses any later run on it whose "threads" option
+// says otherwise; since a thread may run several HiGHSMILPSolver with
+// different values of it, its scheduler is sized again whenever this happens.
+// Nobody else can be running on the scheduler of this thread, as its runs are
+// the ones of this thread.
 
-static std::mutex highs_scheduler_mutex;
-static int highs_running = 0;
-static HighsInt highs_scheduler_threads = -1;  // -1 = never started here
+static thread_local HighsInt highs_scheduler_threads = -1;  // -1 = not started
 
 int HiGHSMILPSolver::run_highs( void )
 {
  HighsInt threads;
  Highs_getIntOptionValue( highs , "threads" , & threads );
- HighsInt asked = threads;
 
- {
-  std::lock_guard< std::mutex > lock( highs_scheduler_mutex );
-  if( threads != highs_scheduler_threads ) {
-   if( ! highs_running ) {
-    if( highs_scheduler_threads >= 0 )
-     Highs_resetGlobalScheduler( 1 );
-    highs_scheduler_threads = threads;
-    }
-   else {  // somebody runs on the scheduler as it is, and so does this one
-    threads = highs_scheduler_threads;
-    Highs_setIntOptionValue( highs , "threads" , threads );
-    }
-   }
-  ++highs_running;
+ if( threads != highs_scheduler_threads ) {
+  if( highs_scheduler_threads >= 0 )
+   Highs_resetGlobalScheduler( 1 );
+  highs_scheduler_threads = threads;
   }
 
- const auto status = Highs_run( highs );
-
- {
-  std::lock_guard< std::mutex > lock( highs_scheduler_mutex );
-  --highs_running;
-  }
-
- if( threads != asked )
-  Highs_setIntOptionValue( highs , "threads" , asked );
-
- return( status );
+ return( Highs_run( highs ) );
 
  }  // end( HiGHSMILPSolver::run_highs )
 
