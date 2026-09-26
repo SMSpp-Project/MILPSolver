@@ -1563,10 +1563,14 @@ bool GRBMILPSolver::has_dual_solution( void )
 
  // We have also to take into account the possibility that sometimes due to
  // numerical issue the Pi and Rc attributes are not available even when 
- // properly setting all the parameters.
+ // properly setting all the parameters. A model with no rows has no Pi to
+ // probe, and asking for the first one fails with DATA_NOT_AVAILABLE: its
+ // dual solution is all in the reduced costs, which are probed instead.
  std::vector< double > small_pi( 1 , 0 );
- if( int status = GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_PI , 0 , 
-                    1 , small_pi.data() ) ) {
+ if( int status = GRBgetdblattrarray( updated_model() ,
+                                      numrows ? GRB_DBL_ATTR_PI
+                                              : GRB_DBL_ATTR_RC , 0 ,
+                                      1 , small_pi.data() ) ) {
   // Warning message
   std::string msg = std::string("GRBMILPSolver Warning [")
     + __func__ + "]: Query of dual values with attributes GRB_PI " 

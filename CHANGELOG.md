@@ -113,6 +113,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver::has_dual_solution()` probes the reduced costs of a model
+  with no rows, which has no multiplier to probe: it used to ask Gurobi for
+  the first one, which fails, and answer that there is no dual solution
+
 - `:HiGHSMILPSolver` sizes the scheduler of threads of HiGHS per calling
   thread, since that is how HiGHS keeps it: with a count shared by the whole
   process, a thread whose scheduler had started with the default number of
