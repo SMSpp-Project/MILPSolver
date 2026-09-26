@@ -1130,6 +1130,22 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
    switch( sol_status ) {
     case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
+    // a solution not proved optimal bounds the optimum only on its own
+    // side, unless it is a basis that CPLEX finds both primal and dual
+    // feasible, which makes it optimal and its value the dual one
+    case( kLowPrecision ): {
+     int solnmethod , solntype , pfeasind , dfeasind;
+     if( ( probtype == CPXPROB_LP ) &&
+         ( ! CPXsolninfo( env , lp , & solnmethod , & solntype ,
+                          & pfeasind , & dfeasind ) ) &&
+         ( solntype == CPX_BASIC_SOLN ) && pfeasind && dfeasind ) {
+      CPXgetobjval( env , lp , & lower_bound );
+      lower_bound += constant_value;
+      }
+     else
+      lower_bound = - Inf< OFValue >();
+     break;
+     }
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):
@@ -1189,6 +1205,12 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
+    // a solution not proved optimal still bounds its own side, if feasible
+    case( kLowPrecision ):
+     if( ! is_var_feasible() ) {
+      lower_bound = - Inf< OFValue >();
+      break;
+      }
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -1253,6 +1275,12 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
 
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
+    // a solution not proved optimal still bounds its own side, if feasible
+    case( kLowPrecision ):
+     if( ! is_var_feasible() ) {
+      upper_bound = Inf< OFValue >();
+      break;
+      }
     case( kStopIter ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
@@ -1301,6 +1329,22 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     case( kUnbounded ):  upper_bound = Inf< OFValue >(); break;
     case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
 
+    // a solution not proved optimal bounds the optimum only on its own
+    // side, unless it is a basis that CPLEX finds both primal and dual
+    // feasible, which makes it optimal and its value the dual one
+    case( kLowPrecision ): {
+     int solnmethod , solntype , pfeasind , dfeasind;
+     if( ( probtype == CPXPROB_LP ) &&
+         ( ! CPXsolninfo( env , lp , & solnmethod , & solntype ,
+                          & pfeasind , & dfeasind ) ) &&
+         ( solntype == CPX_BASIC_SOLN ) && pfeasind && dfeasind ) {
+      CPXgetobjval( env , lp , & upper_bound );
+      upper_bound += constant_value;
+      }
+     else
+      upper_bound = Inf< OFValue >();
+     break;
+     }
     case( kOK ):
     case( kStopIter ):
     case( kStopTime ):

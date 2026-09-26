@@ -113,6 +113,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `CPXMILPSolver::get_lb()` and `get_ub()` give a bound when CPLEX ends in
+  `kLowPrecision`, instead of an infinite one on both sides: on the side of
+  the value of a solution the value is given if CPLEX says the solution is
+  primal feasible, and on the side of the bound only for an LP whose basis
+  CPLEX says is both primal and dual feasible, hence optimal. A
+  `LagBFunction` whose inner Block is such an LP (e.g., in
+  `CPX_STAT_OPTIMAL_INFEAS`) gave the bundle two infinite bounds, and the
+  bundle stopped without cuts
+
+- `GRBMILPSolver::get_lb()` for a minimization problem, and `get_ub()` for a
+  maximization one, give no longer the value of a `GRB_SUBOPTIMAL` solution
+  of a continuous problem as the bound, which it is not: the bound is
+  infinite there, while the bound of the branch-and-bound of an integer
+  problem stays
+
 - on macOS a program linking the module lost the classes the module
   registers in the factories when the linker dropped the library, as it
   does under `-dead_strip_dylibs`, which conda sets: the target now asks the

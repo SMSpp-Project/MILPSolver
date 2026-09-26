@@ -1106,8 +1106,15 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       int convexity;
       GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NONCONVEX , &convexity );
 
-      if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) )
+      if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) ) {
+        // a sub-optimal solution (GRB_SUBOPTIMAL) bounds the optimum only
+        // from above: its value is no lower bound
+        if( sol_status == kLowPrecision ) {
+         lower_bound = -Inf< OFValue >();
+         break;
+         }
         GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &lower_bound );
+        }
       else {
         GRBgetdblattr( updated_model() ,
                        GRB_DBL_ATTR_OBJBOUND , &lower_bound );
@@ -1268,8 +1275,15 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
      int convexity;
      GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NONCONVEX , &convexity );
 
-     if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) )
+     if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) ) {
+        // a sub-optimal solution (GRB_SUBOPTIMAL) bounds the optimum only
+        // from below: its value is no upper bound
+        if( sol_status == kLowPrecision ) {
+         upper_bound = Inf< OFValue >();
+         break;
+         }
         GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &upper_bound );
+        }
       else
         GRBgetdblattr( updated_model() ,
                        GRB_DBL_ATTR_OBJBOUND , &upper_bound );
