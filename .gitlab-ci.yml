@@ -29,6 +29,13 @@ build:
     # the ones the enabled modules need, and a revision the pull walks
     # through may pin a submodule commit no longer on its remote
     - if [ -d smspp-project ]; then (cd smspp-project && git pull --no-recurse-submodules && git submodule update --recursive); else git clone --branch develop git@gitlab.com:smspp/smspp-project.git; fi
+    # the cache keeps the submodules an earlier pipeline initialized, and the
+    # umbrella turns on by default every module whose submodule is there, and
+    # it keeps the build directory, whose CMakeCache.txt remembers the modules
+    # turned on then: dropping both leaves exactly the modules this line asks
+    # for, which CMake initializes again, the objects being kept all the same
+    - git -C smspp-project submodule foreach --quiet 'echo $sm_path' | xargs -r git -C smspp-project submodule deinit --quiet --force --
+    - rm -f smspp-project/build/CMakeCache.txt
     - cmake -S smspp-project -B smspp-project/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MILPSolver=ON -DBUILD_tests=ON
     - cmake --build smspp-project/build --target install
   artifacts:
