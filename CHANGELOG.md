@@ -113,6 +113,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `HiGHSMILPSolver::get_lb()` of a minimization, and `get_ub()` of a
+  maximization, stopped by the time or by the iterations: they gave the value
+  of the solution found so far, which is not a bound on the optimum, and a
+  cross-check took it for the optimum. A MIP gives now the dual bound of the
+  search (the information `mip_dual_bound` of HiGHS, which its C API exposes),
+  and an LP, which has no such bound when stopped, gives -INF (+INF)
+
 - `:HiGHSMILPSolver` loads the problem again whole, as for an
   NBModification, whenever a Modification is pending and the algorithm is
   the interior point (`solver ipm`): on a problem changed in place, HiGHS

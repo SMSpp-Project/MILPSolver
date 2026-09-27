@@ -556,6 +556,21 @@ int HiGHSMILPSolver::decode_model_status( int status )
 
 /*--------------------------------------------------------------------------*/
 
+Solver::OFValue HiGHSMILPSolver::stopped_dual_bound( OFValue none )
+{
+ // the integer variables are integer for HiGHS only if they are not relaxed
+ if( ( int_vars == 0 ) || ( relax_int_vars != 0 ) )
+  return( none );
+
+ double bound;
+ if( Highs_getDoubleInfoValue( highs , "mip_dual_bound" , & bound ) !=
+     kHighsStatusOk )
+  return( none );
+ return( bound + constant_value );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 Solver::OFValue HiGHSMILPSolver::get_lb( void )
 {
  OFValue lower_bound = 0;
@@ -568,14 +583,17 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
     case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
     case( kOK ):
-    case( kStopIter ):
-    case( kStopTime ):
     case( kUnEval ): // Sometimes it could be asked also during the computation
-
-      // best dual-side bound on early-stop / mid-compute is not exposed
-      // by the C API; fall back to the latest objective value
       lower_bound = Highs_getObjectiveValue( highs );
       lower_bound += constant_value;
+      break;
+
+    // if the algorithm has been stopped, the value of the solution it has is
+    // not a lower bound: that of a MIP is the dual bound of the search, and
+    // an LP stopped has none
+    case( kStopIter ):
+    case( kStopTime ):
+      lower_bound = stopped_dual_bound( -Inf< OFValue >() );
       break;
 
     default:
@@ -664,14 +682,17 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
     case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
 
     case( kOK ):
-    case( kStopIter ):
-    case( kStopTime ):
     case( kUnEval ): // Sometimes it could be asked also during the computation
-
-     // best primal-side bound on early-stop / mid-compute is not exposed
-     // by the C API; fall back to the latest objective value
      upper_bound = Highs_getObjectiveValue( highs );
      upper_bound += constant_value;
+     break;
+
+    // if the algorithm has been stopped, the value of the solution it has is
+    // not an upper bound: that of a MIP is the dual bound of the search, and
+    // an LP stopped has none
+    case( kStopIter ):
+    case( kStopTime ):
+     upper_bound = stopped_dual_bound( Inf< OFValue >() );
      break;
 
     default:  // Same as above

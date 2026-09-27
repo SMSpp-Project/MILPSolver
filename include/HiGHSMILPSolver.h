@@ -517,6 +517,16 @@ void add_mip_starts(
 
  int guts_of_compute( void ) override;
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the dual bound of a MIP stopped by a limit, \p none if there is none
+ /** Returns the dual bound HiGHS has reached when a limit stopped it on a
+  * MIP, i.e., the bound of the search, which is a lower bound for a
+  * minimization and an upper bound for a maximization; \p none (-INF or
+  * +INF) if the problem is not solved as a MIP, i.e., it has no integer
+  * variables or they are relaxed, since an LP stopped has no such bound. */
+
+ OFValue stopped_dual_bound( OFValue none );
+
 /*--------------------------------------------------------------------------*/
 
  /** @name Get variable bounds for the problem
