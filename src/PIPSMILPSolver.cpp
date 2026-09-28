@@ -24,6 +24,8 @@
 
 #include <cstdlib>
 
+#include <omp.h>
+
 #include <queue>
 
 #include <LinearFunction.h>
@@ -154,6 +156,8 @@ void PIPSMILPSolver::set_Block( Block * block )
 
 void PIPSMILPSolver::load_problem( void )
 {
+ apply_thread_budget();
+
  // clear the PIPS structures derived from any previously loaded Block; the
  // base class representation is kept alive by the PIPS callbacks, so it is
  // rebuilt from scratch as well
@@ -367,8 +371,42 @@ Solver::OFValue PIPSMILPSolver::get_ub( void )
 
 /*--------------------------------------------------------------------------*/
 
+void PIPSMILPSolver::apply_thread_budget( void ) const
+{
+ // Zero leaves the current environment/runtime settings unchanged. The
+ // parameter may be set before MPI is initialized, so query the communicator
+ // here, after set_Block() initialized MPI, rather than in set_par().
+ if( max_threads == 0 )
+  return;
+
+ int n_proc = 0;
+ if( MPI_Comm_size( MPI_COMM_WORLD , & n_proc ) != MPI_SUCCESS || n_proc < 1 )
+  throw( std::runtime_error( "PIPSMILPSolver: cannot get MPI process count" ) );
+ // A smaller budget would give zero threads per rank: leave both the
+ // environment and the OpenMP runtime unchanged instead.
+ if( max_threads < n_proc )
+  return;
+
+ const int threads_per_process = max_threads / n_proc;
+ const auto value = std::to_string( threads_per_process );
+#ifdef _WIN32
+ const int error = _putenv_s( "OMP_NUM_THREADS" , value.c_str() );
+#else
+ const int error = setenv( "OMP_NUM_THREADS" , value.c_str() , 1 );
+#endif
+ if( error )
+  throw( std::runtime_error( "PIPSMILPSolver: cannot set OMP_NUM_THREADS" ) );
+
+ // OpenMP need not reread environment variables after program startup.
+ omp_set_num_threads( threads_per_process );
+}
+
+/*--------------------------------------------------------------------------*/
+
 int PIPSMILPSolver::guts_of_compute( void )
 {
+ apply_thread_budget();
+
  // locking, process_modifications() and the LP cut separation loop (when
  // intRelaxIntVars == 2) are all handled by MILPSolver::compute(); this
  // method is only responsible for the actual PIPS-IPM++ call
@@ -663,6 +701,13 @@ std::string PIPSMILPSolver::pips_dbl_par_map( idx_type par ) const
 
 void PIPSMILPSolver::set_par( idx_type par , int value )
 {
+ if( par == intMaxThread ) {
+  if( value < 0 )
+   throw( std::invalid_argument( "PIPSMILPSolver: negative intMaxThread" ) );
+  max_threads = value;
+  return;
+  }
+
  // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
  // separation loop logging) before letting PIPS consume it through the
  // mapping below
@@ -799,6 +844,9 @@ const std::string & PIPSMILPSolver::get_dflt_str_par( idx_type par ) const
 
 int PIPSMILPSolver::get_int_par( idx_type par ) const
 {
+ if( par == intMaxThread )
+  return( max_threads );
+
  // intLogVerb is mirrored into the (inverted) PIPS SILENT option by
  // set_par(), hence the value kept in the base class is returned
  if( par == intLogVerb )
