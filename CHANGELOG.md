@@ -113,6 +113,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- a dynamic `ColVariable` added already fixed, such as the one of a hard
+  clause of `SATBlock::add_clauses()`, entered the problem with its bounds
+  rather than with its value, in all the four backends, so that the solution
+  could move it; `fix_bounds()` restricts the bounds of the new column to
+  the value, as the loading of the problem already did
+
 - `HiGHSMILPSolver::get_lb()` of a minimization, and `get_ub()` of a
   maximization, stopped by the time or by the iterations: they gave the value
   of the solution found so far, which is not a bound on the optimum, and a

@@ -64,6 +64,8 @@
 
 #include <QuadFunction.h>
 
+#include <algorithm>
+
 #include <cmath>
 
 #include <functional>
@@ -1396,6 +1398,15 @@ class MILPSolver : public CDASolver
  /// gets both bounds for the given variable in the problem
  virtual std::array< double , 2 > get_problem_bounds(
 					     const ColVariable & var ) const;
+
+ /// restricts the bounds \p bd of the column of \p var to its value if fixed
+ static void fix_bounds( const ColVariable & var ,
+			 std::array< double , 2 > & bd ) {
+  if( var.is_fixed() ) {
+   bd[ 0 ] = std::max( bd[ 0 ] , double( var.get_value() ) );
+   bd[ 1 ] = std::min( bd[ 1 ] , double( var.get_value() ) );
+   }
+  }
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/

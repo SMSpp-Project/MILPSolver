@@ -1908,6 +1908,7 @@ void SCIPMILPSolver::add_dynamic_variable( const ColVariable * var )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
  auto bd = SCIPMILPSolver::get_problem_bounds( *var );
+ fix_bounds( *var , bd );  // a Variable may come already fixed
  SCIP_VARTYPE vartype = SCIP_VARTYPE_BINARY;
 
  // variable type

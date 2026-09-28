@@ -1064,14 +1064,9 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
              "MILPSolver::scan_variable: the provided variable is empty" ) );
 
  auto bd = MILPSolver::get_problem_bounds( var );
- if( var.is_fixed() ) {
-  lb[ col ] = std::max( bd[ 0 ] , var.get_value() );
-  ub[ col ] = std::min( bd[ 1 ] , var.get_value() );
-  }
- else {
-  lb[ col ] = bd[ 0 ];
-  ub[ col ] = bd[ 1 ];
-  }
+ fix_bounds( var , bd );
+ lb[ col ] = bd[ 0 ];
+ ub[ col ] = bd[ 1 ];
 
  if( var.is_integer() && ( ! relax_int_vars ) ) {
   ++int_vars;
@@ -2580,9 +2575,10 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
  if( var->is_integer() )
   ++int_vars;
 
- // update the LB/UB vectors (if any)
+ // update the LB/UB vectors (if any): a Variable may come already fixed
  if( ! lb.empty() ) {
   auto bd = MILPSolver::get_problem_bounds( *var );
+  fix_bounds( *var , bd );
   lb.emplace_back( bd[ 0 ] );
   ub.emplace_back( bd[ 1 ] );
   }

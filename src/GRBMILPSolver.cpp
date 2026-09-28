@@ -3224,6 +3224,7 @@ void GRBMILPSolver::add_dynamic_variable( const ColVariable * var )
 
  // get the bounds
  auto bd = GRBMILPSolver::get_problem_bounds( *var );
+ fix_bounds( *var , bd );  // a Variable may come already fixed
 
  char new_ctype;  // get the new variable type
  

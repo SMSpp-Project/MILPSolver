@@ -3292,6 +3292,7 @@ void CPXMILPSolver::add_dynamic_variable( const ColVariable * var )
 
  // get the bounds
  auto bd = CPXMILPSolver::get_problem_bounds( *var );
+ fix_bounds( *var , bd );  // a Variable may come already fixed
 
  // update the CPLEX problem
  CPXaddcols( env , lp , 1 , 0 , nullptr , nullptr , nullptr , nullptr,
