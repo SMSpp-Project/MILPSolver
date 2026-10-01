@@ -401,10 +401,12 @@ int HiGHSMILPSolver::guts_of_compute( void )
 
  // the actual call to HiGHS- - - - - - - - - - - - - - - - - - - - - - - - -
 
- // dispatch LP vs MIP: only intRelaxIntVars == 2 unconditionally goes
- // through the LP path so the base user-cut-separation loop in
- // MILPSolver::compute() works on a pure LP solve. Values 0 (MIP) and 1
- // (MIP engine on relaxed problem) keep the pre-existing semantics
+ // dispatch LP vs MIP: the MIP path is taken only if the model has integer
+ // columns, i.e., with intRelaxIntVars == 0; with 1 or 2 the integer
+ // Variable are loaded as continuous ones, int_vars is 0, and the LP (or
+ // QP) path is taken, where no callback is installed; with 2 it is
+ // MILPSolver::compute() that runs the cut separation loop around this
+ // method
  if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
   if( ( CutSepPar & 7 ) ||
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {

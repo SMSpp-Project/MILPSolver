@@ -179,13 +179,13 @@ class MILPSolver : public CDASolver
    * - intRelaxIntVars == 0 [default]: the problem is solved as a MILP, with
    *   integer Variable kept integer.
    *
-   * - intRelaxIntVars == 1: the problem is solved as the LP relaxation,
-   *   i.e., integer Variable are treated as continuous. The Solver uses
-   *   the MILP engine on a problem whose integrality has been relaxed
-   *   (the cut callback, if any, still fires as for a MIP). This is
-   *   appropriate when the user wants the LP relaxation but the Solver's
-   *   MIP machinery (in particular the user-cut callback at the root
-   *   node) is required.
+   * - intRelaxIntVars == 1: the problem is solved as its continuous
+   *   relaxation: the integer Variable are given to the Solver as
+   *   continuous ones, so that the model has no integer column and it is
+   *   solved as an LP (or QP), as a problem without integer Variable
+   *   would be. No cut callback is installed and no cut is separated,
+   *   whatever intCutSepPar is: for the relaxation of a Block with
+   *   dynamic Constraint, see intRelaxIntVars == 2.
    *
    * - intRelaxIntVars == 2: the problem is solved as a pure LP with an
    *   explicit user-cut separation loop driven by MILPSolver. After each

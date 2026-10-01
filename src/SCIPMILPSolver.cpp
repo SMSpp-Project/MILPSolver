@@ -407,10 +407,12 @@ int SCIPMILPSolver::guts_of_compute( void )
 
  // the actual call to SCIP - - - - - - - - - - - - - - - - - - - - - - - - -
 
- // SCIP constraint handler for adding cuts and lazy constraints. Only
- // installed for the MIP path (relax_int_vars != 2): when
- // relax_int_vars == 2 the LP cut separation loop runs in
- // MILPSolver::compute() around this method.
+ // SCIP constraint handler for adding cuts and lazy constraints, only
+ // installed for the MIP path, which is taken only if the model has integer
+ // columns, i.e., with intRelaxIntVars == 0; with 1 or 2 the integer
+ // Variable are loaded as continuous ones and int_vars is 0; with 2 it is
+ // MILPSolver::compute() that runs the cut separation loop around this
+ // method
  if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
 
  if( ( CutSepPar & 7 ) ||
