@@ -24,6 +24,7 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <cstring>
 #include <map>
 #include <mutex>
 #include <numeric>
@@ -876,10 +877,13 @@ bool HiGHSMILPSolver::has_dual_direction( void )
 
 void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
 {
- std::vector< double > y( numrows , 0 );
- std::vector< double > dj( numcols , 0 );
+ // sized as the model of HiGHS, which is what HiGHS writes into them
+ const HighsInt ncol = Highs_getNumCol( highs );
+ const HighsInt nrow = Highs_getNumRow( highs );
+ std::vector< double > y( nrow , 0 );
+ std::vector< double > dj( ncol , 0 );
 
- int has_dual_ray;
+ HighsInt has_dual_ray;
 
  // We are searching a Farkas certificate y so that:
  // y' * A * x >= y' * b
@@ -891,18 +895,36 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
              "HiGHSMILPSolver::get_dual_direction: "
              "an error occurred in getting Farkas certificate" ) );
 
- // reverse the sign of y due to Gurobi approach
- //for( auto i = y.begin() ; i != y.end() ; ++i  )
-  //*i = -*i;
-
- if( Highs_getSolution( highs , NULL , NULL , dj.data() , NULL ) == kHighsStatusError )
-  throw( std::runtime_error(
-             "HiGHSMILPSolver::get_dual_direction: "
-             "unable to get reduced costs with Highs_getSolution()" ) );
-
  // Highs_getDualRay gives the direction and nothing else, so the value the
  // dual objective takes along it is left unset and has_dual_direction_value()
  // reports that this Solver does not have it
+
+ // the multipliers of the columns are those of the ray, c - A' y as
+ // CPXdjfrompi() gives them, or - A' y with intHomogeneousDirection
+ // [see MILPSolver::intHomogeneousDirection]
+ if( ncol > 0 ) {
+  const HighsInt nnz = Highs_getNumNz( highs );
+  std::vector< double > cost( ncol ) , lb( ncol ) , ub( ncol ) , val( nnz );
+  std::vector< HighsInt > start( ncol ) , index( nnz );
+  HighsInt got_col , got_nz;
+  if( Highs_getColsByRange( highs , 0 , ncol - 1 , & got_col , cost.data() ,
+                            lb.data() , ub.data() , & got_nz , start.data() ,
+                            index.data() , val.data() ) == kHighsStatusError )
+   throw( std::runtime_error(
+              "HiGHSMILPSolver::get_dual_direction: "
+              "unable to get the columns with Highs_getColsByRange()" ) );
+
+  for( HighsInt j = 0 ; j < ncol ; ++j ) {
+   const HighsInt end = ( j + 1 < ncol ) ? start[ j + 1 ] : got_nz;
+   double aty = 0;
+   for( HighsInt k = start[ j ] ; k < end ; ++k )
+    aty += val[ k ] * y[ index[ k ] ];
+   dj[ j ] = ( homogeneous_direction ? 0 : cost[ j ] ) - aty;
+   }
+  }
+
+ y.resize( numrows , 0 );
+ dj.resize( numcols , 0 );
 
  // Call the method of the base class
  MILPSolver::write_dual_solution( y , dj );
@@ -2732,7 +2754,8 @@ const std::string & HiGHSMILPSolver::get_dflt_str_par( idx_type par ) const
   if( default_value[ i ].empty() ) {
     std::string str_option = SMSpp_to_HiGHS_str_pars[ i ];
 
-    default_value[ i ].reserve( 512 );
+    value.assign( 512 , '\0' );
+    default_value[ i ].assign( 512 , '\0' );
 
     // List some of the default value for HiGHS options. 
     // NOTE: this should not be necessary, but currently Highs_getStringOptionValues
@@ -2750,6 +2773,7 @@ const std::string & HiGHSMILPSolver::get_dflt_str_par( idx_type par ) const
     else
       Highs_getStringOptionValues( highs ,  SMSpp_to_HiGHS_str_pars[ i ].data() ,
                                       value.data() , default_value[ i ].data() );
+    default_value[ i ].resize( std::strlen( default_value[ i ].c_str() ) );
    }
 
   return( default_value[ i ] );
@@ -2840,8 +2864,9 @@ const std::string & HiGHSMILPSolver::get_str_par( idx_type par ) const
 
  if( ( par >= strFirstHiGHSPar ) && ( par < strLastAlgParHiGHS ) ) {
   std::string highs_opt = SMSpp_to_HiGHS_str_pars[ par - strFirstHiGHSPar ];
-  value.reserve( 512 );
+  value.assign( 512 , '\0' );
   Highs_getStringOptionValue( highs , highs_opt.data() , value.data() );
+  value.resize( std::strlen( value.c_str() ) );
   return( value );
   }
 

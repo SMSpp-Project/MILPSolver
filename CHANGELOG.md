@@ -113,6 +113,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the default and the current value of a string parameter of
+  `CPXMILPSolver` and `HiGHSMILPSolver`, and the name of a parameter of
+  `CPXMILPSolver`, were empty: the C library wrote them into a `std::string`
+  only reserved, whose length stayed 0, so that a non-differential
+  `ComputeConfig` set every string parameter it did not give to "", which
+  CPLEX refuses for `CPXPARAM_CPUmask` (error 3700, nothing solved) and HiGHS
+  for its enumerated options; `HiGHSMILPSolver` also wrote the current value
+  of the option past the end of an empty string
+
+- `HiGHSMILPSolver::get_dual_direction()` wrote the reduced costs, `numcols`
+  of them, where `Highs_getSolution()` puts the `numrows` row values, which
+  corrupted the heap when the rows are more than the columns, e.g., in the
+  subproblems of a `BendersDecompositionSolver`; the multipliers of the
+  columns are now those of the ray, `c - A' y`, or `- A' y` with
+  `intHomogeneousDirection`, as in `CPXMILPSolver`, rather than the reduced
+  costs of the current solution
+
 - a dynamic `ColVariable` added already fixed, such as the one of a hard
   clause of `SATBlock::add_clauses()`, entered the problem with its bounds
   rather than with its value, in all the four backends, so that the solution
