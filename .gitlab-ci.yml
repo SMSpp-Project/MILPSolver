@@ -54,6 +54,7 @@ build:
   only:
     refs:
       - develop
+      - debug/ci-cuts
       - tags
     changes:
       - cmake/*
@@ -88,6 +89,7 @@ build:
   only:
     refs:
       - develop
+      - debug/ci-cuts
       - tags
     changes:
       - cmake/*
