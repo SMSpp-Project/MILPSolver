@@ -32,7 +32,7 @@
 /*-------------------------------- MACROS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#define LOG_LEVEL 0
+#define LOG_LEVEL 1
 // 0 = only pass/fail
 // 1 = result of each test
 // 2 = + solver log
@@ -391,7 +391,7 @@ static bool SolveBoth( void )
     if( rtrn == Solver::kUnbounded )
      cout << "Unbounded(?)" << endl;
     else
-     cout << "Error!" << endl;
+     cout << "Error! (" << rtrn << ")" << endl;
    return( false );
    }
 
