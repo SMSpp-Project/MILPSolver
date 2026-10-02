@@ -113,6 +113,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `test_cuts` compares the optimal value with a relative tolerance of 1e-6,
+  that of the feasibility of the lazy constraints in the Solver, instead of
+  1e-7: Gurobi closed `batch-cuts` 1.2e-7 below the optimum on the 2 vCPU
+  runners of the pipeline, a value within its tolerance that the test took
+  for a wrong one
+
 - the default and the current value of a string parameter of
   `CPXMILPSolver` and `HiGHSMILPSolver`, and the name of a parameter of
   `CPXMILPSolver`, were empty: the C library wrote them into a `std::string`

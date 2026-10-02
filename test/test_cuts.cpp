@@ -403,7 +403,10 @@ static bool SolveBoth( void )
    if( - std::abs( ci ) < opt )
     opt = - std::abs( ci );
 
-  if( abs( fo - opt ) <= 1e-7 * max( double( 1 ) , abs( opt ) ) ) {
+  // the lazy constraints are satisfied up to the feasibility tolerance of
+  // the Solver, 1e-6 by default, hence so is the optimal value, which can
+  // be that much below the true one
+  if( abs( fo - opt ) <= 1e-6 * max( double( 1 ) , abs( opt ) ) ) {
    LOG1( "OK" << endl );
    return( true );
    }
