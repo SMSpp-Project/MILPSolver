@@ -113,6 +113,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `SCIPMILPSolver` keeps finite solutions only in the store of SCIP
+  (`misc/finitesolutionstore`, now 1 by default): the presolve could fix at
+  an infinite bound a free Variable that the deleted rows had left with no
+  constraint, and once rows on it were added back that stored solution,
+  whose rows have infinite activity, still passed the check and was taken
+  for the optimal one; `batch-dynamic` and `batch-dynamic-L` compared it
+  with Gurobi and failed in every pipeline
+
 - `test_cuts` compares the optimal value with a relative tolerance of 1e-6,
   that of the feasibility of the lazy constraints in the Solver, instead of
   1e-7: Gurobi closed `batch-cuts` 1.2e-7 below the optimum on the 2 vCPU

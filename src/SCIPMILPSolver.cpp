@@ -71,6 +71,15 @@ UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
 {
  SCIP_CALL_ABORT( SCIPcreate( & scip ) );
  SCIP_CALL_ABORT( SCIPincludeDefaultPlugins( scip ) );
+
+ // the presolve can fix a Variable at an infinite bound, e.g., a free one
+ // that a deleted row has left with no constraint, and the solution goes in
+ // the store with that infinite value; once rows on the Variable are added
+ // back, the stored solution still passes the check, its activity being
+ // infinite, and SCIP takes it for the optimal one: the store is asked to
+ // keep finite solutions only [see get_dflt_int_par()]
+ SCIP_CALL_ABORT( SCIPsetBoolParam( scip , "misc/finitesolutionstore" ,
+                                    TRUE ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2590,6 +2599,10 @@ int SCIPMILPSolver::get_dflt_int_par( idx_type par ) const
  if( ( par >= intFirstSCIPPar ) && ( par < intLastAlgParSCPS ) ) {
   const std::string & scip_par =
    SMSpp_to_SCIP_int_pars[ par - intFirstSCIPPar ];
+
+  // the store of finite solutions is on by default [see SCIPMILPSolver()]
+  if( scip_par == "misc/finitesolutionstore" )
+   return( 1 );
 
   // Bool, int and long SCIP parameters are handled as SMS++ int parameters
   param = SCIPgetParam( scip , scip_par.c_str() );
