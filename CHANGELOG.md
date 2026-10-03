@@ -113,6 +113,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- with HiGHS up to 1.15.1, whose active set QP solver declares some convex
+  QPs non-convex and stalls on others (ERGO-Code/HiGHS#3322, fixed by #3325
+  after 1.15.1), HiGHSMILPSolver stops the active set after an iteration
+  limit (the largest of 10000 and 10 times the rows and columns of the QP),
+  unless the configuration sets one, and solves again from scratch a QP
+  that is not solved, with the Hessian regularized by 1e-4 and then by
+  1e-3; the regularization of 1e-5 is only the default with these versions
+  too, and with later ones all the options have the defaults of HiGHS
+
 - `SCIPMILPSolver` keeps finite solutions only in the store of SCIP
   (`misc/finitesolutionstore`, now 1 by default): the presolve could fix at
   an infinite bound a free Variable that the deleted rows had left with no
