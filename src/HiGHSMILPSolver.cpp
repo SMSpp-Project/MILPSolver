@@ -89,11 +89,13 @@ HiGHSMILPSolver::HiGHSMILPSolver( void ) :
  // Set default HiGHS log to 0
  Highs_setBoolOptionValue( highs , "output_flag" , 0 );
 
- // the active set QP solver of HiGHS declares a convex QP non-convex, the
- // outcome depending on the order of the columns, unless the Hessian is
- // regularized more than its own default does (see QPRegularization)
- Highs_setDoubleOptionValue( highs , "qp_regularization_value" ,
-                             QPRegularization );
+ // the active set QP solver of HiGHS up to 1.15.1 declares a convex QP
+ // non-convex, the outcome depending on the order of the columns, unless
+ // the Hessian is regularized more than its own default does [see
+ // QPWorkaround]
+ if constexpr( QPWorkaround )
+  Highs_setDoubleOptionValue( highs , "qp_regularization_value" ,
+                              QPRegularization );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -439,6 +441,27 @@ int HiGHSMILPSolver::guts_of_compute( void )
    f_callback_set = false;
    }
 
+ // the active set QP solver of HiGHS up to 1.15.1 may stall on a QP: it is
+ // stopped after an iteration limit, unless the configuration sets one, and
+ // the QP is solved again below [see QPWorkaround]
+ const bool qp_help = QPWorkaround && ( q_hessian_nnz > 0 ) &&
+                      ( int_vars == 0 );
+ HighsInt qp_iter = 0;
+ bool qp_iter_set = false;
+ if( qp_help ) {
+  Highs_getIntOptionValue( highs , "qp_iteration_limit" , & qp_iter );
+  HighsInt dflt = 0;
+  Highs_getIntOptionValues( highs , "qp_iteration_limit" , nullptr , nullptr ,
+                            nullptr , & dflt );
+  if( qp_iter == dflt ) {
+   const auto size = Highs_getNumCol( highs ) + Highs_getNumRow( highs );
+   Highs_setIntOptionValue( highs , "qp_iteration_limit" ,
+                            std::max( HighsInt( QPIterationLimit ) ,
+                                      HighsInt( QPIterationFactor * size ) ) );
+   qp_iter_set = true;
+   }
+  }
+
  // Call HiGHS to solve the problem
  if( run_highs() == -1 ) {
   // An error happened during the call of HiGHS_run. Notice that this is not
@@ -468,6 +491,34 @@ int HiGHSMILPSolver::guts_of_compute( void )
 
   m_status = Highs_getModelStatus( highs );
   }
+
+ // a QP the active set has not solved, nor found infeasible or unbounded,
+ // is solved again from scratch with a larger regularization of the Hessian
+ // each time, which then goes back to what it was [see QPWorkaround]
+ if( qp_help && ( m_status != kHighsModelStatusOptimal ) &&
+     ( m_status != kHighsModelStatusInfeasible ) &&
+     ( m_status != kHighsModelStatusUnbounded ) &&
+     ( m_status != kHighsModelStatusUnboundedOrInfeasible ) &&
+     ( m_status != kHighsModelStatusTimeLimit ) ) {
+  double reg = 0;
+  Highs_getDoubleOptionValue( highs , "qp_regularization_value" , & reg );
+  for( double r : QPRetryRegularization ) {
+   if( r <= reg )
+    continue;
+   Highs_clearSolver( highs );
+   Highs_setDoubleOptionValue( highs , "qp_regularization_value" , r );
+   if( run_highs() == -1 )
+    std::cerr << "WARNING: An unmanaged error occurred during the execution "
+                 "of HiGHS_run with a larger QP regularization" << std::endl;
+   m_status = Highs_getModelStatus( highs );
+   if( m_status == kHighsModelStatusOptimal )
+    break;
+   }
+  Highs_setDoubleOptionValue( highs , "qp_regularization_value" , reg );
+  }
+
+ if( qp_iter_set )
+  Highs_setIntOptionValue( highs , "qp_iteration_limit" , qp_iter );
 
  // On numerically difficult LPs, dual simplex can still return Unknown after
  // being restarted from scratch. Retry once with IPM, which uses a genuinely
@@ -2725,7 +2776,7 @@ double HiGHSMILPSolver::get_dflt_dbl_par( idx_type par ) const
  if( highs_opt.size() > 0 ) {
   if( highs_opt == "NoPar" )
     return( 0 );
-  if( highs_opt == "qp_regularization_value" )
+  if( QPWorkaround && ( highs_opt == "qp_regularization_value" ) )
     return( QPRegularization );
   else{
     double value, default_value;
