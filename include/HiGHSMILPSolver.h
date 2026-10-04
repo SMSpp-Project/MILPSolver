@@ -84,12 +84,13 @@ namespace SMSpp_di_unipi_it {
  * Highs_setStringOptionValue() and Highs_setBoolOptionValue
  * (See HiGHS List of options on HiGHS Documentation for all of them).
  *
- * Up to HiGHS 1.15.1 the active set QP solver of HiGHS declares non-convex
- * some convex QPs, e.g., the master problem of a proximal bundle, a single
- * free column with a quadratic term and the others linear, whether it does
- * depending only on the order of the columns, and on some others it stalls
- * for ever (ERGO-Code/HiGHS#3322, fixed by #3325 after 1.15.1). With those
- * versions [see QPWorkaround], and for continuous QPs only:
+ * The active set QP solver of HiGHS (up to 1.15.1 at least) declares
+ * non-convex some convex QPs, e.g., the master problem of a proximal bundle,
+ * a single free column with a quadratic term and the others linear, whether
+ * it does depending only on the order of the columns, and on some others it
+ * stalls for ever (ERGO-Code/HiGHS#3322, fixed by #3325 after 1.15.1, which
+ * no release of HiGHS has yet). Hence, while QPWorkaround is true, and for
+ * continuous QPs only:
  *
  * - the default of qp_regularization_value is QPRegularization instead of
  *   the 1e-7 of HiGHS;
@@ -99,13 +100,15 @@ namespace SMSpp_di_unipi_it {
  *   times the number of rows and columns of the QP;
  *
  * - a QP whose outcome is neither optimal nor a definite answer (infeasible,
- *   unbounded, time limit) is solved again from scratch with each of the
- *   values of QPRetryRegularization in turn, until one is optimal, and then
- *   qp_regularization_value goes back to what it was.
+ *   unbounded, time limit) is solved again from scratch, which is what gets
+ *   the active set out of a stall, and if it is still not solved once more
+ *   with the larger regularization QPRetryRegularization, after which
+ *   qp_regularization_value goes back to what it was; the QPs that HiGHS
+ *   solves at the first attempt are thus solved exactly as they would be
+ *   anyway.
  *
- * With later versions of HiGHS none of this happens, and all the options
- * have the defaults of HiGHS. Both options only act on QPs, and they can be
- * set to any value in the configuration as any other one. */
+ * Both options only act on QPs, and they can be set to any value in the
+ * configuration as any other one. */
 
 class HiGHSMILPSolver : public MILPSolver {
 
@@ -138,12 +141,11 @@ class HiGHSMILPSolver : public MILPSolver {
   };
 
  /// true if the active set QP solver of HiGHS needs help [see the class]
- /** True up to HiGHS 1.15.1, the last release without ERGO-Code/HiGHS#3325;
-  * should a later release still lack it, this has to be raised. */
- static constexpr bool QPWorkaround = ( HIGHS_VERSION_MAJOR < 1 ) ||
-  ( ( HIGHS_VERSION_MAJOR == 1 ) &&
-    ( ( HIGHS_VERSION_MINOR < 15 ) ||
-      ( ( HIGHS_VERSION_MINOR == 15 ) && ( HIGHS_VERSION_PATCH <= 1 ) ) ) );
+ /** Whether the next release of HiGHS will contain ERGO-Code/HiGHS#3325 is
+  * not known, hence this is true whatever the version of HiGHS, and it is
+  * to be made false from the first release in which #3325 has been checked
+  * to be. */
+ static constexpr bool QPWorkaround = true;
 
  /// default of the HiGHS option qp_regularization_value [see the class]
  static constexpr double QPRegularization = 1e-5;
@@ -154,9 +156,8 @@ class HiGHSMILPSolver : public MILPSolver {
  /// iteration limit of the active set QP solver per row and column
  static constexpr int QPIterationFactor = 10;
 
- /// the regularizations of a QP solved again [see the class]
- static constexpr std::array< double , 2 > QPRetryRegularization =
-  { 1e-4 , 1e-3 };
+ /// the regularization of the last attempt at a QP [see the class]
+ static constexpr double QPRetryRegularization = 1e-4;
 
  /// enum for string parameters (options in HiGHS)
  enum str_par_type_HiGHS {

@@ -224,6 +224,22 @@ for someone willing to write other `:MILPSolver`:
   against an old and hopefully reliable one
 
 
+## Known issues
+
+The active set QP solver of HiGHS (up to 1.15.1 at least) may declare
+non-convex a convex QP, depending on the order of its columns, or stall on
+it ([ERGO-Code/HiGHS#3322](https://github.com/ERGO-Code/HiGHS/issues/3322),
+fixed by [#3325](https://github.com/ERGO-Code/HiGHS/pull/3325), which no
+release of HiGHS contains yet). `HiGHSMILPSolver` works around it for
+continuous QPs: the Hessian is regularized by 1e-5 instead of the 1e-7 of
+HiGHS, the active set is stopped after an iteration limit, and a QP that it
+has not solved is solved again from scratch and, if needed, once more with
+the Hessian regularized by 1e-4. The QPs that HiGHS solves at the first
+attempt are not affected; all the details are in the documentation of
+`HiGHSMILPSolver`, and the workaround will be removed once a release of HiGHS
+with the fix has been checked.
+
+
 ## Getting help
 
 If you need support, you want to submit bugs or propose a new feature, you can
