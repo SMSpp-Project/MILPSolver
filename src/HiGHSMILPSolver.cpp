@@ -25,6 +25,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include <cstring>
+#include <vector>
 #include <map>
 #include <mutex>
 #include <numeric>
@@ -493,8 +494,9 @@ int HiGHSMILPSolver::guts_of_compute( void )
   }
 
  // a QP the active set has not solved, nor found infeasible or unbounded,
- // is solved again from scratch with a larger regularization of the Hessian
- // each time, which then goes back to what it was [see QPWorkaround]
+ // is solved again from scratch, which gets it out of a stall, and then,
+ // if still not solved, once more with a larger regularization of the
+ // Hessian, which then goes back to what it was [see QPWorkaround]
  if( qp_help && ( m_status != kHighsModelStatusOptimal ) &&
      ( m_status != kHighsModelStatusInfeasible ) &&
      ( m_status != kHighsModelStatusUnbounded ) &&
@@ -502,14 +504,15 @@ int HiGHSMILPSolver::guts_of_compute( void )
      ( m_status != kHighsModelStatusTimeLimit ) ) {
   double reg = 0;
   Highs_getDoubleOptionValue( highs , "qp_regularization_value" , & reg );
-  for( double r : QPRetryRegularization ) {
-   if( r <= reg )
-    continue;
+  std::vector< double > attempts = { reg };
+  if( QPRetryRegularization > reg )
+   attempts.push_back( QPRetryRegularization );
+  for( double r : attempts ) {
    Highs_clearSolver( highs );
    Highs_setDoubleOptionValue( highs , "qp_regularization_value" , r );
    if( run_highs() == -1 )
     std::cerr << "WARNING: An unmanaged error occurred during the execution "
-                 "of HiGHS_run with a larger QP regularization" << std::endl;
+                 "of HiGHS_run solving a QP again" << std::endl;
    m_status = Highs_getModelStatus( highs );
    if( m_status == kHighsModelStatusOptimal )
     break;
