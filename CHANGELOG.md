@@ -113,6 +113,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the reduced costs go to the bounds of the column they belong to also when
+  the model has dynamic columns: they were handed out walking the static and
+  dynamic Variable of each Block in turn, while the dynamic columns all come
+  after the static ones, so that each dynamic column of a Block shifted the
+  reduced costs of all the columns of the Block that follow, e.g., the duals
+  of the bounds of an easy component in the master problem of a bundle
+
 - `SCIPMILPSolver` keeps finite solutions only in the store of SCIP
   (`misc/finitesolutionstore`, now 1 by default): the presolve could fix at
   an infinite bound a free Variable that the deleted rows had left with no

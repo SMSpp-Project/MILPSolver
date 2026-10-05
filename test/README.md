@@ -21,6 +21,11 @@ Three testers for the `MILPSolver` module, each registered as a separate
   time. The solvers are configured by `LPPar-dynamic.txt`; see `batch-dynamic`
   and `batch-dynamic-L`.
 
+- `test_reduced_costs` verifies that the reduced costs become the duals of
+  the bounds of the right Variable when the model has dynamic Variable in a
+  Block that comes before the static ones, every registered `:MILPSolver`
+  solving a small LP whose duals are known.
+
 Run a tester directly (for instance `./test_dynamic seed [...]`, pass no
 argument to see its usage), or run a batch over a set of sizes and seeds.
 

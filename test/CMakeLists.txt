@@ -95,6 +95,13 @@ add_test(NAME test_groups
          COMMAND test_groups
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_reduced_costs -------------------------------------------------- #
+
+add_milp_test(test_reduced_costs test_reduced_costs.cpp)
+add_test(NAME test_reduced_costs
+         COMMAND test_reduced_costs
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)

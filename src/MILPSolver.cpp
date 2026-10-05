@@ -3673,11 +3673,23 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
    col += 1;  // update variable counter
    };
 
- // the static Variable first and then the dynamic ones, which is the order
- // in which the columns were built
+ // the static columns are in the block/BFS order they were loaded in, as
+ // for the primal values [see write_var_solution()]
  for( auto qb : v_BFS )
-  qb->for_each_variable_group( [ & set_bound ]( const BaseGroup & group ) {
-    group.for_each_as< ColVariable >( set_bound ); } );
+  for( const auto & group : qb->get_static_variable_groups() )
+   if( group )
+    group->for_each_as< ColVariable >( set_bound );
+
+ // the dynamic columns all come after the static ones, in the order they
+ // have been appended to the solver, which idx_to_dvar keeps: walking the
+ // groups of each Block in turn would hand the reduced cost of a dynamic
+ // column to a static one of the Block that follows
+ for( std::size_t i = 0 ; i < idx_to_dvar.size() ; ++i ) {
+  if( ! idx_to_dvar[ i ] )
+   continue;
+  col = int( static_vars + i );
+  set_bound( * const_cast< ColVariable * >( idx_to_dvar[ i ] ) );
+  }
  }  // end( MILPSolver::write_dual_solution )
 
 /*--------------------------------------------------------------------------*/
