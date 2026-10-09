@@ -72,6 +72,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- a batch of changes of the sides that holds a row GUROBI keeps as a ranged
+  one is executed whole rather than refused: such a row is an equality whose
+  range lives in the upper bound of the auxiliary column standing for its
+  slack, and those are three lists like any other. Only the row that becomes
+  ranged for the first time goes on its own, a column having to be created
+  for it
+
+- a Modification that the Solver does not execute no longer closes the batch
+  of a group: a PolyhedralFunctionMod is one, the PolyhedralFunctionBlock
+  answering it with the equivalent changes of the abstract representation,
+  and closing the batch on it had the cascade of a whole bundle of cuts come
+  out one cut at a time
+
+- the coefficients of the Objective a change has to be read back from are
+  read in one call rather than one column at a time, which also brings the
+  model up to date once instead of once per column
+
+- GRBMILPSolver maps GRB_SUBOPTIMAL to kLowPrecision rather than to kOK,
+  since a solution that does not satisfy the optimality tolerances carries
+  no accuracy promise; the callers that read the status of a component,
+  BundleSolver among them, take it as inexact information
+
+- the Gurobi environment is one for the whole process, created by the first
+  GRBMILPSolver and released by the last one, since every environment is a
+  session of the license and one per Solver does not scale: a decomposition
+  with one component per Solver has the license service refuse the sessions
+  it asks for. What a Solver keeps to itself, i.e., the parameters, lives in
+  the environment of its own model, which is where `set_par()` writes them
+  and where they are read back from
+
+- the errors that have nothing to do with the model being solved, i.e., the
+  license service unreachable or refusing the request, are returned as
+  kError by GRBMILPSolver instead of being thrown, so that whoever asked
+  decides what to do with a computation that may have been running for hours
+
 - `grb_pars` probes by name the parameters that the enumeration of Gurobi
   does not return, so that the table it writes carries them as well
 
@@ -334,41 +369,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plus the pips\_pars header-generator tool
 
 ### Changed
-
-- a batch of changes of the sides that holds a row GUROBI keeps as a ranged
-  one is executed whole rather than refused: such a row is an equality whose
-  range lives in the upper bound of the auxiliary column standing for its
-  slack, and those are three lists like any other. Only the row that becomes
-  ranged for the first time goes on its own, a column having to be created
-  for it
-
-- a Modification that the Solver does not execute no longer closes the batch
-  of a group: a PolyhedralFunctionMod is one, the PolyhedralFunctionBlock
-  answering it with the equivalent changes of the abstract representation,
-  and closing the batch on it had the cascade of a whole bundle of cuts come
-  out one cut at a time
-
-- the coefficients of the Objective a change has to be read back from are
-  read in one call rather than one column at a time, which also brings the
-  model up to date once instead of once per column
-
-- GRBMILPSolver maps GRB_SUBOPTIMAL to kLowPrecision rather than to kOK,
-  since a solution that does not satisfy the optimality tolerances carries
-  no accuracy promise; the callers that read the status of a component,
-  BundleSolver among them, take it as inexact information
-
-- the Gurobi environment is one for the whole process, created by the first
-  GRBMILPSolver and released by the last one, since every environment is a
-  session of the license and one per Solver does not scale: a decomposition
-  with one component per Solver has the license service refuse the sessions
-  it asks for. What a Solver keeps to itself, i.e., the parameters, lives in
-  the environment of its own model, which is where `set_par()` writes them
-  and where they are read back from
-
-- the errors that have nothing to do with the model being solved, i.e., the
-  license service unreachable or refusing the request, are returned as
-  kError by GRBMILPSolver instead of being thrown, so that whoever asked
-  decides what to do with a computation that may have been running for hours
 
 - relaxed-integer LP cut-separation loop (`intRelaxIntVars == 2`) is
   now driven by the base `compute()`
