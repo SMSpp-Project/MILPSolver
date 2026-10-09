@@ -64,9 +64,10 @@ build:
       - CMakeLists.txt
       - .gitlab-ci.yml
 
-# the suite is 170 minutes against the 3h cap a job has on the GitLab.com
-# shared runners, and the quadratic objective over integer variables is 75 of
-# them, so it is split into two SEQUENTIAL stages of comparable weight. It
+# the suite is 180 minutes against the 3h cap a job has on the GitLab.com
+# shared runners, and the three quadratic batteries over integer variables
+# (batchCL_I, batchLC_I, batchQL_I) are 100 of them, so it is split into two
+# SEQUENTIAL stages of comparable weight. It
 # also makes the retry affordable: a session cap hit by one of the two
 # second-long tests then costs the lighter half, not the whole suite.
 .test_template:
@@ -102,13 +103,13 @@ test:
   extends: .test_template
   stage: test
   script:
-    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -E "quad_test/batches/batchQL_I" --test-dir smspp-project/build --no-tests=error
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -E "QuadFunction_test/batches/batch(CL|LC|QL)_I" --test-dir smspp-project/build --no-tests=error
 
 test-miqp:
   extends: .test_template
   stage: test-miqp
   script:
-    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -R "quad_test/batches/batchQL_I" --test-dir smspp-project/build --no-tests=error
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -R "QuadFunction_test/batches/batch(CL|LC|QL)_I" --test-dir smspp-project/build --no-tests=error
 
 deploy:
   stage: deploy
