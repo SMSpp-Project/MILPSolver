@@ -50,7 +50,7 @@ if (MILPSolver_USE_CPLEX)
         )
     else ()
         add_executable(cpx_pars cpx_pars.cpp)
-        target_compile_features(cpx_pars PRIVATE cxx_std_17)
+        target_compile_features(cpx_pars PRIVATE cxx_std_20)
         target_link_libraries(cpx_pars PRIVATE SMS++::SMS++ CPLEX::Cplex)
 
         add_custom_command(
@@ -91,7 +91,7 @@ if (MILPSolver_USE_SCIP)
         )
     else ()
         add_executable(scip_pars scip_pars.cpp)
-        target_compile_features(scip_pars PRIVATE cxx_std_17)
+        target_compile_features(scip_pars PRIVATE cxx_std_20)
         target_link_libraries(scip_pars PRIVATE SMS++::SMS++ SCIP::SCIP)
 
         add_custom_command(
@@ -134,7 +134,7 @@ if (MILPSolver_USE_GUROBI)
         )
     else ()
         add_executable(grb_pars grb_pars.cpp)
-        target_compile_features(grb_pars PRIVATE cxx_std_17)
+        target_compile_features(grb_pars PRIVATE cxx_std_20)
         target_link_libraries(grb_pars PRIVATE SMS++::SMS++ GUROBI::Gurobi)
 
         add_custom_command(
@@ -175,7 +175,7 @@ if (MILPSolver_USE_HiGHS)
         )
     else ()
         add_executable(highs_pars highs_pars.cpp)
-        target_compile_features(highs_pars PRIVATE cxx_std_17)
+        target_compile_features(highs_pars PRIVATE cxx_std_20)
         target_link_libraries(highs_pars PRIVATE SMS++::SMS++ HiGHS::HiGHS)
 
         add_custom_command(
@@ -220,7 +220,7 @@ if (MILPSolver_USE_PIPS)
         # pips_pars parses the PIPS-IPM++ option sources directly and does not
         # need to link against PIPS-IPM++ or SMS++.
         add_executable(pips_pars pips_pars.cpp)
-        target_compile_features(pips_pars PRIVATE cxx_std_17)
+        target_compile_features(pips_pars PRIVATE cxx_std_20)
 
         add_custom_command(
                 OUTPUT ${PIPS_DEFS_FILE} ${PIPS_MAPS_FILE}

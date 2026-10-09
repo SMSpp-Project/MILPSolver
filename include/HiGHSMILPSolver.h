@@ -17,7 +17,11 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Enrico Calandrini, Antonio Frangioni
+ * \author Donato Meoli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; Enrico Calandrini, Antonio Frangioni, Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -30,6 +34,8 @@
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+#include <array>
 
 #include <Highs.h>
 
@@ -76,7 +82,33 @@ namespace SMSpp_di_unipi_it {
  * Moreover, the user can include in the configuration all the options
  * supported by Highs_setIntOptionValue(), Highs_setDoubleOptionValue(),
  * Highs_setStringOptionValue() and Highs_setBoolOptionValue
- * (See HiGHS List of options on HiGHS Documentation for all of them). */
+ * (See HiGHS List of options on HiGHS Documentation for all of them).
+ *
+ * The active set QP solver of HiGHS (up to 1.15.1 at least) declares
+ * non-convex some convex QPs, e.g., the master problem of a proximal bundle,
+ * a single free column with a quadratic term and the others linear, whether
+ * it does depending only on the order of the columns, and on some others it
+ * stalls for ever (ERGO-Code/HiGHS#3322, fixed by #3325 after 1.15.1, which
+ * no release of HiGHS has yet). Hence, while QPWorkaround is true, and for
+ * continuous QPs only:
+ *
+ * - the default of qp_regularization_value is QPRegularization instead of
+ *   the 1e-7 of HiGHS;
+ *
+ * - unless qp_iteration_limit is set in the configuration, the active set
+ *   is stopped after the largest of QPIterationLimit and QPIterationFactor
+ *   times the number of rows and columns of the QP;
+ *
+ * - a QP whose outcome is neither optimal nor a definite answer (infeasible,
+ *   unbounded, time limit) is solved again from scratch, which is what gets
+ *   the active set out of a stall, and if it is still not solved once more
+ *   with the larger regularization QPRetryRegularization, after which
+ *   qp_regularization_value goes back to what it was; the QPs that HiGHS
+ *   solves at the first attempt are thus solved exactly as they would be
+ *   anyway.
+ *
+ * Both options only act on QPs, and they can be set to any value in the
+ * configuration as any other one. */
 
 class HiGHSMILPSolver : public MILPSolver {
 
@@ -107,6 +139,25 @@ class HiGHSMILPSolver : public MILPSolver {
   /// first allowed new double parameter for derived classes
   dblLastAlgParHiGHS = dblFirstHiGHSPar + HiGHS_NUM_DBL_PARS
   };
+
+ /// true if the active set QP solver of HiGHS needs help [see the class]
+ /** Whether the next release of HiGHS will contain ERGO-Code/HiGHS#3325 is
+  * not known, hence this is true whatever the version of HiGHS, and it is
+  * to be made false from the first release in which #3325 has been checked
+  * to be. */
+ static constexpr bool QPWorkaround = true;
+
+ /// default of the HiGHS option qp_regularization_value [see the class]
+ static constexpr double QPRegularization = 1e-5;
+
+ /// least iteration limit of the active set QP solver [see the class]
+ static constexpr int QPIterationLimit = 10000;
+
+ /// iteration limit of the active set QP solver per row and column
+ static constexpr int QPIterationFactor = 10;
+
+ /// the regularization of the last attempt at a QP [see the class]
+ static constexpr double QPRetryRegularization = 1e-4;
 
  /// enum for string parameters (options in HiGHS)
  enum str_par_type_HiGHS {
@@ -217,6 +268,14 @@ class HiGHSMILPSolver : public MILPSolver {
 
  /// loads the problem into HiGHS
  void load_problem( void ) override;
+
+ /// true if the interior point is the algorithm: HiGHS is loaded again
+ /** With solver = ipm, HiGHS may fail on a problem changed in place when
+  * the crossover is imprecise and the simplex cleans the solution up, which
+  * it does not on the same problem loaded whole: with that algorithm the
+  * problem is loaded again as soon as a Modification is pending. */
+
+ bool reload_on_modification( void ) override;
 
  /** 
  * Adds a single MIP starts to a MIP problem. This function allows the solver 
@@ -494,6 +553,16 @@ void add_mip_starts(
 
  int guts_of_compute( void ) override;
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the dual bound of a MIP stopped by a limit, \p none if there is none
+ /** Returns the dual bound HiGHS has reached when a limit stopped it on a
+  * MIP, i.e., the bound of the search, which is a lower bound for a
+  * minimization and an upper bound for a maximization; \p none (-INF or
+  * +INF) if the problem is not solved as a MIP, i.e., it has no integer
+  * variables or they are relaxed, since an LP stopped has no such bound. */
+
+ OFValue stopped_dual_bound( OFValue none );
+
 /*--------------------------------------------------------------------------*/
 
  /** @name Get variable bounds for the problem
@@ -533,6 +602,58 @@ void add_mip_starts(
  /// handles a bound (OneVarConstraint) Modification
  void bound_modification( const OneVarConstraintMod * mod ) override;
 
+ /// changes the linear coefficients of a whole group in one operation
+ /** The costs go out with one Highs_changeColsCostBySet(), with the old cost
+  * of each column read once for the whole group and the deltas of a column
+  * the group touches more than once summed; the entries of the rows go one by
+  * one, HiGHS having no set-based call for them [see
+  * MILPSolver::change_coefficients()]. */
+
+ /// adds the whole column of each of the given Variable in one operation
+ /** The columns are born empty and get their entries and their costs
+   * afterwards, the costs in one Highs_changeColsCostBySet(); HiGHS has no
+   * batched form of a change of coefficient, so the entries go one at a
+   * time [see MILPSolver::add_columns()]. */
+
+ bool add_columns( const std::vector< Variable * > & vars ,
+                   const GroupModification * gmod ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// removes the whole column of each of the given Variable
+ /** One deletion per column, and none of the coefficients is touched: the
+   * deletion takes them away [see MILPSolver::remove_columns()]. */
+
+ bool remove_columns( const std::vector< Variable * > & vars ,
+                      const GroupModification * gmod ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ bool change_coefficients(
+               const std::vector< const FunctionMod * > & mods ) override;
+
+ /// writes the bounds of a whole group of columns in one operation
+ /** One Highs_changeColsBoundsBySet() for all of them [see
+  * MILPSolver::change_bounds()]. */
+
+ /// One Highs_changeColsBoundsBySet() for the whole set of fixings
+ /** Fixing a column is writing its two bounds; a batch carrying a
+   * change of integrality is refused [see
+   * MILPSolver::change_variables()]. */
+
+ bool change_variables(
+             const std::vector< const VariableMod * > & mods ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ bool change_bounds(
+        const std::vector< const OneVarConstraintMod * > & mods ) override;
+
+ /// writes the sides of a whole group of rows in one operation
+ /** One Highs_changeRowsBoundsBySet() for all of them; relaxing and enforcing
+  * a Constraint are left to the one-by-one path [see
+  * MILPSolver::change_sides()]. */
+
+ bool change_sides(
+        const std::vector< const RowConstraintMod * > & mods ) override;
+
  /// handles a Function Modification applied to the Objective
  void objective_function_modification( const FunctionMod * mod ) override;
 
@@ -553,6 +674,15 @@ void add_mip_starts(
 
  /// adds a single new dynamic FRowConstraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
+
+ /// batch-adds a sequence of new dynamic FRowConstraints
+ /** Override the default loop implementation by routing the whole
+  * batch through a single Highs_addRows call, which avoids the
+  * per-row overhead of repeatedly touching the back-end's internal
+  * model when a BlockModAdd<FRowConstraint> arrives with many rows. */
+
+ void add_dynamic_constraints(
+          const std::vector< const FRowConstraint * > & cons ) override;
 
  /// adds a single new dynamic bound (OneVarConstraint)
  void add_dynamic_bound( const OneVarConstraint * con ) override;
@@ -633,17 +763,20 @@ void add_mip_starts(
   * of the Highs threads for the critical sections of the callback(). */
  std::mutex f_callback_mutex;
 
- /* HiGHS read the Hessian matrix in sparse column form, so we have 
-    * to prepare three different vector:
-    * - q_obj_begin: An array of length [numcols] containing the starting index 
-    *   of each column in `index`;
-    * - q_obj_ind: An array of length [num_nz_q] with indices of hessian matrix 
-    *   entries 
-    * - q_obj_val: An array of length [num_nz_q] with values of hessian matrix 
-    *   entries */
-  std::vector< int > q_obj_begin;
-  std::vector< int > q_obj_ind;
-  std::vector< double > q_obj_val;
+ /// the Hessian of the objective, one element per column of the model
+ /** HiGHS only takes the Hessian as a whole, so this is the copy that every
+  * change is applied to before it is passed again [see pass_hessian()]. The
+  * element j holds the pairs ( i , value ) of column j with i >= j, ordered
+  * by i, i.e., the lower triangle with the diagonal first; the elements
+  * follow the columns of the model as they are added and removed, and so do
+  * the indices in the pairs. */
+ std::vector< std::vector< std::pair< int , double > > > q_hessian;
+
+ /// the number of nonzeros in q_hessian
+ int q_hessian_nnz = 0;
+
+ /// true if q_hessian has changed since it was last passed to HiGHS
+ bool f_hessian_changed = false;
   
  /** @name Handling of Highs parameters (options)
   *
@@ -700,6 +833,29 @@ void add_mip_starts(
  /** Create the structures used to provide the quadratic objective matrix 
   * to HiGHS with the function Highs_passHessian(). */
  void generate_qobj_hessian( void );
+
+ /// adds delta to the entry ( i , j ) of the Hessian, removing it if it zeroes
+ void add_to_hessian( int i , int j , double delta );
+
+ /// sets the entry ( i , j ) of the Hessian to value, zero meaning removed
+ void set_hessian( int i , int j , double value );
+
+ /// the column c of the model is gone: so is it in the Hessian
+ void remove_hessian_column( int c );
+
+ /// calls Highs_run(), sizing again the scheduler of HiGHS if needed
+ int run_highs( void );
+
+ /// passes q_hessian to HiGHS, the name of the caller going in the error
+ void pass_hessian( const char * caller );
+
+ /// changes the costs of the columns idx, adding val to them or setting them
+ /** Changes the costs of the columns in idx in one call, reading the old ones
+  * in one call as well if add is true. The indices need not be ordered, and
+  * a column named twice gets the sum of its values if add is true and the
+  * last one otherwise. */
+ void change_obj_costs( std::vector< int > & idx , std::vector< double > & val ,
+                        bool add );
 
 /*--------------------------------------------------------------------------*/
 

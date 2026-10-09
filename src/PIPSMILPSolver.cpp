@@ -24,6 +24,8 @@
 
 #include <cstdlib>
 
+#include <omp.h>
+
 #include <queue>
 
 #include <LinearFunction.h>
@@ -154,6 +156,8 @@ void PIPSMILPSolver::set_Block( Block * block )
 
 void PIPSMILPSolver::load_problem( void )
 {
+ apply_thread_budget();
+
  // clear the PIPS structures derived from any previously loaded Block; the
  // base class representation is kept alive by the PIPS callbacks, so it is
  // rebuilt from scratch as well
@@ -229,22 +233,16 @@ void PIPSMILPSolver::load_problem( void )
  Index num_node = 0;
  for( auto node : nodes_subtrees ){
   for( auto qb : node ){
-    for( const auto & i : qb->get_static_variables() ){
+    for( const auto & group : qb->get_static_variable_groups() ){
      // Call specific function to scan the new group of Variables
-     scan_group( i , qb , num_node , un_any_type< ColVariable >() );
+     if( group )
+      scan_group< ColVariable >( *group , qb , num_node  );
     }
 
-    for( const auto & i : qb->get_dynamic_variables() ){
+    for( const auto & group : qb->get_dynamic_variable_groups() ){
      // Call specific function to scan the new group of Variables
-     auto push_var_to_node = [ this , num_node ]
-      ( const ColVariable & c ) {
-      n_var_node[ num_node ] += 1;
-      var_node[ num_node ].push_back( &c );
-      var_to_node.emplace( &c , num_node );
-     };
-
-     un_any_const_dynamic( i , push_var_to_node ,
-                            un_any_type< ColVariable >() );
+     if( group )
+      scan_group< ColVariable >( *group , qb , num_node );
     }
   }
   num_node++;
@@ -257,20 +255,16 @@ void PIPSMILPSolver::load_problem( void )
  num_node = 0;
  for( auto node : nodes_subtrees ){
   for( auto qb : node ){
-    for( const auto & i : qb->get_static_constraints() ){
+    for( const auto & group : qb->get_static_constraint_groups() ){
      // Call specific function to scan the new group of constraints
-     scan_group( i , qb , num_node , un_any_type< FRowConstraint >() );
+     if( group )
+      scan_group< FRowConstraint >( *group , qb , num_node  );
     }
 
-    for( const auto & i : qb->get_dynamic_constraints() ){
+    for( const auto & group : qb->get_dynamic_constraint_groups() ){
      // Call specific function to scan the new group of constraints
-     // Scanning a group of Constraints
-     auto scan = [ this , num_node ]
-      ( const FRowConstraint & c ) {
-        scan_constraint( c , num_node );
-     };
-
-     un_any_const_dynamic( i , scan , un_any_type< FRowConstraint >() );
+     if( group )
+      scan_group< FRowConstraint >( *group , qb , num_node );
     }
   }
   num_node++;
@@ -377,8 +371,42 @@ Solver::OFValue PIPSMILPSolver::get_ub( void )
 
 /*--------------------------------------------------------------------------*/
 
+void PIPSMILPSolver::apply_thread_budget( void ) const
+{
+ // Zero leaves the current environment/runtime settings unchanged. The
+ // parameter may be set before MPI is initialized, so query the communicator
+ // here, after set_Block() initialized MPI, rather than in set_par().
+ if( max_threads == 0 )
+  return;
+
+ int n_proc = 0;
+ if( MPI_Comm_size( MPI_COMM_WORLD , & n_proc ) != MPI_SUCCESS || n_proc < 1 )
+  throw( std::runtime_error( "PIPSMILPSolver: cannot get MPI process count" ) );
+ // A smaller budget would give zero threads per rank: leave both the
+ // environment and the OpenMP runtime unchanged instead.
+ if( max_threads < n_proc )
+  return;
+
+ const int threads_per_process = max_threads / n_proc;
+ const auto value = std::to_string( threads_per_process );
+#ifdef _WIN32
+ const int error = _putenv_s( "OMP_NUM_THREADS" , value.c_str() );
+#else
+ const int error = setenv( "OMP_NUM_THREADS" , value.c_str() , 1 );
+#endif
+ if( error )
+  throw( std::runtime_error( "PIPSMILPSolver: cannot set OMP_NUM_THREADS" ) );
+
+ // OpenMP need not reread environment variables after program startup.
+ omp_set_num_threads( threads_per_process );
+}
+
+/*--------------------------------------------------------------------------*/
+
 int PIPSMILPSolver::guts_of_compute( void )
 {
+ apply_thread_budget();
+
  // locking, process_modifications() and the LP cut separation loop (when
  // intRelaxIntVars == 2) are all handled by MILPSolver::compute(); this
  // method is only responsible for the actual PIPS-IPM++ call
@@ -673,6 +701,13 @@ std::string PIPSMILPSolver::pips_dbl_par_map( idx_type par ) const
 
 void PIPSMILPSolver::set_par( idx_type par , int value )
 {
+ if( par == intMaxThread ) {
+  if( value < 0 )
+   throw( std::invalid_argument( "PIPSMILPSolver: negative intMaxThread" ) );
+  max_threads = value;
+  return;
+  }
+
  // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
  // separation loop logging) before letting PIPS consume it through the
  // mapping below
@@ -809,6 +844,9 @@ const std::string & PIPSMILPSolver::get_dflt_str_par( idx_type par ) const
 
 int PIPSMILPSolver::get_int_par( idx_type par ) const
 {
+ if( par == intMaxThread )
+  return( max_threads );
+
  // intLogVerb is mirrored into the (inverted) PIPS SILENT option by
  // set_par(), hence the value kept in the base class is returned
  if( par == intLogVerb )
@@ -1124,13 +1162,13 @@ std::vector< int > PIPSMILPSolver::compute_cons_global_idxs(
  Index row = 0;
 
  for( auto con : cons ) {
-  Index static_idx = index_of_static_constraint( con );
+  int static_idx = index_of_static_constraint( con );
 
-  if( static_idx < Inf< Index >() )
+  if( static_idx < Inf< int >() )
    global_idxs[ row ] = static_idx;
   else {
-   Index dynamic_idx = index_of_dynamic_constraint( con );
-   if( dynamic_idx < Inf< Index >() )
+   int dynamic_idx = index_of_dynamic_constraint( con );
+   if( dynamic_idx < Inf< int >() )
     global_idxs[ row ] = dynamic_idx;
    else
     throw( std::runtime_error(
@@ -1152,13 +1190,13 @@ std::vector< int > PIPSMILPSolver::compute_vars_global_idxs(
  Index col = 0;
 
  for( auto var : vars ) {
-  Index static_idx = index_of_static_variable( var );
+  int static_idx = index_of_static_variable( var );
 
-  if( static_idx < Inf< Index >() )
+  if( static_idx < Inf< int >() )
    global_idxs[ col ] = static_idx;
   else {
-   Index dynamic_idx = index_of_dynamic_variable( var );
-   if( dynamic_idx < Inf< Index >() )
+   int dynamic_idx = index_of_dynamic_variable( var );
+   if( dynamic_idx < Inf< int >() )
     global_idxs[ col ] = dynamic_idx;
    else
     throw( std::runtime_error(
@@ -1192,358 +1230,31 @@ Block::Index PIPSMILPSolver::collect_subtree( Block * block ,
 /*--------------------------------------------------------------------------*/
 
 template< typename T >
- void PIPSMILPSolver::scan_group( const boost::any & gr , Block * qb ,
-				  Index num_node , un_any_type< T > )
+ void PIPSMILPSolver::scan_group( const BaseGroup & group , Block * qb ,
+				  Index num_node )
 {
- // search for the group type
- if( ( gr.type() == typeid( T * ) ) ||
-     ( gr.type() == typeid( std::vector< T > * ) ) ||
-     ( gr.type() == typeid( std::vector< std::vector< T > > * ) ) ) {
-  // "simple" group
-  scan_simple_group( gr , qb , num_node , un_any_type< T >() );
+ // the elements are visited in storage order, whatever the shape of the
+ // group: here only the order matters, not where a cell begins
+ if constexpr( std::is_same_v< T , FRowConstraint > ) {
+  if( ! group.for_each_as< FRowConstraint >(
+       [ this , num_node ]( const FRowConstraint & c ) {
+        scan_constraint( c , num_node ); } ) )
+   // the group holds something else, e.g., :OneVarConstraint, which are the
+   // bounds of their Variable and not rows of the problem
+   return;
   }
  else {
-  // "complex" group
-  scan_multiarray_group( gr , qb , num_node , un_any_type< T >() );
+  static_assert( std::is_same_v< T , ColVariable > ,
+		 "a group is one of FRowConstraint or of ColVariable" );
+  if( ! group.for_each_as< ColVariable >(
+       [ this , num_node ]( const ColVariable & c ) {
+        n_var_node[ num_node ] += 1;
+        var_node[ num_node ].push_back( & c );
+        var_to_node.emplace( & c , num_node ); } ) )
+   throw( std::runtime_error( "PIPSMILPSolver::scan_group: unsupported "
+			      "group type" ) );
   }
  }
-
-/*--------------------------------------------------------------------------*/
-
-template< typename T >
- void PIPSMILPSolver::scan_simple_group( const boost::any & gr , Block * qb ,
-					 Index num_node , un_any_type< T > )
-{
- if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-  // constraint group
-  auto scan = [ this , num_node ]( const FRowConstraint & c ) {
-   scan_constraint( c , num_node );
-   };
-  // scan all the constraints one at a time
-  un_any_const_static( gr , scan , un_any_type< FRowConstraint >() );
-  }
- else if( typeid( T * ) == typeid( ColVariable * ) ) {
-  // variable group: simply add each variable to the corresponding node
-  auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
-   n_var_node[ num_node ] += 1;
-   var_node[ num_node ].push_back( & c );
-   var_to_node.emplace( & c , num_node );
-   };
-  un_any_const_static( gr , push_var_to_node , un_any_type< ColVariable >() );
-  }
- else
-  throw( std::runtime_error( "PIPSMILPSolver::scan_simple_group: "
-			     "unsupported group type" ) );
-}
-
-/*--------------------------------------------------------------------------*/
-
-template< typename T >
- void PIPSMILPSolver::scan_multiarray_group( const boost::any & gr ,
-	    Block * qb , Index num_node , un_any_type< T > )
-{
- // get the multi_array dimensionality
- int ma_dim = get_multi_array_dim( gr , un_any_type< T >() ,
-				   un_any_int< 2 >() );
-
- if( ma_dim == 2 ) {
-  // 2D multi_array
-
-  // get the multi_array type: see get_multi_array_type() in MILPSolver.h
-  int type = get_multi_array_type( gr , un_any_type< T >() ,
-				   un_any_int< 2 >() );
-
-  // indices of the 2 dimensions
-  int idx_0 = 0;
-  int idx_1 = 0;
-
-  if( type == 1 ) {
-   // multi_arrays of type 1 (i.e. multi_array< std::vector< T * > >) do not
-   // store elements in sequential cells: each std::vector is "unpacked" and
-   // stored separately
-   auto ma = get_multi_array1( gr , un_any_type< T >() ,
-			       un_any_int< 2 >() );
-
-   const auto dim_0 = static_cast< int >( ma->shape()[ 0 ] );
-   const auto dim_1 = static_cast< int >( ma->shape()[ 1 ] );
-
-   if( ( dim_0 == 0 ) || ( dim_1 == 0 ) )
-    return;  // empty multi_array: nothing to scan
-
-   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-    // constraint group
-
-    // scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
-     auto scan = [ this , num_node ]( const FRowConstraint & c ) {
-      scan_constraint( c , num_node );
-      };
-     // scan all the constraints one at a time
-     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
-
-     // the linearization produced by ma->data() for the 2D multi_array
-     // stores elements in row-major order: increment the column index
-     // first, and when it exceeds the number of columns reset it and
-     // increment the row index
-     if( idx_1 < dim_1 - 1 )
-      idx_1++;
-     else {
-      idx_1 = 0;
-      idx_0++;
-      }
-     }
-    }
-   else if( typeid( T * ) == typeid( ColVariable * ) ) {
-    // variable group
-
-    // scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
-     // simply add each variable to the corresponding node
-     auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
-      n_var_node[ num_node ] += 1;
-      var_node[ num_node ].push_back( & c );
-      var_to_node.emplace( & c , num_node );
-      };
-     un_any_const_static( v , push_var_to_node ,
-			  un_any_type< ColVariable >() );
-
-     // row-major order, see above
-     if( idx_1 < dim_1 - 1 )
-      idx_1++;
-     else {
-      idx_1 = 0;
-      idx_0++;
-      }
-     }
-    }
-   else
-    throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
-			       "unsupported group type" ) );
-   }
-  else if( type == 0 ) {
-   // multi_arrays of type 0 (i.e. multi_array< T >) store elements in
-   // sequential cells, hence they can be stored as done for
-   // std::vector< T > by only keeping track of the first element and
-   // storing the number of non-empty cells in the structure
-   auto ma = get_multi_array0( gr , un_any_type< T >() ,
-			       un_any_int< 2 >() );
-
-   const auto dim_0 = static_cast< int >( ma->shape()[ 0 ] );
-   const auto dim_1 = static_cast< int >( ma->shape()[ 1 ] );
-
-   if( ( dim_0 == 0 ) || ( dim_1 == 0 ) )
-    return;  // empty multi_array: nothing to scan
-
-   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-    // constraint group
-
-    // scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
-     auto scan = [ this , num_node ]( const FRowConstraint & c ) {
-      scan_constraint( c , num_node );
-      };
-     // scan all the constraints one at a time
-     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
-
-     // row-major order, see above
-     if( idx_1 < dim_1 - 1 )
-      idx_1++;
-     else {
-      idx_1 = 0;
-      idx_0++;
-      }
-     }
-    }
-   else if( typeid( T * ) == typeid( ColVariable * ) ) {
-    // variable group
-
-    // scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
-     // simply add each variable to the corresponding node
-     auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
-      n_var_node[ num_node ] += 1;
-      var_node[ num_node ].push_back( & c );
-      var_to_node.emplace( & c , num_node );
-      };
-     un_any_const_static( v , push_var_to_node ,
-			  un_any_type< ColVariable >() );
-
-     // row-major order, see above
-     if( idx_1 < dim_1 - 1 )
-      idx_1++;
-     else {
-      idx_1 = 0;
-      idx_0++;
-      }
-     }
-    }
-   else
-    throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
-			       "unsupported group type" ) );
-   }
-  else
-   throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
-			      "unsupported multi_array type" ) );
-  }
- else if( ma_dim == 3 ) {
-  // 3D multi_array
-
-  // get the multi_array type: see get_multi_array_type() in MILPSolver.h
-  int type = get_multi_array_type( gr , un_any_type< T >() ,
-				   un_any_int< 3 >() );
-
-  // indices of the 3 dimensions
-  int idx_0 = 0;
-  int idx_1 = 0;
-  int idx_2 = 0;
-
-  if( type == 1 ) {
-   // multi_arrays of type 1, see above
-   auto ma = get_multi_array1( gr , un_any_type< T >() ,
-			       un_any_int< 3 >() );
-
-   const auto dim_0 = static_cast< int >( ma->shape()[ 0 ] );
-   const auto dim_1 = static_cast< int >( ma->shape()[ 1 ] );
-   const auto dim_2 = static_cast< int >( ma->shape()[ 2 ] );
-
-   if( ( dim_0 == 0 ) || ( dim_1 == 0 ) || ( dim_2 == 0 ) )
-    return;  // empty multi_array: nothing to scan
-
-   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-    // constraint group
-
-    // scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
-     auto scan = [ this , num_node ]( const FRowConstraint & c ) {
-      scan_constraint( c , num_node );
-      };
-     // scan all the constraints one at a time
-     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
-
-     // the linearization produced by ma->data() for the 3D multi_array
-     // stores elements in row-major order
-     if( idx_2 < dim_2 - 1 )
-      idx_2++;
-     else if( idx_1 < dim_1 - 1 ) {
-      idx_1++;
-      idx_2 = 0;
-      }
-     else {
-      idx_0++;
-      idx_1 = 0;
-      idx_2 = 0;
-      }
-     }
-    }
-   else if( typeid( T * ) == typeid( ColVariable * ) ) {
-    // variable group
-
-    // scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
-     // simply add each variable to the corresponding node
-     auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
-      n_var_node[ num_node ] += 1;
-      var_node[ num_node ].push_back( & c );
-      var_to_node.emplace( & c , num_node );
-      };
-     un_any_const_static( v , push_var_to_node ,
-			  un_any_type< ColVariable >() );
-
-     // row-major order, see above
-     if( idx_2 < dim_2 - 1 )
-      idx_2++;
-     else if( idx_1 < dim_1 - 1 ) {
-      idx_1++;
-      idx_2 = 0;
-      }
-     else {
-      idx_0++;
-      idx_1 = 0;
-      idx_2 = 0;
-      }
-     }
-    }
-   else
-    throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
-			       "unsupported group type" ) );
-   }
-  else if( type == 0 ) {
-   // multi_arrays of type 0, see above
-   auto ma = get_multi_array0( gr , un_any_type< T >() ,
-			       un_any_int< 3 >() );
-
-   const auto dim_0 = static_cast< int >( ma->shape()[ 0 ] );
-   const auto dim_1 = static_cast< int >( ma->shape()[ 1 ] );
-   const auto dim_2 = static_cast< int >( ma->shape()[ 2 ] );
-
-   if( ( dim_0 == 0 ) || ( dim_1 == 0 ) || ( dim_2 == 0 ) )
-    return;  // empty multi_array: nothing to scan
-
-   if( typeid( T * ) == typeid( FRowConstraint * ) ) {
-    // constraint group
-
-    // scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
-     auto scan = [ this , num_node ]( const FRowConstraint & c ) {
-      scan_constraint( c , num_node );
-      };
-     // scan all the constraints one at a time
-     un_any_const_static( v , scan , un_any_type< FRowConstraint >() );
-
-     // row-major order, see above
-     if( idx_2 < dim_2 - 1 )
-      idx_2++;
-     else if( idx_1 < dim_1 - 1 ) {
-      idx_1++;
-      idx_2 = 0;
-      }
-     else {
-      idx_0++;
-      idx_1 = 0;
-      idx_2 = 0;
-      }
-     }
-    }
-   else if( typeid( T * ) == typeid( ColVariable * ) ) {
-    // variable group
-
-    // scan the linearization of the array
-    for( auto v = ma->data() ; idx_0 < dim_0 ; ++v ) {
-     // simply add each variable to the corresponding node
-     auto push_var_to_node = [ this , num_node ]( const ColVariable & c ) {
-      n_var_node[ num_node ] += 1;
-      var_node[ num_node ].push_back( & c );
-      var_to_node.emplace( & c , num_node );
-      };
-     un_any_const_static( v , push_var_to_node ,
-			  un_any_type< ColVariable >() );
-
-     // row-major order, see above
-     if( idx_2 < dim_2 - 1 )
-      idx_2++;
-     else if( idx_1 < dim_1 - 1 ) {
-      idx_1++;
-      idx_2 = 0;
-      }
-     else {
-      idx_0++;
-      idx_1 = 0;
-      idx_2 = 0;
-      }
-     }
-    }
-   else
-    throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
-			       "unsupported group type" ) );
-   }
-  else
-   throw( std::runtime_error( "PIPSMILPSolver::scan_multiarray_group: "
-			      "unsupported multi_array type" ) );
-  }
- else
-  // Handle invalid or unsupported ma_dim 
-  return; 
-}
 
 /*--------------------------------------------------------------------------*/
 

@@ -29,8 +29,13 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Donato Meoli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
  * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
- *                   Niccolo' Iardella
+ *                   Niccolo' Iardella,
+ *                   Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -53,11 +58,17 @@
 
 #include <FRowConstraint.h>
 
+#include <LinearFunction.h>
+
 #include <OneVarConstraint.h>
 
 #include <QuadFunction.h>
 
+#include <algorithm>
+
 #include <cmath>
+
+#include <functional>
 
 #include <limits>
 
@@ -168,13 +179,13 @@ class MILPSolver : public CDASolver
    * - intRelaxIntVars == 0 [default]: the problem is solved as a MILP, with
    *   integer Variable kept integer.
    *
-   * - intRelaxIntVars == 1: the problem is solved as the LP relaxation,
-   *   i.e., integer Variable are treated as continuous. The Solver uses
-   *   the MILP engine on a problem whose integrality has been relaxed
-   *   (the cut callback, if any, still fires as for a MIP). This is
-   *   appropriate when the user wants the LP relaxation but the Solver's
-   *   MIP machinery (in particular the user-cut callback at the root
-   *   node) is required.
+   * - intRelaxIntVars == 1: the problem is solved as its continuous
+   *   relaxation: the integer Variable are given to the Solver as
+   *   continuous ones, so that the model has no integer column and it is
+   *   solved as an LP (or QP), as a problem without integer Variable
+   *   would be. No cut callback is installed and no cut is separated,
+   *   whatever intCutSepPar is: for the relaxation of a Block with
+   *   dynamic Constraint, see intRelaxIntVars == 2.
    *
    * - intRelaxIntVars == 2: the problem is solved as a pure LP with an
    *   explicit user-cut separation loop driven by MILPSolver. After each
@@ -230,11 +241,13 @@ class MILPSolver : public CDASolver
    *
    * - intHomogeneousDirection == 1: it writes \f$ - A' y \f$.
    *
-   * get_dual_solution() is not affected either way. The parameter is only
-   * honoured by the derived classes that compute the multipliers themselves
-   * out of the duals [CPXMILPSolver and GRBMILPSolver]; SCIPMILPSolver asks
-   * its back-end for the Farkas coefficients, which are homogeneous to begin
-   * with, and HiGHSMILPSolver reads the reduced costs of the last iterate. */
+   * get_dual_solution() is not affected either way. The derived classes that
+   * compute the multipliers themselves out of the duals honour the parameter
+   * [CPXMILPSolver and GRBMILPSolver]; SCIPMILPSolver asks its back-end for
+   * the Farkas coefficients, which are homogeneous to begin with, so there is
+   * nothing for it to do; HiGHSMILPSolver, whose back-end only hands out the
+   * reduced costs of the iterate it stopped at, refuses the value 1 rather
+   * than take it and go on writing multipliers that carry the Objective. */
   intHomogeneousDirection ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
@@ -268,7 +281,12 @@ class MILPSolver : public CDASolver
 
  /// enum for vector-of-string parameters
  enum vstr_par_type_MILP {
-  /// first allowed new vector-of-double parameter for derived classes
+  /// first allowed new vector-of-string parameter for derived classes
+  /// (MILPSolver itself defines none: the path-based sub-Block ignore
+  /// list previously here as vstrMILPIgnSBlks has been promoted to the
+  /// Solver base interface via Solver::set_excluded_blocks(), which
+  /// takes a typed std::unordered_set<Block*> instead of slash-separated
+  /// paths; see Solver.h)
   vstrLastAlgParMILP = vstrLastParCDAS
   };
 
@@ -360,57 +378,39 @@ class MILPSolver : public CDASolver
 /*--------------------------------------------------------------------------*/
  /// methods to scan a single group of Constraints or Variables
 
- /** Scans a "simple" static group of FRowConstraint or ColVariable.
+ /** Scans a static group of FRowConstraint or ColVariable.
  *
- * This function is called from load_problem() whenever a new group of
- * FRowConstraint or ColVariable is encountered. The group should be contained
- * in an "easy" structure (e.g. T *, std::vector< T* >).
+ * This function is called from load_problem() for each group of static
+ * FRowConstraint or ColVariable of a Block, whatever the shape of the group:
+ * the elements are visited in storage order and each run of contiguous ones
+ * is recorded, so that the index of an element can be found back from its
+ * address. A group of any other type, e.g., of :OneVarConstraint, is left
+ * alone.
  *
- * @param gr        Reference to the group being scanned.
+ * @param group     The group being scanned.
  * @param qb        The block from which the group originated.
  * @param num_block Sequential number of the block in MILPSolver.
- * @param set       Index of the constraint set within qb.
+ * @param set       Index of the group within qb.
  * @param counter   Current number of elements of type T that have been
  *                  scanned.
- * @param T         The element type of the group. Should be either 
- *                  FRowConstraint or ColVariable, depending on the group 
+ * @param T         The element type of the group. Should be either
+ *                  FRowConstraint or ColVariable, depending on the group
  *                  being scanned.
  */
- 
+
  template< typename T >
- void scan_st_group( const boost::any & gr , Block * qb , Index num_block ,
-                    Index set , Index & counter , un_any_type< T > );
+ void scan_group( const BaseGroup & group , Block * qb , Index num_block ,
+                  Index set , Index & counter );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- /** Scans a "complex" static group of FRowConstraint or ColVariable.
- *
- * This function is called from load_problem() whenever a new group of
- * FRowConstraint or ColVariable is encountered. The group should be contained
- * in a more "complex" structure (e.g. multi_array< T* >, 
- * multi_array< std::vector < T* > >).
- *
- * @param gr        Reference to the group being scanned.
- * @param qb        The block from which the group originated.
- * @param num_block Sequential number of the block in MILPSolver.
- * @param set       Index of the constraint set within qb.
- * @param counter   Current number of elements of type T that have been
- *                  scanned.
- * @param T         The element type of the group. Should be either 
- *                  FRowConstraint or ColVariable, depending on the group 
- *                  being scanned.
- */
- 
- template< typename T >
- void scan_multiarray_st_group( const boost::any & gr , Block * qb ,
-            Index num_block , Index set , Index & counter , un_any_type< T > );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// common part of scan_st_group() and scan_multiarray_st_group()
+ /// scans a dynamic group of FRowConstraint or ColVariable
+ /** The dynamic counterpart of scan_group(): the elements of a dynamic group
+  * come and go one by one, so each of them gets its own entry of the
+  * dictionaries. */
 
  template< typename T >
- void scan_group( const boost::any & gr , Block * qb , Index num_block ,
-                  Index set , Index & row , un_any_type< T > );
+ void scan_dynamic_group( const BaseGroup & group , Block * qb ,
+                          Index num_block , Index set , Index & counter );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -870,7 +870,7 @@ class MILPSolver : public CDASolver
   /** Set the "int" parameters specific of MILPSolver, together with the
   * parameters of MILPSolver that various solver actually "listens to":
   *
-  * - intThrowReducedCostException [0]: it indicates whether an exception must
+  * - intThrowReducedCostException [1]: it indicates whether an exception must
   *                                     be thrown if there is an inconsistency
   *   when a reduced cost is being stored during a call to get_dual_solution()
   *   or get_dual_direction(). The reduced cost of a Variable is stored in at
@@ -888,7 +888,11 @@ class MILPSolver : public CDASolver
   *
   *   2) The Variable is not fixed, it has a finite nonzero lower or upper
   *      bound and there is no OneVarConstraint on that Variable whose lower
-  *      or upper bound match the bounds of the Variable. */
+  *      or upper bound match the bounds of the Variable.
+  *
+  *   The default 1 is what get_dflt_int_par() returns, i.e., the value that
+  *   a ComputeConfig not giving the parameter sets; a Solver to which no
+  *   ComputeConfig has been applied starts with 0. */
  void set_par( idx_type par , int value ) override;
 
  /// sets a double parameter with the given value
@@ -903,6 +907,9 @@ class MILPSolver : public CDASolver
  /// sets a string parameter with the given value
  void set_par( idx_type par , std::string && value ) override;
 
+ /// sets a vector-of-string parameter with the given value
+ void set_par( idx_type par , std::vector< std::string > && value ) override;
+
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// gets the number of integer parameters
  [[nodiscard]] idx_type get_num_int_par( void ) const override;
@@ -912,6 +919,9 @@ class MILPSolver : public CDASolver
 
  /// gets the number of string parameters
  [[nodiscard]] idx_type get_num_str_par( void ) const override;
+
+ /// gets the number of vector-of-string parameters
+ [[nodiscard]] idx_type get_num_vstr_par( void ) const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// gets the default value of the specified integer parameter
@@ -924,6 +934,10 @@ class MILPSolver : public CDASolver
  [[nodiscard]] const std::string & get_dflt_str_par( idx_type par )
   const override;
 
+ /// returns the default value of the specified vector-of-string parameter
+ [[nodiscard]] const std::vector< std::string > & get_dflt_vstr_par(
+  idx_type par ) const override;
+
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// returns the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
@@ -933,6 +947,10 @@ class MILPSolver : public CDASolver
 
  /// returns the value of the specified string parameter
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
+
+ /// returns the value of the specified vector-of-string parameter
+ [[nodiscard]] const std::vector< std::string > & get_vstr_par(
+  idx_type par ) const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// returns the index of the int parameter with the specified name
@@ -961,6 +979,15 @@ class MILPSolver : public CDASolver
  [[nodiscard]] const std::string & str_par_idx2str( idx_type idx )
   const override;
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the index of the vstr parameter with the specified name
+ [[nodiscard]] idx_type vstr_par_str2idx( const std::string & name )
+  const override;
+
+ /// returns the name of the vstr parameter with the specified index
+ [[nodiscard]] const std::string & vstr_par_idx2str( idx_type idx )
+  const override;
+
 /** @} ---------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
 /*--------------------------------------------------------------------------*/
@@ -986,6 +1013,41 @@ class MILPSolver : public CDASolver
  virtual int guts_of_compute( void ) { return( kOK ); }
 
 /*--------------------------------------------------------------------------*/
+ /// scatter a LinearFunction into a CSR row of (index, value) buffers
+ /** Iterate over the (variable, coefficient) pairs of \p lf and push,
+  * into the back of \p out_ind / \p out_val, the (back-end column
+  * index, coefficient) of every term whose variable is currently
+  * registered with the underlying model. The mapping from
+  * ColVariable * to back-end column index is provided by the callable
+  * \p idx_fn (typically the derived solver's `*_index_of_variable`
+  * member, wrapped in a lambda). Terms pointing at variables that are
+  * not registered (\p idx_fn returns Inf<int>()) are silently skipped:
+  * the back-end is then free to assume the row touches only declared
+  * columns, which mirrors the per-row handling that the legacy
+  * implementations of add_dynamic_constraint() were performing inline.
+  * \p out_ind and \p out_val are not cleared, so the helper can be
+  * called repeatedly to concatenate the rows of a batch into a single
+  * pair of buffers (in conjunction with a separate rmatbeg vector).
+  *
+  * The helper is inline so that the resulting code is identical to
+  * the hand-rolled loop the derived solvers were carrying around, and
+  * static / template so the LinearFunction-iteration boilerplate is
+  * stated once and the per-back-end idx_fn stays a zero-overhead
+  * abstraction. */
+
+ template< typename IdxFn >
+ static inline void scatter_lf_to_csr(
+                              const LinearFunction * lf , IdxFn && idx_fn ,
+                              std::vector< int > & out_ind ,
+                              std::vector< double > & out_val ) {
+  for( auto & el : lf->get_v_var() )
+   if( auto idx = idx_fn( el.first ) ; idx < Inf< int >() ) {
+    out_ind.push_back( idx );
+    out_val.push_back( el.second );
+    }
+  }
+
+/*--------------------------------------------------------------------------*/
 /*---------------- VARIABLE AND CONSTRAINT TRACKING VECTORS ----------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -1003,11 +1065,13 @@ class MILPSolver : public CDASolver
   * The following vectors are used in order to keep track between the
   * Variables and Constraints of the Block and the constraint matrix.
   *
-  *  - svar_to_idx, scon_to_idx, scon_to_idx : vectors of tuples 
-  *    that store 1) the address of the first element of each group of static 
-  *    variables and constraints, respectively, 2) the 
-  *    corresponding index in constraint matrix (column or row) and 3) 
-  *    the number of elements in the group.
+  *  - svar_to_idx, scon_to_idx : vectors of tuples that store 1) the
+  *    address of the first element of each run of static variables and
+  *    constraints, respectively, 2) the corresponding index in constraint
+  *    matrix (column or row) and 3) the number of elements in the run. A run
+  *    is a set of elements of a group that are contiguous in memory: a group
+  *    that is a single array is one run, a group made of many arrays (e.g.,
+  *    a std::vector of std::vector) has one run per array.
   *    The vectors are kept sorted in ascending order by address.
   *
   *  - dvar_to_idx, dcon_to_idx : vectors of pairs that store the addresses
@@ -1017,7 +1081,7 @@ class MILPSolver : public CDASolver
   *
   *  - idx_to_svar, idx_to_scon : vectors of pairs that store the indices
   *    of columns and rows, respectively, of the constraint matrix and the
-  *    address of the corresponding (group of) static variables and
+  *    address of the corresponding (run of) static variables and
   *    constraints. The vectors are kept sorted in ascending order by index.
   *
   *  - idx_to_dvar, idx_to_dcon : vectors that store the addresses of dynamic
@@ -1097,8 +1161,16 @@ class MILPSolver : public CDASolver
   * @{  */
 
  /** Pointers to the currently registered Block and all its descendants
-  * arranged along a BFS order. */
+  * arranged along a BFS order. Sub-Blocks listed in
+  * Solver::get_excluded_blocks() are excluded from #v_BFS during
+  * load_problem() (along with their entire subtree, by virtue of the
+  * BFS naturally pruning at the excluded root): they are invisible to
+  * every method that traverses the attached Block through #v_BFS. */
  std::vector< Block * > v_BFS;
+
+ /** The same Block pointers as #v_BFS, stored for constant-time membership
+  * queries while constructing and updating the MILP matrix. */
+ std::unordered_set< Block * > BFS_set;
 
  std::string prob_name;    ///< problem name
  std::string output_file;  ///< output file
@@ -1295,9 +1367,9 @@ class MILPSolver : public CDASolver
  *      warm start solution (i.e. initial values for the specified set of
  *      variables).
  *
- *    If a filename follows the format "filename[idx]", only the indexed 
- *    structure within the file will be used. 
- *    (Behavior for unspecified indices or other formats is TBD.)
+ *    If a filename follows the format "filename[idx]", only the indexed
+ *    structure within the file will be used. Without an explicit index
+ *    the loader picks the first structure in the file.
  */
 
  std::string warmstart_variables; // warm start variables filename
@@ -1331,27 +1403,29 @@ class MILPSolver : public CDASolver
  virtual std::array< double , 2 > get_problem_bounds(
 					     const ColVariable & var ) const;
 
+ /// restricts the bounds \p bd of the column of \p var to its value if fixed
+ static void fix_bounds( const ColVariable & var ,
+			 std::array< double , 2 > & bd ) {
+  if( var.is_fixed() ) {
+   bd[ 0 ] = std::max( bd[ 0 ] , double( var.get_value() ) );
+   bd[ 1 ] = std::min( bd[ 1 ] , double( var.get_value() ) );
+   }
+  }
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
- /// returns true if b is "mine" (f_Block or one of its descendants)
+ /// returns true if b belongs to the Block subtree loaded in this Solver
 
  bool is_mine( Block * b ) const {
-  while( b ) {
-   if( b == f_Block )
-    return( true );
-   b = b->get_f_Block();
-   }
-  return( false );
+  return( b && ( BFS_set.count( b ) > 0 ) );
   }
 
 /*--------------------------------------------------------------------------*/
  /// gets the active constraints for the specified variable
- // TODO: This should be temporary
  std::vector< FRowConstraint * > get_active_constraints(
 					     const ColVariable & var ) const;
 
  /// gets the active bounds for the specified variable
- // TODO: This should be temporary
  std::vector< OneVarConstraint * > get_active_bounds(
 					     const ColVariable & var ,
                bool first_scan = false ) const;
@@ -1371,8 +1445,190 @@ class MILPSolver : public CDASolver
  /// processes all the pending modifications
  void process_modifications( void );
 
+ /// whether a pending Modification makes the problem be loaded again whole
+ /** If this returns true, process_modifications() does not change the
+  * problem of the back-end Modification by Modification: as soon as one is
+  * pending, the whole problem is loaded again from the Block, as for an
+  * NBModification. This is for a back-end that is not reliable on a problem
+  * changed in place with the algorithm it has been asked to use. */
+
+ virtual bool reload_on_modification( void ) { return( false ); }
+
  /// process all not-GroupModification (bulk of the work)
  void guts_of_process_modifications( const p_Mod mod );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// executes a GroupModification whole, if the back-end knows how to
+ /** A GroupModification is a bunch of Modification that the :Block has
+  * declared to belong together, and some of these bunches are one single
+  * operation of the underlying solver rather than many: the obvious case is
+  * a whole column, which the "abstract" representation describes as one new
+  * Variable plus one coefficient change for each row the Variable appears
+  * in [see VariableGroupMod in Modification.h]. This method is asked whether
+  * \p gmod is one of those before the group is taken apart: if it answers
+  * true the group has been dealt with and nothing else is done with it, if
+  * it answers false the sub-Modification are dispatched one by one exactly
+  * as they are when they arrive alone.
+  *
+  * The implementation here recognises the shapes that the core describes and
+  * hands each of them to a method of its own [see add_columns(),
+  * remove_columns(), change_coefficients() and change_bounds()], which is
+  * what a :MILPSolver overrides to turn the operation into one call of its
+  * own API. Since those answer false unless
+  * overridden, a back-end that does nothing keeps exactly the behaviour it
+  * has today.
+  *
+  * @param gmod the GroupModification to be executed whole
+  * @return true if the group has been executed, false to take it apart */
+
+ virtual bool process_group_modification( const GroupModification * gmod );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// adds the whole column of each of the given Variable in one operation
+ /** Called when a VariableGroupMod says that \p vars have been added to the
+  * Block, with all the coefficient changes that the addition has caused
+  * inside the same group [see process_group_modification()]. The Variable
+  * are in the Block already, hence each of them knows the Function it is
+  * active in and each Function knows its coefficient: the column is
+  * therefore available without reading the sub-Modification at all.
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the column has to be built one Modification at a time
+  * as usual.
+  *
+  * @param vars the Variable whose columns are being added
+  * @return true if the columns have been added */
+
+ virtual bool add_columns( const std::vector< Variable * > & vars ,
+                           const GroupModification * gmod ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// reads the entries of a group that declares a column
+ /** Reads what a group of the column shape holds, without touching the
+  * model, so that a group which turns out not to be a plain column can
+  * still be handed back to the one-by-one path: the entries of the new
+  * columns come back as the three parallel vectors \p econs (the row an
+  * entry belongs to), \p evars (which of \p vars the entry belongs to) and
+  * \p evals (its value), and the cost of each of \p vars, summed over the
+  * Objective it appears in, comes back in \p cost.
+  *
+  * Returns false, leaving the four untouched, if the group is not a plain
+  * addition of whole columns: something other than a linear Function, a
+  * removal inside an addition, or an entry of a Variable that was there
+  * already, whose cost would have to be read back from the model.
+  *
+  * The entries are replayed from the group rather than read from the Block,
+  * which by the time a Modification is processed has moved on: this is what
+  * the handlers do one at a time [see constraint_fvars_modification() and
+  * objective_fvars_modification()]. */
+
+ bool read_column_group( const std::vector< Variable * > & vars ,
+                         const GroupModification * gmod ,
+                         std::vector< const FRowConstraint * > & econs ,
+                         std::vector< Index > & evars ,
+                         std::vector< double > & evals ,
+                         std::vector< double > & cost );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// removes the whole column of each of the given Variable in one operation
+ /** The counterpart of add_columns(): \p vars are being removed from the
+  * Block, and with them every coefficient they have in any row, which is
+  * what deleting the column does by itself. Note that the Variable are
+  * still in the data structures of the :MILPSolver when this is called, and
+  * they are still those of the model, so their indices are the right ones.
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the column has to be emptied one Modification at a
+  * time as usual.
+  *
+  * @param vars the Variable whose columns are being removed
+  * @return true if the columns have been removed */
+
+ virtual bool remove_columns( const std::vector< Variable * > & vars ,
+                              const GroupModification * gmod ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// changes the linear coefficients of \p mods in one operation
+ /** Called when a group contains nothing but changes of the linear
+  * coefficients of some Function, which is what a :Block issues when one
+  * datum of it enters many rows, or many entries of the same row: each of
+  * them is a Modification of its own, and the model has to be told all of
+  * them, but it can be told once [see process_group_modification()].
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the changes have to be made one at a time as usual.
+  *
+  * @param mods the changes, in the order they were issued
+  * @return true if the changes have been made */
+
+ virtual bool change_coefficients(
+                     const std::vector< const FunctionMod * > & mods ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// changes the bounds of \p mods in one operation
+ /** The counterpart of change_coefficients() for the bounds: a group of
+  * OneVarConstraintMod, which is what a :Block issues when it fixes or frees
+  * a whole set of Variable at once.
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the bounds have to be written one at a time as usual.
+  *
+  * @param mods the changes, in the order they were issued
+  * @return true if the bounds have been written */
+
+ virtual bool change_bounds(
+              const std::vector< const OneVarConstraintMod * > & mods ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// changes the sides of the rows of \p mods in one operation
+ /** The counterpart of change_bounds() for the rows: a group of
+  * RowConstraintMod, which is what a :Block issues when one datum of it is
+  * the right-hand side of a whole vector of Constraint, one per time
+  * instant.
+  *
+  * The implementation here does nothing and answers false, which is how a
+  * back-end says that the sides have to be written one at a time as usual.
+  *
+  * @param mods the changes, in the order they were issued
+  * @return true if the sides have been written */
+
+ /// changes the state of a whole set of Variable in one operation
+ /** Executes a batch of VariableMod, i.e., of changes of the state of a
+  * Variable, all of which the Solver has collected out of one
+  * GroupModification [see process_group_modification()]; returns true if
+  * it has done so, false if the batch has to be executed one Modification
+  * at a time, which is what the implementation in the base class does.
+  *
+  * What a back-end can do in one operation here is the fixing and the
+  * unfixing, which is a change of the bounds of the columns; a batch
+  * carrying a change of integrality is refused, that one being a call per
+  * column anyway. A column can be named several times in the same batch,
+  * e.g., a Variable fixed and unfixed again, and what it has to end up with
+  * is the state of the last of them, exactly as when the same changes are
+  * executed one at a time.
+  *
+  * A batch of these and a batch of changes of the bounds [see
+  * change_bounds()] are kept apart and executed in the order they were
+  * issued, both being about the same attribute of the model. */
+
+ virtual bool change_variables(
+                        const std::vector< const VariableMod * > & mods ) {
+  return( false );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ virtual bool change_sides(
+              const std::vector< const RowConstraintMod * > & mods ) {
+  return( false );
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// Checks if the given function is an objective function
@@ -1413,6 +1669,17 @@ class MILPSolver : public CDASolver
  /// handles a dynamic modification
  virtual void dynamic_modification( const BlockModAD * mod );
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// calls \p f on every addition of FRowConstraint inside \p mod
+ /** The rows that a Block generates may well arrive inside a
+  * GroupModification, which a scan of the first level alone does not see,
+  * and the rows would then silently disappear: this walks the group,
+  * however deep it is, and calls \p f on each BlockModAdd< FRowConstraint >
+  * in the order they were issued [see perform_separation()]. */
+
+ static void for_each_row_addition( const Modification * mod ,
+  const std::function< void( const BlockModAdd< FRowConstraint > * ) > & f );
+
  /// adds a single new dynamic constraint
  /** Notice that empty constraints, i.e., constraints with null function, are by
   * definition equals to zero, so as in some cases it might be useful to
@@ -1424,6 +1691,30 @@ class MILPSolver : public CDASolver
   * @param con a reference to a FRowConstraint
   */
  virtual void add_dynamic_constraint( const FRowConstraint * con );
+
+ /// batch-adds a sequence of new dynamic constraints
+ /** Default implementation simply loops over \p cons calling
+  * add_dynamic_constraint() once per row, which keeps every derived
+  * :MILPSolver functionally correct. Derived classes whose back-end
+  * exposes a multi-row insertion entry point (e.g. CPLEX
+  * CPXaddrows( ..., nrows, ... ), Gurobi GRBaddconstrs, HiGHS
+  * Highs_addRows) override this method to push the whole batch in a
+  * single API call, which avoids the per-row overhead of repeatedly
+  * touching the back-end's internal data structures when a
+  * BlockModAdd<FRowConstraint> arrives with many rows at once (the
+  * typical case for a PolyhedralFunctionModAddd retraduced by the
+  * owning PolyhedralFunctionBlock into a single batched
+  * add_dynamic_constraints(f_const, newc, ...)). The contract is the
+  * same as add_dynamic_constraint() applied row-by-row: the order in
+  * \p cons is preserved, every row gets the next free slot in numrows,
+  * and the dictionaries (dcon_to_idx / idx_to_dcon) are updated
+  * accordingly. */
+
+ virtual void add_dynamic_constraints(
+                       const std::vector< const FRowConstraint * > & cons ) {
+  for( auto * con : cons )
+   add_dynamic_constraint( con );
+  }
 
  /// adds a single new dynamic variable
  virtual void add_dynamic_variable( const ColVariable * var );
@@ -1440,130 +1731,6 @@ class MILPSolver : public CDASolver
  /// removes a single dynamic bound
  virtual void remove_dynamic_bound( const OneVarConstraint * con );
 
-/*--------------------------------------------------------------------------*/
-/*--------------- AUXILIARY METHODS FOR MULTI-ARRAY GROUP  -----------------*/
-/*--------------------------------------------------------------------------*/
-/** @name Multi-array methods
- *
- * These methods are used in load_problem() to read data from complex
- * multi_array<> structures.
- * Each method is templated with:
- *  1) T - the type of elements in the group, expected to be either
- *     ColVariable or FRowConstraint.
- *  2) K - the number of dimensions of the multi_array.
- *
- * NOTE: Currently, only 2D or 3D arrays are supported.
- * @{ */
-
- /** Scans a multi_array structure and returns its number of dimensions.
-  *
-  * This method attempts to cast a boost::any element to a boost::multi_array.
-  * It should be used as a recursive method, as it will try to cast an 
-  * increasing number of dimensions until the cast succeeds.
-  * If the cast succeeds, it returns the number of dimensions of the array.
-  * A default maximum of K = 9 dimensions is used when attempting the cast.
-  * 
-  * @param any the reference to the multi_array
-  * @param T the basic type of the multi_array
-  * @param K the number of dimensions of the multi array 
- */
-
- template< typename T , unsigned short K >
-  int get_multi_array_dim( const boost::any & any ,
-                           un_any_type< T > , un_any_int< K > ){
-  if( any.type() == typeid( boost::multi_array< T , K > * ) ||
-    any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
-   return K;
-  else
-   return( get_multi_array_dim( any , un_any_type< T >() ,
-                              un_any_int< K + 1 >() ) );
- }
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- template< typename T >
-  int get_multi_array_dim( const boost::any & any ,
-                          un_any_type< T > , un_any_int< 9 > ) {
-  return( -1 );
- }
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- /** Scans a multi_array structure and returns its type.
-  *
-  * This method attempts to cast a boost::any element to a boost::multi_array
-  * with fixed number of dimensions K.
-  * If the cast succeeds, it returns the type of the array.
-  * In SMS++ currently two different types of multi_array are available:
-  *
-  * - boost::multi_array< T > -> type 0
-  * - boost::multi_array< std::vector < T > > -> type 1
-  * 
-  * @param any the reference to the multi_array
-  * @param T the basic type of the multi_array
-  * @param K the number of dimensions of the multi array 
- */
- template< typename T , unsigned short K >
-  int get_multi_array_type( 
-                         const boost::any & any ,
-                         un_any_type< T > , 
-                         un_any_int< K > ){
-  if( any.type() == typeid( boost::multi_array< T , K > * ) )
-   return 0;
-  else if( any.type() == typeid( boost::multi_array< std::vector< T > , K > * ) )
-   return 1;
-  else
-   return( -1 );
- }
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
- /** These methods attempt to cast a multi_array with specific attributes.
- * If the cast is successful, they return a pointer to the resulting 
- * structure. 
- * 
- * @param any the reference to the multi_array
- * @param T the basic type of the multi_array
- * @param K the number of dimensions of the multi array */
-
- // Cast to a 2D multi_array of type 0
- template< typename T >
- boost::multi_array< T , 2 > * get_multi_array0( 
-                          const boost::any & any ,
-                          un_any_type< T > , un_any_int< 2 > ){
-  auto & var = * boost::any_cast< boost::multi_array< T , 2 > * >( any );
-   return &var;
- }
-
- // Cast to a 2D multi_array of type 1
- template< typename T >
- boost::multi_array< std::vector< T >, 2 > * get_multi_array1( 
-                          const boost::any & any ,
-                          un_any_type< T > , un_any_int< 2 > ){
-  auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 2 > * >
-    ( any );
-   return &var;
- }
-
- // Cast to a 3D multi_array of type 0
- template< typename T >
- boost::multi_array< T , 3 > * get_multi_array0( 
-                          const boost::any & any ,
-                          un_any_type< T > , un_any_int< 3 > ){
-  auto & var = * boost::any_cast< boost::multi_array< T , 3 > * >( any );
-   return &var;
- }
-
- // Cast to a 3D multi_array of type 1
- template< typename T >
- boost::multi_array< std::vector< T >, 3 > * get_multi_array1( 
-                          const boost::any & any ,
-                          un_any_type< T > , un_any_int< 3 > ){
-  auto & var = * boost::any_cast< boost::multi_array< std::vector< T > , 3 > * >
-    ( any );
-   return &var;
- }
-
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1577,23 +1744,11 @@ class MILPSolver : public CDASolver
  *
  * These methods are used in load_problem() to read data from the Block.
  * All of them, except scan_objective(), take integer counters as input
- * parameters. That's because they are meant to be used by
- * un_any_const_static() and un_any_const_dynamic() template functions
- * on boost::any containers, and the counters keep track of the elements
- * inside the containers.
+ * parameters. That's because they are meant to be used while walking the
+ * groups of the Block, and the counters keep track of the elements inside
+ * them.
  * @{ */
 
- /** Scans a static ColVariable and fills the dictionaries accordingly
-  *
-  * @param var a reference to a ColVariable
-  * @param n   an counter that should be 0 when var is the first
-  *            element of a vector of static ColVariables
-  * @param col a counter for variables/columns */
-
- void scan_static_variable( const ColVariable & var , Index & n ,
-			    Index & col );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a dynamic ColVariable and fills the dictionaries accordingly
   *
   * @param var a reference to a ColVariable
@@ -1602,26 +1757,9 @@ class MILPSolver : public CDASolver
  void scan_dynamic_variable( const ColVariable & var , Index & col );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// common part of scan_static_variable() and scan_dynamic_variable()
+ /// fills the dictionaries and the matrix with one ColVariable
 
  void scan_variable( const ColVariable & var , Index & col );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /** Scans a static FRowConstraint and fills the dictionaries accordingly.
-  *
-  * Notice that empty constraints, i.e., constraints with null function, are by
-  * definition equals to zero, so as in some cases it might be useful to
-  * handle them, if FRowConstraint::get_function() returns nullptr, then the
-  * constraint will be considered since, formally speaking, an empty
-  * constraint is linear since the identical function zero is.
-  *
-  * @param con a reference to a FRowConstraint
-  * @param n a counter that should be 0 when row is the first
-  *            element of a vector of linear static FRowConstraints
-  * @param row a counter for constraints/rows */
-
- void scan_static_constraint( const FRowConstraint & con , Index & n,
-			      Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a dynamic FRowConstraint and fills the dictionaries accordingly.
@@ -1638,7 +1776,7 @@ class MILPSolver : public CDASolver
  void scan_dynamic_constraint( const FRowConstraint & con , Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// common part of scan_static_constraint() and scan_dynamic_constraint()
+ /// fills the dictionaries and the matrix with one FRowConstraint
 
  void scan_constraint( const FRowConstraint & con , Index & row );
 

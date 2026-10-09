@@ -1,3 +1,10 @@
+# The CHANGELOG of the module, held to the format and, on a merge request, to
+# the commits of the branch [see ci/changelog.yml of the umbrella].
+include:
+  - project: smspp/smspp-project
+    ref: develop
+    file: /ci/changelog.yml
+
 default:
   image: registry.gitlab.com/smspp/smspp-project
 
@@ -22,6 +29,23 @@ build:
     # the ones the enabled modules need, and a revision the pull walks
     # through may pin a submodule commit no longer on its remote
     - if [ -d smspp-project ]; then (cd smspp-project && git pull --no-recurse-submodules && git submodule update --recursive); else git clone --branch develop git@gitlab.com:smspp/smspp-project.git; fi
+    # the cache keeps the submodules an earlier pipeline initialized, and the
+    # umbrella turns on by default every module whose submodule is there, and
+    # it keeps the build directory, whose CMakeCache.txt remembers the modules
+    # turned on then: dropping both leaves exactly the modules this line asks
+    # for, which CMake initializes again, the objects being kept all the same
+    - git -C smspp-project submodule foreach --quiet 'echo $sm_path' | xargs -r git -C smspp-project submodule deinit --quiet --force --
+    - rm -f smspp-project/build/CMakeCache.txt
+    # the module is built at the commit of this pipeline, not at the one the
+    # umbrella pins, which lags behind until the pin is moved: its submodule is
+    # initialized and moved to that commit before CMake, which then leaves it
+    - git -C smspp-project submodule update --init --quiet "$CI_PROJECT_TITLE"
+    - git -C "smspp-project/$CI_PROJECT_TITLE" fetch --quiet origin "$CI_COMMIT_SHA"
+    - git -C "smspp-project/$CI_PROJECT_TITLE" checkout --quiet "$CI_COMMIT_SHA"
+    # CMake initializes the nested submodules only of a submodule it
+    # initializes itself, so those of this one are brought here to the
+    # commit of this pipeline
+    - git -C "smspp-project/$CI_PROJECT_TITLE" submodule update --init --recursive --quiet
     - cmake -S smspp-project -B smspp-project/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MILPSolver=ON -DBUILD_tests=ON
     - cmake --build smspp-project/build --target install
   artifacts:
@@ -40,9 +64,10 @@ build:
       - CMakeLists.txt
       - .gitlab-ci.yml
 
-# the suite is 170 minutes against the 3h cap a job has on the GitLab.com
-# shared runners, and the quadratic objective over integer variables is 75 of
-# them, so it is split into two SEQUENTIAL stages of comparable weight. It
+# the suite is 180 minutes against the 3h cap a job has on the GitLab.com
+# shared runners, and the three quadratic batteries over integer variables
+# (batchCL_I, batchLC_I, batchQL_I) are 100 of them, so it is split into two
+# SEQUENTIAL stages of comparable weight. It
 # also makes the retry affordable: a session cap hit by one of the two
 # second-long tests then costs the lighter half, not the whole suite.
 .test_template:
@@ -78,13 +103,13 @@ test:
   extends: .test_template
   stage: test
   script:
-    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -E "quad_test/batches/batchQL_I" --test-dir smspp-project/build --no-tests=error
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -E "QuadFunction_test/batches/batch(CL|LC|QL)_I" --test-dir smspp-project/build --no-tests=error
 
 test-miqp:
   extends: .test_template
   stage: test-miqp
   script:
-    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -R "quad_test/batches/batchQL_I" --test-dir smspp-project/build --no-tests=error
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -R "QuadFunction_test/batches/batch(CL|LC|QL)_I" --test-dir smspp-project/build --no-tests=error
 
 deploy:
   stage: deploy

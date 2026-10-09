@@ -82,6 +82,8 @@
 
 #include "BlockSolverConfig.h"
 
+#include "test_common.h"
+
 #include "LinearFunction.h"
 
 #include "FRowConstraint.h"
@@ -401,7 +403,10 @@ static bool SolveBoth( void )
    if( - std::abs( ci ) < opt )
     opt = - std::abs( ci );
 
-  if( abs( fo - opt ) <= 1e-7 * max( double( 1 ) , abs( opt ) ) ) {
+  // the lazy constraints are satisfied up to the feasibility tolerance of
+  // the Solver, 1e-6 by default, hence so is the optimal value, which can
+  // be that much below the true one
+  if( abs( fo - opt ) <= 1e-6 * max( double( 1 ) , abs( opt ) ) ) {
    LOG1( "OK" << endl );
    return( true );
    }
@@ -489,10 +494,7 @@ int main( int argc , char **argv )
  
  auto bsc = dynamic_cast< BlockSolverConfig * >(
 		               Configuration::deserialize( "MILPPar.txt" ) );
- if( ! bsc ) {
-  cerr << "Error: configuration file not a BlockSolverConfig" << endl;
-  exit( 1 );    
-  }
+ keep_available_Solvers( bsc , "MILPPar.txt" , 1 );
 
  bsc->apply( & NCCB );
  bsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup

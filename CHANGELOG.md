@@ -7,11 +7,352 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-09
+
 ### Added
+
+- the tests of this directory carry the label of the module, so that the
+  pipeline, which selects with `ctest -L <module>`, runs them: they were built
+  and never run. The configurations they read name the four `:MILPSolver`
+  backends, each with the `ComputeConfig` that goes with it, and
+  `keep_available_Solvers()` of the new `test_common.h` keeps the first ones
+  this build has before the configuration is applied, so that the same file
+  works wherever it is run; a test needing more backends than there are gives
+  up with the 77 that `ctest` reads as "skipped" rather than failing, which is
+  what `test_dynamic`, which needs two of them, does on a machine with one
+
+- `test/test_farkas.cpp` and `test/test_groups.cpp`, i.e., the two testers
+  that used to live in the suite of this module in `tests/`: the first asks
+  for the certificate of an infeasible and of an unbounded model and checks
+  its sign and its scale, the second builds a model out of the groups of a
+  Block and changes it by groups, and neither of the two needs a Block of
+  another module to exist, so they belong here
+
+- `process_group_modification()`, which is asked whether a whole
+  GroupModification is one single operation of the back-end before the group
+  is taken apart: the shape it recognises is the column, declared by a
+  `VariableGroupMod`, and it is handed to `add_columns()` / `remove_columns()`,
+  virtual and answering false unless a back-end implements them, so that a
+  back-end that does not keeps exactly the behaviour it had. GRBMILPSolver
+  implements both: a batch of columns is one `GRBaddvar` each plus one
+  `GRBchgcoeffs` and one `GRBsetdblattrlist` for all of them, and removing a
+  column is one `GRBdelvars` with none of the coefficient changes, which the
+  deletion does by itself
+
+- `for_each_row_addition()`, which walks a Modification and the groups inside
+  it looking for additions of FRowConstraint
+
+- the shapes that a group need not declare, recognised from what it holds:
+  changes of the linear coefficients, of the bounds of the columns and of the
+  sides of the rows, each batched on its own and in the order they were
+  issued, with `change_coefficients()`, `change_bounds()` and
+  `change_sides()` to execute them (virtual, answering false unless a
+  back-end implements them, GRBMILPSolver implementing all three). Groups
+  nest, so the leaves of a group inside a group belong to the same batch,
+  while a structural change, or a group declaring a shape of its own, closes
+  the batch, is executed on its own and opens the next one
+
+- the same three shapes executed by CPXMILPSolver, with one `CPXchgcoeflist`
+  and one `CPXchgobj` for the coefficients, one `CPXchgbds` for the bounds
+  and one `CPXchgrhs` plus one `CPXchgsense` for the sides, and by
+  HiGHSMILPSolver, with the `*BySet` calls, whose sets have to be ordered and
+  without repetitions; `Highs_changeCoeff` has no batched form, so on HiGHS a
+  group of coefficients is executed one change at a time. SCIPMILPSolver
+  implements none of the three and keeps the behaviour it had
+
+- the column, i.e., `add_columns()` and `remove_columns()`, also on
+  CPXMILPSolver and HiGHSMILPSolver: what a group of the column shape holds
+  is read once and for all by `read_column_group()` in the base class, each
+  back-end writing it with the calls it has
+
+- the shape of a batch of fixings, i.e., of VariableMod, executed by
+  `change_variables()`: fixing a column is writing its two bounds, hence a
+  whole set of them is two calls on GUROBI, one on CPLEX and one on HiGHS.
+  A batch of fixings and one of changes of the bounds are executed in the
+  order they were issued, both being about the same attribute of the model,
+  and a batch carrying a change of integrality is refused
 
 ### Changed
 
+- a batch of changes of the sides that holds a row GUROBI keeps as a ranged
+  one is executed whole rather than refused: such a row is an equality whose
+  range lives in the upper bound of the auxiliary column standing for its
+  slack, and those are three lists like any other. Only the row that becomes
+  ranged for the first time goes on its own, a column having to be created
+  for it
+
+- a Modification that the Solver does not execute no longer closes the batch
+  of a group: a PolyhedralFunctionMod is one, the PolyhedralFunctionBlock
+  answering it with the equivalent changes of the abstract representation,
+  and closing the batch on it had the cascade of a whole bundle of cuts come
+  out one cut at a time
+
+- the coefficients of the Objective a change has to be read back from are
+  read in one call rather than one column at a time, which also brings the
+  model up to date once instead of once per column
+
+- GRBMILPSolver maps GRB_SUBOPTIMAL to kLowPrecision rather than to kOK,
+  since a solution that does not satisfy the optimality tolerances carries
+  no accuracy promise; the callers that read the status of a component,
+  BundleSolver among them, take it as inexact information
+
+- the Gurobi environment is one for the whole process, created by the first
+  GRBMILPSolver and released by the last one, since every environment is a
+  session of the license and one per Solver does not scale: a decomposition
+  with one component per Solver has the license service refuse the sessions
+  it asks for. What a Solver keeps to itself, i.e., the parameters, lives in
+  the environment of its own model, which is where `set_par()` writes them
+  and where they are read back from
+
+- the errors that have nothing to do with the model being solved, i.e., the
+  license service unreachable or refusing the request, are returned as
+  kError by GRBMILPSolver instead of being thrown, so that whoever asked
+  decides what to do with a computation that may have been running for hours
+
+- `grb_pars` probes by name the parameters that the enumeration of Gurobi
+  does not return, so that the table it writes carries them as well
+
+- the makefile asks for `-O3 -DNDEBUG` and nothing else, the macro of the
+  patch for `boost::any` on macOS having no reason to be there since there is
+  no `boost::any` left in the core
+
+- whoever links the module keeps it: the classes of a module register
+  themselves in the factory from a static initialiser, and a linker that
+  drops what looks unused takes the registration away with it, so the target
+  now tells whoever links it to keep the symbol that forces the module in,
+  and on ELF, where naming the symbol is not enough, the library as a whole
+
+- GRBMILPSolver says out loud which status stopped it when that status is a
+  failure of the run and not an answer about the model: an interrupt,
+  numerical difficulties it cannot recover from, an asynchronous run that is
+  not over and the work and memory limits all reached the caller as `kError`
+  and nothing else, so that a batch showed a failure indistinguishable from a
+  wrong answer, and from the refusal of the license below
+
+- GRBMILPSolver says out loud when the license service refuses the request:
+  the errors that have nothing to do with the model that was being solved
+  (`GRB_ERROR_NO_LICENSE`, `GRB_ERROR_NETWORK`, `GRB_ERROR_JOB_REJECTED`,
+  `GRB_ERROR_CSWORKER`, `GRB_ERROR_CLOUD` and `GRB_ERROR_SECURITY`) were
+  mapped to `kError` in silence, so that a batch running into one of them,
+  which is what happens when too many sessions of the same license are open
+  at the same moment, showed a failure indistinguishable from a wrong
+  answer; the status is unchanged, a line on `cerr` now names the reason
+
+- GRBMILPSolver asks again when the license service refuses an optimization,
+  as it already did for the start of the environment: the refusal comes in
+  the middle of a run, when the token of the session is renewed while the
+  license has as many sessions open on other machines as it allows, and a
+  single one made the Solver fail, and with it, e.g., a nested Lagrangian
+  dual 30 minutes into its run. `GRBoptimize()` is now attempted up to 16
+  times, the wait doubling up to 30 seconds (about 6 minutes in all), with a
+  line on `cerr` at the first refusal; after the last one the status is the
+  `kError` of before
+
 ### Fixed
+
+- a batch of fixings that names the same column more than once, e.g., a
+  ColVariable fixed and unfixed on the same channel, gave GRBMILPSolver and
+  CPXMILPSolver one entry per change in the same `GRBsetdblattrlist` /
+  `CPXchgbds`, neither of which says which entry wins, and on Gurobi the
+  column stayed fixed; each column is now sent once, with the last state of
+  the batch, as HiGHSMILPSolver already did and as the changes do one at a
+  time. The new `test/test_batch_fix.cpp` checks it on every registered
+  `:MILPSolver`
+
+- SCIPMILPSolver ignores a change of the bounds of a fixed ColVariable, as
+  the other back-ends do: it wrote the new bound over the fixing, so that a
+  Variable fixed and then given a new bound came back from SCIP with a value
+  other than the one it was fixed at
+
+- the documentation of `intThrowReducedCostException` in `MILPSolver.h` and
+  `GRBMILPSolver.h` gives its default as 1, which is what
+  `get_dflt_int_par()` returns, and says that a Solver to which no
+  `ComputeConfig` has been applied starts with 0
+
+- the reduced costs go to the bounds of the column they belong to also when
+  the model has dynamic columns: they were handed out walking the static and
+  dynamic Variable of each Block in turn, while the dynamic columns all come
+  after the static ones, so that each dynamic column of a Block shifted the
+  reduced costs of all the columns of the Block that follow, e.g., the duals
+  of the bounds of an easy component in the master problem of a bundle
+
+- the active set QP solver of HiGHS, which declares some convex QPs
+  non-convex and stalls on others (ERGO-Code/HiGHS#3322, fixed by #3325,
+  which no release of HiGHS has yet), is stopped by HiGHSMILPSolver after
+  an iteration limit (the largest of 10000 and 10 times the rows and columns
+  of the QP), unless the configuration sets one, and a QP that it has not
+  solved is solved again from scratch, which gets it out of a stall, and if
+  still not solved once more with the Hessian regularized by 1e-4; the QPs
+  solved at the first attempt are solved as before
+
+- `SCIPMILPSolver` keeps finite solutions only in the store of SCIP
+  (`misc/finitesolutionstore`, now 1 by default): the presolve could fix at
+  an infinite bound a free Variable that the deleted rows had left with no
+  constraint, and once rows on it were added back that stored solution,
+  whose rows have infinite activity, still passed the check and was taken
+  for the optimal one; `batch-dynamic` and `batch-dynamic-L` compared it
+  with Gurobi and failed in every pipeline
+
+- `test_cuts` compares the optimal value with a relative tolerance of 1e-6,
+  that of the feasibility of the lazy constraints in the Solver, instead of
+  1e-7: Gurobi closed `batch-cuts` 1.2e-7 below the optimum on the 2 vCPU
+  runners of the pipeline, a value within its tolerance that the test took
+  for a wrong one
+
+- the default and the current value of a string parameter of
+  `CPXMILPSolver` and `HiGHSMILPSolver`, and the name of a parameter of
+  `CPXMILPSolver`, were empty: the C library wrote them into a `std::string`
+  only reserved, whose length stayed 0, so that a non-differential
+  `ComputeConfig` set every string parameter it did not give to "", which
+  CPLEX refuses for `CPXPARAM_CPUmask` (error 3700, nothing solved) and HiGHS
+  for its enumerated options; `HiGHSMILPSolver` also wrote the current value
+  of the option past the end of an empty string
+
+- `HiGHSMILPSolver::get_dual_direction()` wrote the reduced costs, `numcols`
+  of them, where `Highs_getSolution()` puts the `numrows` row values, which
+  corrupted the heap when the rows are more than the columns, e.g., in the
+  subproblems of a `BendersDecompositionSolver`; the multipliers of the
+  columns are now those of the ray, `c - A' y`, or `- A' y` with
+  `intHomogeneousDirection`, as in `CPXMILPSolver`, rather than the reduced
+  costs of the current solution
+
+- a dynamic `ColVariable` added already fixed, such as the one of a hard
+  clause of `SATBlock::add_clauses()`, entered the problem with its bounds
+  rather than with its value, in all the four backends, so that the solution
+  could move it; `fix_bounds()` restricts the bounds of the new column to
+  the value, as the loading of the problem already did
+
+- `HiGHSMILPSolver::get_lb()` of a minimization, and `get_ub()` of a
+  maximization, stopped by the time or by the iterations: they gave the value
+  of the solution found so far, which is not a bound on the optimum, and a
+  cross-check took it for the optimum. A MIP gives now the dual bound of the
+  search (the information `mip_dual_bound` of HiGHS, which its C API exposes),
+  and an LP, which has no such bound when stopped, gives -INF (+INF)
+
+- `:HiGHSMILPSolver` loads the problem again whole, as for an
+  NBModification, whenever a Modification is pending and the algorithm is
+  the interior point (`solver ipm`): on a problem changed in place, HiGHS
+  1.15.1 can end in a segmentation fault when the crossover is imprecise and
+  the simplex cleans the solution up, which it does not on the same problem
+  loaded whole. `MILPSolver::reload_on_modification()` is the hook, false
+  for every other back-end
+
+- `GRBMILPSolver::has_dual_solution()` probes the reduced costs of a model
+  with no rows, which has no multiplier to probe: it used to ask Gurobi for
+  the first one, which fails, and answer that there is no dual solution
+
+- `:HiGHSMILPSolver` sizes the scheduler of threads of HiGHS per calling
+  thread, since that is how HiGHS keeps it: with a count shared by the whole
+  process, a thread whose scheduler had started with the default number of
+  threads could be asked to run with another one (e.g., the one of a master
+  with `intMaxThread` 1) while other threads were running, and HiGHS refused
+  the run with an error, which is what made the subproblems of a
+  `ParallelSDDPSolver` fail when all of them used HiGHS
+
+- `CPXMILPSolver::get_lb()` and `get_ub()` give a bound when CPLEX ends in
+  `kLowPrecision`, instead of an infinite one on both sides: on the side of
+  the value of a solution the value is given if CPLEX says the solution is
+  primal feasible, and on the side of the bound only for an LP whose basis
+  CPLEX says is both primal and dual feasible, hence optimal. A
+  `LagBFunction` whose inner Block is such an LP (e.g., in
+  `CPX_STAT_OPTIMAL_INFEAS`) gave the bundle two infinite bounds, and the
+  bundle stopped without cuts
+
+- `GRBMILPSolver::get_lb()` for a minimization problem, and `get_ub()` for a
+  maximization one, give no longer the value of a `GRB_SUBOPTIMAL` solution
+  of a continuous problem as the bound, which it is not: the bound is
+  infinite there, while the bound of the branch-and-bound of an integer
+  problem stays
+
+- on macOS a program linking the module lost the classes the module
+  registers in the factories when the linker dropped the library, as it
+  does under `-dead_strip_dylibs`, which conda sets: the target now asks the
+  linker for the symbol that forces the module in (`-u`), which ld64,
+  unlike the ELF linker, counts as a use of the library
+
+- the active set QP solver of HiGHS declared some convex QPs non-convex,
+  e.g., the master problem of the proximal BundleSolver, which then failed
+  at most iterations: whether it did depended only on the order of the
+  columns, the same model written in the order of a `.lp` file being solved.
+  `qp_regularization_value` now defaults to 1e-5 instead of the 1e-7 of
+  HiGHS, which solves them and moves the optimum by less than 1e-10; it only
+  acts on QPs, and a configuration can still set it
+
+- the two configurations of the testers of the duals asked for
+  `CPXPARAM_MIP_Tolerances_Integrality`, a parameter of CPLEX alone and an
+  integrality tolerance in a configuration for an LP: a build without CPLEX,
+  where the :MILPSolver that reads them is another one, died on the name.
+  It is commented out as the other parameters of CPLEX in the same files
+  already are
+
+- the testers that try each :MILPSolver in turn skipped the ones the build
+  does not have by constructing them, while `Solver::new_Solver()` throws
+  rather than returning `nullptr` on a name the factory does not hold, so
+  `test_dual`, `test_farkas` and `test_groups` died with `CPXMILPSolver not
+  present in Solver factory` wherever CPLEX is not installed; they ask
+  `Solver::has_Solver()` first, and the BlockSolverConfig read by `test_dual`,
+  which names one :MILPSolver, has a name the factory does not hold replaced
+  by the first one it does, saying which took its place
+
+- PIPSMILPSolver takes dynamic Constraint and Variable: the index of a static
+  one, an `int` whose absence is `Inf< int >()`, was compared with
+  `Inf< Index >()`, which is larger, so that every dynamic element was given
+  the row or column `Inf< int >()` and the callbacks threw; the Benders form
+  of `tssb_solver -k`, whose coupling is dynamic, is now solved, with the
+  here-and-now Variable in the first stage of PIPS-IPM++
+
+- the dual of a dynamic Constraint was the dual of some other row. The rows of
+  the model are numbered with the static ones of every Block first and the
+  dynamic ones after them, while the duals were written back by walking the
+  groups of each Block in turn with a running counter, so that a dynamic row
+  was handed the dual of a static one. The static rows are now written by that
+  counter alone and the dynamic ones through `idx_to_dcon`, the map kept in
+  the actual solver-row order, as `write_var_solution()` already did for the
+  dynamic columns with `idx_to_dvar`. A Benders decomposition, whose coupling
+  rows are dynamic Constraint of the Block that wraps a subproblem, read from
+  them the prices of unrelated rows and built cuts that were not valid, which
+  is how this came out; `test/test_dual.cpp` has the case
+
+- GRBMILPSolver set `InfUnbdInfo` on every model, so that a certificate of
+  infeasibility or of unboundedness was always there as it is in CPLEX; on
+  GUROBI 13.0 a model that the dual simplex solves with that parameter on is
+  answered "optimal" although it is unbounded, and the Solver returned a
+  finite value for a problem that has none (12.0 answers it correctly, with
+  every method). The status is now decided by a solve that leaves the
+  parameter alone, and a model that turns out to be infeasible or unbounded
+  is solved again with the parameter on, and with the primal simplex when it
+  is unbounded, which is the method the ray comes out of; a model that is
+  neither no longer gives up the reductions that parameter disables
+
+- a group of static Variable or Constraint made of several arrays, i.e., a
+  `std::vector` of `std::vector` or a `boost::multi_array` of `std::vector`,
+  was mapped to the rows and columns of the matrix as if it were one array,
+  from the address of its first element, and with more than one array the
+  back-end got a broken problem (CPLEX crashing, HiGHS refusing it): each run
+  of contiguous elements of a group is now mapped on its own
+
+- CPXMILPSolver passed an infinite side to CPLEX when a row changed so as to
+  have no bound at all (e.g., the lower bound of a `>=` row removed), and
+  CPLEX answered NaN; a side changed by a Modification, or of a dynamic row,
+  is now CPX_INFBOUND when infinite, as it already was when loading
+
+- the scan of `perform_separation()`, in all four back-ends, which looked for
+  the added rows only at the first level of the Modification list: a Block
+  generating its dynamic Constraint inside an open channel had them arrive
+  inside a GroupModification, where the scan did not see them, and the cuts
+  were silently lost
+
+- native PolyhedralFunction path in all four backends, with the helper
+  `scatter_lf_to_csr` factoring CSR scatter logic across them
+
+- batched `add_dynamic_constraints` taking a CSR matrix, with the
+  base loop falling back to the per-row single-constraint API
+
+- ignore-sub-Blocks filter promoted from this module to the
+  `Solver` base class API (`Solver::set_excluded_blocks` /
+  `is_excluded`), so the legacy `vstrMILPIgnSBlks` parameter has
+  been retired and any Solver can now be told to skip a subset of
+  the Block tree
 
 ## [0.9.1] - 2026-09-13
 
@@ -31,6 +372,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- relaxed-integer LP cut-separation loop (`intRelaxIntVars == 2`) is
+  now driven by the base `compute()`
+
 - the version of the module is the git tag of its repository, or the
   VERSION.txt of a release tarball, and the shared library carries it: its
   SONAME is major.minor while the major is 0, and it is installed with an
@@ -44,6 +388,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   crashes on a QCP model whose quadratic constraints have no linear part,
   since those are handed to CPLEX as they are and no auxiliary variable is
   built for them, leaving that vector empty
+
+- HiGHSMILPSolver: `lhs = rhs;` → `lhs = con_lhs;` in batched row
+  addition (`add_dynamic_constraints`), which previously set the LHS
+  to zero on equality rows
 
 - GRBMILPSolver::get_lb() returned minus infinity for a continuous problem
   that GUROBI solved without a branch-and-bound, OBJBOUND being undefined
@@ -108,7 +456,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - adapted to new CMake / makefile organisation
 
-- upcasted integer parameter intThrowReducedCostException to
+- promoted integer parameter intThrowReducedCostException to
   base class MILPSolver
 
 - MILPSolver::set\_par( double ) does nothing and it was not
@@ -119,7 +467,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new coefficients are obtained by adding modl->delta() to the
   old ones
 
-- improved query of variables bound in MILPSolver 
+- improved query of variables bound in MILPSolver
 
 ### Fixed
 
@@ -127,7 +475,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - set\_par( intMaxTime ) in GRBMILPSolver
 
-- writing of dual_values in the Block 
+- writing of dual_values in the Block
 
 - error in SCIPMILPSolver::get\_dual\_solution()
 
@@ -137,7 +485,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a Block is its own Objective plus the Objective of all the
   sub-Block, recursively" was *not at all* correctly implemented
   in *MILPSolver
-  
+
 - several minor ones
 
 ## [0.7.1] - 2024-02-01
@@ -149,13 +497,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for modifying a quadratic objective function in SCIP.
 
-
 ## [0.7.0] - 2023-08-01
 
 ### Added
 
 - HiGHS interface
-
 
 ## [0.6.0] - 2023-07-03
 
@@ -163,12 +509,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Gurobi interface
 
-
 ## [0.5.2] - 2023-05-17
 
 ### Added
 
 - Support for constant term in the objective function.
+
 - Support for all-important SCIP 8.0.3.
 
 ### Fixed
@@ -176,20 +522,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Destroy the problem before constructing a new one in
   load\_problem() (in SCIPMILPSolver and CPXMILPSolver).
 
-
 ## [0.5.1] - 2022-07-01
 
 ### Added
 
 - Support to SCIP 8.0.0 and Cplex 22.1.
+
 - Separation of user cuts and lazy constraints.
 
 ### Fixed
 
 - Invert the sign of the dual solution in CPXMILPSolver to follow the
   RowConstraint conventions.
+
 - Scan of ColVariable in CPXMILPSolver.
+
 - Blunder in bound changes in CPXMILPSolver.
+
 - Callback for Cplex versions prior to 12.10.
 
 ## [0.5.0] - 2021-12-08
@@ -210,7 +559,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Variable type change handling.
 
-
 ## [0.4.0] - 2021-05-02
 
 ### Added
@@ -225,13 +573,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Too many individual fixes to list.
 
-
 ## [0.3.0] - 2020-09-16
 
 ### Added
 
 - Support for concurrency.
-
 
 ## [0.2.0] - 2020-03-06
 
@@ -243,13 +589,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Minor bugs.
 
-
 ## [0.1.1] - 2020-02-10
 
 ### Fixed
 
 - Minor fix in makefile support.
-
 
 ## [0.1.0] - 2020-01-30
 
@@ -257,17 +601,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.10.0...develop
+[0.10.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.1...0.10.0
+[0.9.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...0.9.1
 [0.9.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.8.0...0.9.0
-[0.8.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.7.1...0.8.0
-[0.7.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.7.0...0.7.1
-[0.7.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.6.0...0.7.0
+[0.8.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.6.0...0.8.0
 [0.6.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.2...0.6.0
 [0.5.2]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.1...0.5.2
 [0.5.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.5.0...0.5.1
 [0.5.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.4.0...0.5.0
 [0.4.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.3.0...0.4.0
 [0.3.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.2.0...0.3.0
-[0.2.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.1.0...0.2.0
+[0.2.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.1.1...0.2.0
 [0.1.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.1.0...0.1.1
 [0.1.0]: https://gitlab.com/smspp/milpsolver/-/tags/0.1.0

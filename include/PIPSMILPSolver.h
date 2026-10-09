@@ -253,6 +253,18 @@ class PIPSMILPSolver : public MILPSolver
   * - intLogVerb is mapped into "SILENT" (with inverted value, since the
   *   PIPS option has the opposite meaning).
   *
+  * intMaxThread is stored locally as a total OpenMP thread budget across
+  * MPI_COMM_WORLD. A positive value sets OMP_NUM_THREADS and the OpenMP
+  * runtime to floor(intMaxThread / number_of_MPI_processes) before loading
+  * the PIPS model and before each solve. The default, 0, and positive
+  * budgets smaller than the process count leave the current environment
+  * and runtime settings unchanged (they do not undo an earlier positive
+  * setting). Negative values are rejected. All ranks must use the same budget. This sets the
+  * requested OpenMP team size; runtime limits can reduce the actual size.
+  * It does not change the number of MPI processes or control non-OpenMP
+  * thread pools. The environment is process-global and must not be changed
+  * concurrently by different Solver instances.
+  *
   * Any other parameter is handled by the base class; in particular,
   * parameters that have no PIPS counterpart (say, dblUpCutOff and
   * dblLwCutOff) are silently ignored. */
@@ -375,6 +387,11 @@ class PIPSMILPSolver : public MILPSolver
   * processing and the LP cut-separation loop (intRelaxIntVars == 2) are
   * all handled by MILPSolver::compute(). */
  int guts_of_compute( void ) override;
+
+ /// applies the total thread budget to this rank after MPI initialization
+ void apply_thread_budget( void ) const;
+
+ int max_threads = 0;  ///< total OpenMP thread budget across MPI_COMM_WORLD
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR MODIFYING THE PROBLEM --------------------*/
@@ -516,20 +533,13 @@ class PIPSMILPSolver : public MILPSolver
  Index collect_subtree( Block * block , std::vector< Block * > & subtree ,
 			Index parent_leaf );
 
- /// scans a group of Variable / Constraint, dispatching to the right scan
- template< typename T >
- void scan_group( const boost::any & gr , Block * qb , Index num_node ,
-		  un_any_type< T > );
+ /// scans a static group of FRowConstraint or ColVariable
+ /** Visits the elements of the group in storage order, whatever the shape of
+  * the group, assigning each of them to \p num_node. */
 
- /// scans a simple (non multi-array) group of Variable / Constraint
  template< typename T >
- void scan_simple_group( const boost::any & gr , Block * qb ,
-			 Index num_node , un_any_type< T > );
-
- /// scans a multi-array group of Variable / Constraint
- template< typename T >
- void scan_multiarray_group( const boost::any & gr , Block * qb ,
-			     Index num_node , un_any_type< T > );
+ void scan_group( const BaseGroup & group , Block * qb ,
+                  Index num_node );
 
  /// classifies one constraint as node-local or global-linking
  void scan_constraint( const FRowConstraint & con , Index num_node );

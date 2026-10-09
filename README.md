@@ -2,7 +2,7 @@
 
 A generic MILP Solver meta-interface for SMS++, with modules for interfacing
 with some actual solvers. Supports `LinearFunction`, `DQuadFunction` (diagonal
-quadratic) and `QuadFunction` (general quadratic, both the last cases not
+quadratic) and `QuadFunction` (general quadratic, the last two cases not
 necessarily convex) both in the `FRealObjective` and in the `FRowConstraint`,
 so it is actually an interface for MI-QCQP in its full generality.
 
@@ -20,7 +20,7 @@ i.e.:
 
 - all inner `Function` in the `FRealObjective` and `FRowConstraint` are
   `LinearFunction` or `DQuadFunction` (diagonal quadratic) or `QuadFunction`
-  (general quadratic, both the last cases not necessarily convex)
+  (general quadratic, the last two cases not necessarily convex)
 
 However, `MILPSolver` only reads the abstract representation and prepares
 data structures representing the classic (sparse) coefficient matrix of
@@ -58,25 +58,33 @@ Currently available derived classes are:
   only, Linux only; see also its
   [website](https://pips-ipmpp.gitlab.io/index.html))
 
-Basically all current versions of the underlying solvers should be supported
-due to a mechanism that automatically generates *\_defs.h and *\_maps.h files
-for the version found in the system either when installing with cmake or when
-compiling with make (see below for details). However, older versions may fail
-due to changes in the interface. Should this happen, just upgrade to newer
-versions.
+Recent versions of every underlying solver are supported via a mechanism
+that auto-generates the `*_defs.h` and `*_maps.h` files for the version
+found on the system, both with CMake and with the makefiles (see below
+for details). Older versions may fail if the upstream API changed: should
+that happen, please upgrade.
 
 
 ## Getting started
 
 These instructions will let you build MILPSolver on your system.
 
-The module also comes ready-made: `sudo apt install libsmspp-milp-dev` from the
-[PPA of the project](https://launchpad.net/~smspp/+archive/ubuntu/ppa), and
-`vcpkg install "smspp[core,milp]"` from the [SMS++ vcpkg
-registry](https://gitlab.com/smspp/vcpkg-registry); `conda install -c
-conda-forge smspp-project` and `brew install smspp`, from the [tap of the
-project](https://github.com/SMSpp-Project/homebrew-smspp), carry the whole
-framework. What follows is about building it yourself.
+The module also comes ready-made, in any of
+
+```sh
+sudo add-apt-repository ppa:smspp-project/smspp   # Ubuntu
+sudo apt install libsmspp-milp-dev
+
+conda install -c conda-forge smspp-project        # Linux, macOS, Windows
+
+brew tap SMSpp-Project/smspp                      # macOS, Linux
+brew install smspp
+
+vcpkg install "smspp[core,milp]"                  # from the sources
+```
+
+where apt and the port give the module alone, while conda and the tap carry
+the whole framework. What follows is about building it yourself.
 
 ### Requirements
 
@@ -129,6 +137,9 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_GUROBI`  | Use GUROBI     | ON            |
 | `MILPSolver_USE_HiGHS`   | Use HiGHS      | ON            |
 | `MILPSolver_USE_PIPS`    | Use PIPS-IPM++ | ON            |
+
+At least one of the four backends must be enabled at build time for the
+library to be able to actually solve problems.
 
 Optionally, install the library in the system with:
 
@@ -213,6 +224,22 @@ for someone willing to write other `:MILPSolver`:
   against an old and hopefully reliable one
 
 
+## Known issues
+
+The active set QP solver of HiGHS (up to 1.15.1 at least) may declare
+non-convex a convex QP, depending on the order of its columns, or stall on
+it ([ERGO-Code/HiGHS#3322](https://github.com/ERGO-Code/HiGHS/issues/3322),
+fixed by [#3325](https://github.com/ERGO-Code/HiGHS/pull/3325), which no
+release of HiGHS contains yet). `HiGHSMILPSolver` works around it for
+continuous QPs: the Hessian is regularized by 1e-5 instead of the 1e-7 of
+HiGHS, the active set is stopped after an iteration limit, and a QP that it
+has not solved is solved again from scratch and, if needed, once more with
+the Hessian regularized by 1e-4. The QPs that HiGHS solves at the first
+attempt are not affected; all the details are in the documentation of
+`HiGHSMILPSolver`, and the workaround will be removed once a release of HiGHS
+with the fix has been checked.
+
+
 ## Getting help
 
 If you need support, you want to submit bugs or propose a new feature, you can
@@ -234,6 +261,10 @@ conduct, and the process for submitting merge requests to us.
   Universita' di Pisa
 
 - **Antonio Frangioni**  
+  Dipartimento di Informatica  
+  Università di Pisa
+
+- **Donato Meoli**  
   Dipartimento di Informatica  
   Università di Pisa
 
@@ -270,6 +301,6 @@ any way officially connected with IBM or Gurobi, or any of their subsidiaries
 or affiliates. The names IBM, ILOG, CPLEX and Gurobi as well as related
 names, marks, emblems and images are registered trademarks of their
 respective owners. The authors also do not claim any affiliation with the
-open-source projects developing SCIP and HiHGS: any fault in the code
-interfacing SMS++ with those is all and enturely ours.
+open-source projects developing SCIP and HiGHS: any fault in the code
+interfacing SMS++ with those is all and entirely ours.
 

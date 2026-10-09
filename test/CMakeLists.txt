@@ -10,14 +10,11 @@
 #                             Universita' di Pisa                             #
 # --------------------------------------------------------------------------- #
 
-# Since we are using the block factory, objects from linked libraries
-# may wrongly appear unused, and by default the linker does not include them,
-# so we have to force the linking.
-if (BUILD_SHARED_LIBS)
-    if (UNIX AND (NOT APPLE))
-        add_link_options("-Wl,--no-as-needed")
-    endif ()
-else ()
+# The classes of the modules register themselves in the factories from
+# static objects, which nothing here names: a shared library is kept by
+# what its module asks of the linker [see the CMakeLists.txt of the
+# module], while an archive has to be taken whole.
+if (NOT BUILD_SHARED_LIBS)
     if (MSVC)
         add_link_options("/WHOLEARCHIVE" "/FORCE:MULTIPLE")
     else () # Unix
@@ -70,6 +67,13 @@ endfunction()
 add_milp_test(test_cuts test_cuts.cpp)
 add_batch_test(test_cuts batch-cuts)
 
+# ----- test_batch_fix ------------------------------------------------------ #
+
+add_milp_test(test_batch_fix test_batch_fix.cpp)
+add_test(NAME test_batch_fix
+         COMMAND test_batch_fix
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dual ----------------------------------------------------------- #
 
 add_milp_test(test_dual test_dual.cpp)
@@ -77,10 +81,53 @@ add_test(NAME test_dual
          COMMAND test_dual
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_quad_modify ---------------------------------------------------- #
+
+add_milp_test(test_quad_modify test_quad_modify.cpp)
+add_test(NAME test_quad_modify
+         COMMAND test_quad_modify
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_farkas --------------------------------------------------------- #
+
+add_milp_test(test_farkas test_farkas.cpp)
+add_test(NAME test_farkas
+         COMMAND test_farkas
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_groups --------------------------------------------------------- #
+
+add_milp_test(test_groups test_groups.cpp)
+add_test(NAME test_groups
+         COMMAND test_groups
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_reduced_costs -------------------------------------------------- #
+
+add_milp_test(test_reduced_costs test_reduced_costs.cpp)
+add_test(NAME test_reduced_costs
+         COMMAND test_reduced_costs
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)
 add_batch_test(test_dynamic batch-dynamic)
 add_batch_test(test_dynamic batch-dynamic-L)
+
+# ----- labels and the status of a test that has nothing to do -------------- #
+
+# The label lets the module CI select exactly the tests exercising this module
+# with `ctest -L <module>` (see tests/cmake/TestLabels.cmake in the umbrella
+# for the system-tests counterpart): without it these tests are built and
+# never run.
+#
+# A test whose configuration names more :MILPSolver than this build has gives
+# up with 77 rather than failing [see keep_available_Solvers() of
+# test_common.h], which is what a machine without CPLEX does to test_dynamic,
+# and ctest reads that status as "skipped".
+get_property(_tests DIRECTORY PROPERTY TESTS)
+set_tests_properties(${_tests} PROPERTIES LABELS "${modName}"
+                                          SKIP_RETURN_CODE 77)
 
 # --------------------------------------------------------------------------- #
