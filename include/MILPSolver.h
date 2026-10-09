@@ -870,7 +870,7 @@ class MILPSolver : public CDASolver
   /** Set the "int" parameters specific of MILPSolver, together with the
   * parameters of MILPSolver that various solver actually "listens to":
   *
-  * - intThrowReducedCostException [0]: it indicates whether an exception must
+  * - intThrowReducedCostException [1]: it indicates whether an exception must
   *                                     be thrown if there is an inconsistency
   *   when a reduced cost is being stored during a call to get_dual_solution()
   *   or get_dual_direction(). The reduced cost of a Variable is stored in at
@@ -888,7 +888,11 @@ class MILPSolver : public CDASolver
   *
   *   2) The Variable is not fixed, it has a finite nonzero lower or upper
   *      bound and there is no OneVarConstraint on that Variable whose lower
-  *      or upper bound match the bounds of the Variable. */
+  *      or upper bound match the bounds of the Variable.
+  *
+  *   The default 1 is what get_dflt_int_par() returns, i.e., the value that
+  *   a ComputeConfig not giving the parameter sets; a Solver to which no
+  *   ComputeConfig has been applied starts with 0. */
  void set_par( idx_type par , int value ) override;
 
  /// sets a double parameter with the given value

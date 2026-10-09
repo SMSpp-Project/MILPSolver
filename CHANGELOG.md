@@ -127,6 +127,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Variable fixed and then given a new bound came back from SCIP with a value
   other than the one it was fixed at
 
+- the documentation of `intThrowReducedCostException` in `MILPSolver.h` and
+  `GRBMILPSolver.h` gives its default as 1, which is what
+  `get_dflt_int_par()` returns, and says that a Solver to which no
+  `ComputeConfig` has been applied starts with 0
+
 - the reduced costs go to the bounds of the column they belong to also when
   the model has dynamic columns: they were handed out walking the static and
   dynamic Variable of each Block in turn, while the dynamic columns all come
