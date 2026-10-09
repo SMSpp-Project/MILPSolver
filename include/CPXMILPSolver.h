@@ -619,7 +619,8 @@ class CPXMILPSolver : public MILPSolver {
  /** One CPXchgbds() for all of them [see MILPSolver::change_bounds()]. */
 
  /// One CPXchgbds() for the whole set of fixings
- /** Fixing a column is writing its two bounds; a batch carrying a
+ /** Fixing a column is writing its two bounds, each column being named
+   * once with the last state the batch gives it; a batch carrying a
    * change of integrality is refused [see
    * MILPSolver::change_variables()]. */
 

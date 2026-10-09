@@ -2272,9 +2272,10 @@ bool CPXMILPSolver::change_variables(
       ColVariable::is_integer( mod->new_state() ) )
    return( false );
 
- std::vector< int > idxs;
- std::vector< char > lu;
- std::vector< double > bds;
+ // a column named twice keeps the last state, exactly as it does when the
+ // Modification arrive one by one: CPXchgbds() is not told which of two
+ // entries with the same index wins, hence it gets only one
+ std::map< int , std::array< double , 2 > > bnds;
 
  for( auto mod : mods ) {
   // the bookkeeping of the base class is the same it does one by one
@@ -2289,22 +2290,31 @@ bool CPXMILPSolver::change_variables(
   if( vi == Inf< int >() )  // the Variable is not (yet) there
    continue;
 
-  std::array< double , 2 > bd;
   if( Variable::is_fixed( mod->new_state() ) )  // fix it at its value
-   bd = { var->get_value() , var->get_value() };
+   bnds[ vi ] = { var->get_value() , var->get_value() };
   else                                          // give its bounds back
-   bd = CPXMILPSolver::get_problem_bounds( *var );
-
-  idxs.push_back( vi );
-  lu.push_back( 'L' );
-  bds.push_back( bd[ 0 ] );
-  idxs.push_back( vi );
-  lu.push_back( 'U' );
-  bds.push_back( bd[ 1 ] );
+   bnds[ vi ] = CPXMILPSolver::get_problem_bounds( *var );
   }
 
- if( ! idxs.empty() )
-  CPXchgbds( env , lp , idxs.size() , idxs.data() , lu.data() , bds.data() );
+ if( bnds.empty() )
+  return( true );
+
+ std::vector< int > idxs;
+ std::vector< char > lu;
+ std::vector< double > bds;
+ idxs.reserve( 2 * bnds.size() );
+ lu.reserve( 2 * bnds.size() );
+ bds.reserve( 2 * bnds.size() );
+ for( const auto & el : bnds ) {
+  idxs.push_back( el.first );
+  lu.push_back( 'L' );
+  bds.push_back( el.second[ 0 ] );
+  idxs.push_back( el.first );
+  lu.push_back( 'U' );
+  bds.push_back( el.second[ 1 ] );
+  }
+
+ CPXchgbds( env , lp , idxs.size() , idxs.data() , lu.data() , bds.data() );
 
  return( true );
 

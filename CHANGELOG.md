@@ -113,6 +113,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- a batch of fixings that names the same column more than once, e.g., a
+  ColVariable fixed and unfixed on the same channel, gave GRBMILPSolver and
+  CPXMILPSolver one entry per change in the same `GRBsetdblattrlist` /
+  `CPXchgbds`, neither of which says which entry wins, and on Gurobi the
+  column stayed fixed; each column is now sent once, with the last state of
+  the batch, as HiGHSMILPSolver already did and as the changes do one at a
+  time. The new `test/test_batch_fix.cpp` checks it on every registered
+  `:MILPSolver`
+
 - the reduced costs go to the bounds of the column they belong to also when
   the model has dynamic columns: they were handed out walking the static and
   dynamic Variable of each Block in turn, while the dynamic columns all come

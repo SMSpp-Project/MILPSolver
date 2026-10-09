@@ -67,6 +67,13 @@ endfunction()
 add_milp_test(test_cuts test_cuts.cpp)
 add_batch_test(test_cuts batch-cuts)
 
+# ----- test_batch_fix ------------------------------------------------------ #
+
+add_milp_test(test_batch_fix test_batch_fix.cpp)
+add_test(NAME test_batch_fix
+         COMMAND test_batch_fix
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dual ----------------------------------------------------------- #
 
 add_milp_test(test_dual test_dual.cpp)

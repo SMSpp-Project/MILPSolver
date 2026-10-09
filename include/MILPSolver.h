@@ -1606,7 +1606,10 @@ class MILPSolver : public CDASolver
   * What a back-end can do in one operation here is the fixing and the
   * unfixing, which is a change of the bounds of the columns; a batch
   * carrying a change of integrality is refused, that one being a call per
-  * column anyway.
+  * column anyway. A column can be named several times in the same batch,
+  * e.g., a Variable fixed and unfixed again, and what it has to end up with
+  * is the state of the last of them, exactly as when the same changes are
+  * executed one at a time.
   *
   * A batch of these and a batch of changes of the bounds [see
   * change_bounds()] are kept apart and executed in the order they were

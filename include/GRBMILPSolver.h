@@ -663,7 +663,8 @@ void add_mip_starts(
 
  /// one GRBsetdblattrlist() per bound for a whole set of fixings
  /** Fixing a column is writing its two bounds, hence a batch of them is two
-   * calls; a batch carrying a change of integrality is refused [see
+   * calls, each naming a column once with the last state the batch gives
+   * it; a batch carrying a change of integrality is refused [see
    * MILPSolver::change_variables()]. */
 
  bool change_variables(
