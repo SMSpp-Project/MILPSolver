@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-09
+
 ### Added
 
 - the tests of this directory carry the label of the module, so that the
@@ -599,7 +601,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.1...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.10.0...develop
+[0.10.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.1...0.10.0
 [0.9.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...0.9.1
 [0.9.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.8.0...0.9.0
 [0.8.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.6.0...0.8.0
