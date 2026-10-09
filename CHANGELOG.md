@@ -122,6 +122,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   time. The new `test/test_batch_fix.cpp` checks it on every registered
   `:MILPSolver`
 
+- SCIPMILPSolver ignores a change of the bounds of a fixed ColVariable, as
+  the other back-ends do: it wrote the new bound over the fixing, so that a
+  Variable fixed and then given a new bound came back from SCIP with a value
+  other than the one it was fixed at
+
 - the reduced costs go to the bounds of the column they belong to also when
   the model has dynamic columns: they were handed out walking the static and
   dynamic Variable of each Block in turn, while the dynamic columns all come

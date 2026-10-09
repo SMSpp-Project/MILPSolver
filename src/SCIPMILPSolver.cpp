@@ -914,6 +914,12 @@ void SCIPMILPSolver::bound_modification( const OneVarConstraintMod * mod )
  if( ! var )  // this should never happen
   return;     // but in case, there is nothing to do
 
+ // a fixed Variable has its bounds used to fix it [see var_modification()],
+ // hence a change of the bounds is ignored, the fixed value winning until
+ // the Variable is unfixed, which gives it back the bounds of that moment
+ if( var->is_fixed() )
+  return;
+
  auto idx = index_of_variable( var );
  if( idx == Inf< int >() )  // the ColVariable has been removed
   return;                   // is strange, but there is nothing to do
