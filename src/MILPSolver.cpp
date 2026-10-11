@@ -1198,7 +1198,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
       // Retrieve sparse quadratic matrix
       auto local_qmatrix = qf->get_matrix();
-      std::map< mat_indices , float > global_qmatrix;
+      std::map< mat_indices , double > global_qmatrix;
       //Qmat global_qmatrix;
       //global_qmatrix.reserve(5);
       //std::vector<Eigen::Triplet<Coefficient>> vv_nd( local_qmatrix.nonZeros() );
@@ -1264,7 +1264,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
        * into the global one of the model. */
 
       // In this case we can simply insert the non-zero diagonal element
-      std::map< mat_indices , float > global_qmatrix;
+      std::map< mat_indices , double > global_qmatrix;
       //Qmat global_qmatrix;
       //std::vector<Eigen::Triplet<Coefficient>> vv_nd;
 

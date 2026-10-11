@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- the coefficients of the quadratic part of a constraint were stored as
+  `float` between the scan of the Block and the loading into the backend,
+  so that each of them reached the solver rounded to some 7 significant
+  digits (those of the envelope of the cosine of `ACNetworkBlock`, for
+  instance); they are now kept as `double`, as all the other coefficients
+  of the model
+
 ## [0.10.0] - 2026-10-09
 
 ### Added
