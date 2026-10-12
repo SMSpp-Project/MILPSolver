@@ -32,10 +32,12 @@ Three testers for the `MILPSolver` module, each registered as a separate
   Block that comes before the static ones, every registered `:MILPSolver`
   solving a small LP whose duals are known.
 
-- `test_stopped_bounds` verifies that `GRBMILPSolver` stopped by its time
-  limit on a continuous problem gives the infinite bound on the side of the
-  optimum it has not proved, and not a large finite number, and that it
-  gives the optimal value as both bounds once it solves the problem.
+- `test_stopped_bounds` verifies that each `:MILPSolver` of the build,
+  stopped by its time limit on a continuous problem, gives on the side of
+  the optimum it has not proved an infinite or a valid bound, and not zero
+  or a large finite number, and that once the time limit is lifted on the
+  same Solver it solves the problem, with the optimal value as both
+  bounds.
 
 Run a tester directly (for instance `./test_dynamic seed [...]`, pass no
 argument to see its usage), or run a batch over a set of sizes and seeds.

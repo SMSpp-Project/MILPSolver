@@ -30,6 +30,7 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <algorithm>
 #include <functional>
 #include <cstdio>
 #include <cmath>
@@ -496,6 +497,20 @@ int SCIPMILPSolver::guts_of_compute( void )
 
 /*--------------------------------------------------------------------------*/
 
+// a bound of SCIP plus the constant c, SCIP's infinity (a finite number,
+// which a caller would take for a bound) being the infinite one
+
+static Solver::OFValue scip_bound( SCIP * scip , double b , double c )
+{
+ if( SCIPisInfinity( scip , b ) )
+  return( Inf< Solver::OFValue >() );
+ if( SCIPisInfinity( scip , - b ) )
+  return( - Inf< Solver::OFValue >() );
+ return( b + c );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 Solver::OFValue SCIPMILPSolver::get_lb( void )
 {
  OFValue lower_bound = constant_value;
@@ -505,14 +520,18 @@ Solver::OFValue SCIPMILPSolver::get_lb( void )
    switch( sol_status ) {
     case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
-    default:             lower_bound += SCIPgetDualbound( scip );
+    default:
+     lower_bound = scip_bound( scip , SCIPgetDualbound( scip ) ,
+                               lower_bound );
     }
    break;
   case( SCIP_OBJSENSE_MAXIMIZE ):
    switch( sol_status ) {
     case( kUnbounded ):  lower_bound = Inf< OFValue >();  break;
     case( kInfeasible ): lower_bound = -Inf< OFValue >(); break;
-    default:             lower_bound += SCIPgetPrimalbound( scip );
+    default:
+     lower_bound = scip_bound( scip , SCIPgetPrimalbound( scip ) ,
+                               lower_bound );
     }
    break;
   default:
@@ -534,7 +553,9 @@ Solver::OFValue SCIPMILPSolver::get_ub( void )
    switch( sol_status ) {
     case( kUnbounded ):  upper_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): upper_bound = Inf< OFValue >();  break;
-    default:             upper_bound += SCIPgetPrimalbound( scip );
+    default:
+     upper_bound = scip_bound( scip , SCIPgetPrimalbound( scip ) ,
+                               upper_bound );
     }
    break;
 
@@ -542,7 +563,9 @@ Solver::OFValue SCIPMILPSolver::get_ub( void )
    switch( sol_status ) {
     case( kUnbounded ):  upper_bound = Inf< OFValue >();  break;
     case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
-    default:             upper_bound += SCIPgetDualbound( scip );
+    default:
+     upper_bound = scip_bound( scip , SCIPgetDualbound( scip ) ,
+                               upper_bound );
     }
    break;
 
@@ -2255,9 +2278,16 @@ void SCIPMILPSolver::set_par( idx_type par , double value )
 {
  // Solver parameters explicitly mapped in SCIP
  switch( par ) {
-  case( dblMaxTime ):
-   SCIP_CALL_ABORT( SCIPsetRealParam( scip , "limits/time" , value ) );
+  case( dblMaxTime ): {
+   // a time limit out of the range of the parameter (an infinite or a
+   // negative one) is taken as the nearest end of the range, which SCIP
+   // would refuse, aborting
+   auto p = SCIPgetParam( scip , "limits/time" );
+   SCIP_CALL_ABORT( SCIPsetRealParam( scip , "limits/time" ,
+                     std::clamp( value , SCIPparamGetRealMin( p ) ,
+                                 SCIPparamGetRealMax( p ) ) ) );
    return;
+   }
   case( dblRelAcc ):
    SCIP_CALL_ABORT( SCIPsetRealParam( scip , "numerics/feastol" , value ) );
    SCIP_CALL_ABORT( SCIPsetRealParam( scip , "numerics/dualfeastol" , value ) );

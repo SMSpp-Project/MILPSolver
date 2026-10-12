@@ -55,6 +55,7 @@
 
 #include <cstring>
 #include <map>
+#include <algorithm>
 #include <queue>
 
 #include <LinearFunction.h>
@@ -1157,13 +1158,29 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       case( CPXPROB_FIXEDMILP ):
       case( CPXPROB_FIXEDMIQP ):
       case( CPXPROB_MIQCP ):
-       CPXgetbestobjval( env , lp , & lower_bound );
+       // a search stopped before it has any bound has CPLEX's infinity
+       if( CPXgetbestobjval( env , lp , & lower_bound ) ||
+           ( std::abs( lower_bound ) >= CPX_INFBOUND ) ) {
+        lower_bound = -Inf< OFValue >();
+        break;
+        }
        lower_bound += constant_value;
        break;
       default:
-       // For a continuous LP/QP at optimality the dual objective coincides
+       // for a continuous LP/QP at optimality the dual objective coincides
        // with the primal one, so the optimal value is a valid lower bound
-       // for a minimization problem.
+       // for a minimization problem; a stopped solve has one only if
+       // what it has is a dual feasible basis, whose value is that of a
+       // dual solution
+       if( sol_status != kOK ) {
+        int solnmethod , solntype , pfeasind , dfeasind;
+        if( CPXsolninfo( env , lp , & solnmethod , & solntype , & pfeasind ,
+                         & dfeasind ) || ( solntype != CPX_BASIC_SOLN ) ||
+            ( ! dfeasind ) ) {
+         lower_bound = -Inf< OFValue >();
+         break;
+         }
+        }
        CPXgetobjval( env , lp , & lower_bound );
        lower_bound += constant_value;
       }
@@ -1356,13 +1373,29 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       case( CPXPROB_FIXEDMILP ):
       case( CPXPROB_FIXEDMIQP ):
       case( CPXPROB_MIQCP ):
-       CPXgetbestobjval( env , lp , & upper_bound );
+       // a search stopped before it has any bound has CPLEX's infinity
+       if( CPXgetbestobjval( env , lp , & upper_bound ) ||
+           ( std::abs( upper_bound ) >= CPX_INFBOUND ) ) {
+        upper_bound = Inf< OFValue >();
+        break;
+        }
        upper_bound += constant_value;
        break;
       default:
-       // For a continuous LP/QP at optimality the dual objective coincides
+       // for a continuous LP/QP at optimality the dual objective coincides
        // with the primal one, so the optimal value is a valid upper bound
-       // for a maximization problem.
+       // for a maximization problem; a stopped solve has one only if
+       // what it has is a dual feasible basis, whose value is that of a
+       // dual solution
+       if( sol_status != kOK ) {
+        int solnmethod , solntype , pfeasind , dfeasind;
+        if( CPXsolninfo( env , lp , & solnmethod , & solntype , & pfeasind ,
+                         & dfeasind ) || ( solntype != CPX_BASIC_SOLN ) ||
+            ( ! dfeasind ) ) {
+         upper_bound = Inf< OFValue >();
+         break;
+         }
+        }
        CPXgetobjval( env , lp , & upper_bound );
        upper_bound += constant_value;
       }
@@ -4059,6 +4092,12 @@ void CPXMILPSolver::set_par( idx_type par , double value )
   }
 
  if( int cp = cpx_dbl_par_map( par ) ) {
+  // a value out of the range of the parameter (an infinite or a negative
+  // time limit, say) is taken as the nearest end of the range: CPLEX would
+  // refuse it and keep the previous one
+  double dflt , mn , mx;
+  if( ! CPXinfodblparam( env , cp , & dflt , & mn , & mx ) )
+   value = std::clamp( value , mn , mx );
   CPXsetdblparam( env , cp , value );
   return;
   }

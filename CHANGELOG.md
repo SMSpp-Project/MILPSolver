@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the bound of `CPXMILPSolver` on the side of the optimum it has not proved,
+  on a continuous problem stopped by a limit, was the value of whatever
+  point CPLEX had (0 with no point at all), which is no bound: it is now
+  that value only if the point is a dual feasible basis, and -INF / +INF
+  otherwise; on a problem with integer variables a best bound that CPLEX
+  does not have is now infinite as well. The same for `SCIPMILPSolver`,
+  whose bounds were SCIP's infinity (1e20) where SCIP has none
+
+- a double parameter set out of the range that the back-end admits (an
+  infinite or a negative `dblMaxTime`, say) was refused by CPLEX, GUROBI
+  and HiGHS, which kept the previous value, so that a Solver solved once
+  with `dblMaxTime` 0 did not reach the optimum after the time limit was
+  lifted with `dblMaxTime` = INF; SCIP refused it with an error. It is now
+  taken as the nearest end of the range
+
 - the bound of `GRBMILPSolver` on the side of the optimum it has not proved
   (`get_lb()` when minimizing, `get_ub()` when maximizing) on a continuous
   problem whose solve does not end optimal, e.g., stopped by the time limit

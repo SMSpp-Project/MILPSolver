@@ -24,6 +24,7 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <algorithm>
 #include <queue>
 #include <iostream>
 #include <map>
@@ -4606,6 +4607,12 @@ void GRBMILPSolver::set_par( idx_type par , double value )
  gp = grb_dbl_par_map( par );
 
  if( gp.size() > 0 ) {
+  // a value out of the range of the parameter (an infinite or a negative
+  // time limit, say) is taken as the nearest end of the range: GUROBI would
+  // refuse it and keep the previous one
+  double cur , mn , mx , dflt;
+  if( ! GRBgetdblparaminfo( env , gp.data() , & cur , & mn , & mx , & dflt ) )
+   value = std::clamp( value , mn , mx );
   // see the note in the int overload: it waits here and reaches the model
   f_dbl_pars[ gp ] = value;
   if( model )

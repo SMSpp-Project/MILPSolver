@@ -29,6 +29,7 @@
 #include <map>
 #include <mutex>
 #include <numeric>
+#include <algorithm>
 #include <queue>
 
 #include <LinearFunction.h>
@@ -2607,8 +2608,16 @@ void HiGHSMILPSolver::set_par( idx_type par , double value )
  std::string highs_opt = highs_dbl_par_map( par );
 
  if( highs_opt.size() > 0 ) {
-  if( highs_opt != "NoPar" )
-    Highs_setDoubleOptionValue( highs , highs_opt.data() , value );
+  if( highs_opt != "NoPar" ) {
+   // a value out of the range of the option (a negative time limit, say)
+   // is taken as the nearest end of the range: HiGHS would refuse it and
+   // keep the previous one
+   double cur , mn , mx , dflt;
+   if( Highs_getDoubleOptionValues( highs , highs_opt.data() , & cur , & mn ,
+                                    & mx , & dflt ) == kHighsStatusOk )
+    value = std::clamp( value , mn , mx );
+   Highs_setDoubleOptionValue( highs , highs_opt.data() , value );
+   }
   
   return;
   }
