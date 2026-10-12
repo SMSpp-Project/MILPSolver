@@ -92,20 +92,23 @@ namespace SMSpp_di_unipi_it {
  * no release of HiGHS has yet). Hence, while QPWorkaround is true, and for
  * continuous QPs only:
  *
- * - the default of qp_regularization_value is QPRegularization instead of
- *   the 1e-7 of HiGHS;
- *
  * - unless qp_iteration_limit is set in the configuration, the active set
  *   is stopped after the largest of QPIterationLimit and QPIterationFactor
  *   times the number of rows and columns of the QP;
  *
  * - a QP whose outcome is neither optimal nor a definite answer (infeasible,
  *   unbounded, time limit) is solved again from scratch, which is what gets
- *   the active set out of a stall, and if it is still not solved once more
- *   with the larger regularization QPRetryRegularization, after which
- *   qp_regularization_value goes back to what it was; the QPs that HiGHS
- *   solves at the first attempt are thus solved exactly as they would be
- *   anyway.
+ *   the active set out of a stall, and if it is still not solved with the
+ *   larger regularizations QPRegularization and QPRetryRegularization of
+ *   the Hessian in turn, after which qp_regularization_value goes back to
+ *   what it was; the QPs that HiGHS solves at the first attempt are thus
+ *   solved exactly as they would be anyway, with the regularization of the
+ *   configuration (the 1e-7 of HiGHS by default, which a larger one makes
+ *   less precise and slower on many QPs);
+ *
+ * - a QP that none of these attempts solves throws std::runtime_error,
+ *   saying which Solver or stabilization to use instead, rather than
+ *   returning a solution that is not there.
  *
  * Both options only act on QPs, and they can be set to any value in the
  * configuration as any other one. */
@@ -147,7 +150,7 @@ class HiGHSMILPSolver : public MILPSolver {
   * to be. */
  static constexpr bool QPWorkaround = true;
 
- /// default of the HiGHS option qp_regularization_value [see the class]
+ /// the regularization of the second attempt at a QP [see the class]
  static constexpr double QPRegularization = 1e-5;
 
  /// least iteration limit of the active set QP solver [see the class]

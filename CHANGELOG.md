@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,
+  the 1e-5 of 0.10.0 making many QPs less precise and slower (the Lagrangian
+  dual of a UC master and of an SDDP stage); a QP that the active set QP
+  solver of HiGHS does not solve is solved again from scratch and then with
+  the Hessian regularized by 1e-5 and by 1e-4, and if none of these solves
+  it the Solver throws, saying which Solver or stabilization to use instead,
+  rather than returning a solution that is not there
+
 ### Fixed
 
 - the rows that a Block separates in the callback of a solve became rows of

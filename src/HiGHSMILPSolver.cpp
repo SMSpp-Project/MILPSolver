@@ -89,14 +89,6 @@ HiGHSMILPSolver::HiGHSMILPSolver( void ) :
 
  // Set default HiGHS log to 0
  Highs_setBoolOptionValue( highs , "output_flag" , 0 );
-
- // the active set QP solver of HiGHS up to 1.15.1 declares a convex QP
- // non-convex, the outcome depending on the order of the columns, unless
- // the Hessian is regularized more than its own default does [see
- // QPWorkaround]
- if constexpr( QPWorkaround )
-  Highs_setDoubleOptionValue( highs , "qp_regularization_value" ,
-                              QPRegularization );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -463,8 +455,8 @@ int HiGHSMILPSolver::guts_of_compute( void )
    }
   }
 
- // Call HiGHS to solve the problem
- if( run_highs() == -1 ) {
+ // Call HiGHS to solve the problem; a QP that fails is dealt with below
+ if( ( run_highs() == -1 ) && ( ! qp_help ) ) {
   // An error happened during the call of HiGHS_run. Notice that this is not
   // an error related to the model and so the model status could be incorrect.
   std::cerr << "WARNING: An unmanaged error occurred during the execution of  " <<
@@ -495,26 +487,31 @@ int HiGHSMILPSolver::guts_of_compute( void )
 
  // a QP the active set has not solved, nor found infeasible or unbounded,
  // is solved again from scratch, which gets it out of a stall, and then,
- // if still not solved, once more with a larger regularization of the
- // Hessian, which then goes back to what it was [see QPWorkaround]
- if( qp_help && ( m_status != kHighsModelStatusOptimal ) &&
-     ( m_status != kHighsModelStatusInfeasible ) &&
-     ( m_status != kHighsModelStatusUnbounded ) &&
-     ( m_status != kHighsModelStatusUnboundedOrInfeasible ) &&
-     ( m_status != kHighsModelStatusTimeLimit ) ) {
+ // if still not solved, with the larger regularizations of the Hessian
+ // QPRegularization and QPRetryRegularization, after which the
+ // regularization goes back to what it was; a QP that none of these
+ // solves stops the Solver, rather than leaving whoever called it with a
+ // solution that is not there [see QPWorkaround]
+ const auto definite = [ & ]( int status ) {
+  return( ( status == kHighsModelStatusOptimal ) ||
+          ( status == kHighsModelStatusInfeasible ) ||
+          ( status == kHighsModelStatusUnbounded ) ||
+          ( status == kHighsModelStatusUnboundedOrInfeasible ) ||
+          ( status == kHighsModelStatusTimeLimit ) );
+  };
+ if( qp_help && ( ! definite( m_status ) ) ) {
   double reg = 0;
   Highs_getDoubleOptionValue( highs , "qp_regularization_value" , & reg );
   std::vector< double > attempts = { reg };
-  if( QPRetryRegularization > reg )
-   attempts.push_back( QPRetryRegularization );
+  for( double r : { QPRegularization , QPRetryRegularization } )
+   if( r > attempts.back() )
+    attempts.push_back( r );
   for( double r : attempts ) {
    Highs_clearSolver( highs );
    Highs_setDoubleOptionValue( highs , "qp_regularization_value" , r );
-   if( run_highs() == -1 )
-    std::cerr << "WARNING: An unmanaged error occurred during the execution "
-                 "of HiGHS_run solving a QP again" << std::endl;
+   run_highs();
    m_status = Highs_getModelStatus( highs );
-   if( m_status == kHighsModelStatusOptimal )
+   if( definite( m_status ) )
     break;
    }
   Highs_setDoubleOptionValue( highs , "qp_regularization_value" , reg );
@@ -522,6 +519,15 @@ int HiGHSMILPSolver::guts_of_compute( void )
 
  if( qp_iter_set )
   Highs_setIntOptionValue( highs , "qp_iteration_limit" , qp_iter );
+
+ if( qp_help && ( ! definite( m_status ) ) )
+  throw( std::runtime_error(
+    "HiGHSMILPSolver::guts_of_compute: the active set QP solver of HiGHS "
+    "has not solved a convex QP, neither from scratch nor with a larger "
+    "regularization of the Hessian; solve it with another "
+    "Solver (e.g., GRBMILPSolver or CPXMILPSolver), or, if it is the "
+    "master problem of a bundle, use a stabilization whose master is a "
+    "linear program (the trust region, intMPStbl 4)" ) );
 
  // On numerically difficult LPs, dual simplex can still return Unknown after
  // being restarted from scratch. Retry once with IPM, which uses a genuinely
@@ -2759,9 +2765,7 @@ double HiGHSMILPSolver::get_dflt_dbl_par( idx_type par ) const
  if( highs_opt.size() > 0 ) {
   if( highs_opt == "NoPar" )
     return( 0 );
-  if( QPWorkaround && ( highs_opt == "qp_regularization_value" ) )
-    return( QPRegularization );
-  else{
+  {
     double value, default_value;
     Highs_getDoubleOptionValues( highs , highs_opt.data() , & value, NULL ,
                               NULL , & default_value);
