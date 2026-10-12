@@ -3529,5 +3529,5 @@ void HiGHSMILPSolver::change_obj_costs( std::vector< int > & idx ,
  }  // end( HiGHSMILPSolver::change_obj_costs )
 
 /*--------------------------------------------------------------------------*/
-/*--------------------- End File HiGHSMILPSolver.cpp -------------------------*/
+/*--------------------- End File HiGHSMILPSolver.cpp -----------------------*/
 /*--------------------------------------------------------------------------*/

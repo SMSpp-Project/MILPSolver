@@ -32,7 +32,7 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
-# ----- Find SCIP directories and lib suffixes ----------------------------- #
+# ----- Find SCIP directories and lib suffixes ------------------------------ #
 # Based on the OS generate:
 # - a list of possible SCIP directories
 # - a list of possible lib suffixes to find the library
@@ -54,7 +54,7 @@ elseif (WIN32)
 endif ()
 set(SCIP_LIB_PATH_SUFFIXES lib)
 
-# ----- Find the path to SCIP ---------------------------------------------- #
+# ----- Find the path to SCIP ----------------------------------------------- #
 
 foreach (dir ${SCIP_DIRS})
     file(GLOB SCIP_DIRS "${dir}/scip*")
