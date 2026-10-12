@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the rows that a Block separates in the callback of a solve became rows of
+  the model at the following `compute()`, all of them and for good, whether
+  the back-end had used them or not: on a unit commitment re-solved after
+  changes of the costs the perspective cuts of the first solve took the
+  model from some 1500 rows to more than 70000, half of them copies of one
+  another and most nearly parallel, and with them GUROBI declared optimal
+  a solution with a value worse than the optimum by 18 out of 34800. Those
+  rows are now given to the back-end as user cuts or lazy constraints of
+  the solve they are separated in, and are kept in a pool, out of the model,
+  that the callback gives back whenever they are violated (the most
+  violated one on each set of variables), so that the model keeps the rows
+  of the formulation alone; the pool becomes rows of the model, as before,
+  only before a solve that does not separate lazy constraints (with HiGHS,
+  whose callback cannot give them, always), and a Block that removes one of
+  its rows from the pool is followed [see `separate_in_callback()`]
+
 - the coefficients of the quadratic part of a constraint were stored as
   `float` between the scan of the Block and the loading into the backend,
   so that each of them reached the solver rounded to some 7 significant

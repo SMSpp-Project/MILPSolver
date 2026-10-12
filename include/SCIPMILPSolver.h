@@ -235,11 +235,11 @@ class SCIPMILPSolver : public MILPSolver
 /** @name Methods for separating user cuts / lazy constraints
  *  @{ */
 
- /** From within the callback, run the cut separation invoking
-  * generate_dynamic_constraints() with the given Configuration and then
-  * examining the list of Modification to see if some dynamic Constraint have
-  * been added; if so they are reported back under the form needed to be
-  * added as user cuts or lazy constraints (which is the same).
+ /** From within the callback, writes the rows that separate_in_callback()
+  * gives with the given Configuration (the dynamic Constraint just added by
+  * generate_dynamic_constraints() and the violated ones of the pool) under
+  * the form needed to be added as user cuts or lazy constraints (which is
+  * the same).
   *
   * Note that all vectors are supposed to be empty at the beginning of the
   * call, and they will still be empty if no cuts are found. */

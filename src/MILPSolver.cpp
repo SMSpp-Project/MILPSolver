@@ -89,6 +89,8 @@ void MILPSolver::set_Block( Block * block )
 
  Solver::set_Block( block );
 
+ clear_cut_pool();  // the pool is made of rows of the previous Block
+
  if( block ) {
   bool owned = block->is_owned_by( f_id );
   if( ( ! owned ) && ( ! block->lock( f_id ) ) )
@@ -155,6 +157,10 @@ void MILPSolver::load_problem( void )
 {
  // Clean any left-up structures
  clear_problem( 15 );
+
+ // all the dynamic Constraint of the Block are read as rows, those of the
+ // pool as well
+ clear_cut_pool();
  
  numrows = 0;
  numcols = 0;
@@ -1537,6 +1543,10 @@ int MILPSolver::compute( bool changedvars )
 
  MILPSolver::process_modifications();
 
+ // the pool is kept out of the model only if this solve gives it back
+ if( ! cut_pool_enforced() )
+  flush_cut_pool();
+
  if( ( ! owned ) && ( ! may_separate ) )
   f_Block->read_unlock();  // no separation: release the read lock early
 
@@ -2010,6 +2020,146 @@ void MILPSolver::for_each_row_addition( const Modification * mod ,
 
 /*--------------------------------------------------------------------------*/
 
+void MILPSolver::separate_in_callback( Configuration * cfg ,
+                          std::vector< const FRowConstraint * > & rows )
+{
+ // the Block is lock()-ed, hence all the Modification after the current
+ // last one are those that it issues in generate_dynamic_constraints()
+ auto nM = v_mod.size();
+ auto it = v_mod.end();
+ if( nM )
+  it = prev( it );
+
+ f_Block->generate_dynamic_constraints( cfg );
+
+ if( v_mod.size() > nM ) {
+  if( ! nM )
+   it = v_mod.begin();
+  else
+   ++it;
+
+  for( ; it != v_mod.end() ; ++it )
+   for_each_row_addition( it->get() ,
+    [ this , & rows ]( const BlockModAdd< FRowConstraint > * tmod ) {
+     // the rows of an excluded sub-Block are not rows of this model
+     if( is_excluded( const_cast< Block * >( tmod->get_Block() ) ) )
+      return;
+     for( auto con : tmod->added() )
+      rows.push_back( con );
+     } );
+  }
+
+ // the set of Variable a row is written on, as an index
+ auto support = [ this ]( const FRowConstraint * con ) -> Index {
+  std::vector< const Variable * > vars;
+  if( auto lf = dynamic_cast< const LinearFunction * >( con->get_function() ) )
+   for( const auto & el : lf->get_v_var() )
+    vars.push_back( el.first );
+  std::sort( vars.begin() , vars.end() );
+  Index k = m_cut_supports.size();
+  return( m_cut_supports.try_emplace( std::move( vars ) , k ).first->second );
+  };
+
+ const Index nnew = rows.size();
+ std::vector< Index > new_support( nnew );
+ for( Index i = 0 ; i < nnew ; ++i )
+  new_support[ i ] = support( rows[ i ] );
+
+ // the most violated row of the pool on each set of Variable that no new
+ // row is written on, if any is violated
+ if( ! v_cut_pool.empty() ) {
+  const Index ns = m_cut_supports.size();
+  std::vector< char > taken( ns , 0 );
+  for( auto s : new_support )
+   taken[ s ] = 1;
+
+  std::vector< double > best( ns , 0 );
+  std::vector< Index > who( ns , Inf< Index >() );
+  for( Index i = 0 ; i < v_cut_pool.size() ; ++i ) {
+   const auto s = v_cut_support[ i ];
+   if( taken[ s ] )
+    continue;
+
+   const auto con = v_cut_pool[ i ];
+   double act = 0;
+   double size = 1;
+   if( auto lf = dynamic_cast< const LinearFunction * >(
+                                                    con->get_function() ) )
+    for( const auto & el : lf->get_v_var() ) {
+     const double v = el.second * el.first->get_value();
+     act += v;
+     size += std::abs( v );
+     }
+
+   // the violation, relative to the size of the terms
+   const double viol = std::max( con->get_lhs() - act ,
+                                 act - con->get_rhs() ) / size;
+   if( ( viol > 1e-9 ) && ( viol > best[ s ] ) ) {
+    best[ s ] = viol;
+    who[ s ] = i;
+    }
+   }
+
+  for( Index s = 0 ; s < ns ; ++s )
+   if( who[ s ] != Inf< Index >() )
+    rows.push_back( v_cut_pool[ who[ s ] ] );
+  }
+
+ // the new rows join the pool
+ for( Index i = 0 ; i < nnew ; ++i )
+  if( m_cut_pool.try_emplace( rows[ i ] , v_cut_pool.size() ).second ) {
+   v_cut_pool.push_back( rows[ i ] );
+   v_cut_support.push_back( new_support[ i ] );
+   }
+
+ }  // end( MILPSolver::separate_in_callback )
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::flush_cut_pool( void )
+{
+ if( v_cut_pool.empty() )
+  return;
+
+ auto rows = std::move( v_cut_pool );
+ clear_cut_pool();
+ add_dynamic_constraints( rows );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::clear_cut_pool( void )
+{
+ v_cut_pool.clear();
+ v_cut_support.clear();
+ m_cut_pool.clear();
+ m_cut_supports.clear();
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool MILPSolver::erase_from_cut_pool( const FRowConstraint * con )
+{
+ auto it = m_cut_pool.find( con );
+ if( it == m_cut_pool.end() )
+  return( false );
+
+ // the last row of the pool takes the place of the one leaving it
+ const Index i = it->second;
+ m_cut_pool.erase( it );
+ if( i + 1 < v_cut_pool.size() ) {
+  v_cut_pool[ i ] = v_cut_pool.back();
+  v_cut_support[ i ] = v_cut_support.back();
+  m_cut_pool[ v_cut_pool[ i ] ] = i;
+  }
+ v_cut_pool.pop_back();
+ v_cut_support.pop_back();
+
+ return( true );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 bool MILPSolver::is_of( Function * f )
 {
  return( dynamic_cast< Objective * >( f->get_Observer() ) );
@@ -2412,6 +2562,21 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
 {
  if( auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >( mod
 									) ) {
+  if( ! m_cut_pool.empty() ) {
+   // the rows of the pool are not rows of the model
+   std::vector< const FRowConstraint * > rows;
+   rows.reserve( tmod->added().size() );
+   for( auto * i : tmod->added() )
+    if( ! m_cut_pool.count( i ) )
+     rows.push_back( i );
+   if( rows.size() == 1 )
+    add_dynamic_constraint( rows.front() );
+   else
+    if( ! rows.empty() )
+     add_dynamic_constraints( rows );
+   return;
+   }
+
   const auto & added = tmod->added();
   if( added.size() <= 1 ) {
    // single-row fast path: no need to materialise a vector copy when
@@ -2443,7 +2608,8 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
  if( auto tmod = dynamic_cast< const BlockModRmv< FRowConstraint > * >( mod
 									) ) {
   for( const auto & i : tmod->removed() )
-   remove_dynamic_constraint( & i );
+   if( ! erase_from_cut_pool( & i ) )  // a row of the pool is not in the
+    remove_dynamic_constraint( & i );  // model
 
   return;
   }

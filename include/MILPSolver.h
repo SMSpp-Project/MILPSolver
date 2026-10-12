@@ -72,6 +72,10 @@
 
 #include <limits>
 
+#include <map>
+
+#include <unordered_map>
+
 #include <unordered_set>
 
 /*--------------------------------------------------------------------------*/
@@ -217,7 +221,14 @@ class MILPSolver : public CDASolver
    *
    * - when non-zero, the loop driven by intRelaxIntVars == 2 (see) is
    *   executed (only if intRelaxIntVars == 2; otherwise the derived
-   *   class governs the callback installation as appropriate). */
+   *   class governs the callback installation as appropriate).
+   *
+   * The dynamic Constraint that the Block adds while the callback of the
+   * derived class separates are given to the back-end as user cuts or
+   * lazy constraints of that solve, and do not become rows of the model
+   * as long as the following solves separate lazy constraints: they are
+   * kept in a pool that the callback gives back when they are violated
+   * [see separate_in_callback()]. */
   intCutSepPar ,
   /// maximum number of LP cut separation passes (when intRelaxIntVars == 2)
   /**< Caps the number of "solve LP - separate user cuts - re-solve"
@@ -1278,6 +1289,18 @@ class MILPSolver : public CDASolver
  /// maximum number of LP cut separation passes (see intMaxCutPasses)
  int max_cut_passes = 1000;
 
+ /// the rows of the pool [see separate_in_callback()]
+ std::vector< const FRowConstraint * > v_cut_pool;
+
+ /// the set of Variable each row of v_cut_pool is written on
+ std::vector< Index > v_cut_support;
+
+ /// the position of each row of the pool in v_cut_pool
+ std::unordered_map< const FRowConstraint * , Index > m_cut_pool;
+
+ /// the index of each set of Variable some row of the pool is written on
+ std::map< std::vector< const Variable * > , Index > m_cut_supports;
+
  /// SMS++-semantic value of intLogVerb captured at set_par() time
  /**< Mirrors the value most recently set via set_par( intLogVerb , v ).
   * The derived classes each map intLogVerb to their backend log
@@ -1679,6 +1702,66 @@ class MILPSolver : public CDASolver
 
  static void for_each_row_addition( const Modification * mod ,
   const std::function< void( const BlockModAdd< FRowConstraint > * ) > & f );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the rows that a callback gives the back-end at the current point
+ /** To be called from within the callback of the back-end, with the Block
+  * lock()-ed and the point (be it a relaxed or a feasible one) written in
+  * its Variable. It calls generate_dynamic_constraints( cfg ) on the Block
+  * and writes in \p rows, which is supposed to be empty, the rows that the
+  * callback has to give the back-end at this point: (i) all the dynamic
+  * FRowConstraint that the Block has added in the call, and (ii) for each
+  * set of Variable on which none of (i) is written, the most violated row
+  * of the pool written on that set, if any is violated.
+  *
+  * The pool is the set of the rows that the Block has added during the
+  * callbacks of this Solver: they are dynamic Constraint of the Block, and
+  * this Solver knows them, but they are not rows of the model. A row that
+  * a callback gives a back-end as a user cut or a lazy constraint belongs
+  * to that solve, and a back-end is free to discard it and to show the
+  * same point again later (another thread, a cut not deemed useful): a
+  * Block that does not give again a Constraint it already has is then
+  * served by (ii). When the BlockModAdd of a row of the pool is processed,
+  * the row is not added to the model; when its BlockModRmv is, the row
+  * leaves the pool [see dynamic_modification()].
+  *
+  * Hence, with lazy constraint separation the model keeps the rows of the
+  * formulation alone, and those separated are given back by the callback
+  * whenever they are violated, solve after solve. If the next solve does
+  * not separate lazy constraints [see cut_pool_enforced()], before it the
+  * pool becomes rows of the model, as the BlockModAdd would have made it;
+  * so does load_problem(), which reads all the dynamic Constraint of the
+  * Block. */
+
+ void separate_in_callback( Configuration * cfg ,
+                            std::vector< const FRowConstraint * > & rows );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// whether the callback of the next solve gives back the pool
+ /** True if the next solve will run the callback that separates lazy
+  * constraints, which is what makes it safe to keep the pool out of the
+  * model: the default says so for the MIP path, i.e., with integer columns
+  * and intRelaxIntVars == 0, when intCutSepPar has bit 2 set; a back-end
+  * that cannot give lazy constraints from its callback answers false. */
+
+ virtual bool cut_pool_enforced( void ) const {
+  return( ( CutSepPar & 4 ) && ( int_vars > 0 ) && ( ! relax_int_vars ) );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// adds all the rows of the pool to the model, and empties it
+
+ void flush_cut_pool( void );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// empties the pool without adding its rows to the model
+
+ void clear_cut_pool( void );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// removes \p con from the pool, returning false if it is not there
+
+ bool erase_from_cut_pool( const FRowConstraint * con );
 
  /// adds a single new dynamic constraint
  /** Notice that empty constraints, i.e., constraints with null function, are by

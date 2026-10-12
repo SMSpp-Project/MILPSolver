@@ -705,11 +705,11 @@ void add_mip_starts(
 /** @name Methods for separating user cuts / lazy constraints
  *  @{ */
 
- /** From within the callback, run the cut separation invoking
-  * generate_dynamic_constraints() with the given Configuration and then
-  * examining the list of Modification to see if some dynamic Constraint have
-  * been added; if so they are reported back under the form needed to be
-  * added as user cuts or lazy constraints (which is the same).
+ /** From within the callback, writes the rows that separate_in_callback()
+  * gives with the given Configuration (the dynamic Constraint just added by
+  * generate_dynamic_constraints() and the violated ones of the pool) under
+  * the form needed to be added as user cuts or lazy constraints (which is
+  * the same).
   *
   * Note that all vectors are supposed to be empty at the beginning of the
   * call, and they will still be empty if no cuts are found. */
@@ -720,6 +720,12 @@ void add_mip_starts(
 			  std::vector< double > & rmatval ,
 			  std::vector< double > & rhs , 
 			  std::vector< char > & sense );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// the callback cannot give lazy constraints, hence it never gives back
+ /// the pool, whose rows are added to the model before each solve
+
+ bool cut_pool_enforced( void ) const override { return( false ); }
 
 /** @} ---------------------------------------------------------------------*/
  /// maps a Solver integer parameter into a HiGHS one

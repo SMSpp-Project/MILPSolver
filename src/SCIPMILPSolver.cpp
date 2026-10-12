@@ -2101,65 +2101,46 @@ void SCIPMILPSolver::perform_separation( Configuration * cfg ,
  // since the Block is lock()-ed we assume that we can freely work with the
  // Modification list as no-one has a reason to change it
 
- auto nM = v_mod.size();  // current number of Modification in the list
- auto it = v_mod.end();
- if( nM )                 // if the list is not empty
-  it = prev( it );        // initialize an iterator to the last element
+ // the rows to give: those just separated and those of the pool
+ std::vector< const FRowConstraint * > rows;
+ separate_in_callback( cfg , rows );
 
- // call generate_dynamic_constraint()
- f_Block->generate_dynamic_constraints( cfg );
-
- if( v_mod.size() <= nM )  // check if new Modification have been inserted
-  return;                  // if not, nothing to do
-
- if( ! nM )                // if the list was empty at the beginning
-  it = v_mod.begin();      // start from the beginning
- else                      // the list was nonempty
-  ++it;                    // move to the first new element
+ if( rows.empty() )        // nothing to give
+  return;
 
  rmatbeg.push_back( 0 );   // first element of rmatbeg is fixed
 
- // what is done with each addition of rows, wherever it is found
- auto add_rows = [ & ]( const BlockModAdd< FRowConstraint > * tmod ) {
+ // add all the rows to the matrix, one by one
+ for( auto con : rows ) {
+  if( auto f = con->get_function() ) {
+   auto * lf = dynamic_cast< const LinearFunction * >( f );
+   if( ! lf )
+    throw( std::invalid_argument(
+               "SCIPMILPSolver: the Constraint is not linear" ) );
 
-  // add all the new constraint to the matrix, one by one
-  for( auto con : tmod->added() ) {
-   if( auto f = con->get_function() ) {
-    auto * lf = dynamic_cast< const LinearFunction * >( f );
-    if( ! lf )
-     throw( std::invalid_argument(
-                "SCIPMILPSolver: the Constraint is not linear" ) );
+   auto nzcnt = lf->get_num_active_var();
+   auto sz = rmatind.size();
+   rmatind.resize( sz + nzcnt );
+   rmatval.resize( sz + nzcnt );
 
-    auto nzcnt = lf->get_num_active_var();
-    auto sz = rmatind.size();
-    rmatind.resize( sz + nzcnt );
-    rmatval.resize( sz + nzcnt );
-
-    // get the coefficients to fill the matrix
-    auto iit = rmatind.begin() + sz;
-    auto vit = rmatval.begin() + sz;
-    for( auto & el : lf->get_v_var() ) {
-     *(iit++) = index_of_variable( el.first );
-     *(vit++) = el.second;
-     }
-
-    // get the bounds
-    auto con_lhs = con->get_lhs();
-    auto con_rhs = con->get_rhs();
-
-    rhs.push_back( con_rhs );
-    lhs.push_back( con_lhs );
-
-    rmatbeg.push_back( rmatind.size() );
+   // get the coefficients to fill the matrix
+   auto iit = rmatind.begin() + sz;
+   auto vit = rmatval.begin() + sz;
+   for( auto & el : lf->get_v_var() ) {
+    *(iit++) = index_of_variable( el.first );
+    *(vit++) = el.second;
     }
-   }  // end( for each added FRowConstraint )
-  };
 
- // main loop: check all new Modification for a Constraint addition,
- // the rows of a Block that generates them inside a channel arriving
- // grouped
- for( ; it != v_mod.end() ; ++it )
-  for_each_row_addition( it->get() , add_rows );
+   // get the bounds
+   auto con_lhs = con->get_lhs();
+   auto con_rhs = con->get_rhs();
+
+   rhs.push_back( con_rhs );
+   lhs.push_back( con_lhs );
+
+   rmatbeg.push_back( rmatind.size() );
+   }
+  }  // end( for each row )
 
  }  // end( SCIPMILPSolver::perform_separation )
 
