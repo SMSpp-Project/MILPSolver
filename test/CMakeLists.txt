@@ -109,6 +109,13 @@ add_test(NAME test_reduced_costs
          COMMAND test_reduced_costs
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_stopped_bounds ------------------------------------------------- #
+
+add_milp_test(test_stopped_bounds test_stopped_bounds.cpp)
+add_test(NAME test_stopped_bounds
+         COMMAND test_stopped_bounds
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)

@@ -1118,18 +1118,24 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
         GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &lower_bound );
         }
       else {
-        GRBgetdblattr( updated_model() ,
-                       GRB_DBL_ATTR_OBJBOUND , &lower_bound );
         // OBJBOUND belongs to the branch-and-bound: a model solved without
         // one, which is the case of a continuous problem whenever the
         // NonConvex parameter is not explicitly 0, publishes no bound at
-        // all. Where the solve ended optimal the optimal value *is* the
-        // bound, and reporting -infinity instead throws away what the
-        // Solver has proved
-        if( ( m_status == GRB_OPTIMAL ) &&
-            ( lower_bound <= - GRB_INFINITY ) )
+        // all, but GUROBI's infinity or its "undefined", both finite numbers
+        // that are no bound. Where the solve ended optimal the optimal value
+        // *is* the bound, and reporting -infinity instead throws away what
+        // the Solver has proved; otherwise (say, a sub-optimal or stopped
+        // solve) there is no bound
+        if( GRBgetdblattr( updated_model() ,
+                           GRB_DBL_ATTR_OBJBOUND , &lower_bound ) ||
+            ( std::abs( lower_bound ) >= GRB_INFINITY ) ) {
+         if( m_status != GRB_OPTIMAL ) {
+          lower_bound = -Inf< OFValue >();
+          break;
+          }
          GRBgetdblattr( updated_model() ,
                         GRB_DBL_ATTR_OBJVAL , &lower_bound );
+         }
         }
 
       lower_bound += constant_value;
@@ -1287,8 +1293,18 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
         GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &upper_bound );
         }
       else
-        GRBgetdblattr( updated_model() ,
-                       GRB_DBL_ATTR_OBJBOUND , &upper_bound );
+        // as in get_lb(): no OBJBOUND is the optimal value if optimal and
+        // no bound otherwise
+        if( GRBgetdblattr( updated_model() ,
+                           GRB_DBL_ATTR_OBJBOUND , &upper_bound ) ||
+            ( std::abs( upper_bound ) >= GRB_INFINITY ) ) {
+         if( m_status != GRB_OPTIMAL ) {
+          upper_bound = Inf< OFValue >();
+          break;
+          }
+         GRBgetdblattr( updated_model() ,
+                        GRB_DBL_ATTR_OBJVAL , &upper_bound );
+         }
      upper_bound += constant_value;
      break;
 

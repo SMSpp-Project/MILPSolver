@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the bound of `GRBMILPSolver` on the side of the optimum it has not proved
+  (`get_lb()` when minimizing, `get_ub()` when maximizing) on a continuous
+  problem whose solve does not end optimal, e.g., stopped by the time limit
+  or with a sub-optimal solution, unless `NonConvex` is 0: it was GUROBI's
+  infinity (1e100) or its "undefined" (1e101), finite numbers that the
+  callers took for a bound. A `LagBFunction` whose inner Block is such a
+  problem built from it a linearization with a constant of the order of
+  1e100, which made the master problem of the `BundleSolver` above it fail
+  at every call thereafter. The bound is now infinite
+
 - the rows that a Block separates in the callback of a solve became rows of
   the model at the following `compute()`, all of them and for good, whether
   the back-end had used them or not: on a unit commitment re-solved after
