@@ -927,6 +927,25 @@ void add_mip_starts(
  // quadratic constraint are disjoint, so we need to retrieve the actual index 
  // based on the type of constraint.
  int grb_index_of_linear_constraint( const FRowConstraint * con ) const;
+
+ /// tells whether a row of MILPSolver, given its sense and rhs, is free
+ /** A row with no finite side, as a relaxed one, is 'L' with rhs + Inf or
+  * 'G' with rhs - Inf [see MILPSolver]. */
+ static bool is_free_row( char sense , double rhs ) {
+  return( ( ( sense == 'L' ) && ( rhs == Inf< double >() ) ) ||
+          ( ( sense == 'G' ) && ( rhs == -Inf< double >() ) ) );
+  }
+
+ /// makes the linear row index of the GUROBI model free
+ /** The row becomes the equality a'x + s = 0 with a free slack s, the one
+  * of the row if it is ranged and a new one otherwise, recorded in
+  * map_rng_con_aux_var as the slack of a ranged row: the row keeps its
+  * index, binds nothing and has dual value 0, while a'x <= GRB_INFINITY
+  * would be a row whose right-hand side of 1e100 makes a warm re-solve
+  * after a change of the coefficients end in numerical trouble. A side
+  * that becomes finite again gives the slack back its bounds [see
+  * const_modification()]. */
+ void make_free_row( int index );
  
  /** @name Handling of Gurobi parameters
   *

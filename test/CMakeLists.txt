@@ -116,6 +116,13 @@ add_test(NAME test_stopped_bounds
          COMMAND test_stopped_bounds
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_free_rows ------------------------------------------------------ #
+
+add_milp_test(test_free_rows test_free_rows.cpp)
+add_test(NAME test_free_rows
+         COMMAND test_free_rows
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)

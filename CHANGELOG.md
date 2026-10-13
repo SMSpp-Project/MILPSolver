@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` gave a row with no finite side, and a relaxed one, to
+  GUROBI as a'x <= GRB_INFINITY, a row with right-hand side 1e100 on which
+  a warm re-solve after a change of the coefficients of other rows ends in
+  numerical trouble (status 12, from a right-hand side of 1e33 on): such a
+  row is now the equality a'x + s = 0 with a free slack s, which keeps the
+  index of the row, as the ranged rows keep theirs, and the slack gets its
+  bounds back when a side becomes finite or the row is enforced; a row that
+  is still relaxed stays free when a side of it changes
+
 - the bound of `CPXMILPSolver` on the side of the optimum it has not proved,
   on a continuous problem stopped by a limit, was the value of whatever
   point CPLEX had (0 with no point at all), which is no bound: it is now

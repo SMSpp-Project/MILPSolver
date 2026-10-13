@@ -348,6 +348,23 @@ void GRBMILPSolver::load_problem( void )
  // Quadratic constrained problem
  bool is_qcp = ( numquadrows > 0 );
 
+ // a linear row free on both sides (a relaxed one too [see MILPSolver])
+ // would be a'x <= GRB_INFINITY, on which a warm re-solve after a change of
+ // the coefficients ends in numerical trouble: it is rather the ranged row
+ // a'x + s = 0 with a free slack s [see make_free_row()], which keeps the
+ // index of the row and binds nothing
+ std::vector< char > row_sense( sense );
+ std::vector< double > grb_rngval( rngval );
+ std::vector< int > free_rows;
+ for( int i = 0 ; i < numrows ; ++i )
+  if( is_free_row( sense[ i ] , rhs[ i ] ) &&
+      ( ( ! is_qcp ) || q_part[ i ].empty() ) ) {
+   row_sense[ i ] = 'R';
+   grb_rhs[ i ] = 0;
+   grb_rngval[ i ] = 0;
+   free_rows.push_back( i );
+   }
+
  // creating model with only variables inside
  if( use_custom_names )
   status = GRBnewmodel( env , & model , prob_name.c_str() ,
@@ -414,7 +431,7 @@ void GRBMILPSolver::load_problem( void )
   std::vector< char > grb_sense( numrows , 'R' );
   // filling matbeg_t
   for( int j = 0 ; j < numrows ; ++j ) {
-    switch( sense[ j ] ) {
+    switch( row_sense[ j ] ) {
       case( 'L' ): grb_sense[ j ] = GRB_LESS_EQUAL;
               break;
       case( 'E' ): grb_sense[ j ] = GRB_EQUAL;
@@ -454,7 +471,7 @@ void GRBMILPSolver::load_problem( void )
         break;
     }
 
-    if( sense[ tmp ] != 'R' ) { // not ranged case
+    if( row_sense[ tmp ] != 'R' ) { // not ranged case
 
       std::vector< int > matbeg_group_con( n_constrs , 0 );
     
@@ -519,13 +536,15 @@ void GRBMILPSolver::load_problem( void )
       if( j < static_cons)
         last_static_rng_con = n_ranged_con;
 
-      if( rngval[ j ] > 0 )
+      if( grb_rngval[ j ] > 0 )
         GRBaddrangeconstr( model , n_nz_row[ j ] , & matind_t[ matbeg_t[ j ] ] , 
-                          & matval_t[ matbeg_t[ j ] ] , grb_rhs[ j ] , grb_rhs[ j ] + rngval[ j ] ,
+                          & matval_t[ matbeg_t[ j ] ] , grb_rhs[ j ] ,
+                          grb_rhs[ j ] + grb_rngval[ j ] ,
                           name );
       else
         GRBaddrangeconstr( model , n_nz_row[ j ] , & matind_t[ matbeg_t[ j ] ] , 
-                          & matval_t[ matbeg_t[ j ] ] , grb_rhs[ j ] + rngval[ j ] , grb_rhs[ j ] ,
+                          & matval_t[ matbeg_t[ j ] ] ,
+                          grb_rhs[ j ] + grb_rngval[ j ] , grb_rhs[ j ] ,
                           name );
       ++n_ranged_con;
       ++j;
@@ -567,9 +586,9 @@ void GRBMILPSolver::load_problem( void )
         rmatval.push_back( matval[ start + j ] );
       }
 
-      if( sense[ i ] != 'R' )
+      if( row_sense[ i ] != 'R' )
         GRBaddconstr( model , rmatind.size() , rmatind.data() , 
-                      rmatval.data() , sense[ i ] , grb_rhs[ i ] , 
+                      rmatval.data() , row_sense[ i ] , grb_rhs[ i ] , 
                       name );
       else{
         // NOTE: Gurobi does not add auxiliary variables until GRBupdatemodel() is called.
@@ -580,13 +599,15 @@ void GRBMILPSolver::load_problem( void )
         if( i < static_cons)
           last_static_rng_con = n_ranged_con;
 
-        if( rngval[ i ] > 0 )
+        if( grb_rngval[ i ] > 0 )
           GRBaddrangeconstr( model , rmatind.size() , rmatind.data() , 
-                            rmatval.data() , grb_rhs[ i ] , grb_rhs[ i ] + rngval[ i ] ,
+                            rmatval.data() , grb_rhs[ i ] ,
+                            grb_rhs[ i ] + grb_rngval[ i ] ,
                             name );
         else
           GRBaddrangeconstr( model , rmatind.size() , rmatind.data() ,
-                            rmatval.data() , grb_rhs[ i ] + rngval[ i ] , grb_rhs[ i ] ,
+                            rmatval.data() ,
+                            grb_rhs[ i ] + grb_rngval[ i ] , grb_rhs[ i ] ,
                             name );
         
         ++n_ranged_con;
@@ -705,6 +726,19 @@ void GRBMILPSolver::load_problem( void )
              "GRBupdatemodel returned with status " +
              std::to_string( status ) ) );
  f_model_dirty = false;
+
+ // the slacks of the free rows, which exist only now, are freed; both the
+ // rows and the map are in increasing order of the row
+ auto it_free = map_rng_con_aux_var.begin();
+ for( auto i : free_rows ) {
+  while( it_free->first != i )
+   ++it_free;
+  GRBsetdblattrelement( model , GRB_DBL_ATTR_LB , it_free->second ,
+                        -GRB_INFINITY );
+  GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , it_free->second ,
+                        GRB_INFINITY );
+  f_model_dirty = true;
+  }
 
  // the base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
@@ -2158,6 +2192,43 @@ void GRBMILPSolver::objective_modification( const ObjectiveMod * mod )
 
 /*--------------------------------------------------------------------------*/
 
+void GRBMILPSolver::make_free_row( int index )
+{
+ auto it_rng = std::find_if( map_rng_con_aux_var.begin() ,
+                             map_rng_con_aux_var.end() ,
+                             [ index ]( const std::pair< int , int > & elem ) {
+                              return( elem.first == index );
+                              } );
+
+ int idx_aux_var;
+ if( it_rng == map_rng_con_aux_var.end() ) {
+  // a new slack with coefficient 1, as that of a ranged row [see
+  // const_modification()]; its column is the last one, and the map stays
+  // sorted by it
+  f_model_dirty = true;
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMVARS , & idx_aux_var );
+  GRBaddvar( model , 0 , nullptr , nullptr , 0.0 , -GRB_INFINITY ,
+             GRB_INFINITY , GRB_CONTINUOUS , nullptr );
+  double one = 1.0;
+  GRBchgcoeffs( model , 1 , & index , & idx_aux_var , & one );
+  map_rng_con_aux_var.push_back( { index , idx_aux_var } );
+  }
+ else {
+  idx_aux_var = it_rng->second;
+  GRBsetdblattrelement( model , GRB_DBL_ATTR_LB , idx_aux_var ,
+                        -GRB_INFINITY );
+  GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var ,
+                        GRB_INFINITY );
+  }
+
+ GRBsetcharattrelement( model , GRB_CHAR_ATTR_SENSE , index , GRB_EQUAL );
+ GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , 0.0 );
+ f_model_dirty = true;
+
+ }  // end( GRBMILPSolver::make_free_row )
+
+/*--------------------------------------------------------------------------*/
+
 void GRBMILPSolver::const_modification( const ConstraintMod * mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing
@@ -2188,16 +2259,9 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
 
  switch( mod->type() ) {
   case( ConstraintMod::eRelaxConst ):
-    // In order to relax the constraint all we do is transform it
-    // into an inequality (<=) with RHS equal to infinity.
-    // NOTE: for ranged constraint we can do the same BUT in the reverse 
-    // process we have to remember to set the sense to ==
-
-    sense = GRB_LESS_EQUAL;
-    rhs = GRB_INFINITY;
-    GRBsetcharattrelement( model , GRB_CHAR_ATTR_SENSE , index , sense );
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
-    break;
+   // a relaxed row is a free one [see make_free_row()]
+   make_free_row( index );
+   break;
 
   case( ConstraintMod::eEnforceConst ):
   case( RowConstraintMod::eChgLHS ):
@@ -2211,6 +2275,13 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
 
    con_lhs = con->get_lhs();
    con_rhs = con->get_rhs();
+
+   // a row that is still relaxed, or has no finite side, stays free
+   if( con->is_relaxed() || ( ( con_lhs == -Inf< double >() ) &&
+                              ( con_rhs == Inf< double >() ) ) ) {
+    make_free_row( index );
+    break;
+    }
 
    if( con_lhs == con_rhs ) {
     sense = GRB_EQUAL;
@@ -2242,6 +2313,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
      // variable to 0 (UB = 0), so that the equality  a'x + s = rhs  reduces
      // to  a'x = rhs  (rngval is not even defined on this non-ranged branch)
      int idx_aux_var = ( *it_rng ).second;
+     GRBsetdblattrelement( model , GRB_DBL_ATTR_LB , idx_aux_var , 0.0 );
      GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , 0.0 );
     }
    }
@@ -2273,6 +2345,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
      idx_aux_var = ( *it_rng ).second;
 
     GRBsetcharattrelement( model , GRB_CHAR_ATTR_SENSE , index , GRB_EQUAL );
+    GRBsetdblattrelement( model , GRB_DBL_ATTR_LB , idx_aux_var , 0.0 );
     GRBsetdblattrelement( model , GRB_DBL_ATTR_UB , idx_aux_var , rngval );
     GRBsetdblattrelement( model , GRB_DBL_ATTR_RHS , index , rhs );
    }
@@ -3079,6 +3152,17 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  double rhs , lhs , rngval;
  char sense;
 
+ // a free row, or a relaxed one, is a'x + s = 0 with a free slack s [see
+ // make_free_row()]
+ if( con->is_relaxed() ||
+     ( ( con_lhs == -Inf< double >() ) && ( con_rhs == Inf< double >() ) ) ) {
+  GRBaddconstr( model , rmatind.size() , rmatind.data() ,
+                rmatval.data() , GRB_EQUAL , 0.0 , nullptr );
+  f_model_dirty = true;
+  make_free_row( grb_index_of_linear_constraint( con ) );
+  return;
+  }
+
  if( con_lhs == con_rhs ) {
   sense = GRB_EQUAL;
   rhs = con_rhs;
@@ -3149,16 +3233,17 @@ void GRBMILPSolver::add_dynamic_constraints(
    continue;
   auto con_lhs = c->get_lhs();
   auto con_rhs = c->get_rhs();
-  if( con_lhs != con_rhs &&
-      con_lhs > -Inf< double >() && con_rhs < Inf< double >() )
+  if( ( con_lhs != con_rhs &&
+        con_lhs > -Inf< double >() && con_rhs < Inf< double >() ) ||
+      c->is_relaxed() ||
+      ( con_lhs == -Inf< double >() && con_rhs == Inf< double >() ) )
    ranged.push_back( c );
   else
    batch.push_back( c );
   }
 
- // ranged rows take the single-row path verbatim, including the
- // map_rng_con_aux_var bookkeeping that the GRBaddrangeconstr branch
- // expects
+ // ranged and free rows take the single-row path verbatim, including the
+ // map_rng_con_aux_var bookkeeping that their slacks need
  for( auto * c : ranged )
   add_dynamic_constraint( c );
 

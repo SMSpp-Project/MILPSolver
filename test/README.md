@@ -39,6 +39,12 @@ Three testers for the `MILPSolver` module, each registered as a separate
   same Solver it solves the problem, with the optimal value as both
   bounds.
 
+- `test_free_rows` verifies that each `:MILPSolver` of the build solves
+  again, warm and right, a small LP with rows free on both sides after a
+  change of the coefficients of other rows, after rows are relaxed and
+  enforced again, and after the free rows get a finite side and lose it,
+  each value being also that of a Solver loaded from scratch.
+
 Run a tester directly (for instance `./test_dynamic seed [...]`, pass no
 argument to see its usage), or run a batch over a set of sizes and seeds.
 
