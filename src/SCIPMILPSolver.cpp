@@ -63,15 +63,69 @@ using namespace SMSpp_di_unipi_it;
 SMSpp_insert_in_factory_cpp_0( SCIPMILPSolver );
 
 /*--------------------------------------------------------------------------*/
+/*------------------------ CLASS SCIPMILPSolver_CutOff ---------------------*/
+/*--------------------------------------------------------------------------*/
+
+/// the event handler that stops SCIP when a cutoff is reached
+/** At each new incumbent and at each solved node, it asks the
+ * SCIPMILPSolver whether its bounds have reached a cutoff [see
+ * SCIPMILPSolver::cutoff_reached()], and if so it interrupts SCIP, whose
+ * status is then SCIP_STATUS_USERINTERRUPT. */
+
+class SMSpp_di_unipi_it::SCIPMILPSolver_CutOff : public scip::ObjEventhdlr
+{
+ public:
+
+ SCIPMILPSolver_CutOff( SCIP * scip , SCIPMILPSolver * solver )
+  : ObjEventhdlr( scip , "SMSpp_cutoff" ,
+                  "interrupts SCIP when a cutoff is reached" ) ,
+    f_solver( solver ) {}
+
+ SCIP_DECL_EVENTINIT( scip_init ) override {
+  SCIP_CALL( SCIPcatchEvent( scip , f_events , eventhdlr , nullptr ,
+                             nullptr ) );
+  return( SCIP_OKAY );
+  }
+
+ SCIP_DECL_EVENTEXIT( scip_exit ) override {
+  SCIP_CALL( SCIPdropEvent( scip , f_events , eventhdlr , nullptr , -1 ) );
+  return( SCIP_OKAY );
+  }
+
+ SCIP_DECL_EVENTEXEC( scip_exec ) override {
+  // the primal bound of SCIP is not yet that of the new incumbent
+  const auto sol = ( SCIPeventGetType( event ) &
+                     SCIP_EVENTTYPE_BESTSOLFOUND ) ?
+                   SCIPeventGetSol( event ) : nullptr;
+  if( f_solver->cutoff_reached( sol ) )
+   SCIP_CALL( SCIPinterruptSolve( scip ) );
+  return( SCIP_OKAY );
+  }
+
+ private:
+
+ static constexpr SCIP_EVENTTYPE f_events = SCIP_EVENTTYPE_BESTSOLFOUND |
+                                            SCIP_EVENTTYPE_NODESOLVED;
+
+ SCIPMILPSolver * f_solver;  ///< the SCIPMILPSolver it serves
+ };
+
+/*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
 SCIPMILPSolver::SCIPMILPSolver() :
 MILPSolver() , f_callback_set( false ) ,
-UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() )
+UpCutOff( Inf< double >() ) , LwCutOff( -Inf< double >() ) ,
+f_cutoff_on( false )
 {
  SCIP_CALL_ABORT( SCIPcreate( & scip ) );
  SCIP_CALL_ABORT( SCIPincludeDefaultPlugins( scip ) );
+
+ // the cutoffs are checked at each new incumbent and each solved node
+ SCIP_CALL_ABORT( SCIPincludeObjEventhdlr( scip ,
+                                new SCIPMILPSolver_CutOff( scip , this ) ,
+                                TRUE ) );
 
  // the presolve can fix a Variable at an infinite bound, e.g., a free one
  // that a deleted row has left with no constraint, and the solution goes in
@@ -124,6 +178,9 @@ void SCIPMILPSolver::load_problem( void )
  qobj_idx2.clear();
 
  obj_aux_con = nullptr;
+
+ // the constraint of the separation goes with the problem
+ f_callback_set = false;
 
  SCIP_CALL_ABORT( SCIPfreeProb( scip ) );
  SCIP_CALL_ABORT( SCIPcreateProbBasic( scip , prob_name.c_str() ) );
@@ -408,59 +465,57 @@ int SCIPMILPSolver::guts_of_compute( void )
  // Variable are loaded as continuous ones and int_vars is 0; with 2 it is
  // MILPSolver::compute() that runs the cut separation loop around this
  // method
- if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
+ // the cutoffs stop only the solve of a MIP, as with the other :MILPSolver
+ // [see SCIPMILPSolver_CutOff]
+ const bool mip = ( int_vars > 0 ) && ( relax_int_vars != 2 );
+ f_cutoff_on = mip && ( ( UpCutOff < Inf< double >() ) ||
+                        ( LwCutOff > - Inf< double >() ) );
 
- if( ( CutSepPar & 7 ) ||
-   ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
-   if( ! f_callback_set ) {
-    // the callback has to be set
+ if( mip && ( CutSepPar & 7 ) && ( ! f_callback_set ) ) {
+  // the constraint handler of the separation has to be set; a constraint
+  // is added to the original problem, which needs the transformed one gone
+  if( SCIPisTransformed( scip ) )
+   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
-    // Initialize SCIP specific parameter to understand which checks must be
-    //
-    SCIP_Bool enforce  = FALSE;
-    SCIP_Bool check    = FALSE;
-    SCIP_Bool separate = FALSE;
+  // Initialize SCIP specific parameter to understand which checks must be
+  //
+  SCIP_Bool enforce  = FALSE;
+  SCIP_Bool check    = FALSE;
+  SCIP_Bool separate = FALSE;
 
-    if( CutSepPar & 3 ) {  // we do user cut separation.
-     separate = TRUE;
-    }
-
-    if( CutSepPar & 4 ){  // we do lazy constraint separation.
-     enforce  = TRUE;
-     check    = TRUE;
-    }
-
-    // Add the constraint handler
-    SCIP_CALL_ABORT( SCIPincludeObjConshdlr( scip ,
-                    new SCIPMILPSolver_CBK( scip , this , CutSepPar ),
-                    TRUE ) );
-
-    SCIP_CONS* cons; // constraint initialization
-
-    // Now set the correct parameter based on the value of CutSepPar
-    SCIP_CALL_ABORT( SCIPcreateSCIPMILPSolver_basiccb(
-      scip,                     /**< SCIP data structure */
-      &cons,                    /**< pointer to hold the created constraint */
-      "MILPSolver_CBK",               /**< name of constraint */
-      "SCIPMILPSolver_CBK", /**< name of constraint */
-      vars,                     /**< active set of SCIP variables */
-      separate,                 /**< Separte during LP processing (?) */
-      enforce,                  /**< Enforce in Lazy Constraint */
-      check                     /**< Check in Lazy Constraint */
-      ) );
-
-    SCIP_CALL( SCIPaddCons(scip, cons) );
-    SCIP_CALL( SCIPreleaseCons(scip, &cons) );
-   }
-
- f_callback_set = true;
- }
- else {
-   if( f_callback_set ) {    // the callback was set
-    f_callback_set = false;
-    }
+  if( CutSepPar & 3 ) {  // we do user cut separation.
+   separate = TRUE;
   }
- }
+
+  if( CutSepPar & 4 ){  // we do lazy constraint separation.
+   enforce  = TRUE;
+   check    = TRUE;
+  }
+
+  // Add the constraint handler, once for the life of SCIP
+  if( ! SCIPfindConshdlr( scip , "SCIPMILPSolver_CBK" ) )
+   SCIP_CALL_ABORT( SCIPincludeObjConshdlr( scip ,
+                   new SCIPMILPSolver_CBK( scip , this , CutSepPar ),
+                   TRUE ) );
+
+  SCIP_CONS* cons; // constraint initialization
+
+  // Now set the correct parameter based on the value of CutSepPar
+  SCIP_CALL_ABORT( SCIPcreateSCIPMILPSolver_basiccb(
+    scip,                     /**< SCIP data structure */
+    &cons,                    /**< pointer to hold the created constraint */
+    "MILPSolver_CBK",               /**< name of constraint */
+    "SCIPMILPSolver_CBK", /**< name of constraint */
+    vars,                     /**< active set of SCIP variables */
+    separate,                 /**< Separte during LP processing (?) */
+    enforce,                  /**< Enforce in Lazy Constraint */
+    check                     /**< Check in Lazy Constraint */
+    ) );
+
+  SCIP_CALL_ABORT( SCIPaddCons( scip , cons ) );
+  SCIP_CALL_ABORT( SCIPreleaseCons( scip , & cons ) );
+  f_callback_set = true;
+  }
 
  auto st =  SCIPsolve( scip ) ;
 
@@ -474,6 +529,11 @@ int SCIPMILPSolver::guts_of_compute( void )
   case( SCIP_STATUS_TIMELIMIT ):  sol_status = kStopTime;   break;
   case( SCIP_STATUS_INFORUNBD ):
   case( SCIP_STATUS_UNBOUNDED ):  sol_status = kUnbounded;  break;
+  case( SCIP_STATUS_USERINTERRUPT ):
+   // interrupted, by SCIPMILPSolver_CutOff when a cutoff is reached:
+   // nothing is proved, as for an aborted run of the other :MILPSolver
+   sol_status = kError;
+   break;
   default:                        sol_status = kError + SCIPgetStatus( scip );
   }
 
@@ -493,6 +553,25 @@ static Solver::OFValue scip_bound( SCIP * scip , double b , double c )
   return( - Inf< Solver::OFValue >() );
  return( b + c );
  }
+
+/*--------------------------------------------------------------------------*/
+
+bool SCIPMILPSolver::cutoff_reached( SCIP_SOL * sol )
+{
+ if( ! f_cutoff_on )
+  return( false );
+
+ const auto pb = scip_bound( scip , sol ? SCIPgetSolOrigObj( scip , sol )
+                                        : SCIPgetPrimalbound( scip ) ,
+                             constant_value );
+ const auto db = scip_bound( scip , SCIPgetDualbound( scip ) ,
+                             constant_value );
+ const bool min = ( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE );
+
+ return( ( ( min ? db : pb ) >= UpCutOff ) ||
+         ( ( min ? pb : db ) <= LwCutOff ) );
+
+ }  // end( SCIPMILPSolver::cutoff_reached )
 
 /*--------------------------------------------------------------------------*/
 

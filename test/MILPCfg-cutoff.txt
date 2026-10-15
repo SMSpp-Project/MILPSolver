@@ -1,9 +1,9 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - -  MILPCfg-cutoff.txt - - - - - - - - - - - - - - -
 #
-# A txt description of the ComputeConfig of each :MILPSolver of
-# test_cutoff_status: an upper cutoff that the first integer solution of
-# its maximization problem already reaches
+# A txt description of a ComputeConfig of each :MILPSolver of
+# test_cutoff_status: an upper cutoff of 1000, which the first solution of
+# the maximization reaches and the minimization never does
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -21,7 +21,7 @@ intLogVerb                       0
 1  # number of double parameters
 
 # now all the double parameters
-dblUpCutOff                      1  # stop at a solution worth at least 1
+dblUpCutOff                   1000  # stop at a solution worth at least 1000
 
 0  # number of string parameters
 

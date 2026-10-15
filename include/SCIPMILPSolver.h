@@ -52,6 +52,8 @@
 /// namespace for the Structured Modeling System++ (SMS++)
 namespace SMSpp_di_unipi_it
 {
+class SCIPMILPSolver_CutOff;  // the event handler of the cutoffs
+
 /*--------------------------------------------------------------------------*/
 /*----------------------- CLASS SCIPMILPSolver -----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -541,6 +543,21 @@ class SCIPMILPSolver : public MILPSolver
 
  double UpCutOff;  ///< externally set upper cutoff to terminate
  double LwCutOff;  ///< externally set lower cutoff to terminate
+
+ /// whether the cutoffs stop the current solve, i.e., that of a MIP
+ bool f_cutoff_on;
+
+ /// whether the bounds of SCIP have reached a cutoff
+ /** True if the cutoffs stop the current solve [see f_cutoff_on] and either
+  * the lower bound on the optimal value is at least dblUpCutOff or the
+  * upper bound is at most dblLwCutOff, both with the constant of the
+  * objective [see dblUpCutOff and dblLwCutOff in Solver.h]; the event
+  * handler SCIPMILPSolver_CutOff then interrupts SCIP. The incumbent is
+  * sol if it is given, the new one that SCIP has not yet taken for its
+  * primal bound, and the best solution of SCIP otherwise. */
+ bool cutoff_reached( SCIP_SOL * sol = nullptr );
+
+ friend class SCIPMILPSolver_CutOff;
 
 /*--------------------------------------------------------------------------*/
 /*------------------- PROTECTED METHODS OF THE CLASS -----------------------*/

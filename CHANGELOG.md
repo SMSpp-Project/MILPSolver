@@ -46,6 +46,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cutoff with nothing proved; it now reads the bound of HiGHS and
   interrupts a minimization as a maximization
 
+- `SCIPMILPSolver` did not stop at a cutoff: the constraint handler it
+  installed for one did nothing with it, and added to a solved problem, as
+  a cutoff given after a solve made it, returned `SCIP_INVALIDCALL` (-8) as
+  the status of `compute()`. An event handler now interrupts SCIP at a new
+  incumbent or at a solved node that reaches a cutoff, which ends the solve
+  with `kError` as for the other `:MILPSolver`; the constraint handler of
+  the separation is added once, to the original problem with the
+  transformed one gone, and again after the problem is loaded again.
+  `test_cutoff_status` attaches each `:MILPSolver`, `SCIPMILPSolver`
+  included, with an upper cutoff, a lower one and both in its
+  `ComputeConfig`, to a maximization and a minimization MIP with a constant
+  in the objective, and checks that the first solve stops at the first
+  solution if that reaches a cutoff and gives the optimal value otherwise
+
 - `HiGHSMILPSolver` threw "unknown status" on a run that HiGHS ended with
   the model status Interrupt, which its callback asks for when a cutoff is
   reached on a maximization MIP, or with Postsolve error: both are now
