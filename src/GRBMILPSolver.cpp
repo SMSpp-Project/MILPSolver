@@ -25,6 +25,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include <algorithm>
+#include <cmath>
 #include <queue>
 #include <iostream>
 #include <map>
@@ -2440,35 +2441,31 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
 
-  if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+  if( dynamic_cast< const LinearFunction * >( f ) ) {
    // Linear objective function
 
-   Subset idxs;
-   if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
-    idxs = lf->map_index( modl->vars() , modlr->range() );
-   else
-    if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
-     idxs = lf->map_index( modl->vars() , modls->subset() );
-    else
-     throw( std::logic_error(
+   if( ( ! dynamic_cast< const C05FunctionModLinRngd * >( modl ) ) &&
+       ( ! dynamic_cast< const C05FunctionModLinSbst * >( modl ) ) )
+    throw( std::logic_error(
                 "GRBMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
    std::vector< int > cidx;
    std::vector< double > delta;
-   cidx.reserve( idxs.size() );
-   delta.reserve( idxs.size() );
-   auto idxit = idxs.begin();
+   cidx.reserve( modl->vars().size() );
+   delta.reserve( modl->vars().size() );
 
    // we exploit the delta() vector of C05FunctionModLin, giving the difference
    // between the new and the old value of the linear coefficient, to update
    // the objective values without having to recompute them: since they are
    // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum
+   // back all the terms, while the delta() can just be applied to the sum.
+   // Apply queued deltas even if a later Modification has already removed
+   // the Variable from the live Function.
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     cidx.push_back( grb_index_of_variable( var ) );
+    if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
+     cidx.push_back( idx );
      delta.push_back( modl->delta()[ i ] );
      }
    }
@@ -2478,9 +2475,11 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( std::size_t i = 0 ; i < nval.size() ; ++i )
     nval[ i ] += delta[ i ];
 
-   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() , nval.data() );
-
-   f_model_dirty = true;
+   if( ! cidx.empty() ) {
+    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() ,
+                      nval.data() );
+    f_model_dirty = true;
+    }
    return;
   }
 
@@ -2795,15 +2794,29 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
-  
-  // we exploit the coeff() vector of LinearFunctionModVarsAddd, giving the sum
-  // between the new and the old value of the linear coefficient, to update
-  // the objective values without having to recompute them: since they are
-  // (potentially) a sum of terms, recomputing them would require fetching
-  // back all the terms, while the coeff() can just be applied to the sum
-  
+
+  // Addition coefficients and removal deltas refer to the issuing Function
+  // only. Apply them to the total cost in arrival order, without consulting
+  // the current active Variables of the Function.
+  const Function::Vec_FunctionValue * delta = nullptr;
+  if( mod->added() ) {
+   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+   if( ! modl )
+    throw( std::invalid_argument(
+               "GRBMILPSolver: invalid LinearFunction addition" ) );
+   delta = & modl->coeff();
+   }
+  else if( auto modr = dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+   if( modr->has_linear_delta() )
+    delta = & modr->linear_delta();
+   }
+  else if( auto mods = dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+   if( mods->has_linear_delta() )
+    delta = & mods->linear_delta();
+   }
+
   std::vector< std::size_t > pos;
 
   for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
@@ -2815,26 +2828,34 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
      }
    }
 
-  // the old coefficients are read in one call [see get_obj_coefficients()]
-  get_obj_coefficients( indices , values );
-
-  if( mod->added() ) {
-    auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
-    for( std::size_t k = 0 ; k < indices.size() ; ++k ) {
-      auto var = static_cast< const ColVariable * >( mod->vars()[ pos[ k ] ] );
-      if( lf->is_active( var ) < nav )
-        values[ k ] += modl->coeff()[ pos[ k ] ];
+  if( delta ) {
+   // This also flushes previous pending Gurobi writes before reading costs.
+   get_obj_coefficients( indices , values );
+   for( std::size_t k = 0 ; k < indices.size() ; ++k ) {
+    const double oldval = values[ k ];
+    const double change = ( *delta )[ pos[ k ] ];
+    double newval = oldval + change;
+    if( ! mod->added() ) {
+     const double scale = std::max( { 1.0 , std::abs( oldval ) ,
+                                     std::abs( change ) } );
+     if( std::isfinite( newval ) &&
+         ( std::abs( newval ) <= obj_removal_tol * scale ) )
+      newval = 0.0;
      }
+    values[ k ] = newval;
+    }
    }
   else
-    std::fill( values.begin() , values.end() , 0 );
+   // Legacy removals without a delta keep the previous zeroing behaviour.
+   values.assign( indices.size() , 0.0 );
 
-  GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
-    indices.data() , values.data() );
-
-  f_model_dirty = true;
-   return;
- }
+  if( ! indices.empty() ) {
+   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() ,
+                     indices.data() , values.data() );
+   f_model_dirty = true;
+   }
+  return;
+  }
 
  if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
@@ -3490,6 +3511,24 @@ bool GRBMILPSolver::add_columns( const std::vector< Variable * > & vars ,
  if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
   return( false );
 
+ // Use the initial objective coefficients carried by the additions even
+ // if a later queued Modification has removed a Variable from its Function.
+ std::fill( cost.begin() , cost.end() , 0.0 );
+ for( const auto & submod : gmod->sub_Modifications() ) {
+  auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
+  if( ( ! modl ) ||
+      ( ! dynamic_cast< const Objective * >(
+                                      modl->function()->get_Observer() ) ) )
+   continue;
+
+  for( Index i = 0 ; i < modl->vars().size() ; ++i ) {
+   auto it = std::find( vars.begin() , vars.end() , modl->vars()[ i ] );
+   if( it == vars.end() )
+    return( false );
+   cost[ std::distance( vars.begin() , it ) ] += modl->coeff()[ i ];
+   }
+  }
+
  // the columns themselves, each born empty with its bounds and its type,
  // exactly as it is when the Modification arrive one by one
  std::vector< int > vidx( vars.size() );
@@ -3625,18 +3664,16 @@ bool GRBMILPSolver::change_coefficients(
   if( ! lf )
    return( false );
 
-  Subset idxs;
-  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
-   idxs = lf->map_index( modl->vars() , modlr->range() );
-  else
-   if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
-    idxs = lf->map_index( modl->vars() , modls->subset() );
-   else
-    return( false );
+  auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl );
+  auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl );
+  if( ( ! modlr ) && ( ! modls ) )
+   return( false );
 
   auto obs = lf->get_Observer();
 
   if( auto con = dynamic_cast< const FRowConstraint * >( obs ) ) {
+   auto idxs = modlr ? lf->map_index( modl->vars() , modlr->range() )
+                    : lf->map_index( modl->vars() , modls->subset() );
    auto row = grb_index_of_linear_constraint( con );
    if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
     continue;                 // what the handler does with it one by one
@@ -3654,12 +3691,14 @@ bool GRBMILPSolver::change_coefficients(
    }
 
   if( dynamic_cast< const Objective * >( obs ) ) {
-   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
-    if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
-     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
-     ocols.push_back( grb_index_of_variable( var ) );
+   // Objective deltas describe queued changes, not the live Function state.
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+    if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
+     ocols.push_back( idx );
      odeltas.push_back( modl->delta()[ i ] );
      }
+    }
 
    continue;
    }
