@@ -44,6 +44,8 @@
 
 #include <map>
 
+#include <cmath>
+
 #include <set>
 
 #include <LinearFunction.h>
@@ -3018,6 +3020,22 @@ void MILPSolver::set_par( idx_type par , int value )
 
 /*--------------------------------------------------------------------------*/
 
+void MILPSolver::set_par( idx_type par , double value )
+{
+ if( par == dblObjRemovalTol ) {
+  if( ( ! std::isfinite( value ) ) || ( value < 0 ) )
+   throw( std::invalid_argument(
+              "MILPSolver::set_par: dblObjRemovalTol must be finite and "
+              "nonnegative" ) );
+  obj_removal_tol = value;
+  return;
+  }
+
+ CDASolver::set_par( par , value );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void MILPSolver::set_par( idx_type par , std::string && value )
 {
  if( par == strProblemName ) {
@@ -3099,14 +3117,17 @@ int MILPSolver::get_dflt_int_par( idx_type par ) const
  return( CDASolver::get_dflt_int_par( par ) );
  }
 
-/*----------------------------------------------------------------------------
+/*--------------------------------------------------------------------------*/
 
 double MILPSolver::get_dflt_dbl_par( idx_type par ) const
 {
+ if( par == dblObjRemovalTol )
+  return( 1e-12 );
+
  return( CDASolver::get_dflt_dbl_par( par ) );
  }
 
-----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 const std::string & MILPSolver::get_dflt_str_par( idx_type par ) const
 {
@@ -3166,14 +3187,17 @@ int MILPSolver::get_int_par( idx_type par ) const
  return( CDASolver::get_int_par( par ) );
  }
 
-/*----------------------------------------------------------------------------
+/*--------------------------------------------------------------------------*/
 
 double MILPSolver::get_dbl_par( idx_type par ) const
 {
+ if( par == dblObjRemovalTol )
+  return( obj_removal_tol );
+
  return( CDASolver::get_dbl_par( par ) );
  }
 
-----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 const std::string & MILPSolver::get_str_par( idx_type par ) const
 {
@@ -3271,20 +3295,27 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
  return( CDASolver::int_par_idx2str( idx ) );
  }
 
-/*----------------------------------------------------------------------------
+/*--------------------------------------------------------------------------*/
 
 Solver::idx_type MILPSolver::dbl_par_str2idx( const std::string & name ) const
 {
+ if( name == "dblObjRemovalTol" )
+  return( dblObjRemovalTol );
+
  return( CDASolver::dbl_par_str2idx( name ) );
  }
 
-------------------------------------------------------------------------------
+/*--------------------------------------------------------------------------*/
 
 const std::string & MILPSolver::dbl_par_idx2str( idx_type idx ) const {
+ static const std::string name = "dblObjRemovalTol";
+ if( idx == dblObjRemovalTol )
+  return( name );
+
  return( CDASolver::dbl_par_idx2str( idx ) );
  }
 
-----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 Solver::idx_type MILPSolver::str_par_str2idx( const std::string & name ) const
 {

@@ -265,8 +265,23 @@ class MILPSolver : public CDASolver
 
  /// enum for double parameters
  enum dbl_par_type_MILP {
+  /// tolerance for rounding objective coefficients after a removal delta
+  /**< When a Variable is removed from a LinearFunction objective and the
+   * Modification carries its coefficient delta, the derived Solver adds
+   * that delta to the current total objective coefficient. A finite result
+   * is rounded to zero if its absolute value is at most
+   *
+   *   dblObjRemovalTol * max( 1 , abs( old coefficient ) , abs( delta ) ).
+   *
+   * The default is 1e-12. The value must be finite and nonnegative; zero
+   * disables rounding of nonzero residuals. The tolerance applies only to
+   * removals carrying a delta, not to additions or coefficient changes.
+   * Removals without a delta retain their existing zeroing behaviour.
+   * CPXMILPSolver, GRBMILPSolver, SCIPMILPSolver and HiGHSMILPSolver use it.
+   * Changing it affects subsequent removals without reloading the model. */
+  dblObjRemovalTol = dblLastParCDAS ,
   /// First allowed new double parameter for derived classes
-  dblLastAlgParMILP = dblLastParCDAS
+  dblLastAlgParMILP
   };
 
  /// enum for string parameters
@@ -907,13 +922,7 @@ class MILPSolver : public CDASolver
  void set_par( idx_type par , int value ) override;
 
  /// sets a double parameter with the given value
- // although it actually does nothing, it has to be there since, due to an
- // excess of caution, *MILPSolver::set_par( double ) call it, and if it's
- // not there then set_par( int ) ends up being called with duuble -> int
- // conversion that can go awry
- void set_par( idx_type par , double value ) override {
-  CDASolver::set_par( par, value );
-  }
+ void set_par( idx_type par , double value ) override;
 
  /// sets a string parameter with the given value
  void set_par( idx_type par , std::string && value ) override;
@@ -938,8 +947,8 @@ class MILPSolver : public CDASolver
  /// gets the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- // gets the default value of the specified double parameter
- // [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
+ /// gets the default value of the specified double parameter
+ [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
  /// returns the default value of the specified string parameter
  [[nodiscard]] const std::string & get_dflt_str_par( idx_type par )
@@ -953,8 +962,8 @@ class MILPSolver : public CDASolver
  /// returns the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
 
- // returns the value of the specified double parameter
- // [[nodiscard]] double get_dbl_par( idx_type par ) const override;
+ /// returns the value of the specified double parameter
+ [[nodiscard]] double get_dbl_par( idx_type par ) const override;
 
  /// returns the value of the specified string parameter
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
@@ -973,13 +982,13 @@ class MILPSolver : public CDASolver
   const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- // returns the index of the double parameter with the specified name
- // [[nodiscard]] idx_type
- // dbl_par_str2idx( const std::string & name ) const override;
+ /// returns the index of the double parameter with the specified name
+ [[nodiscard]] idx_type
+ dbl_par_str2idx( const std::string & name ) const override;
 
- // returns the name of the double parameter with the specified index
- // [[nodiscard]] const std::string &
- // dbl_par_idx2str( idx_type idx ) const override;
+ /// returns the name of the double parameter with the specified index
+ [[nodiscard]] const std::string &
+ dbl_par_idx2str( idx_type idx ) const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// returns the index of the string parameter with the specified name
@@ -1288,6 +1297,9 @@ class MILPSolver : public CDASolver
 
  /// maximum number of LP cut separation passes (see intMaxCutPasses)
  int max_cut_passes = 1000;
+
+ /// objective coefficient removal tolerance (see dblObjRemovalTol)
+ double obj_removal_tol = 1e-12;
 
  /// the rows of the pool [see separate_in_callback()]
  std::vector< const FRowConstraint * > v_cut_pool;
