@@ -1030,20 +1030,13 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
 
-  if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+  if( dynamic_cast< const LinearFunction * >( f ) ) {
    // Linear objective function
 
-   Subset idxs;
-   if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
-    idxs = lf->map_index( modl->vars() , modlr->range() );
-   else
-    if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
-     idxs = lf->map_index( modl->vars() , modls->subset() );
-    else
-     throw( std::logic_error(
+   if( ( ! dynamic_cast< const C05FunctionModLinRngd * >( modl ) ) &&
+       ( ! dynamic_cast< const C05FunctionModLinSbst * >( modl ) ) )
+    throw( std::logic_error(
                 "SCIPMILPSolver: unknown type of C05FunctionModLinRngd" ) );
-
-   auto idxit = idxs.begin();
 
    // we exploit the delta() vector of C05FunctionModLin, giving the difference
    // between the new and the old value of the linear coefficient, to update
@@ -1052,13 +1045,13 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
    // back all the terms, while the delta() can just be applied to the sum.
    // NOTE: in SCIPMILPSolver, we can use the SCIP function SCIPaddVarObj()
    // to simply add the delta() coefficient to the previous objective value of
-   // a variable (i.e. no need of retrieveing the old one). 
+   // a variable (i.e. no need of retrieveing the old one).
+   // Apply queued deltas even if a later Modification has already removed
+   // the Variable from the live Function.
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     int vidx = index_of_variable( var );
-     
+    if( auto vidx = index_of_variable( var ) ; vidx < Inf< int >() ) {
      // Update new coefficient
      SCIP_CALL_ABORT( SCIPaddVarObj( scip , vars[ vidx ] , modl->delta()[ i ] ) );
      }
@@ -1546,37 +1539,56 @@ void SCIPMILPSolver::objective_fvars_modification(
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
-  
-  // we exploit the coeff() vector of LinearFunctionModVarsAddd, giving the sum
-  // between the new and the old value of the linear coefficient, to update
-  // the objective values without having to recompute them: since they are
-  // (potentially) a sum of terms, recomputing them would require fetching
-  // back all the terms, while the coeff() can just be applied to the sum
-  // NOTE: in SCIPMILPSolver, we can use the SCIP function SCIPaddVarObj()
-  // to simply add the delta() coefficient to the previous objective value of
-  // a variable (i.e. no need of retrieveing the old one). 
-  
+
+  // Addition coefficients and removal deltas refer to the issuing Function
+  // only. Apply them to the total cost in arrival order, without consulting
+  // the current active Variables of the Function.
+  const Function::Vec_FunctionValue * delta = nullptr;
+  if( mod->added() ) {
+   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+   if( ! modl )
+    throw( std::invalid_argument(
+               "SCIPMILPSolver: invalid LinearFunction addition" ) );
+   delta = & modl->coeff();
+   }
+  else if( auto modr = dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+   if( modr->has_linear_delta() )
+    delta = & modr->linear_delta();
+   }
+  else if( auto mods = dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+   if( mods->has_linear_delta() )
+    delta = & mods->linear_delta();
+   }
+
   for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
-    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
+   auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
-    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
-
-      SCIP_VAR * scip_var = vars[ idx ];
-      if( mod->added() ) {
-        if( auto cidx = lf->is_active( var ) ; cidx < nav ) {
-          auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
-          SCIP_CALL_ABORT( SCIPaddVarObj( scip , scip_var , modl->coeff()[ i ] ) );
-        }
-       }
-      else
-        SCIP_CALL_ABORT( SCIPchgVarObj( scip, scip_var, 0 ) );
+   if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+    SCIP_VAR * scip_var = vars[ idx ];
+    if( ! delta ) {
+     // Legacy removals without a delta keep the previous zeroing behaviour.
+     SCIP_CALL_ABORT( SCIPchgVarObj( scip , scip_var , 0.0 ) );
+     continue;
      }
+
+    const double oldval = SCIPvarGetObj( scip_var );
+    const double change = ( *delta )[ i ];
+    double newval = oldval + change;
+    if( ! mod->added() ) {
+     const double scale = std::max( { 1.0 , std::abs( oldval ) ,
+                                     std::abs( change ) } );
+     if( std::isfinite( newval ) &&
+         ( std::abs( newval ) <= obj_removal_tol * scale ) )
+      newval = 0.0;
+     }
+    SCIP_CALL_ABORT( SCIPchgVarObj( scip , scip_var , newval ) );
+    }
    }
 
   return;
- }
+  }
 
  if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
