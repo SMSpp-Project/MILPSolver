@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   incumbent, unless it separates lazy constraints, since a short run may
   find its solutions with no call of the callback in between
 
+- the callback of `HiGHSMILPSolver` did not interrupt a minimization that
+  reached a cutoff, and took the incumbent for the bound, so that the
+  lower cutoff of a maximization stopped it at an incumbent below the
+  cutoff with nothing proved; it now reads the bound of HiGHS and
+  interrupts a minimization as a maximization
+
 - `HiGHSMILPSolver` threw "unknown status" on a run that HiGHS ended with
   the model status Interrupt, which its callback asks for when a cutoff is
   reached on a maximization MIP, or with Postsolve error: both are now

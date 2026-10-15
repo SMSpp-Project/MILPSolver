@@ -2437,11 +2437,11 @@ int HiGHSMILPSolver::callback( const int callback_type,
    // Currently in MIP- - - - - - - - - - - - - - - - - - - - - - - -
    // check upper / lower bounds and in case stop
 
-   // the values of HiGHS lack the constant of the objective, which the
-   // cutoffs have
+   // the incumbent and the bound are in the sense of the problem, but lack
+   // the constant of the objective, which the cutoffs have
    double solv , bndv;
-   solv = data_out->objective_function_value + constant_value;
-   bndv = data_out->mip_primal_bound + constant_value;
+   solv = data_out->mip_primal_bound + constant_value;
+   bndv = data_out->mip_dual_bound + constant_value;
 
    if( get_objsense() == 1 ) {
     // a minimization problem: solv is upper bound and bndv is lower bound
@@ -2451,10 +2451,8 @@ int HiGHSMILPSolver::callback( const int callback_type,
     if( bndv <= - 1e+75 )
      bndv = - Inf< double >();
 
-    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) ) {
-     // Here we should terminate the optimization process but HiGHS currently
-     // does not provide such method
-     }
+    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
+     data_in->user_interrupt = 1;
     }
    else {
     // a maximization problem: solv is lower bound and bndv is upper bound
@@ -2464,9 +2462,8 @@ int HiGHSMILPSolver::callback( const int callback_type,
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
 
-    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ) {
-      data_in->user_interrupt = 1; // Force interruption of Solver
-      }
+    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) )
+     data_in->user_interrupt = 1;
     }
    break;
   case( kHighsCallbackMipImprovingSolution ):
