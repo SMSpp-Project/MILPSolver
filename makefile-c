@@ -52,6 +52,9 @@ include $(MILPSSDR)/../extlib/makefile-libHiGHS
 # include makefile for libPIPS
 include $(MILPSSDR)/../extlib/makefile-libPIPS
 
+# include makefile for libDAQP
+include $(MILPSSDR)/../extlib/makefile-libDAQP
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -71,6 +74,12 @@ MILPSLIB = $(SMS++LIB) $(libCPLEXLIB) $(libGUROBILIB) $(libHiGHSLIB) \
 ifneq ($(wildcard $(PIPSROOT)/Core/Interface/PIPSIPMppInterface.hpp),)
     MILPSINC := $(MILPSINC) $(libPIPSINC)
     MILPSLIB := $(MILPSLIB) $(libPIPSLIB)
+endif
+
+# append DAQP flags only when it is installed
+ifneq ($(DAQP_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libDAQPINC)
+    MILPSLIB := $(MILPSLIB) $(libDAQPLIB)
 endif
 
 ############################ End of makefile #################################

@@ -56,6 +56,7 @@ option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." ON)
 option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 option(MILPSolver_USE_PIPS "Whether MILPSolver will use PIPS-IPM++ or not." ON)
+option(MILPSolver_USE_DAQP "Whether MILPSolver will use DAQP or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -107,6 +108,15 @@ if (MILPSolver_USE_PIPS)
     find_package(PIPS)
     if (NOT PIPS_FOUND)
         set(MILPSolver_USE_PIPS OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_DAQP)
+    # Needed for DAQPMILPSolver
+    # DAQP exposes no version number in its headers, so none is checked here
+    find_package(DAQP)
+    if (NOT DAQP_FOUND)
+        set(MILPSolver_USE_DAQP OFF)
     endif ()
 endif ()
 
@@ -239,6 +249,12 @@ if (MILPSolver_USE_PIPS)
     target_link_libraries(${modName} PUBLIC PIPS::PIPS)
 endif ()
 
+if (MILPSolver_USE_DAQP)
+    message(STATUS "MILPSolver: DAQP found, configuring DAQPMILPSolver")
+    target_sources(${modName} PRIVATE src/DAQPMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC DAQP::DAQP)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -295,6 +311,12 @@ if (MILPSolver_USE_PIPS)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "PIPS*")
+endif ()
+
+if (MILPSolver_USE_DAQP)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "DAQP*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

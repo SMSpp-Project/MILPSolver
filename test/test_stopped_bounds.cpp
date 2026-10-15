@@ -15,8 +15,8 @@
  * take for a bound; then the time limit is lifted (dblMaxTime = INF) on the
  * same Solver, which has to solve the problem to optimality, with both
  * bounds equal to the optimal value. Each :MILPSolver among CPXMILPSolver,
- * GRBMILPSolver, HiGHSMILPSolver and SCIPMILPSolver that is not in the
- * factory is skipped, and the test is skipped (exit status 77) if none of
+ * GRBMILPSolver, HiGHSMILPSolver, SCIPMILPSolver and DAQPMILPSolver that is
+ * not in the factory is skipped, and the test is skipped (exit status 77) if none of
  * them is; nothing is checked on the first solve of a Solver that ends
  * within the time limit anyway.
  *
@@ -82,7 +82,8 @@ int main( void )
  int failures = 0 , tried = 0;
 
  for( const std::string name : { "CPXMILPSolver" , "GRBMILPSolver" ,
-                                 "HiGHSMILPSolver" , "SCIPMILPSolver" } ) {
+                                 "HiGHSMILPSolver" , "SCIPMILPSolver" ,
+                                 "DAQPMILPSolver" } ) {
   if( ! Solver::has_Solver( name ) ) {
    std::cout << name << " is not in this build, skipped" << std::endl;
    continue;

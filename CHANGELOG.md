@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `DAQPMILPSolver`, the interface with the open-source dual active-set
+  solver DAQP for convex QPs (and LPs) with linear constraints, dense and
+  with no integer variables: the problem is loaded again whole at every
+  Modification, and a solve starts from the working set of the previous one
+  if the size has not changed (`intDAQPWarmStart`); it is built when
+  `MILPSolver_USE_DAQP` is ON (CMake) or DAQP is in `DAQP_ROOT` (makefile)
+
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,

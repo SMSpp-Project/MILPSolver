@@ -79,7 +79,8 @@ using namespace SMSpp_di_unipi_it;
 /// the :MILPSolver to try, each skipped if it is not in the Solver factory
 
 static const std::vector< std::string > SolverNames =
- { "CPXMILPSolver" , "GRBMILPSolver" , "SCIPMILPSolver" , "HiGHSMILPSolver" };
+ { "CPXMILPSolver" , "GRBMILPSolver" , "SCIPMILPSolver" , "HiGHSMILPSolver" ,
+   "DAQPMILPSolver" };
 
 /// the tolerance of every comparison
 

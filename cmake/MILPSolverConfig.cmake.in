@@ -37,6 +37,9 @@ set(PIPS_WITH_MUMPS @PIPS_WITH_MUMPS@)
 set(PIPS_WITH_PARDISO @PIPS_WITH_PARDISO@)
 set(PIPS_WITH_MA57 @PIPS_WITH_MA57@)
 
+set(MILPSolver_USE_DAQP @MILPSolver_USE_DAQP@)
+set(DAQP_ROOT @DAQP_ROOT@)
+
 # ----- Requirements -------------------------------------------------------- #
 find_dependency(SMS++)
 
@@ -61,6 +64,10 @@ endif ()
 
 if (MILPSolver_USE_PIPS)
     find_dependency(PIPS)
+endif ()
+
+if (MILPSolver_USE_DAQP)
+    find_dependency(DAQP)
 endif ()
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)

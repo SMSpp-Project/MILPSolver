@@ -6,8 +6,8 @@
 #                                                                            #
 #   The makefile takes in input the -I directives for all the external       #
 #   libraries needed by MILPSolver, i.e., core SMS++ and those of all the    #
-#   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS and, on     #
-#   Linux, PIPS-IPM++). These are *not* copied into $(MILPSINC): adding      #
+#   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS, DAQP and,  #
+#   on Linux, PIPS-IPM++). These are *not* copied into $(MILPSINC): adding   #
 #   those -I directives to the compile commands will have to done by         #
 #   whatever "main" makefile is using this. Analogously, any external        #
 #   library and the corresponding -L< libdirs > will have to be added to     #
@@ -27,6 +27,7 @@
 #           $(libSCIPINC)   = the -I$( SCIP library )                        #
 #           $(libHiGHSINC)  = the -I$( HiGHS library )                       #
 #           $(libPIPSINC)   = the -I$( PIPS-IPM++ library ), Linux only      #
+#           $(libDAQPINC)   = the -I$( DAQP library )                        #
 #           $(MILPSSDR)     = the directory where the source is              #
 #                                                                            #
 #   Output: $(MILPSOBJ)     = the final object(s) / library                  #
@@ -52,6 +53,10 @@ MILPSIDR := $(MILPSSDR)/include
 # without a PIPS-IPM++ checkout are unaffected
 PIPS_PRESENT := $(wildcard \
 	$(PIPSIPMPP_ROOT)/PIPS-IPM/Core/Interface/PIPSIPMppInterface.hpp)
+
+# non-empty if and only if DAQP is installed in $(DAQP_ROOT), which is set by
+# extlib/makefile-libDAQP; DAQPMILPSolver is only built in that case
+DAQP_PRESENT := $(wildcard $(subst $\",,$(DAQP_ROOT))/include/daqp/api.h)
 
 # each *MILPSolver.h includes a pair of files listing the algorithmic
 # parameters of its back-end, produced by the corresponding tool in
@@ -175,6 +180,11 @@ ifneq ($(PIPS_PRESENT),)
     MILPSH += $(MILPSSDR)/include/PIPSMILPSolver.h
 endif
 
+ifneq ($(DAQP_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/DAQPMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/DAQPMILPSolver.h
+endif
+
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
@@ -244,6 +254,14 @@ $(MILPSSDR)/obj/PIPSMILPSolver.o: $(MILPSSDR)/src/PIPSMILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/PIPSMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libPIPSINC) $(SW)
+endif
+
+ifneq ($(DAQP_PRESENT),)
+$(MILPSSDR)/obj/DAQPMILPSolver.o: $(MILPSSDR)/src/DAQPMILPSolver.cpp \
+	$(MILPSSDR)/include/DAQPMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/DAQPMILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(libDAQPINC) $(SW)
 endif
 
 ########################## End of makefile ###################################
