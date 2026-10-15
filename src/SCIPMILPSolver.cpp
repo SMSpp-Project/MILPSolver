@@ -104,18 +104,6 @@ SCIPMILPSolver::~SCIPMILPSolver()
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
-void SCIPMILPSolver::set_Block( Block * block )
-{
- if( block == f_Block )
-  return;
-
- MILPSolver::set_Block( block );
- UpCutOff = Inf< double >();
- LwCutOff = -Inf< double >();
- }
-
-/*--------------------------------------------------------------------------*/
-
 void SCIPMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( what );
@@ -350,9 +338,6 @@ void SCIPMILPSolver::load_problem( void )
 
  // the base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
-
- UpCutOff = Inf< double >();
- LwCutOff = -Inf< double >();
 
  }  // end( SCIPMILPSolver::load_problem )
 

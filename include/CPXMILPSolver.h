@@ -168,9 +168,6 @@ class CPXMILPSolver : public MILPSolver {
 /** @name Public Methods derived from base classes
  * @{ */
 
- /// sets the Block that the Solver has to solve and initializes CPLEX
- void set_Block( Block * block ) override;
-
  // note: the public compute() entry point is inherited from MILPSolver;
  // CPXMILPSolver implements only the CPLEX-specific solve in
  // guts_of_compute() below (protected)

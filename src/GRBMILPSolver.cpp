@@ -227,18 +227,6 @@ GRBMILPSolver::~GRBMILPSolver()
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
-void GRBMILPSolver::set_Block( Block * block )
-{
- if( block == f_Block )
-  return;
-
- MILPSolver::set_Block( block );
- UpCutOff = Inf< double >();
- LwCutOff = - Inf< double >();
- }
-
-/*--------------------------------------------------------------------------*/
-
 void GRBMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( 0 );
@@ -744,9 +732,6 @@ void GRBMILPSolver::load_problem( void )
  // the base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
 
- UpCutOff = Inf< double >();
- LwCutOff = - Inf< double >();
-
  }  // end( GRBMILPSolver::load_problem )
 
 /*--------------------------------------------------------------------------*/
@@ -829,7 +814,7 @@ int GRBMILPSolver::guts_of_compute( void )
  if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
 
   if( ( CutSepPar & 7 ) ||
-      ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
+      ( UpCutOff < Inf< double >() ) || ( LwCutOff > - Inf< double >() ) ) {
    // the callback has to be set
    GRBsetcallbackfunc( model , & GRBMILPSolver_callback , this );
 
@@ -4035,6 +4020,34 @@ int GRBMILPSolver::callback( GRBmodel *model,
  current_cbdata = cbdata;
  current_cbwhere = where;
 
+ // whether the incumbent solv and the bound bndv of Gurobi have reached a
+ // cutoff; the values of Gurobi lack the constant of the objective, which
+ // the cutoffs have
+ const auto cutoff_reached = [ this ]( double solv , double bndv ) {
+  solv += constant_value;
+  bndv += constant_value;
+
+  if( get_objsense() == 1 ) {
+   // a minimization problem: solv is upper bound and bndv is lower bound
+   if( solv >= 1e+75 )
+    solv = Inf< double >();
+
+   if( bndv <= - 1e+75 )
+    bndv = - Inf< double >();
+
+   return( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) );
+   }
+
+  // a maximization problem: solv is lower bound and bndv is upper bound
+  if( solv <= -1e+75 )
+   solv = - Inf< double >();
+
+  if( bndv >= 1e+75 )
+   bndv = Inf< double >();
+
+  return( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) );
+  };
+
  switch( where ) {
   case( GRB_CB_POLLING ): break; /* Ignore polling callback */
   case( GRB_CB_PRESOLVE ): break; /* Ignore presolve callback */
@@ -4045,33 +4058,11 @@ int GRBMILPSolver::callback( GRBmodel *model,
   case( GRB_CB_MIP ): {
    // Currently in MIP- - - - - - - - - - - - - - - - - - - - - - - -
    // check upper / lower bounds and in case stop
-
    double solv , bndv;
    GRBcbget( cbdata , where , GRB_CB_MIP_OBJBST , & solv );
    GRBcbget( cbdata , where , GRB_CB_MIP_OBJBND , & bndv );
-
-   if( get_objsense() == 1 ) {
-    // a minimization problem: solv is upper bound and bndv is lower bound
-    if( solv >= 1e+75 )
-     solv = Inf< double >();
-
-    if( bndv <= - 1e+75 )
-     bndv = - Inf< double >();
-
-    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
-     GRBterminate( model );
-    }
-   else {
-    // a maximization problem: solv is lower bound and bndv is upper bound
-    if( solv <= -1e+75 )
-     solv = - Inf< double >();
-
-    if( bndv >= 1e+75 )
-     bndv = Inf< double >();
-
-    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) )
-     GRBterminate( model );
-    }
+   if( cutoff_reached( solv , bndv ) )
+    GRBterminate( model );
    break;
    }
 
@@ -4159,8 +4150,20 @@ int GRBMILPSolver::callback( GRBmodel *model,
    }
   case( GRB_CB_MIPSOL ): {
    // a feasible solution has been found- - - - - - - - - - - - - - - - - - -
-   if( ! ( CutSepPar & 4 ) )  // but we don't do lazy constraint separation
-    break;                    // nothing to do
+   if( ! ( CutSepPar & 4 ) ) {  // but we don't do lazy constraint separation
+    // the cutoffs are checked here as well, since a run may find its
+    // solutions with no call in GRB_CB_MIP in between; the new solution,
+    // whose value is objv, is not yet the incumbent
+    double objv , solv , bndv;
+    GRBcbget( cbdata , where , GRB_CB_MIPSOL_OBJ , & objv );
+    GRBcbget( cbdata , where , GRB_CB_MIPSOL_OBJBST , & solv );
+    GRBcbget( cbdata , where , GRB_CB_MIPSOL_OBJBND , & bndv );
+    if( cutoff_reached( get_objsense() == 1 ? std::min( objv , solv )
+                                             : std::max( objv , solv ) ,
+                        bndv ) )
+     GRBterminate( model );
+    break;
+    }
 
    // this is a critical section where different GUROBI threads may compete
    // for access to the Block: ensure mutual exclusion

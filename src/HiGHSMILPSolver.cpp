@@ -124,18 +124,6 @@ HiGHSMILPSolver::~HiGHSMILPSolver()
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
-void HiGHSMILPSolver::set_Block( Block * block )
-{
- if( block == f_Block )
-  return;
-
- MILPSolver::set_Block( block );
- UpCutOff = Inf< double >();
- LwCutOff = - Inf< double >();
- }
-
-/*--------------------------------------------------------------------------*/
-
 void HiGHSMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( 0 );
@@ -306,9 +294,6 @@ void HiGHSMILPSolver::load_problem( void )
 
  // the base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
-
- UpCutOff = Inf< double >();
- LwCutOff = - Inf< double >();
 
  }  // end( HiGHSMILPSolver::load_problem )
 
@@ -484,7 +469,7 @@ int HiGHSMILPSolver::guts_of_compute( void )
  // method
  if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
   if( ( CutSepPar & 7 ) ||
-      ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
+      ( UpCutOff < Inf< double >() ) || ( LwCutOff > - Inf< double >() ) ) {
    // the callback has to be set
    Highs_setCallback( highs,  & HiGHSMILPSolver_callback, this );
 
@@ -2452,9 +2437,11 @@ int HiGHSMILPSolver::callback( const int callback_type,
    // Currently in MIP- - - - - - - - - - - - - - - - - - - - - - - -
    // check upper / lower bounds and in case stop
 
+   // the values of HiGHS lack the constant of the objective, which the
+   // cutoffs have
    double solv , bndv;
-   solv = data_out->objective_function_value;
-   bndv = data_out->mip_primal_bound;
+   solv = data_out->objective_function_value + constant_value;
+   bndv = data_out->mip_primal_bound + constant_value;
 
    if( get_objsense() == 1 ) {
     // a minimization problem: solv is upper bound and bndv is lower bound

@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the cutoffs `dblUpCutOff` and `dblLwCutOff` of a `ComputeConfig` never
+  reached a solve: `CPXMILPSolver`, `GRBMILPSolver`, `HiGHSMILPSolver` and
+  `SCIPMILPSolver` set them back to infinite whenever they loaded the
+  problem, in `set_Block()` (which a `BlockSolverConfig` calls after giving
+  the `ComputeConfig`) and at any reload, and now keep them as any other
+  parameter. A lower cutoff alone did not install the callback that checks
+  them, which compared it with + infinity, and the callbacks compared the
+  cutoffs with the values of the solver, which lack the constant of the
+  objective. `GRBMILPSolver` also checks the cutoffs at each new
+  incumbent, unless it separates lazy constraints, since a short run may
+  find its solutions with no call of the callback in between
+
 - `HiGHSMILPSolver` threw "unknown status" on a run that HiGHS ended with
   the model status Interrupt, which its callback asks for when a cutoff is
   reached on a maximization MIP, or with Postsolve error: both are now

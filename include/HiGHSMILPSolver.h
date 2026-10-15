@@ -216,9 +216,6 @@ class HiGHSMILPSolver : public MILPSolver {
 /** @name Public Methods derived from base classes
  * @{ */
 
- /// sets the Block that the Solver has to solve and initializes HiGHS
- void set_Block( Block * block ) override;
-
  // note: the public compute() entry point is inherited from MILPSolver;
  // HiGHSMILPSolver implements only the HiGHS-specific solve in
  // guts_of_compute() below (protected)

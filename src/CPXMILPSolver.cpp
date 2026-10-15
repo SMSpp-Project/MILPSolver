@@ -160,18 +160,6 @@ CPXMILPSolver::~CPXMILPSolver()
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
-void CPXMILPSolver::set_Block( Block * block )
-{
- if( block == f_Block )
-  return;
-
- MILPSolver::set_Block( block );
- UpCutOff = Inf< double >();
- LwCutOff = -Inf< double >();
- }
-
-/*--------------------------------------------------------------------------*/
-
 void CPXMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( 0 );
@@ -484,9 +472,6 @@ void CPXMILPSolver::load_problem( void )
  // the base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
 
- UpCutOff = Inf< double >();
- LwCutOff = -Inf< double >();
-
  }  // end( CPXMILPSolver::load_problem )
 
 /*--------------------------------------------------------------------------*/
@@ -594,10 +579,10 @@ int CPXMILPSolver::guts_of_compute( void )
  if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
 
   if( ( CutSepPar & 7 ) ||
-      ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) ) {
+      ( UpCutOff < Inf< double >() ) || ( LwCutOff > - Inf< double >() ) ) {
    // the callback has to be set
    CPXLONG cntxt = 0;
-   if( ( UpCutOff < Inf< double >() ) || ( LwCutOff > Inf< double >() ) )
+   if( ( UpCutOff < Inf< double >() ) || ( LwCutOff > - Inf< double >() ) )
     cntxt = CPX_CALLBACKCONTEXT_LOCAL_PROGRESS
           | CPX_CALLBACKCONTEXT_GLOBAL_PROGRESS;
    if( CutSepPar & 3 )
@@ -3563,9 +3548,13 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
    // local or global progress- - - - - - - - - - - - - - - - - - - - - - - -
    // check upper / lower bounds and in case stop
 
+   // the values of CPLEX lack the constant of the objective, which the
+   // cutoffs have
    double solv , bndv;
    CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_SOL , & solv );
    CPXcallbackgetinfodbl( context , CPXCALLBACKINFO_BEST_BND , & bndv );
+   solv += constant_value;
+   bndv += constant_value;
 
    if( get_objsense() == 1 ) {
     // a minimization problem: solv is upper bound and bndv is lower bound

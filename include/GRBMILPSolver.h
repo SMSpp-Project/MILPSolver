@@ -162,9 +162,6 @@ class GRBMILPSolver : public MILPSolver {
 /** @name Public Methods derived from base classes
  * @{ */
 
- /// sets the Block that the Solver has to solve and initializes Gurobi
- void set_Block( Block * block ) override;
-
  // note: the public compute() entry point is inherited from MILPSolver;
  // GRBMILPSolver implements only the Gurobi-specific solve in
  // guts_of_compute() below (protected)
