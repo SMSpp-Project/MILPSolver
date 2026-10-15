@@ -54,6 +54,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include <cstring>
+#include <cmath>
 #include <map>
 #include <algorithm>
 #include <queue>
@@ -645,7 +646,37 @@ int CPXMILPSolver::guts_of_compute( void )
   return( sol_status );
   }
 
- sol_status = decode_lqp_status( CPXgetstat( env , lp ) );
+ int cpx_status = CPXgetstat( env , lp );
+ // Ill-conditioned convex QPs can receive an infeasible status from
+ // simplex even when their homogeneous constraints admit the zero point.
+ // This occurs in scaled level masters with large multipliers. Verify the
+ // status with one barrier solve before exposing it to callers as a proof
+ // of infeasibility. Preserve all tolerances and restore the selected QP
+ // method for subsequent solves; a low-precision retry remains low precision.
+ if( is_qp && cpx_status == CPX_STAT_INFEASIBLE ) {
+  int method;
+  if( const int error = CPXgetintparam( env , CPXPARAM_QPMethod , & method ) ) {
+   sol_status = decode_cpx_error( error );
+   return( sol_status );
+   }
+  if( method != CPX_ALG_BARRIER ) {
+   if( const int error = CPXsetintparam( env , CPXPARAM_QPMethod ,
+                                       CPX_ALG_BARRIER ) ) {
+    sol_status = decode_cpx_error( error );
+    return( sol_status );
+    }
+   DEBUG_LOG( "Retrying an infeasible QP with barrier" << std::endl );
+   const int retry_error = CPXqpopt( env , lp );
+   const int restore_error = CPXsetintparam( env , CPXPARAM_QPMethod , method );
+   if( restore_error || retry_error ) {
+    sol_status = decode_cpx_error( restore_error ? restore_error : retry_error );
+    return( sol_status );
+    }
+   cpx_status = CPXgetstat( env , lp );
+   }
+  }
+
+ sol_status = decode_lqp_status( cpx_status );
  return( sol_status );
 
  }  // end( CPXMILPSolver::guts_of_compute )
@@ -2130,6 +2161,23 @@ bool CPXMILPSolver::add_columns( const std::vector< Variable * > & vars ,
  if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
   return( false );
 
+ // The shared reader filters costs using current Function membership.
+ // Rebuild them from the addition payloads so a later queued removal does
+ // not suppress an earlier objective contribution in this CPLEX batch.
+ std::fill( cost.begin() , cost.end() , 0.0 );
+ for( const auto & submod : gmod->sub_Modifications() ) {
+  auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
+  if( ( ! modl ) ||
+      ( ! dynamic_cast< const Objective * >( modl->function()->get_Observer() ) ) )
+   continue;
+
+  for( Index i = 0 ; i < modl->vars().size() ; ++i ) {
+   auto it = std::find( vars.begin() , vars.end() , modl->vars()[ i ] );
+   if( it == vars.end() )  // this group is not just adding the listed columns
+    return( false );       // nothing has been written yet
+   cost[ std::distance( vars.begin() , it ) ] += modl->coeff()[ i ];
+   }
+  }
 
  // the columns themselves, each born empty with its bounds and its type,
  // exactly as it is when the Modification arrive one by one
@@ -2214,14 +2262,10 @@ bool CPXMILPSolver::change_coefficients(
   if( ! lf )
    return( false );
 
-  Subset idxs;
-  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
-   idxs = lf->map_index( modl->vars() , modlr->range() );
-  else
-   if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
-    idxs = lf->map_index( modl->vars() , modls->subset() );
-   else
-    return( false );
+  auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl );
+  auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl );
+  if( ( ! modlr ) && ( ! modls ) )
+   return( false );
 
   auto obs = lf->get_Observer();
 
@@ -2230,6 +2274,8 @@ bool CPXMILPSolver::change_coefficients(
    if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
     continue;                 // what the handler does with it one by one
 
+   Subset idxs = modlr ? lf->map_index( modl->vars() , modlr->range() )
+                      : lf->map_index( modl->vars() , modls->subset() );
    auto & cp = lf->get_v_var();
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
     if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
@@ -2243,12 +2289,15 @@ bool CPXMILPSolver::change_coefficients(
    }
 
   if( dynamic_cast< const Objective * >( obs ) ) {
-   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
-    if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
-     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
-     ocols.push_back( cpx_index_of_variable( var ) );
+   // Objective deltas describe the state at issuance, even if a later
+   // queued modification has already removed the Variable from the Function.
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+    if( auto idx = cpx_index_of_variable( var ) ; idx < Inf< int >() ) {
+     ocols.push_back( idx );
      odeltas.push_back( modl->delta()[ i ] );
      }
+    }
 
    continue;
    }
@@ -2507,54 +2556,36 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
 
-  if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+  if( dynamic_cast< const LinearFunction * >( f ) ) {
    // Linear objective function
 
-   Subset idxs;
-   
-   if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
-    idxs = lf->map_index( modl->vars() , modlr->range() );
-   else
-    if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
-     idxs = lf->map_index( modl->vars() , modls->subset() );
-    else
-     throw( std::logic_error(
+   if( ( ! dynamic_cast< const C05FunctionModLinRngd * >( modl ) ) &&
+       ( ! dynamic_cast< const C05FunctionModLinSbst * >( modl ) ) )
+    throw( std::logic_error(
                 "CPXMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
-   std::vector< double > nval( idxs.size() );
-   std::vector< int > cidx( idxs.size() );
-   auto nvit = nval.begin();
-   auto idxit = idxs.begin();
-   auto cidxit = cidx.begin();
+   std::vector< double > nval;
+   std::vector< int > cidx;
+   nval.reserve( modl->vars().size() );
+   cidx.reserve( modl->vars().size() );
 
-   // we exploit the delta() vector of C05FunctionModLin, giving the difference
-   // between the new and the old value of the linear coefficient, to update
-   // the objective values without having to recompute them: since they are
-   // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum
+   // Apply every delta in queue order to the coefficient stored in CPLEX.
+   // Current Function membership may already reflect a later removal, so it
+   // must not be used to skip a delta that precedes that removal.
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
-    if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     int vidx = cpx_index_of_variable( var );
-     *(cidxit++) = vidx;
-      
-     // Retrieve old coefficient
+    if( auto vidx = cpx_index_of_variable( var ) ; vidx < Inf< int >() ) {
      double oldval;
      CPXgetobj( env , lp , &oldval , vidx , vidx );
-
-     // Update new coefficient
-     *(nvit++) = oldval + modl->delta()[ i ];
+     cidx.push_back( vidx );
+     nval.push_back( oldval + modl->delta()[ i ] );
      }
-   }
+    }
 
-   auto nsz = std::distance( nval.begin() , nvit );
-   cidx.resize( nsz );
-   nval.resize( nsz );
-
-   CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
+   if( ! cidx.empty() )
+    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
-   
    }
 
   if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
@@ -2898,35 +2929,66 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
-  
-  // we exploit the coeff() vector of LinearFunctionModVarsAddd, giving the sum
-  // between the new and the old value of the linear coefficient, to update
-  // the objective values without having to recompute them: since they are
-  // (potentially) a sum of terms, recomputing them would require fetching
-  // back all the terms, while the coeff() can just be applied to the sum
-  
-  for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
-    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
-    if( auto idx = cpx_index_of_variable( var ) ; idx < Inf< int >() ) {
-      // Retrieve old coefficient
-      double oldval;
-      CPXgetobj( env , lp , &oldval , idx , idx );
-
-      indices.push_back( idx );
-      if( mod->added() ) {
-        auto modl = dynamic_cast< const SMSpp_di_unipi_it::LinearFunctionModVarsAddd * >( mod );
-        auto cidx = lf->is_active( var );
-        values.push_back( cidx < nav ? oldval + modl->coeff()[ i ] : oldval );
-      }
-      else
-        values.push_back( 0 );
-     }
+  // Additions carry their initial coefficients; removals may carry the
+  // negatives of their old coefficients. Both are increments to the total
+  // objective coefficient, including contributions from other Functions.
+  const Function::Vec_FunctionValue * delta = nullptr;
+  if( mod->added() ) {
+   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+   if( ! modl )
+    throw( std::invalid_argument(
+               "CPXMILPSolver: unexpected linear objective addition" ) );
+   delta = & modl->coeff();
+   }
+  else if( auto modr = dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+   if( modr->has_linear_delta() )
+    delta = & modr->linear_delta();
+   }
+  else if( auto mods = dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+   if( mods->has_linear_delta() )
+    delta = & mods->linear_delta();
    }
 
-  CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
+  // Numerical cleanup for cancellation after a removal. This is a relative
+  // tolerance with an absolute floor, not a test of Function membership;
+  // genuine contributions below this threshold are also rounded to zero.
+
+  for( Block::Index i = 0 ; i < nv ; ++i ) {
+   auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
+
+   if( auto idx = cpx_index_of_variable( var ) ; idx < Inf< int >() ) {
+    indices.push_back( idx );
+    if( ! delta ) {
+     // Legacy removal: no coefficient information is available. Preserve
+     // the previous policy of zeroing the whole objective coefficient.
+     values.push_back( 0.0 );
+     continue;
+     }
+
+    double oldval;
+    CPXgetobj( env , lp , &oldval , idx , idx );
+    const double change = ( *delta )[ i ];
+    double newval = oldval + change;
+
+    if( ! mod->added() ) {
+     const double scale = std::max( { 1.0 , std::abs( oldval ) ,
+                                           std::abs( change ) } );
+     if( std::isfinite( newval ) &&
+         ( std::abs( newval ) <= obj_removal_tol * scale ) )
+      newval = 0.0;
+     }
+
+    // Do not inspect current Function membership: additions and removals
+    // must be applied in their queued order, even after later model changes.
+    values.push_back( newval );
+    }
+   }
+
+  if( ! indices.empty() )
+   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
   return;
  }
 
