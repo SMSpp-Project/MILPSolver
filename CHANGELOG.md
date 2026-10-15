@@ -28,6 +28,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the interior point of HiGHS up to 1.15.1, asked for on an LP without
+  presolve, solved another LP whenever a row with no finite side came
+  before a row with two finite sides: the LP that HiGHS builds for IPX
+  drops the free rows and renumbers the others, but puts the slack of a
+  row with two finite sides in the row with its original index
+  (ERGO-Code/HiGHS#3319), so that a feasible LP could be declared
+  infeasible with no error to tell. `HiGHSMILPSolver` now gives each free
+  row, before the interior point solves the LP (also as the second attempt
+  after a failed simplex), a free slack column s, the row becoming
+  a'x + s = 0: the rows keep their index and the free ones their dual value
+  of 0, the slacks are out of every solution read and go at the next
+  Modification, which loads the problem again. The remedy is compiled only
+  with a HiGHS up to 1.15.1; `test_ipm_free_rows` checks the interior point
+  of each `:MILPSolver` on such an LP and on its changes
+
 - an LP on which HiGHS ended with model status Solve error got no second
   attempt, and the second attempt after an Unknown was always the interior
   point, even when the interior point was the algorithm that had failed:

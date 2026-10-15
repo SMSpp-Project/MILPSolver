@@ -281,7 +281,9 @@ class HiGHSMILPSolver : public MILPSolver {
  /** With solver = ipm, HiGHS may fail on a problem changed in place when
   * the crossover is imprecise and the simplex cleans the solution up, which
   * it does not on the same problem loaded whole: with that algorithm the
-  * problem is loaded again as soon as a Modification is pending. */
+  * problem is loaded again as soon as a Modification is pending. The same
+  * holds while the model of HiGHS has the slack columns of the free rows
+  * [see bind_free_rows()], which no Modification knows of. */
 
  bool reload_on_modification( void ) override;
 
@@ -819,6 +821,8 @@ void add_mip_starts(
 
  double UpCutOff;  ///< externally set upper cutoff to terminate
  double LwCutOff;  ///< externally set lower cutoff to terminate
+
+ int n_free_slacks;  ///< slack columns of the free rows in HiGHS
  
 /*--------------------------------------------------------------------------*/
 /*---------------------- PRIVATE PART OF THE CLASS -------------------------*/
@@ -859,6 +863,29 @@ void add_mip_starts(
 
  /// calls Highs_run(), sizing again the scheduler of HiGHS if needed
  int run_highs( void );
+
+ /// whether HiGHS solves the current model with its interior point
+ /** True on an LP (no integer columns, no Hessian) when solver is ipm, ipx
+  * or hipo or run_centring is set, i.e., when HiGHS hands the LP to IPX
+  * (or to HiPO, which builds it the same way). */
+ bool ipm_on_lp( void );
+
+ /// gives each row of HiGHS with no finite side a free slack column
+ /** Up to HiGHS 1.15.1, the LP that HiGHS builds for IPX drops the rows
+  * with no finite side and renumbers the others, yet puts the slack column
+  * of a row with two different finite sides in the row with its original
+  * index, and reads past the end of the list of free rows when one is not
+  * the last row (ERGO-Code/HiGHS#3319, fixed after 1.15.1): the interior
+  * point then solves another LP, which it may say infeasible when it is
+  * not, or fails. Each such row becomes the equality a'x + s = 0 with a
+  * free slack s appended as the last column, which IPX keeps as it is: the
+  * rows keep their index, the slack has cost 0, and the dual value of the
+  * row is 0, as that of a free row. The columns of HiGHS are then more
+  * than those of the Block, and are cut to numcols wherever a solution is
+  * read; the slacks go when the problem is loaded again, which any
+  * Modification does as long as they are there [see
+  * reload_on_modification()]. */
+ void bind_free_rows( void );
 
  /// passes q_hessian to HiGHS, the name of the caller going in the error
  void pass_hessian( const char * caller );

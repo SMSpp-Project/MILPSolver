@@ -123,6 +123,13 @@ add_test(NAME test_free_rows
          COMMAND test_free_rows
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_ipm_free_rows -------------------------------------------------- #
+
+add_milp_test(test_ipm_free_rows test_ipm_free_rows.cpp)
+add_test(NAME test_ipm_free_rows
+         COMMAND test_ipm_free_rows
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)

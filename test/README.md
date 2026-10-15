@@ -45,6 +45,13 @@ Three testers for the `MILPSolver` module, each registered as a separate
   enforced again, and after the free rows get a finite side and lose it,
   each value being also that of a Solver loaded from scratch.
 
+- `test_ipm_free_rows` verifies that the interior point of each
+  `:MILPSolver` of the build that has one, without presolve, solves right
+  a small LP with a free row followed by a row with two finite sides, and
+  solves it again after the free row gets a finite side and loses it and
+  after a row is relaxed and enforced again; the Solver and their options
+  are those of `LPPar-ipm.txt`.
+
 Run a tester directly (for instance `./test_dynamic seed [...]`, pass no
 argument to see its usage), or run a batch over a set of sizes and seeds.
 

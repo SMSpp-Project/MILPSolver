@@ -56,6 +56,17 @@
 using namespace SMSpp_di_unipi_it;
 
 /*--------------------------------------------------------------------------*/
+/*-------------------------------- CONSTANTS -------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+// whether the LP that HiGHS builds for IPX goes wrong on a row with no
+// finite side, which it does up to 1.15.1 (ERGO-Code/HiGHS#3319) [see
+// bind_free_rows()]
+static constexpr bool ipx_misplaces_free_rows =
+ ( ( HIGHS_VERSION_MAJOR * 1000 + HIGHS_VERSION_MINOR ) * 1000 +
+   HIGHS_VERSION_PATCH ) <= 1015001;
+
+/*--------------------------------------------------------------------------*/
 /*-------------------------- FACTORY MANAGEMENT ----------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -84,7 +95,8 @@ void HiGHSMILPSolver_callback( const int callback_type,
 
 HiGHSMILPSolver::HiGHSMILPSolver( void ) :
  MILPSolver() , highs( nullptr ) , f_callback_set( false ) ,
- UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() )
+ UpCutOff( Inf< double >() ) , LwCutOff( - Inf< double >() ) ,
+ n_free_slacks( 0 )
 {
  // Create a Highs instance
  highs = Highs_create();
@@ -129,6 +141,7 @@ void HiGHSMILPSolver::clear_problem( unsigned int what )
  MILPSolver::clear_problem( 0 );
 
  Highs_clearModel(highs);
+ n_free_slacks = 0;
  q_hessian.clear();
  q_hessian_nnz = 0;
  f_hessian_changed = false;
@@ -147,6 +160,9 @@ void HiGHSMILPSolver::load_problem( void )
  int model_status = Highs_getModelStatus( highs );
  if( model_status == kHighsModelStatusModelEmpty )
   Highs_clearModel(highs);
+
+ // the model passed below replaces the one with the slacks, if any
+ n_free_slacks = 0;
 
  std::vector< double > highs_lb = lb;
  std::vector< double > highs_ub = ub;
@@ -364,9 +380,71 @@ bool HiGHSMILPSolver::reload_on_modification( void )
 {
  std::array< char , kHighsMaximumStringLength > solver = {};
  Highs_getStringOptionValue( highs , "solver" , solver.data() );
- return( std::string( solver.data() ) == "ipm" );
+ return( ( std::string( solver.data() ) == "ipm" ) || ( n_free_slacks > 0 ) );
 
  }  // end( HiGHSMILPSolver::reload_on_modification )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::ipm_on_lp( void )
+{
+ if( ( int_vars > 0 ) || ( q_hessian_nnz > 0 ) )
+  return( false );
+
+ HighsInt centring = 0;
+ Highs_getBoolOptionValue( highs , "run_centring" , & centring );
+ if( centring )
+  return( true );
+
+ std::array< char , kHighsMaximumStringLength > solver_option = {};
+ Highs_getStringOptionValue( highs , "solver" , solver_option.data() );
+ const std::string solver( solver_option.data() );
+ return( ( solver == "ipm" ) || ( solver == "ipx" ) || ( solver == "hipo" ) );
+
+ }  // end( HiGHSMILPSolver::ipm_on_lp )
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::bind_free_rows( void )
+{
+ const HighsInt nrow = Highs_getNumRow( highs );
+ if( nrow == 0 )
+  return;
+
+ std::vector< double > lower( nrow ) , upper( nrow );
+ HighsInt got_row , got_nz;
+ if( Highs_getRowsByRange( highs , 0 , nrow - 1 , & got_row , lower.data() ,
+                           upper.data() , & got_nz , nullptr , nullptr ,
+                           nullptr ) == kHighsStatusError )
+  throw( std::runtime_error( "HiGHSMILPSolver::bind_free_rows: "
+                             "Highs_getRowsByRange() failed" ) );
+
+ // the test of HiGHS for a row that IPX drops
+ std::vector< HighsInt > rows;
+ for( HighsInt i = 0 ; i < nrow ; ++i )
+  if( ( lower[ i ] <= -kHighsInf ) && ( upper[ i ] >= kHighsInf ) )
+   rows.push_back( i );
+
+ if( rows.empty() )
+  return;
+
+ const HighsInt n = rows.size();
+ std::vector< double > cost( n , 0 ) , zero( n , 0 ) , one( n , 1 );
+ std::vector< double > lb( n , -kHighsInf ) , ub( n , kHighsInf );
+ std::vector< HighsInt > start( n );
+ std::iota( start.begin() , start.end() , 0 );
+
+ if( ( Highs_addCols( highs , n , cost.data() , lb.data() , ub.data() , n ,
+                      start.data() , rows.data() , one.data() ) ==
+       kHighsStatusError ) ||
+     ( Highs_changeRowsBoundsBySet( highs , n , rows.data() , zero.data() ,
+                                    zero.data() ) == kHighsStatusError ) )
+  throw( std::runtime_error( "HiGHSMILPSolver::bind_free_rows: "
+                             "unable to add the slacks of the free rows" ) );
+
+ n_free_slacks += n;
+
+ }  // end( HiGHSMILPSolver::bind_free_rows )
 
 /*--------------------------------------------------------------------------*/
 
@@ -457,6 +535,11 @@ int HiGHSMILPSolver::guts_of_compute( void )
    }
   }
 
+ // the interior point of HiGHS is not given rows with no finite side
+ // [see bind_free_rows()]
+ if( ipx_misplaces_free_rows && ipm_on_lp() )
+  bind_free_rows();
+
  // Call HiGHS to solve the problem; a QP that fails is dealt with below
  if( ( run_highs() == -1 ) && ( ! qp_help ) ) {
   // An error happened during the call of HiGHS_run. Notice that this is not
@@ -537,8 +620,9 @@ int HiGHSMILPSolver::guts_of_compute( void )
  // Unknown after a restart from scratch, and the interior point of HiGHS
  // (up to 1.15.1 at least) fails at random with a solve error on an LP with
  // a free row that is not the last one, reading past the end of its list of
- // free rows (ERGO-Code/HiGHS#3319). LP-only, since "solver = ipm" is not
- // valid for MIP models.
+ // free rows (ERGO-Code/HiGHS#3319), which it is no longer given [see
+ // bind_free_rows()]. LP-only, since "solver = ipm" is not valid for MIP
+ // models.
  if( ( ( m_status == kHighsModelStatusUnknown ) ||
        ( m_status == kHighsModelStatusSolveError ) ) &&
      ( int_vars == 0 ) && ( q_hessian_nnz == 0 ) ) {
@@ -549,6 +633,8 @@ int HiGHSMILPSolver::guts_of_compute( void )
                    ( solver == "hipo" );
 
   Highs_clearSolver( highs );
+  if( ipx_misplaces_free_rows && ( ! ipm ) )
+   bind_free_rows();
   Highs_setStringOptionValue( highs , "solver" , ipm ? "simplex" : "ipm" );
 
   if( run_highs() == kHighsStatusError )
@@ -824,10 +910,12 @@ Solver::OFValue HiGHSMILPSolver::get_var_value( void )
 
 void HiGHSMILPSolver::get_var_solution( Configuration * solc )
 {
- std::vector< double > col_value( numcols );
- std::vector< double > col_dual( numcols );
- std::vector< double > row_value( numrows );
- std::vector< double > row_dual( numrows );
+ // sized as the model of HiGHS, which may have the slacks of the free rows
+ // after the columns of the Block [see bind_free_rows()]
+ std::vector< double > col_value( Highs_getNumCol( highs ) );
+ std::vector< double > col_dual( col_value.size() );
+ std::vector< double > row_value( Highs_getNumRow( highs ) );
+ std::vector< double > row_dual( row_value.size() );
 
  int status;
  status = Highs_getSolution( highs , col_value.data() , col_dual.data() ,
@@ -838,6 +926,7 @@ void HiGHSMILPSolver::get_var_solution( Configuration * solc )
              "HiGHSMILPSolver::get_var_solution: "
              "an error occurred in Highs_getSolution()" ) );
 
+ col_value.resize( numcols );
  MILPSolver::write_var_solution( col_value );
  }
 
@@ -856,7 +945,7 @@ bool HiGHSMILPSolver::has_var_direction( void )
 void HiGHSMILPSolver::get_var_direction( Configuration * dirc )
 {
  int has_primal_ray = 0;
- std::vector< double > col_value( numcols );
+ std::vector< double > col_value( Highs_getNumCol( highs ) );
   
  int status;
  status = Highs_getPrimalRay( highs , & has_primal_ray , col_value.data() );
@@ -866,6 +955,7 @@ void HiGHSMILPSolver::get_var_direction( Configuration * dirc )
              "HiGHSMILPSolver::get_var_direction: "
              "an error occurred in Highs_getPrimalRay()" ) );
 
+ col_value.resize( numcols );
  MILPSolver::write_var_solution( col_value );
 }
 
@@ -919,10 +1009,11 @@ bool HiGHSMILPSolver::is_dual_feasible( void )
 
 void HiGHSMILPSolver::get_dual_solution( Configuration * solc )
 {
- std::vector< double > col_value( numcols );
- std::vector< double > col_dual( numcols ); // == dj
- std::vector< double > row_value( numrows );
- std::vector< double > row_dual( numrows );  // == pi
+ // sized as the model of HiGHS [see get_var_solution()]
+ std::vector< double > col_value( Highs_getNumCol( highs ) );
+ std::vector< double > col_dual( col_value.size() ); // == dj
+ std::vector< double > row_value( Highs_getNumRow( highs ) );
+ std::vector< double > row_dual( row_value.size() );  // == pi
 
  int status;
  status = Highs_getSolution( highs , col_value.data() , col_dual.data() ,
@@ -932,6 +1023,9 @@ void HiGHSMILPSolver::get_dual_solution( Configuration * solc )
   throw( std::runtime_error(
              "HiGHSMILPSolver::get_dual_solution: "
              "an error occurred in Highs_getSolution()" ) );
+
+ row_dual.resize( numrows );
+ col_dual.resize( numcols );
 
  // Call the method of the base class
  MILPSolver::write_dual_solution( row_dual , col_dual );
