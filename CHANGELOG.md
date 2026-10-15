@@ -28,6 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- an LP on which HiGHS ended with model status Solve error got no second
+  attempt, and the second attempt after an Unknown was always the interior
+  point, even when the interior point was the algorithm that had failed:
+  `HiGHSMILPSolver` now solves again with the other algorithm after either
+  status, the simplex if the `solver` option asks for an interior point and
+  the interior point otherwise. The interior point of HiGHS (up to 1.15.1
+  at least) fails at random with a Solve error on an LP with a free row
+  that is not the last one, reading past the end of its list of free rows
+  (ERGO-Code/HiGHS#3319), which stopped the Solver of the inner Block of
+  some `InvestmentBlock` instances with `kError`
+
 - `GRBMILPSolver` gave a row with no finite side, and a relaxed one, to
   GUROBI as a'x <= GRB_INFINITY, a row with right-hand side 1e100 on which
   a warm re-solve after a change of the coefficients of other rows ends in

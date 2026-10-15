@@ -111,7 +111,12 @@ namespace SMSpp_di_unipi_it {
  *   returning a solution that is not there.
  *
  * Both options only act on QPs, and they can be set to any value in the
- * configuration as any other one. */
+ * configuration as any other one.
+ *
+ * A continuous LP on which HiGHS ends with model status Unknown or Solve
+ * error is solved once more with the other algorithm, the simplex if the
+ * "solver" option asks for an interior point and the interior point
+ * otherwise, after which "solver" goes back to what it was. */
 
 class HiGHSMILPSolver : public MILPSolver {
 

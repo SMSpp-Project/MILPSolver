@@ -531,21 +531,30 @@ int HiGHSMILPSolver::guts_of_compute( void )
     "master problem of a bundle, use a stabilization whose master is a "
     "linear program (the trust region, intMPStbl 4)" ) );
 
- // On numerically difficult LPs, dual simplex can still return Unknown after
- // being restarted from scratch. Retry once with IPM, which uses a genuinely
- // different algorithm and can often recover a definite status. Keep this
- // fallback LP-only, since "solver = ipm" is not valid for MIP models.
- if( ( m_status == kHighsModelStatusUnknown ) && ( int_vars == 0 ) &&
-     ( q_hessian_nnz == 0 ) ) {
+ // An LP that is neither solved nor proved anything is solved once more
+ // with the other algorithm, the simplex if an interior point was asked for
+ // and the interior point otherwise: the dual simplex can still return
+ // Unknown after a restart from scratch, and the interior point of HiGHS
+ // (up to 1.15.1 at least) fails at random with a solve error on an LP with
+ // a free row that is not the last one, reading past the end of its list of
+ // free rows (ERGO-Code/HiGHS#3319). LP-only, since "solver = ipm" is not
+ // valid for MIP models.
+ if( ( ( m_status == kHighsModelStatusUnknown ) ||
+       ( m_status == kHighsModelStatusSolveError ) ) &&
+     ( int_vars == 0 ) && ( q_hessian_nnz == 0 ) ) {
   std::array< char , kHighsMaximumStringLength > solver_option = {};
   Highs_getStringOptionValue( highs , "solver" , solver_option.data() );
+  const std::string solver( solver_option.data() );
+  const bool ipm = ( solver == "ipm" ) || ( solver == "ipx" ) ||
+                   ( solver == "hipo" );
 
   Highs_clearSolver( highs );
-  Highs_setStringOptionValue( highs , "solver" , "ipm" );
+  Highs_setStringOptionValue( highs , "solver" , ipm ? "simplex" : "ipm" );
 
   if( run_highs() == kHighsStatusError )
    std::cerr << "WARNING: An unmanaged error occurred during the execution "
-                "of HiGHS_run with the IPM fallback" << std::endl;
+                "of HiGHS_run with the " << ( ipm ? "simplex" : "IPM" )
+             << " fallback" << std::endl;
 
   m_status = Highs_getModelStatus( highs );
   Highs_setStringOptionValue( highs , "solver" , solver_option.data() );
