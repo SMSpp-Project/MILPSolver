@@ -25,6 +25,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include <cstring>
+#include <cmath>
 #include <vector>
 #include <map>
 #include <mutex>
@@ -1230,6 +1231,23 @@ bool HiGHSMILPSolver::add_columns( const std::vector< Variable * > & vars ,
  if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
   return( false );
 
+ // Use the initial objective coefficients carried by the additions even
+ // if a later queued Modification has removed a Variable from its Function.
+ std::fill( cost.begin() , cost.end() , 0.0 );
+ for( const auto & submod : gmod->sub_Modifications() ) {
+  auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
+  if( ( ! modl ) ||
+      ( ! dynamic_cast< const Objective * >(
+                                      modl->function()->get_Observer() ) ) )
+   continue;
+
+  for( Index i = 0 ; i < modl->vars().size() ; ++i ) {
+   auto it = std::find( vars.begin() , vars.end() , modl->vars()[ i ] );
+   if( it == vars.end() )
+    return( false );
+   cost[ std::distance( vars.begin() , it ) ] += modl->coeff()[ i ];
+   }
+  }
 
  // the columns themselves, each born empty with its bounds and its type,
  // exactly as it is when the Modification arrive one by one
@@ -1314,18 +1332,16 @@ bool HiGHSMILPSolver::change_coefficients(
   if( ! lf )
    return( false );
 
-  Subset idxs;
-  if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
-   idxs = lf->map_index( modl->vars() , modlr->range() );
-  else
-   if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
-    idxs = lf->map_index( modl->vars() , modls->subset() );
-   else
-    return( false );
+  auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl );
+  auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl );
+  if( ( ! modlr ) && ( ! modls ) )
+   return( false );
 
   auto obs = lf->get_Observer();
 
   if( auto con = dynamic_cast< const FRowConstraint * >( obs ) ) {
+   auto idxs = modlr ? lf->map_index( modl->vars() , modlr->range() )
+                    : lf->map_index( modl->vars() , modls->subset() );
    auto row = index_of_constraint( con );
    if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
     continue;                 // what the handler does with it one by one
@@ -1350,12 +1366,14 @@ bool HiGHSMILPSolver::change_coefficients(
    }
 
   if( dynamic_cast< const Objective * >( obs ) ) {
-   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
-    if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
-     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
-     ocols.push_back( index_of_variable( var ) );
+   // Objective deltas describe queued changes, not the live Function state.
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+     ocols.push_back( idx );
      odeltas.push_back( modl->delta()[ i ] );
      }
+    }
 
    continue;
    }
@@ -1583,36 +1601,33 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
 
-  if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+  if( dynamic_cast< const LinearFunction * >( f ) ) {
    // Linear objective function
 
-   Subset idxs;
-   if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
-    idxs = lf->map_index( modl->vars() , modlr->range() );
-   else
-    if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
-     idxs = lf->map_index( modl->vars() , modls->subset() );
-    else
-     throw( std::logic_error(
+   if( ( ! dynamic_cast< const C05FunctionModLinRngd * >( modl ) ) &&
+       ( ! dynamic_cast< const C05FunctionModLinSbst * >( modl ) ) )
+    throw( std::logic_error(
                 "HiGHSMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
    std::vector< int > cidx;
    std::vector< double > delta;
-   cidx.reserve( idxs.size() );
-   delta.reserve( idxs.size() );
-   auto idxit = idxs.begin();
+   cidx.reserve( modl->vars().size() );
+   delta.reserve( modl->vars().size() );
 
    // we exploit the delta() vector of C05FunctionModLin, giving the difference
    // between the new and the old value of the linear coefficient, to update
    // the objective values without having to recompute them: since they are
    // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum
-   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
-    if( *( idxit++ ) < Inf< Index >() ) {
-     cidx.push_back( index_of_variable(
-                   static_cast< const ColVariable * >( modl->vars()[ i ] ) ) );
+   // back all the terms, while the delta() can just be applied to the sum.
+   // Apply queued deltas even if a later Modification has already removed
+   // the Variable from the live Function.
+   for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
+    auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
+    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
+     cidx.push_back( idx );
      delta.push_back( modl->delta()[ i ] );
      }
+    }
 
    change_obj_costs( cidx , delta , true );
    return;
@@ -1855,28 +1870,39 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
 
-  // we exploit the coeff() vector of LinearFunctionModVarsAddd, giving the sum
-  // between the new and the old value of the linear coefficient, to update
-  // the objective values without having to recompute them: since they are
-  // (potentially) a sum of terms, recomputing them would require fetching
-  // back all the terms, while the coeff() can just be applied to the sum
-  auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+  // Addition coefficients and removal deltas refer to the issuing Function
+  // only. Apply them to the total cost in arrival order, without consulting
+  // the current active Variables of the Function.
+  const Function::Vec_FunctionValue * delta = nullptr;
+  if( mod->added() ) {
+   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+   if( ! modl )
+    throw( std::invalid_argument(
+               "HiGHSMILPSolver: invalid LinearFunction addition" ) );
+   delta = & modl->coeff();
+   }
+  else if( auto modr = dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+   if( modr->has_linear_delta() )
+    delta = & modr->linear_delta();
+   }
+  else if( auto mods = dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+   if( mods->has_linear_delta() )
+    delta = & mods->linear_delta();
+   }
 
   for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
-    if( mod->added() )
-     values.push_back( lf->is_active( var ) < nav ? modl->coeff()[ i ] : 0 );
-    else
-     values.push_back( 0 );
+    // Legacy removals without a delta keep the previous zeroing behaviour.
+    values.push_back( delta ? ( *delta )[ i ] : 0.0 );
     }
    }
 
-  change_obj_costs( indices , values , mod->added() );
+  change_obj_costs( indices , values , delta != nullptr , ! mod->added() );
   return;
   }
 
@@ -3493,7 +3519,7 @@ void HiGHSMILPSolver::pass_hessian( const char * caller )
 
 void HiGHSMILPSolver::change_obj_costs( std::vector< int > & idx ,
                                         std::vector< double > & val ,
-                                        bool add )
+                                        bool add , bool removal )
 {
  if( idx.empty() )
   return;
@@ -3529,8 +3555,18 @@ void HiGHSMILPSolver::change_obj_costs( std::vector< int > & idx ,
   Highs_getColsBySet( highs , set.size() , set.data() , & num_col ,
                       old.data() , nullptr , nullptr , & num_nz , nullptr ,
                       nullptr , nullptr );
-  for( Index k = 0 ; k < set.size() ; ++k )
-   nval[ k ] += old[ k ];
+  for( Index k = 0 ; k < set.size() ; ++k ) {
+   const double change = nval[ k ];
+   double newval = old[ k ] + change;
+   if( removal ) {
+    const double scale = std::max( { 1.0 , std::abs( old[ k ] ) ,
+                                    std::abs( change ) } );
+    if( std::isfinite( newval ) &&
+        ( std::abs( newval ) <= obj_removal_tol * scale ) )
+     newval = 0.0;
+    }
+   nval[ k ] = newval;
+   }
   }
 
  Highs_changeColsCostBySet( highs , set.size() , set.data() , nval.data() );
