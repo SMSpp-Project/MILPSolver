@@ -862,9 +862,11 @@ void add_mip_starts(
  /** Changes the costs of the columns in idx in one call, reading the old ones
   * in one call as well if add is true. The indices need not be ordered, and
   * a column named twice gets the sum of its values if add is true and the
-  * last one otherwise. */
+  * last one otherwise. If add and removal are both true, round a finite
+  * result to zero when its magnitude is at most
+  * dblObjRemovalTol * max( 1 , abs( old cost ) , abs( summed delta ) ). */
  void change_obj_costs( std::vector< int > & idx , std::vector< double > & val ,
-                        bool add );
+                        bool add , bool removal = false );
 
 /*--------------------------------------------------------------------------*/
 
