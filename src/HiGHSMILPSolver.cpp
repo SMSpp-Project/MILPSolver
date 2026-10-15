@@ -673,6 +673,13 @@ int HiGHSMILPSolver::decode_model_status( int status )
    // There has been an error in the presolve phase.
   case( kHighsModelStatusSolveError ):
    // There has been an error when solving the model.
+  case( kHighsModelStatusPostsolveError ):
+   // There has been an error in the postsolve phase.
+   return( kError );
+  case( kHighsModelStatusInterrupt ):
+   // The run was interrupted, by the callback when a cutoff is reached
+   // [see callback()]: nothing is proved, as for an aborted run of the
+   // other :MILPSolver.
    return( kError );
   case( kHighsModelStatusModelEmpty ):
    // The model is empty.

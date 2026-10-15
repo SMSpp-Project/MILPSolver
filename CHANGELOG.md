@@ -28,6 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `HiGHSMILPSolver` threw "unknown status" on a run that HiGHS ended with
+  the model status Interrupt, which its callback asks for when a cutoff is
+  reached on a maximization MIP, or with Postsolve error: both are now
+  `kError`, as an aborted or interrupted run of `CPXMILPSolver` and
+  `GRBMILPSolver` and a presolve or solve error of HiGHS are;
+  `test_cutoff_status` solves a maximization MIP with an upper cutoff that
+  its first integer solution reaches with each `:MILPSolver`
+
 - the interior point of HiGHS up to 1.15.1, asked for on an LP without
   presolve, solved another LP whenever a row with no finite side came
   before a row with two finite sides: the LP that HiGHS builds for IPX

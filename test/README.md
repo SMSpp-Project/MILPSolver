@@ -52,6 +52,12 @@ Three testers for the `MILPSolver` module, each registered as a separate
   after a row is relaxed and enforced again; the Solver and their options
   are those of `LPPar-ipm.txt`.
 
+- `test_cutoff_status` verifies that each `:MILPSolver` of the build,
+  given an upper cutoff that the first integer solution of a maximization
+  MIP reaches, ends with `kOK` and the optimal value or with `kError`, and
+  does not throw; the Solver are those of `MILPPar-cutoff.txt`, all
+  but `SCIPMILPSolver`, which fails on the second solve with a cutoff.
+
 Run a tester directly (for instance `./test_dynamic seed [...]`, pass no
 argument to see its usage), or run a batch over a set of sizes and seeds.
 

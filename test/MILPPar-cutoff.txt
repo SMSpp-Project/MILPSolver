@@ -1,0 +1,34 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - -  MILPPar-cutoff.txt - - - - - - - - - - - - - - -
+#
+# A txt description of a BlockSolverConfig for the MIP of
+# test_cutoff_status, attaching each :MILPSolver with the ComputeConfig of
+# MILPCfg-cutoff.txt, which the test gives them again after the first solve,
+# since loading the problem sets the cutoffs back to infinite; not
+# SCIPMILPSolver, which adds its callback constraint to a solved SCIP
+# problem on the second solve and returns the SCIP_INVALIDCALL of it
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+BlockSolverConfig     # exact type of the Configuration object
+
+1  # the BlockSolverConfig is a "differential" one: values are being set
+
+3  # number of (the names of) Solver in this BlockSolverConfig
+
+# now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
+CPXMILPSolver    # name of Solver, if it is in the build
+GRBMILPSolver    # name of Solver, if it is in the build
+HiGHSMILPSolver  # name of Solver, if it is in the build
+
+3  # number of ComputeConfig in this BlockSolverConfig
+
+# now all the ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - -
+*MILPCfg-cutoff.txt
+*MILPCfg-cutoff.txt
+*MILPCfg-cutoff.txt
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - -  END MILPPar-cutoff.txt - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
