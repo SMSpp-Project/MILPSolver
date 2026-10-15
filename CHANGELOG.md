@@ -60,6 +60,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in the objective, and checks that the first solve stops at the first
   solution if that reaches a cutoff and gives the optimal value otherwise
 
+- `HiGHSMILPSolver` wrote (`write_lp()`, `strOutputFile`) the model with
+  the slack columns of the free rows that an interior point solve had added
+  to it: it now writes a copy without them, the rows free again, which
+  leaves the model and the solution of HiGHS as they are;
+  `test_ipm_free_rows` checks that each `:MILPSolver` writes the same model
+  before and after a solve
+
 - `HiGHSMILPSolver` threw "unknown status" on a run that HiGHS ended with
   the model status Interrupt, which its callback asks for when a cutoff is
   reached on a maximization MIP, or with Postsolve error: both are now

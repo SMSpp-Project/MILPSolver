@@ -884,6 +884,13 @@ void add_mip_starts(
   * reload_on_modification()]. */
  void bind_free_rows( void );
 
+ /// writes the model of the Block to the file name
+ /** Writes the model of HiGHS, in the format of the extension of name;
+  * if it has the slack columns of the free rows [see bind_free_rows()],
+  * it writes a copy without them, the rows free again, which leaves the
+  * model and the solution of HiGHS as they are. */
+ void write_model( const std::string & name );
+
  /// passes q_hessian to HiGHS, the name of the caller going in the error
  void pass_hessian( const char * caller );
 

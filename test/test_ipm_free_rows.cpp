@@ -27,6 +27,11 @@
  *   ones: 0.5;
  * - row 1 enforced again: 1.
  *
+ * Each Solver also writes its model [see MILPSolver::write_lp()] before the
+ * first solve and after it, and the two files have to be the same: what is
+ * written is the model of the Block, whatever the Solver has added to it to
+ * solve it.
+ *
  * The Solver are those of LPPar-ipm.txt that are in the factory, all of them
  * attached at once, and the test is skipped (exit status 77) if none is.
  *
@@ -40,8 +45,11 @@
 /*--------------------------------------------------------------------------*/
 
 #include <cmath>
+#include <cstdio>
+#include <fstream>
 #include <functional>
 #include <iostream>
+#include <sstream>
 #include <tuple>
 
 #include "AbstractBlock.h"
@@ -56,6 +64,8 @@
 
 #include "LinearFunction.h"
 
+#include "MILPSolver.h"
+
 #include "OneVarConstraint.h"
 
 #include "test_common.h"
@@ -63,6 +73,18 @@
 /*--------------------------------------------------------------------------*/
 
 using namespace SMSpp_di_unipi_it;
+
+/*--------------------------------------------------------------------------*/
+// the content of the file name, which is then removed
+
+static std::string take( const std::string & name )
+{
+ std::ifstream f( name );
+ std::stringstream ss;
+ ss << f.rdbuf();
+ std::remove( name.c_str() );
+ return( ss.str() );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -129,6 +151,14 @@ int main( void )
   { "row 2 <= 3" , [ & ]() { row[ 2 ].set_rhs( 3 ); } , 0.5 } ,
   { "row 1 enforced" , [ & ]() { row[ 1 ].relax( false ); } , 1 } };
 
+ // the model of each Solver before the first solve
+ const auto file = []( Solver * s , const char * when ) {
+  return( s->classname() + "-" + when + ".lp" );
+  };
+ for( auto s : block->get_registered_solvers() )
+  if( auto milp = dynamic_cast< MILPSolver * >( s ) )
+   milp->write_lp( file( s , "before" ) );
+
  int failures = 0;
  for( const auto & [ what , change , expected ] : steps ) {
   change();
@@ -155,6 +185,18 @@ int main( void )
      ok = false;
      }
     }
+
+   // after the first solve, the model has to be written as before it
+   if( what == "first solve" )
+    if( auto milp = dynamic_cast< MILPSolver * >( s ) ) {
+     milp->write_lp( file( s , "after" ) );
+     const auto before = take( file( s , "before" ) );
+     const auto after = take( file( s , "after" ) );
+     const bool same = ( ! before.empty() ) && ( before == after );
+     std::cout << ( same ? ", same model written"
+                         : ", another model written" );
+     ok = ok && same;
+     }
 
    std::cout << ( ok ? " -> OK" : " -> KO" ) << std::endl;
    if( ! ok )

@@ -49,8 +49,9 @@ Three testers for the `MILPSolver` module, each registered as a separate
   `:MILPSolver` of the build that has one, without presolve, solves right
   a small LP with a free row followed by a row with two finite sides, and
   solves it again after the free row gets a finite side and loses it and
-  after a row is relaxed and enforced again; the Solver and their options
-  are those of `LPPar-ipm.txt`.
+  after a row is relaxed and enforced again, and that the model it writes
+  after the first solve is the one it writes before; the Solver and their
+  options are those of `LPPar-ipm.txt`.
 
 - `test_cutoff_status` verifies the cutoffs of each `:MILPSolver` of the
   build on a maximization and a minimization MIP with a constant in the

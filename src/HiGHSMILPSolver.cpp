@@ -433,6 +433,85 @@ void HiGHSMILPSolver::bind_free_rows( void )
 
 /*--------------------------------------------------------------------------*/
 
+void HiGHSMILPSolver::write_model( const std::string & name )
+{
+ if( n_free_slacks == 0 ) {
+  Highs_writeModel( highs , name.c_str() );
+  return;
+  }
+
+ HighsInt ncol = Highs_getNumCol( highs );
+ HighsInt nrow = Highs_getNumRow( highs );
+ HighsInt nnz = Highs_getNumNz( highs );
+ HighsInt qnnz = Highs_getHessianNumNz( highs );
+ HighsInt sense = 0;
+ double offset = 0;
+ std::vector< double > cost( ncol ) , lower( ncol ) , upper( ncol );
+ std::vector< double > row_lower( nrow ) , row_upper( nrow );
+ std::vector< HighsInt > start( ncol + 1 ) , index( nnz ) ,
+                         integrality( ncol );
+ std::vector< double > value( nnz );
+ std::vector< HighsInt > q_start( ncol + 1 ) , q_index( qnnz );
+ std::vector< double > q_value( qnnz );
+
+ if( Highs_getModel( highs , kHighsMatrixFormatColwise ,
+                     kHighsHessianFormatTriangular , & ncol , & nrow , & nnz ,
+                     & qnnz , & sense , & offset , cost.data() ,
+                     lower.data() , upper.data() , row_lower.data() ,
+                     row_upper.data() , start.data() , index.data() ,
+                     value.data() , q_start.data() , q_index.data() ,
+                     q_value.data() , integrality.data() ) ==
+     kHighsStatusError )
+  throw( std::runtime_error( "HiGHSMILPSolver::write_model: "
+                             "Highs_getModel() failed" ) );
+
+ // the slacks are the last columns, one entry each, in the row they bind
+ const HighsInt nblock = ncol - n_free_slacks;
+ for( HighsInt j = nblock ; j < ncol ; ++j ) {
+  row_lower[ index[ start[ j ] ] ] = -kHighsInf;
+  row_upper[ index[ start[ j ] ] ] = kHighsInf;
+  }
+
+ const HighsInt nnz_block = start[ nblock ];
+ const HighsInt qnnz_block = qnnz ? q_start[ nblock ] : 0;
+
+ auto copy = Highs_create();
+ Highs_setBoolOptionValue( copy , "output_flag" , 0 );
+ auto status = Highs_passModel( copy , nblock , nrow , nnz_block ,
+                                qnnz_block , kHighsMatrixFormatColwise ,
+                                kHighsHessianFormatTriangular , sense ,
+                                offset , cost.data() , lower.data() ,
+                                upper.data() , row_lower.data() ,
+                                row_upper.data() , start.data() ,
+                                index.data() , value.data() ,
+                                qnnz_block ? q_start.data() : nullptr ,
+                                qnnz_block ? q_index.data() : nullptr ,
+                                qnnz_block ? q_value.data() : nullptr ,
+                                int_vars ? integrality.data() : nullptr );
+
+ if( use_custom_names && ( status != kHighsStatusError ) ) {
+  std::array< char , kHighsMaximumStringLength > buf = {};
+  for( HighsInt j = 0 ; j < nblock ; ++j )
+   if( Highs_getColName( highs , j , buf.data() ) != kHighsStatusError )
+    Highs_passColName( copy , j , buf.data() );
+  for( HighsInt i = 0 ; i < nrow ; ++i )
+   if( Highs_getRowName( highs , i , buf.data() ) != kHighsStatusError )
+    Highs_passRowName( copy , i , buf.data() );
+  }
+
+ if( status != kHighsStatusError )
+  Highs_writeModel( copy , name.c_str() );
+
+ Highs_destroy( copy );
+
+ if( status == kHighsStatusError )
+  throw( std::runtime_error( "HiGHSMILPSolver::write_model: "
+                             "Highs_passModel() failed" ) );
+
+ }  // end( HiGHSMILPSolver::write_model )
+
+/*--------------------------------------------------------------------------*/
+
 int HiGHSMILPSolver::guts_of_compute( void )
 {
  // Note: locking, process_modifications() and the LP cut separation loop
@@ -456,7 +535,7 @@ int HiGHSMILPSolver::guts_of_compute( void )
   std::stringstream X(output_file);
   std::getline( X , output_file_lp , '.');
   output_file_lp = output_file_lp.append(".lp");
-  Highs_writeModel( highs , output_file_lp.c_str() );
+  write_model( output_file_lp );
  }
 
  // the actual call to HiGHS- - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1101,7 +1180,7 @@ void HiGHSMILPSolver::write_lp( const std::string & filename )
  if( name.find_last_of( '.' ) == std::string::npos )
   name += ".lp";
 
- Highs_writeModel( highs , name.c_str() );
+ write_model( name );
  }
 
 /*--------------------------------------------------------------------------*/
