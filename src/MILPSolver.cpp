@@ -554,6 +554,10 @@ void MILPSolver::load_problem( void )
 
  objsense = 0;
  for( auto qb : v_BFS ) {
+  // a Block whose Objective is to be ignored has no say on the sense
+  if( is_objective_excluded( qb ) )
+   continue;
+
   switch( qb->get_objective_sense() ) {
    case( Objective::eMax ):
     if( objsense == 1 )
@@ -1681,12 +1685,19 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
  // is not, re-dispatch itself to all the sub-Modification
  if( auto gm = dynamic_cast< const GroupModification * >( mod ) ) {
   // DEBUG_LOG( "GroupModification containing:" << std::endl );
-  if( process_group_modification( gm ) )
+  // a group touching an Objective to be ignored is never one operation,
+  // since its pieces about that Objective are dropped below
+  if( ( ! touches_excluded_objective( gm ) ) &&
+      process_group_modification( gm ) )
    return;
   for( const auto & submod : gm->sub_Modifications() )
    guts_of_process_modifications( submod.get() );
   return;
   }
+
+ // the Modification of an Objective to be ignored are not about the model
+ if( touches_excluded_objective( mod ) )
+  return;
 
  // for all other Modification, dispatch the appropriate virtual method
  if( auto vm = dynamic_cast< const VariableMod * >( mod ) ) {
@@ -2169,6 +2180,36 @@ bool MILPSolver::is_of( Function * f )
 
 /*--------------------------------------------------------------------------*/
 
+bool MILPSolver::touches_excluded_objective( const Modification * mod ) const
+{
+ if( get_excluded_objectives().empty() )
+  return( false );
+
+ if( auto gm = dynamic_cast< const GroupModification * >( mod ) ) {
+  for( const auto & submod : gm->sub_Modifications() )
+   if( touches_excluded_objective( submod.get() ) )
+    return( true );
+  return( false );
+  }
+
+ if( auto om = dynamic_cast< const ObjectiveMod * >( mod ) )
+  return( is_objective_excluded( om->get_Block() ) );
+
+ const Function * f = nullptr;
+ if( auto fm = dynamic_cast< const FunctionMod * >( mod ) )
+  f = fm->function();
+ else
+  if( auto fvm = dynamic_cast< const FunctionModVars * >( mod ) )
+   f = fvm->function();
+ if( ! f )
+  return( false );
+
+ auto obj = dynamic_cast< const Objective * >( f->get_Observer() );
+ return( obj && is_objective_excluded( obj->get_Block() ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void MILPSolver::var_modification( const VariableMod * mod )
 {
  auto var = static_cast< const ColVariable * >( mod->variable() );
@@ -2564,6 +2605,19 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
 {
  if( auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >( mod
 									) ) {
+  // the back-ends add only linear rows to a loaded problem, and only to one
+  // with no quadratic row, while loading it reads them all [see
+  // load_problem()]
+  if( numquadrows ) {
+   f_reset = true;
+   return;
+   }
+  for( auto * i : tmod->added() )
+   if( ! dynamic_cast< const LinearFunction * >( i->get_function() ) ) {
+    f_reset = true;
+    return;
+    }
+
   if( ! m_cut_pool.empty() ) {
    // the rows of the pool are not rows of the model
    std::vector< const FRowConstraint * > rows;
@@ -2609,10 +2663,25 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
 
  if( auto tmod = dynamic_cast< const BlockModRmv< FRowConstraint > * >( mod
 									) ) {
+  // as above, a problem with quadratic rows is loaded again
+  if( numquadrows ) {
+   for( const auto & i : tmod->removed() )
+    erase_from_cut_pool( & i );
+   f_reset = true;
+   return;
+   }
   for( const auto & i : tmod->removed() )
    if( ! erase_from_cut_pool( & i ) )  // a row of the pool is not in the
     remove_dynamic_constraint( & i );  // model
 
+  return;
+  }
+
+ // and so is it if columns come or go
+ if( numquadrows && ( dynamic_cast< const BlockModAdd< ColVariable > * >( mod )
+                      || dynamic_cast< const BlockModRmv< ColVariable > * >(
+                                                                    mod ) ) ) {
+  f_reset = true;
   return;
   }
 

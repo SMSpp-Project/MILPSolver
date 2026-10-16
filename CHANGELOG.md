@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- the Objective of the Block given to `Solver::set_excluded_objectives()` is
+  not loaded, nor is its sense, and its Modification are dropped, a
+  GroupModification having one of them inside being processed piece by piece
+  rather than as one operation of the back-end
+
+- a dynamic `FRowConstraint` whose Function is not a `LinearFunction` (e.g.,
+  a `DQuadFunction`) added to a loaded problem has the problem loaded again,
+  which reads it as the rows of the problem as first loaded are, rather than
+  have the back-end throw, which adds only linear rows; so do the dynamic
+  rows and columns that come or go in a problem with quadratic rows, whose
+  duals `GRBMILPSolver` read at the wrong index once a linear row had been
+  added in place
+
 - `DAQPMILPSolver`, the interface with the open-source dual active-set
   solver DAQP for convex QPs (and LPs) with linear constraints, dense and
   with no integer variables: the problem is loaded again whole at every

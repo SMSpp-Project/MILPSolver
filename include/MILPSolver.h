@@ -1677,6 +1677,13 @@ class MILPSolver : public CDASolver
   */
  static bool is_of( Function * f );
 
+ /// true if \p mod is, or has inside, a Modification of an ignored Objective
+ /** Returns true if \p mod is an ObjectiveMod, a FunctionMod or a
+  * FunctionModVars of the Objective of a Block given to
+  * Solver::set_excluded_objectives(), or a GroupModification having one of
+  * them inside at any depth. */
+ [[nodiscard]] bool touches_excluded_objective( const Modification * mod ) const;
+
  /// handles a variable modification
  virtual void var_modification( const VariableMod * mod );
 
