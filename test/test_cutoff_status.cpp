@@ -17,9 +17,10 @@
  * Each Solver of MILPPar-cutoff.txt that is in the factory is attached to
  * either problem with its ComputeConfig, whose cutoffs it has to keep when
  * it loads the problem, and the first solve is to stop at a cutoff that the
- * first solution reaches (kError, the status of an aborted run) and to solve
- * the problem otherwise (kOK and the optimal value). The cutoffs of each
- * ComputeConfig are read in the BlockSolverConfig, and are those of
+ * first solution reaches (kCutOff, with bounds that show it reached and stay
+ * valid) and to solve the problem otherwise (kOK and the optimal value). The
+ * cutoffs of each ComputeConfig are read in the BlockSolverConfig, and are
+ * those of
  *
  * - MILPCfg-cutoff.txt, an upper cutoff of 1000: the maximization stops at
  *   its first solution, the minimization is solved;
@@ -34,8 +35,11 @@
  *
  * Each Solver then solves its problem again with the ComputeConfig of
  * MILPCfg-cutoff.txt, which gives a cutoff to a Solver that has solved its
- * problem with none it could reach: it may stop at the cutoff or give the
- * optimal value, but it is not to throw or to fail. The test is skipped
+ * problem with none it could reach: it may stop at the cutoff (kCutOff) or
+ * give the optimal value, but it is not to throw or to fail. With kCutOff,
+ * the value of the solution, seen as a maximization, has to be at least the
+ * upper cutoff that the Solver has and at most the optimal value, and the
+ * bound on the other side at least the optimal value. The test is skipped
  * (exit status 77) if no Solver is in the factory.
  *
  * \author Donato Meoli \n
@@ -198,7 +202,23 @@ int main( void )
       ok = ( std::abs( v - opt ) <= 1e-6 * Opt ) && ! ( first && stop );
       }
      else
-      ok = ( st == Solver::kError ) && ! ( first && ( ! stop ) );
+      if( st == Solver::kCutOff ) {
+       // the bounds as seen by the maximization: the solution, which has
+       // reached the upper cutoff, and the bound of the search
+       const double sol = max ? s->get_lb() : - s->get_ub();
+       const double bnd = max ? s->get_ub() : - s->get_lb();
+       const double tol = 1e-6 * Opt;
+       std::cout << ", solution " << sol << ", bound " << bnd;
+       // the upper cutoff that the Solver has, as seen by the
+       // maximization: the ComputeConfig of the second solve only adds to
+       // the cutoffs of the first
+       const double s_up = max ? s->get_dbl_par( Solver::dblUpCutOff )
+                               : - s->get_dbl_par( Solver::dblLwCutOff );
+       ok = ( sol >= s_up - tol ) && ( sol <= Opt + tol ) &&
+            ( bnd >= Opt - tol ) && ! ( first && ( ! stop ) );
+       }
+      else
+       ok = false;
      }
     catch( const std::exception & e ) {
      std::cout << "threw \"" << e.what() << "\"";

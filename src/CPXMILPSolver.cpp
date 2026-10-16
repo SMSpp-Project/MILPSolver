@@ -1167,6 +1167,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
      }
     case( kOK ):
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
      switch( probtype ) {
       case( CPXPROB_MILP ):
@@ -1247,6 +1248,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       break;
       }
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
       lower_bound = -Inf< OFValue >();
@@ -1317,6 +1319,7 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       break;
       }
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
       upper_bound = Inf< OFValue >();
@@ -1382,6 +1385,7 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
      }
     case( kOK ):
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
      switch( probtype ) {
       case( CPXPROB_MILP ):
@@ -3564,8 +3568,10 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
     if( bndv <= - 1e+75 )
      bndv = -Inf< double >();
 
-    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
+    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) ) {
+     f_cutoff_stop = true;
      CPXcallbackabort( context );
+     }
     }
    else {
     // a maximization problem: solv is lower bound and bndv is upper bound
@@ -3575,8 +3581,10 @@ int CPXMILPSolver::callback( CPXCALLBACKCONTEXTptr context ,
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
 
-    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) )
+    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ) {
+     f_cutoff_stop = true;
      CPXcallbackabort( context );
+     }
     }
    break;
    }

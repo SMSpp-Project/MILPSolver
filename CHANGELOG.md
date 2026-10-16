@@ -28,6 +28,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- a MIP solve that `CPXMILPSolver`, `GRBMILPSolver`, `HiGHSMILPSolver` or
+  `SCIPMILPSolver` interrupted because a cutoff (`dblUpCutOff`,
+  `dblLwCutOff`) was reached returned `kError`, with infinite bounds: it
+  now returns `kCutOff`, which `Solver.h` defines for this case, with the
+  value of the incumbent and the bound of the search from `get_lb()` and
+  `get_ub()` as after `kStopTime`, and the incumbent as the solution
+  (`SCIPMILPSolver` gives it with `kCutOff` as well), and `GRBMILPSolver`
+  no longer warns of an interrupted run for it. A `LagBFunction` or
+  `BendersBFunction` passes the status of its inner Solver on, and a
+  `BundleSolver` that gives them targets (`intTrgtMng`) stopped with
+  `kError` at the first component that reached one, while it reads
+  `kCutOff` as an evaluation stopped early; `test_cutoff_status` expects
+  `kCutOff`, a solution beyond the cutoff and a valid bound
+
 - the cutoffs `dblUpCutOff` and `dblLwCutOff` of a `ComputeConfig` never
   reached a solve: `CPXMILPSolver`, `GRBMILPSolver`, `HiGHSMILPSolver` and
   `SCIPMILPSolver` set them back to infinite whenever they loaded the
@@ -51,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a cutoff given after a solve made it, returned `SCIP_INVALIDCALL` (-8) as
   the status of `compute()`. An event handler now interrupts SCIP at a new
   incumbent or at a solved node that reaches a cutoff, which ends the solve
-  with `kError` as for the other `:MILPSolver`; the constraint handler of
+  with `kCutOff` as for the other `:MILPSolver`; the constraint handler of
   the separation is added once, to the original problem with the
   transformed one gone, and again after the problem is loaded again.
   `test_cutoff_status` attaches each `:MILPSolver`, `SCIPMILPSolver`

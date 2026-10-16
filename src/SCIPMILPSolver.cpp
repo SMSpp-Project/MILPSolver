@@ -530,8 +530,8 @@ int SCIPMILPSolver::guts_of_compute( void )
   case( SCIP_STATUS_INFORUNBD ):
   case( SCIP_STATUS_UNBOUNDED ):  sol_status = kUnbounded;  break;
   case( SCIP_STATUS_USERINTERRUPT ):
-   // interrupted, by SCIPMILPSolver_CutOff when a cutoff is reached:
-   // nothing is proved, as for an aborted run of the other :MILPSolver
+   // interrupted, by SCIPMILPSolver_CutOff when a cutoff is reached, which
+   // MILPSolver::compute() then turns into kCutOff
    sol_status = kError;
    break;
   default:                        sol_status = kError + SCIPgetStatus( scip );
@@ -568,8 +568,11 @@ bool SCIPMILPSolver::cutoff_reached( SCIP_SOL * sol )
                              constant_value );
  const bool min = ( SCIPgetObjsense( scip ) == SCIP_OBJSENSE_MINIMIZE );
 
- return( ( ( min ? db : pb ) >= UpCutOff ) ||
-         ( ( min ? pb : db ) <= LwCutOff ) );
+ const bool reached = ( ( min ? db : pb ) >= UpCutOff ) ||
+                      ( ( min ? pb : db ) <= LwCutOff );
+ if( reached )
+  f_cutoff_stop = true;
+ return( reached );
 
  }  // end( SCIPMILPSolver::cutoff_reached )
 
@@ -647,6 +650,7 @@ bool SCIPMILPSolver::has_var_solution( void )
 {
  switch( sol_status ) {
   case( kOK ):
+  case( kCutOff ):
   case( kUnbounded ): return( true );
   }
 

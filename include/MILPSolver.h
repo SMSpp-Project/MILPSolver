@@ -66,6 +66,8 @@
 
 #include <algorithm>
 
+#include <atomic>
+
 #include <cmath>
 
 #include <functional>
@@ -807,6 +809,16 @@ class MILPSolver : public CDASolver
   *   guts_of_compute() iteration. The loop terminates when no new
   *   Modification is produced or intMaxCutPasses rounds have been done.
   *
+  * A MIP solve that the callback of a derived class interrupts because
+  * the incumbent or the bound of the search has reached dblUpCutOff or
+  * dblLwCutOff [see Solver.h] returns kCutOff, which is in [ kOK , kError )
+  * as kStopTime is, rather than the error status of an interrupted run.
+  * Nothing is then proved optimal: as after kStopTime, get_lb() and get_ub()
+  * give the value of the incumbent, if any, on its side and the bound of the
+  * search on the other, either of them infinite if the solve has none, and
+  * get_var_solution() gives the incumbent. The cutoffs are not checked on
+  * a continuous problem, nor with intRelaxIntVars == 2.
+  *
   * Derived classes should *not* override compute(); they should instead
   * override guts_of_compute(). */
 
@@ -1367,6 +1379,15 @@ class MILPSolver : public CDASolver
  std::vector< char * > rowname;
 
  int sol_status = kUnEval; ///< Solution status (OK, Infeasible, Unbounded, ...)
+
+ /// whether the callback of the cutoffs has interrupted the current solve
+ /** Set by the callback of a derived class (possibly from several threads
+  * of the back-end) when the incumbent or the bound of the search reaches
+  * dblUpCutOff or dblLwCutOff and it asks the back-end to stop; compute()
+  * clears it before the solve and reads it after, giving kCutOff rather
+  * than the error status of an interrupted run. */
+ std::atomic< bool > f_cutoff_stop = false;
+
  int int_vars{};           ///< Number of integer variables
  int static_vars{};        ///< Number of static variables
  int static_cons{};        ///< Number of static constraints

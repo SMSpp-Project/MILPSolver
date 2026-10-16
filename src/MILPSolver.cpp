@@ -1558,7 +1558,13 @@ int MILPSolver::compute( bool changedvars )
  const int log_verb = ( f_log ) ? log_verbosity : 0;
 
  // dispatch to the derived class for the actual back-end solve - - - - - - -
+ f_cutoff_stop = false;
  int sts = guts_of_compute();
+
+ // a run that the callback interrupted at a cutoff stopped where it was asked
+ // to [see dblUpCutOff and dblLwCutOff in Solver.h], which is no error
+ if( f_cutoff_stop && ( sts >= kError ) )
+  sol_status = sts = kCutOff;
 
  // intRelaxIntVars == 2: explicit LP cut separation loop - - - - - - - - - -
  if( relax_int_vars == 2 ) {

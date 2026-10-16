@@ -823,6 +823,7 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
     // not a lower bound: that of a MIP is the dual bound of the search, and
     // an LP stopped has none
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
       lower_bound = stopped_dual_bound( -Inf< OFValue >() );
       break;
@@ -844,6 +845,7 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
     case( kUnEval ): // Sometimes it could be asked also during the computation
      if( ! has_var_solution() ) {
@@ -886,6 +888,7 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
     // if the algorithm has been stopped, the bound only exists if a
     // feasible solution has been generated
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
     case( kUnEval ): // Sometimes it could be asked also during the computation
      if( ! has_var_solution() ) {
@@ -922,6 +925,7 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
     // not an upper bound: that of a MIP is the dual bound of the search, and
     // an LP stopped has none
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
      upper_bound = stopped_dual_bound( Inf< OFValue >() );
      break;
@@ -2530,8 +2534,10 @@ int HiGHSMILPSolver::callback( const int callback_type,
     if( bndv <= - 1e+75 )
      bndv = - Inf< double >();
 
-    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) )
+    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) ) {
+     f_cutoff_stop = true;
      data_in->user_interrupt = 1;
+     }
     }
    else {
     // a maximization problem: solv is lower bound and bndv is upper bound
@@ -2541,8 +2547,10 @@ int HiGHSMILPSolver::callback( const int callback_type,
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
 
-    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) )
+    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ) {
+     f_cutoff_stop = true;
      data_in->user_interrupt = 1;
+     }
     }
    break;
   case( kHighsCallbackMipImprovingSolution ):

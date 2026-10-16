@@ -57,9 +57,10 @@ Three testers for the `MILPSolver` module, each registered as a separate
   build on a maximization and a minimization MIP with a constant in the
   objective: the cutoffs of the `ComputeConfig` of `MILPPar-cutoff.txt`
   (an upper one, a lower one, both) have to survive loading the problem,
-  the first solve has to stop (`kError`) at a cutoff that the first
-  solution reaches and to give the optimal value otherwise, and a second
-  solve with a cutoff after a first one has to give either, and not throw.
+  the first solve has to stop (`kCutOff`, with the value of its solution
+  beyond the cutoff and a valid bound) at a cutoff that the first solution
+  reaches and to give the optimal value otherwise, and a second solve with
+  a cutoff after a first one has to give either, and not throw.
 
 Run a tester directly (for instance `./test_dynamic seed [...]`, pass no
 argument to see its usage), or run a batch over a set of sizes and seeds.

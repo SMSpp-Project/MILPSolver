@@ -846,7 +846,12 @@ int GRBMILPSolver::guts_of_compute( void )
   int m_status;
   GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
 
-  sol_status = decode_model_status( m_status );
+  // a run that the callback interrupted at a cutoff is no failure, and
+  // MILPSolver::compute() gives kCutOff for it
+  if( ( m_status == GRB_INTERRUPTED ) && f_cutoff_stop )
+   sol_status = kError;
+  else
+   sol_status = decode_model_status( m_status );
   return( sol_status );
   }
 
@@ -1117,6 +1122,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     case( kOK ):
     case( kLowPrecision ):
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
      GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
@@ -1188,6 +1194,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     // feasible solution has been generated
     case( kLowPrecision ):
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
       lower_bound = - Inf< OFValue >();
@@ -1249,6 +1256,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     // feasible solution has been generated
     case( kLowPrecision ):
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
      if( ! has_var_solution() ) {
       upper_bound = Inf< OFValue >();
@@ -1292,6 +1300,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     case( kOK ):
     case( kLowPrecision ):
     case( kStopIter ):
+    case( kCutOff ):
     case( kStopTime ):
      GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
@@ -4061,8 +4070,10 @@ int GRBMILPSolver::callback( GRBmodel *model,
    double solv , bndv;
    GRBcbget( cbdata , where , GRB_CB_MIP_OBJBST , & solv );
    GRBcbget( cbdata , where , GRB_CB_MIP_OBJBND , & bndv );
-   if( cutoff_reached( solv , bndv ) )
+   if( cutoff_reached( solv , bndv ) ) {
+    f_cutoff_stop = true;
     GRBterminate( model );
+    }
    break;
    }
 
@@ -4160,8 +4171,10 @@ int GRBMILPSolver::callback( GRBmodel *model,
     GRBcbget( cbdata , where , GRB_CB_MIPSOL_OBJBND , & bndv );
     if( cutoff_reached( get_objsense() == 1 ? std::min( objv , solv )
                                              : std::max( objv , solv ) ,
-                        bndv ) )
+                        bndv ) ) {
+     f_cutoff_stop = true;
      GRBterminate( model );
+     }
     break;
     }
 
