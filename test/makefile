@@ -11,7 +11,7 @@
 ##############################################################################
 
 # the executables built here
-NAMES = test_cuts test_dual test_dynamic
+NAMES = test_cuts test_dual test_dynamic test_qp
 
 # basic directory
 DIR = .
@@ -85,6 +85,9 @@ $(DIR)/test_dual: $(MOBJ) $(DIR)/test_dual.o
 
 $(DIR)/test_dynamic: $(MOBJ) $(DIR)/test_dynamic.o
 	$(CC) -o $@ $(DIR)/test_dynamic.o $(MOBJ) $(MLIB) $(SW)
+
+$(DIR)/test_qp: $(MOBJ) $(DIR)/test_qp.o
+	$(CC) -o $@ $(DIR)/test_qp.o $(MOBJ) $(MLIB) $(SW)
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
 

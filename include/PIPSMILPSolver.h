@@ -58,11 +58,12 @@ namespace SMSpp_di_unipi_it
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/// class for solving LP Blocks via the PIPS-IPM++ parallel IP solver
+/// class for solving LP and QP Blocks via the PIPS-IPM++ parallel IP solver
 /** The PIPSMILPSolver implements the MILPSolver interface using PIPS-IPM++,
  * an open-source, MPI-parallel interior-point solver for block-structured
- * linear programs. It is registered in the Solver factory, hence it can be
- * selected by name ("PIPSMILPSolver") in a BlockSolverConfig.
+ * linear and convex quadratic programs. It is registered in the Solver
+ * factory, hence it can be selected by name ("PIPSMILPSolver") in a
+ * BlockSolverConfig.
  *
  * PIPS-IPM++ solves problems with a dual block-angular structure. The Block
  * hierarchy is mapped onto a two-level PIPS tree as follows: the root node
@@ -75,9 +76,13 @@ namespace SMSpp_di_unipi_it
  *
  * The following restrictions apply:
  *
- * - only LP models are supported: models with a quadratic objective or
- *   quadratic constraints cause load_problem() to throw, and integer
- *   variables are only accepted if relaxed via intRelaxIntVars;
+ * - only LP and convex QP models are supported: the Hessian of a quadratic
+ *   objective is given to PIPS node by node, so a term x_i x_j whose
+ *   Variable are in different nodes causes load_problem() to throw, as do
+ *   quadratic constraints, and integer variables are only accepted if
+ *   relaxed via intRelaxIntVars; a model with a Hessian is solved with the
+ *   presolve of PIPS-IPM++ off and its outer BiCGStab given no iteration,
+ *   neither of them handling one right [see guts_of_compute()];
  *
  * - the Block needs at least one nested Block (i.e., the PIPS tree needs
  *   at least one leaf);
@@ -515,6 +520,9 @@ class PIPSMILPSolver : public MILPSolver
 		   const std::vector< const FRowConstraint * > & node_cons ,
 		   const std::vector< const ColVariable * > & vars ) const;
 
+ /// builds the Hessian blocks of the objective of each node [see hess_val]
+ void build_hessian( void );
+
  /// computes the global MILPSolver row indices of a set of constraints
  std::vector< int > compute_cons_global_idxs(
 		 const std::vector< const FRowConstraint * > & cons ) const;
@@ -641,8 +649,8 @@ class PIPSMILPSolver : public MILPSolver
  /// nonzeros of the linking inequality contribution of node id
  static int nnz_link_ineq_cons( void * user_data , int id , int * nnz );
 
- /// identically zero count, used for the (absent) quadratic objective
- static int nnz_all_zero( void * user_data , int id , int * nnz );
+ /// nonzeros of the lower triangle of the Hessian block of node id
+ static int nnz_hessian( void * user_data , int id , int * nnz );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  // matrix callbacks; all matrices are in CSR row-major format
@@ -671,9 +679,9 @@ class PIPSMILPSolver : public MILPSolver
  static int mat_link_ineq_cons( void * user_data , int id , int * krowM ,
 				int * jcolM , double * M );
 
- /// identically empty matrix, used for the (absent) quadratic objective
- static int mat_all_zero( void * user_data , int id , int * krowM ,
-			  int * jcolM , double * M );
+ /// lower triangle of the Hessian block of the objective of node id
+ static int mat_hessian( void * user_data , int id , int * krowM ,
+			 int * jcolM , double * M );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  // vector callbacks: objective coefficients, rhs / row bounds, variable
@@ -787,6 +795,12 @@ class PIPSMILPSolver : public MILPSolver
 
  /// map from each variable to the PIPS node it is assigned to
  std::unordered_map< const ColVariable * , int > var_to_node;
+
+ /// the lower triangle of the Hessian block of each node, in CSR format
+ /// [see build_hessian()]: row starts, columns and values
+ std::vector< std::vector< int > > hess_krow;
+ std::vector< std::vector< int > > hess_jcol;
+ std::vector< std::vector< double > > hess_val;
 
 /*--------------------------------------------------------------------------*/
 /*---------------------- PRIVATE PART OF THE CLASS -------------------------*/

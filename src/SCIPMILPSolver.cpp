@@ -34,6 +34,9 @@
 #include <functional>
 #include <cstdio>
 #include <cmath>
+#include <map>
+
+#include <Eigen/Dense>
 
 #include <LinearFunction.h>
 #include <QuadFunction.h>
@@ -393,6 +396,9 @@ void SCIPMILPSolver::load_problem( void )
   SCIP_CALL_ABORT( SCIPreleaseCons( scip , &con ) );
  }
 
+ // whether the problem is convex is told SCIP before the next solve
+ f_check_convex = true;
+
  // the base representation isn't needed anymore
  MILPSolver::clear_problem( 15 );
 
@@ -515,6 +521,11 @@ int SCIPMILPSolver::guts_of_compute( void )
   SCIP_CALL_ABORT( SCIPaddCons( scip , cons ) );
   SCIP_CALL_ABORT( SCIPreleaseCons( scip , & cons ) );
   f_callback_set = true;
+  }
+
+ if( f_check_convex ) {
+  set_assume_convex();
+  f_check_convex = false;
   }
 
  auto st =  SCIPsolve( scip ) ;
@@ -1094,6 +1105,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
+ f_check_convex = true;
+
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
@@ -1606,6 +1619,8 @@ void SCIPMILPSolver::objective_fvars_modification(
  
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
+
+ f_check_convex = true;
 
  if( dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
@@ -3100,8 +3115,8 @@ void SCIPMILPSolver::create_new_qobj( std::vector< int > & qidx1 ,
  /* Nonlinear objective functions are not supported by SCIP and must be 
   *  modeled as constraint function. Thus, a problem like min xQx is reformulated
   *  into min z  s.t. z >= xQx. */
- std::vector< SCIP_VAR * > qvar1( qidx1.size() );
- std::vector< SCIP_VAR * > qvar2( qidx1.size() );
+ std::vector< SCIP_VAR * > qvar1;
+ std::vector< SCIP_VAR * > qvar2;
 
  for( int i = 0 ; i < qidx1.size() ; ++i ) {
   qvar1.push_back( vars[ qidx1[ i ] ] );
@@ -3161,6 +3176,104 @@ void SCIPMILPSolver::create_new_qobj( std::vector< int > & qidx1 ,
   obj_aux_con = con;
   SCIP_CALL_ABORT( SCIPreleaseCons( scip , &con ) );
 }
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::set_assume_convex( void )
+{
+ /* SCIP proves a quadratic convex only if it has LAPACK (through Ipopt), and
+  * otherwise takes a non-separable one for nonconvex and solves the problem
+  * by spatial branch-and-bound, which on unbounded variables need not end.
+  * Hence SCIP is told that the problem is convex when it is: when the only
+  * nonlinear constraint is the auxiliary one of a quadratic objective whose
+  * matrix is positive semidefinite in a minimization (negative in a
+  * maximization), as checked here on the expression of obj_aux_con. */
+ if( ! SCIPgetParam( scip , "constraints/nonlinear/assumeconvex" ) )
+  return;
+
+ bool convex = obj_aux_con && ( numquadrows == 0 );
+
+ if( convex ) {
+  // the expression is z + sum_k c_k x_i(k) x_j(k), and the set it bounds
+  // is convex if sum_k c_k x_i(k) x_j(k) is concave, its lower side being
+  // the finite one, or convex, its upper side being
+  auto expr = SCIPgetExprNonlinear( obj_aux_con );
+  const double sign = SCIPisInfinity( scip ,
+				      - SCIPgetLhsNonlinear( obj_aux_con ) )
+                      ? 1 : -1;
+  SCIP_Bool isquad = FALSE;
+  SCIP_CALL_ABORT( SCIPcheckExprQuadratic( scip , expr , & isquad ) );
+  int nlin = 0 , nquad = 0 , nbil = 0;
+  if( isquad )
+   SCIPexprGetQuadraticData( expr , nullptr , & nlin , nullptr , nullptr ,
+			     & nquad , & nbil , nullptr , nullptr );
+  else
+   convex = false;
+
+  // the same variable may be in more than one expression (one for each
+  // term it is in, until SCIP simplifies the expression), hence the map
+  std::map< SCIP_VAR * , int > pos;
+  auto index = [ this , & pos , & convex ]( SCIP_EXPR * e ) {
+   if( ! SCIPisExprVar( scip , e ) ) {
+    convex = false;
+    return( 0 );
+    }
+   return( pos.try_emplace( SCIPgetVarExprVar( e ) , int( pos.size() ) )
+	   .first->second );
+   };
+
+  std::vector< std::tuple< int , int , double > > terms;
+  for( int k = 0 ; k < nquad ; ++k ) {
+   SCIP_EXPR * e;
+   SCIP_Real sqrcoef;
+   SCIPexprGetQuadraticQuadTerm( expr , k , & e , nullptr , & sqrcoef ,
+				 nullptr , nullptr , nullptr );
+   if( sqrcoef != 0 ) {
+    const int i = index( e );
+    terms.emplace_back( i , i , sign * sqrcoef );
+    }
+   }
+  for( int k = 0 ; k < nbil ; ++k ) {
+   SCIP_EXPR * e1;
+   SCIP_EXPR * e2;
+   SCIP_Real coef;
+   SCIPexprGetQuadraticBilinTerm( expr , k , & e1 , & e2 , & coef , nullptr ,
+				  nullptr );
+   const int i = index( e1 );
+   const int j = index( e2 );
+   terms.emplace_back( i , j , sign * coef / 2 );
+   terms.emplace_back( j , i , sign * coef / 2 );
+   }
+
+  double maxc = 1;
+  for( const auto & t : terms )
+   maxc = std::max( maxc , std::abs( std::get< 2 >( t ) ) );
+  const double tol = 1e-9 * maxc;
+
+  if( convex && ( nbil == 0 ) ) {
+   // a separable one is convex if each of its squares is
+   for( const auto & t : terms )
+    if( std::get< 2 >( t ) < - tol )
+     convex = false;
+   }
+  else
+   if( convex ) {
+    // a non-separable one if its (dense) matrix is positive semidefinite
+    Eigen::MatrixXd Q = Eigen::MatrixXd::Zero( pos.size() , pos.size() );
+    for( const auto & [ i , j , v ] : terms )
+     Q( i , j ) += v;
+
+    Eigen::SelfAdjointEigenSolver< Eigen::MatrixXd > es( Q ,
+							 Eigen::EigenvaluesOnly );
+    convex = ( es.info() == Eigen::Success ) &&
+             ( es.eigenvalues().minCoeff() >= - tol );
+    }
+  }
+
+ SCIP_CALL_ABORT( SCIPsetBoolParam( scip ,
+				    "constraints/nonlinear/assumeconvex" ,
+				    convex ? TRUE : FALSE ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 // Methods to add a callback in SCIPMILPSolver

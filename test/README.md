@@ -62,11 +62,23 @@ Three testers for the `MILPSolver` module, each registered as a separate
   reaches and to give the optimal value otherwise, and a second solve with
   a cutoff after a first one has to give either, and not throw.
 
+- `test_qp` verifies what each `:MILPSolver` of the build does with small
+  quadratic models whose optimum is known: a convex QP with a separable and
+  a non-separable objective, minimized and (its opposite) maximized, with
+  rows of every kind and finite and infinite bounds, whose value, solution
+  and duals are checked (the duals through the stationarity of the KKT
+  conditions too), an MIQP, and a sequence of Modifications of the QP
+  (coefficients of the objective, a side, a row added and removed, a
+  variable fixed), each solved again and compared with a fresh Solver. A
+  Solver that is not meant to handle a model has to refuse it with an
+  exception or an error status rather than answer.
+
 Run a tester directly (for instance `./test_dynamic seed [...]`, pass no
 argument to see its usage), or run a batch over a set of sizes and seeds.
 
-The `makefile` builds all three executables including the `MILPSolver`
-module and all its dependencies, and the core SMS++ library.
+The `makefile` builds `test_cuts`, `test_dual`, `test_dynamic` and
+`test_qp`, including the `MILPSolver` module and all its dependencies, and
+the core SMS++ library.
 
 
 ## Authors

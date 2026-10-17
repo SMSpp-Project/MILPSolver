@@ -88,6 +88,13 @@ add_test(NAME test_quad_modify
          COMMAND test_quad_modify
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_qp ------------------------------------------------------------- #
+
+add_milp_test(test_qp test_qp.cpp)
+add_test(NAME test_qp
+         COMMAND test_qp
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_farkas --------------------------------------------------------- #
 
 add_milp_test(test_farkas test_farkas.cpp)

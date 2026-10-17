@@ -22,10 +22,12 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <algorithm>
 #include <cstdlib>
 
 #include <omp.h>
 
+#include <map>
 #include <queue>
 
 #include <LinearFunction.h>
@@ -102,6 +104,10 @@ void PIPSMILPSolver::reset_pips_data()
  link_ineq_cons.clear();
 
  var_to_node.clear();
+
+ hess_krow.clear();
+ hess_jcol.clear();
+ hess_val.clear();
 }
 
 /*--------------------------------------------------------------------------*/
@@ -169,11 +175,6 @@ void PIPSMILPSolver::load_problem( void )
  if( numquadrows > 0 )
   throw( std::runtime_error( "PIPSMILPSolver::load_problem: PIPS-IPM++ "
 			     "cannot solve quadratically constrained models"
-			     ) );
-
- if( numnnzq > 0 )
-  throw( std::runtime_error( "PIPSMILPSolver::load_problem: PIPS-IPM++ "
-			     "cannot solve models with a quadratic objective"
 			     ) );
 
  if( int_vars > 0 )
@@ -270,18 +271,21 @@ void PIPSMILPSolver::load_problem( void )
   num_node++;
  }
 
+ // the Hessian of the objective, node by node- - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ build_hessian();
+
  // build the PIPS input tree- - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // every node registers the same set of callbacks, which dispatch on the
- // node id; the quadratic objective callbacks are identically zero, since
- // only LP models are supported
+ // node id
 
  auto make_node = [ this ]( int id ) {
   return( std::make_unique< DistributedInputTree::DistributedInputNode >(
 	   this , id ,
 	   & no_var_in_node , & no_eq_cons_in_node , & no_link_eq_cons ,
 	   & no_ineq_cons_in_node , & no_link_ineq_cons ,
-	   & mat_all_zero , & nnz_all_zero , & obj_vars ,
+	   & mat_hessian , & nnz_hessian , & obj_vars ,
 	   & mat_eq_cons_vert , & nnz_eq_cons_vert ,
 	   & mat_eq_cons_diag , & nnz_eq_cons_diag ,
 	   & mat_link_eq_cons , & nnz_link_eq_cons ,
@@ -307,6 +311,75 @@ void PIPSMILPSolver::load_problem( void )
  pips_tree = root;
  pips_interface = new PIPSIPMppInterface( pips_tree , MPI_COMM_WORLD );
 }
+
+/*--------------------------------------------------------------------------*/
+
+void PIPSMILPSolver::build_hessian( void )
+{
+ /* PIPS-IPM++ minimizes 1/2 x^T Q x + c^T x and takes Q block by block, the
+  * lower triangle of the block of the Variable of each node in CSR format
+  * [see DistributedTreeCallbacks::createQ()], with no term between the
+  * Variable of two nodes: MILPSolver keeps the a_i of the a_i x_i^2 in
+  * q_objective and one coefficient a_ij for each x_i x_j, i != j, so that
+  * Q_ii = 2 a_i and Q_ij = a_ij, both multiplied by objsense since PIPS
+  * always minimizes. */
+ hess_krow.assign( n_nodes , {} );
+ hess_jcol.assign( n_nodes , {} );
+ hess_val.assign( n_nodes , {} );
+
+ // the node and the position in it of each column
+ std::vector< std::pair< int , int > > where( numcols , { -1 , -1 } );
+ for( Index id = 0 ; id < n_nodes ; ++id )
+  for( std::size_t k = 0 ; k < var_node[ id ].size() ; ++k ) {
+   const auto col = index_of_variable( var_node[ id ][ k ] );
+   if( ( col >= 0 ) && ( col < numcols ) )
+    where[ col ] = { int( id ) , int( k ) };
+   }
+
+ // the lower triangle of each block, row by row: ( column , value ) pairs
+ std::vector< std::vector< std::map< int , double > > > rows( n_nodes );
+ for( Index id = 0 ; id < n_nodes ; ++id )
+  rows[ id ].resize( var_node[ id ].size() );
+
+ for( int col = 0 ; col < numcols ; ++col )
+  if( ( col < int( q_objective.size() ) ) && ( q_objective[ col ] != 0 ) ) {
+   const auto [ id , k ] = where[ col ];
+   if( id < 0 )
+    throw( std::logic_error( "PIPSMILPSolver::build_hessian: a column of "
+			     "the objective is in no node" ) );
+   rows[ id ][ k ][ k ] += 2 * objsense * q_objective[ col ];
+   }
+
+ for( std::size_t t = 0 ; t < ndq_objective.size() ; ++t ) {
+  if( ndq_objective[ t ] == 0 )
+   continue;
+  const auto [ id1 , k1 ] = where[ ndq_rowind[ t ] ];
+  const auto [ id2 , k2 ] = where[ ndq_colind[ t ] ];
+  if( ( id1 < 0 ) || ( id2 < 0 ) )
+   throw( std::logic_error( "PIPSMILPSolver::build_hessian: a column of "
+			    "the objective is in no node" ) );
+  if( id1 != id2 )
+   throw( std::runtime_error( "PIPSMILPSolver::load_problem: PIPS-IPM++ "
+	   "takes the Hessian of the objective block by block, and a "
+	   "quadratic term x_i x_j has x_i and x_j in different nodes" ) );
+  rows[ id1 ][ std::max( k1 , k2 ) ][ std::min( k1 , k2 ) ] +=
+   objsense * ndq_objective[ t ];
+  }
+
+ for( Index id = 0 ; id < n_nodes ; ++id ) {
+  auto & krow = hess_krow[ id ];
+  krow.reserve( rows[ id ].size() + 1 );
+  krow.push_back( 0 );
+  for( const auto & row : rows[ id ] ) {
+   for( const auto & [ j , v ] : row )
+    if( v != 0 ) {
+     hess_jcol[ id ].push_back( j );
+     hess_val[ id ].push_back( v );
+     }
+   krow.push_back( int( hess_jcol[ id ].size() ) );
+   }
+  }
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -410,7 +483,46 @@ int PIPSMILPSolver::guts_of_compute( void )
  // locking, process_modifications() and the LP cut separation loop (when
  // intRelaxIntVars == 2) are all handled by MILPSolver::compute(); this
  // method is only responsible for the actual PIPS-IPM++ call
- sol_status = decode_pips_status( pips_interface->run() );
+
+ /* With a Hessian two parts of PIPS-IPM++ cannot be used: its presolve
+  * treats the objective as linear (it fixes and merges columns by their
+  * costs alone, so that it returns the solution of another problem), and
+  * the BiCGStab of its outer solve multiplies by Q + diag( Q ) the system
+  * whose factorization has Q [see LinearSystem::system_mult()], so that
+  * each Newton step only halves the residual and the iterates reach the
+  * boundary before the tolerance, where the factorization breaks down.
+  * Hence for the solve the presolve is switched off and the BiCGStab is
+  * given no iteration, which leaves the direction of the factorization
+  * (OUTER_SOLVE "none" would do the same but crashes), and both options,
+  * which are process-global, are then put back as they were. */
+ const bool qp = std::any_of( hess_val.begin() , hess_val.end() ,
+			      []( const auto & v ) { return( ! v.empty() ); } );
+ bool presolve = false;
+ int bicg_max_iter = 0;
+ if( qp ) {
+  presolve = pipsipmpp::options::get_bool_parameter( "PRESOLVE" );
+  bicg_max_iter = pipsipmpp::options::get_int_parameter(
+						       "OUTER_BICG_MAX_ITER" );
+  pipsipmpp::options::set_parameter( "PRESOLVE" , false );
+  pipsipmpp::options::set_parameter( "OUTER_BICG_MAX_ITER" , 0 );
+  }
+
+ try {
+  sol_status = decode_pips_status( pips_interface->run() );
+  }
+ catch( ... ) {
+  if( qp ) {
+   pipsipmpp::options::set_parameter( "PRESOLVE" , presolve );
+   pipsipmpp::options::set_parameter( "OUTER_BICG_MAX_ITER" ,
+				      bicg_max_iter );
+   }
+  throw;
+  }
+
+ if( qp ) {
+  pipsipmpp::options::set_parameter( "PRESOLVE" , presolve );
+  pipsipmpp::options::set_parameter( "OUTER_BICG_MAX_ITER" , bicg_max_iter );
+  }
 
  return( sol_status );
 }
@@ -1900,9 +2012,38 @@ int PIPSMILPSolver::nnz_link_ineq_cons( void * user_data , int id , int * nnz )
 
 /*--------------------------------------------------------------------------*/
 
-int PIPSMILPSolver::nnz_all_zero( void * , int , int * nnz )
+int PIPSMILPSolver::nnz_hessian( void * user_data , int id , int * nnz )
 {
- *nnz = 0;
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ if( ( id < 0 ) || ( id >= static_cast< int >( solver->n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::nnz_hessian: node ID outside "
+			     "the expected range" ) );
+
+ *nnz = static_cast< int >( solver->hess_val[ id ].size() );
+
+ return( 0 );
+}
+
+/*--------------------------------------------------------------------------*/
+
+int PIPSMILPSolver::mat_hessian( void * user_data , int id , int * krowM ,
+				 int * jcolM , double * M )
+{
+ // use the current class in the callback
+ auto * solver = static_cast< PIPSMILPSolver * >( user_data );
+
+ if( ( id < 0 ) || ( id >= static_cast< int >( solver->n_nodes ) ) )
+  throw( std::runtime_error( "PIPSMILPSolver::mat_hessian: node ID outside "
+			     "the expected range" ) );
+
+ std::copy( solver->hess_krow[ id ].begin() , solver->hess_krow[ id ].end() ,
+	    krowM );
+ std::copy( solver->hess_jcol[ id ].begin() , solver->hess_jcol[ id ].end() ,
+	    jcolM );
+ std::copy( solver->hess_val[ id ].begin() , solver->hess_val[ id ].end() ,
+	    M );
 
  return( 0 );
 }
@@ -2002,13 +2143,6 @@ int PIPSMILPSolver::mat_link_ineq_cons( void * user_data , int id ,
  solver->extract_matrix( id , krowM , jcolM , M ,
 			 solver->link_ineq_cons , solver->var_node[ id ] );
 
- return( 0 );
-}
-
-/*--------------------------------------------------------------------------*/
-
-int PIPSMILPSolver::mat_all_zero( void * , int , int * , int * , double * )
-{
  return( 0 );
 }
 

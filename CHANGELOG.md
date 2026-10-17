@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `PIPSMILPSolver` solves convex QPs: the Hessian of the objective is given
+  to PIPS-IPM++ node by node through the callbacks that had it empty, a
+  term between the Variable of two nodes making `load_problem()` throw, and
+  a solve with a Hessian runs with the presolve of PIPS-IPM++ off and its
+  outer BiCGStab given no iteration, since the presolve treats the
+  objective as linear and the BiCGStab refines on Q + diag( Q ), which
+  halves the residual at each step and ends in a crash of the
+  factorization; a Modification of the quadratic part loads the model
+  again, as any other one does
+
+- `test_qp` checks every `:MILPSolver` of the build on small quadratic
+  models with a known optimum: the value, the solution and the duals (with
+  the stationarity of the KKT conditions) of a convex QP with a separable
+  and a non-separable objective, minimized and maximized, the value of an
+  MIQP, and the value after each of a sequence of Modifications against a
+  Solver loaded anew, a Solver that is not meant to handle a model having
+  to refuse it rather than answer
+
 - the Objective of the Block given to `Solver::set_excluded_objectives()` is
   not loaded, nor is its sense, and its Modification are dropped, a
   GroupModification having one of them inside being processed piece by piece
@@ -40,6 +58,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than returning a solution that is not there
 
 ### Fixed
+
+- `SCIPMILPSolver` solved a QP whose objective is not separable by spatial
+  branch-and-bound when SCIP is built without LAPACK (through Ipopt), as
+  it then cannot prove the auxiliary constraint z >= x^T Q x convex; with
+  free variables the search need not end, and it ran forever on the
+  re-solve after a Modification and on any solve with `intComputeDuals`.
+  SCIP is now told that the problem is convex
+  (`constraints/nonlinear/assumeconvex`) when the only nonlinear
+  constraint is that of the objective and its matrix is positive
+  semidefinite (negative in a maximization), as checked before each solve
+  that follows a change of the objective; the first quadratic term given
+  to an objective that had none built that constraint with null variables
+
+- `PIPSMILPSolver` threw on a non-separable quadratic objective but solved
+  a separable one (a `DQuadFunction`) as if its quadratic terms were not
+  there, returning the optimum of another problem
 
 - a MIP solve that `CPXMILPSolver`, `GRBMILPSolver`, `HiGHSMILPSolver` or
   `SCIPMILPSolver` interrupted because a cutoff (`dblUpCutOff`,

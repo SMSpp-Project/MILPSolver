@@ -541,6 +541,10 @@ class SCIPMILPSolver : public MILPSolver
  std::vector< int > qobj_idx1;
  std::vector< int > qobj_idx2;
 
+ /// true if the objective has changed since SCIP was told whether the
+ /// problem is convex, which is then done before the next solve
+ bool f_check_convex{};
+
  double UpCutOff;  ///< externally set upper cutoff to terminate
  double LwCutOff;  ///< externally set lower cutoff to terminate
 
@@ -695,6 +699,12 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
  void create_new_qobj( std::vector< int > & qidx1 ,
 			  std::vector< int > & qidx2 ,
 			  std::vector< double > & qcoeff );
+
+/** Tells SCIP whether the problem is convex (constraints/nonlinear/
+ *  assumeconvex), i.e., whether the only nonlinear constraint is the
+ *  auxiliary one of a quadratic objective and it is convex [see
+ *  f_check_convex]. */
+ void set_assume_convex( void );
 
 /** @} ---------------------------------------------------------------------*/
 /*---------------------- METHODS FOR ADDING A CALLBACK ---------------------*/
