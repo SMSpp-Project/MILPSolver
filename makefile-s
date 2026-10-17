@@ -60,6 +60,9 @@ include $(MILPSSDR)/../extlib/makefile-libProxSuite
 # include makefile for libPIQP
 include $(MILPSSDR)/../extlib/makefile-libPIQP
 
+# include makefile for libOSQP
+include $(MILPSSDR)/../extlib/makefile-libOSQP
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -95,6 +98,12 @@ endif
 ifneq ($(PIQP_PRESENT),)
     MILPSINC := $(MILPSINC) $(libPIQPINC)
     MILPSLIB := $(MILPSLIB) $(libPIQPLIB)
+endif
+
+# append OSQP flags only when it is installed
+ifneq ($(OSQP_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libOSQPINC)
+    MILPSLIB := $(MILPSLIB) $(libOSQPLIB)
 endif
 
 ########################### End of makefile-s ################################

@@ -48,6 +48,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `MILPSolver_USE_PIQP` is ON and PIQP 0.6 or later is found (CMake,
   `piqp_ROOT` as a hint) or PIQP is in `piqp_ROOT` (makefile)
 
+- `OSQPMILPSolver`, the interface with the open-source operator splitting
+  solver OSQP for convex QPs (and LPs) with linear constraints and no
+  integer variables, with the bounds as unit rows of the constraints of OSQP
+  (the solution is projected on them), the polishing of the solution on and
+  the tolerances of the certificates of infeasibility at 1e-8 by default:
+  the problem is loaded again whole at every Modification, but the data are
+  given to the solver already set up if their sparsity pattern has not
+  changed, and each solve starts from the primal and dual solution of the
+  previous one (`intOSQPWarmStart`); it is built when `MILPSolver_USE_OSQP`
+  is ON and OSQP 1.0 or later is found (CMake, `osqp_ROOT` as a hint) or
+  OSQP is in `osqp_ROOT` (makefile)
+
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,

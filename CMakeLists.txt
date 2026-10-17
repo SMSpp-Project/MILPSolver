@@ -59,6 +59,7 @@ option(MILPSolver_USE_PIPS "Whether MILPSolver will use PIPS-IPM++ or not." ON)
 option(MILPSolver_USE_DAQP "Whether MILPSolver will use DAQP or not." ON)
 option(MILPSolver_USE_ProxQP "Whether MILPSolver will use ProxQP or not." ON)
 option(MILPSolver_USE_PIQP "Whether MILPSolver will use PIQP or not." ON)
+option(MILPSolver_USE_OSQP "Whether MILPSolver will use OSQP or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -141,6 +142,29 @@ if (MILPSolver_USE_PIQP)
     find_package(piqp CONFIG)
     if (NOT piqp_FOUND OR piqp_VERSION VERSION_LESS 0.6)
         set(MILPSolver_USE_PIQP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_OSQP)
+    # Needed for OSQPMILPSolver
+    # OSQP installs its CMake configuration; osqp_ROOT is a hint to its
+    # location. Its version file says 0.0.0 unless OSQP_VERSION is given at
+    # its build, hence the API of OSQP 1.0 is checked by its header
+    # osqp_api_functions.h, which OSQP 0.6 does not have
+    find_package(osqp CONFIG)
+    if (osqp_FOUND AND TARGET osqp::osqpstatic)
+        set(OSQP_TARGET osqp::osqpstatic)
+    elseif (osqp_FOUND AND TARGET osqp::osqp)
+        set(OSQP_TARGET osqp::osqp)
+    endif ()
+    if (OSQP_TARGET)
+        get_target_property(OSQP_INCLUDE_DIRS ${OSQP_TARGET}
+                            INTERFACE_INCLUDE_DIRECTORIES)
+        find_file(OSQP_API_FUNCTIONS osqp_api_functions.h
+                  PATHS ${OSQP_INCLUDE_DIRS} NO_DEFAULT_PATH)
+    endif ()
+    if (NOT OSQP_TARGET OR NOT OSQP_API_FUNCTIONS)
+        set(MILPSolver_USE_OSQP OFF)
     endif ()
 endif ()
 
@@ -297,6 +321,22 @@ if (MILPSolver_USE_PIQP)
     endif ()
 endif ()
 
+if (MILPSolver_USE_OSQP)
+    message(STATUS "MILPSolver: OSQP found, configuring OSQPMILPSolver")
+    target_sources(${modName} PRIVATE src/OSQPMILPSolver.cpp)
+    # the static library of OSQP, if it has been built, otherwise its shared
+    # one. OSQP exports its internal functions, some of which have the name
+    # of functions of other libraries (e.g., csc_copy, also in HiGHS), and
+    # on Linux the first library loaded gives the function to both; hence
+    # the symbols of the static library are kept local to the binary
+    target_link_libraries(${modName} PUBLIC ${OSQP_TARGET})
+    if (OSQP_TARGET STREQUAL "osqp::osqpstatic" AND
+        CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_options(${modName} PUBLIC
+                            "LINKER:--exclude-libs,libosqpstatic.a")
+    endif ()
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -371,6 +411,12 @@ if (MILPSolver_USE_PIQP)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "PIQP*")
+endif ()
+
+if (MILPSolver_USE_OSQP)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "OSQP*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

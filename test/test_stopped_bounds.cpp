@@ -16,10 +16,10 @@
  * Solver, which has to solve the problem to optimality, with both bounds
  * equal to the optimal value. Each :MILPSolver among CPXMILPSolver,
  * GRBMILPSolver, HiGHSMILPSolver, SCIPMILPSolver, DAQPMILPSolver,
- * ProxQPMILPSolver and PIQPMILPSolver that is not in the factory is skipped,
- * and the test is skipped (exit status 77) if none of them is; nothing is
- * checked on the first solve of a Solver that ends within the time limit
- * anyway.
+ * ProxQPMILPSolver, PIQPMILPSolver and OSQPMILPSolver that is not in the
+ * factory is skipped, and the test is skipped (exit status 77) if none of
+ * them is; nothing is checked on the first solve of a Solver that ends
+ * within the time limit anyway.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -85,7 +85,7 @@ int main( void )
  for( const std::string name : { "CPXMILPSolver" , "GRBMILPSolver" ,
                                  "HiGHSMILPSolver" , "SCIPMILPSolver" ,
                                  "DAQPMILPSolver" , "ProxQPMILPSolver" ,
-                                 "PIQPMILPSolver" } ) {
+                                 "PIQPMILPSolver" , "OSQPMILPSolver" } ) {
   if( ! Solver::has_Solver( name ) ) {
    std::cout << name << " is not in this build, skipped" << std::endl;
    continue;
