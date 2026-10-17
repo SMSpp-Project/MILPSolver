@@ -81,8 +81,7 @@ using namespace SMSpp_di_unipi_it;
 
 static const std::vector< std::string > SolverNames =
  { "CPXMILPSolver" , "GRBMILPSolver" , "SCIPMILPSolver" , "HiGHSMILPSolver" ,
-   "DAQPMILPSolver" , "ProxQPMILPSolver" , "PIQPMILPSolver" ,
-   "OSQPMILPSolver" };
+   "DAQPMILPSolver" };
 
 /// the shapes of the groups [see the file comment]
 

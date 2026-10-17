@@ -29,37 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   if the size has not changed (`intDAQPWarmStart`); it is built when
   `MILPSolver_USE_DAQP` is ON (CMake) or DAQP is in `DAQP_ROOT` (makefile)
 
-- `ProxQPMILPSolver`, the interface with the open-source proximal augmented
-  Lagrangian solver ProxQP of ProxSuite for convex QPs (and LPs) with linear
-  constraints and no integer variables, with its dense backend (the bounds
-  as box constraints) or its sparse one (`intProxQPBackend`): the problem is
-  loaded again whole at every Modification, and a solve starts from the
-  primal and dual solution of the previous one if the size has not changed
-  (`intProxQPWarmStart`); it is built when `MILPSolver_USE_ProxQP` is ON and
-  ProxSuite is found (CMake, `proxsuite_ROOT` as a hint) or ProxSuite is in
-  `proxsuite_ROOT` (makefile)
-
-- `PIQPMILPSolver`, the interface with the open-source proximal interior
-  point solver PIQP for convex QPs (and LPs) with linear constraints and no
-  integer variables, with its dense backend or its sparse one
-  (`intPIQPBackend`) and the bounds as box constraints of PIQP: the problem
-  is loaded again whole at every Modification, and each solve starts from
-  scratch, PIQP having no warm start; it is built when
-  `MILPSolver_USE_PIQP` is ON and PIQP 0.6 or later is found (CMake,
-  `piqp_ROOT` as a hint) or PIQP is in `piqp_ROOT` (makefile)
-
-- `OSQPMILPSolver`, the interface with the open-source operator splitting
-  solver OSQP for convex QPs (and LPs) with linear constraints and no
-  integer variables, with the bounds as unit rows of the constraints of OSQP
-  (the solution is projected on them), the polishing of the solution on and
-  the tolerances of the certificates of infeasibility at 1e-8 by default:
-  the problem is loaded again whole at every Modification, but the data are
-  given to the solver already set up if their sparsity pattern has not
-  changed, and each solve starts from the primal and dual solution of the
-  previous one (`intOSQPWarmStart`); it is built when `MILPSolver_USE_OSQP`
-  is ON and OSQP 1.0 or later is found (CMake, `osqp_ROOT` as a hint) or
-  OSQP is in `osqp_ROOT` (makefile)
-
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,

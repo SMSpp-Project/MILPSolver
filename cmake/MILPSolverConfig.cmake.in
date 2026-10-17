@@ -40,14 +40,6 @@ set(PIPS_WITH_MA57 @PIPS_WITH_MA57@)
 set(MILPSolver_USE_DAQP @MILPSolver_USE_DAQP@)
 set(DAQP_ROOT @DAQP_ROOT@)
 
-set(MILPSolver_USE_ProxQP @MILPSolver_USE_ProxQP@)
-set(proxsuite_DIR @proxsuite_DIR@)
-set(MILPSolver_USE_PIQP @MILPSolver_USE_PIQP@)
-set(piqp_DIR @piqp_DIR@)
-
-set(MILPSolver_USE_OSQP @MILPSolver_USE_OSQP@)
-set(osqp_DIR @osqp_DIR@)
-
 # ----- Requirements -------------------------------------------------------- #
 find_dependency(SMS++)
 
@@ -76,18 +68,6 @@ endif ()
 
 if (MILPSolver_USE_DAQP)
     find_dependency(DAQP)
-endif ()
-
-if (MILPSolver_USE_ProxQP)
-    find_dependency(proxsuite 0.6 CONFIG)
-endif ()
-
-if (MILPSolver_USE_PIQP)
-    find_dependency(piqp CONFIG)
-endif ()
-
-if (MILPSolver_USE_OSQP)
-    find_dependency(osqp CONFIG)
 endif ()
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)

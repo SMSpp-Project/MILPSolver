@@ -11,13 +11,12 @@
  * is solved with dblMaxTime = 0, and the bound on the side of the optimum
  * that the Solver has not proved (get_lb() when minimizing, get_ub() when
  * maximizing) has to be either infinite or a valid bound, i.e., not beyond
- * the optimum, and in no case a large finite number that a caller would take
- * for a bound; then the time limit is lifted (dblMaxTime = INF) on the same
- * Solver, which has to solve the problem to optimality, with both bounds
- * equal to the optimal value. Each :MILPSolver among CPXMILPSolver,
- * GRBMILPSolver, HiGHSMILPSolver, SCIPMILPSolver, DAQPMILPSolver,
- * ProxQPMILPSolver, PIQPMILPSolver and OSQPMILPSolver that is not in the
- * factory is skipped, and the test is skipped (exit status 77) if none of
+ * the optimum, and in no case a large finite number that a caller would
+ * take for a bound; then the time limit is lifted (dblMaxTime = INF) on the
+ * same Solver, which has to solve the problem to optimality, with both
+ * bounds equal to the optimal value. Each :MILPSolver among CPXMILPSolver,
+ * GRBMILPSolver, HiGHSMILPSolver, SCIPMILPSolver and DAQPMILPSolver that is
+ * not in the factory is skipped, and the test is skipped (exit status 77) if none of
  * them is; nothing is checked on the first solve of a Solver that ends
  * within the time limit anyway.
  *
@@ -84,8 +83,7 @@ int main( void )
 
  for( const std::string name : { "CPXMILPSolver" , "GRBMILPSolver" ,
                                  "HiGHSMILPSolver" , "SCIPMILPSolver" ,
-                                 "DAQPMILPSolver" , "ProxQPMILPSolver" ,
-                                 "PIQPMILPSolver" , "OSQPMILPSolver" } ) {
+                                 "DAQPMILPSolver" } ) {
   if( ! Solver::has_Solver( name ) ) {
    std::cout << name << " is not in this build, skipped" << std::endl;
    continue;
