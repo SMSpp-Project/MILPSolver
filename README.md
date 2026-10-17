@@ -62,6 +62,12 @@ Currently available derived classes are:
   active-set solver [DAQP](https://github.com/darnstrom/daqp) (convex QP
   and LP problems with linear constraints, dense, no integer variables)
 
+- `ProxQPMILPSolver`, providing the interface with the open-source proximal
+  augmented Lagrangian solver ProxQP of
+  [ProxSuite](https://github.com/Simple-Robotics/proxsuite) (convex QP and
+  LP problems with linear constraints, dense or sparse, no integer
+  variables)
+
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
 found on the system, both with CMake and with the makefiles (see below
@@ -115,6 +121,12 @@ the whole framework. What follows is about building it yourself.
 - for `DAQPMILPSolver` you will need [DAQP](https://github.com/darnstrom/daqp),
   installed with its CMake (`cmake --install`), in `DAQP_ROOT`
 
+- for `ProxQPMILPSolver` you will need
+  [ProxSuite](https://github.com/Simple-Robotics/proxsuite) 0.6 or later,
+  which is header-only and needs Eigen (and Simde, unless it is configured
+  with `BUILD_WITH_VECTORIZATION_SUPPORT=OFF`), installed with its CMake
+  (`cmake --install`) in `proxsuite_ROOT`
+
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
@@ -145,6 +157,7 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_HiGHS`   | Use HiGHS      | ON            |
 | `MILPSolver_USE_PIPS`    | Use PIPS-IPM++ | ON            |
 | `MILPSolver_USE_DAQP`    | Use DAQP       | ON            |
+| `MILPSolver_USE_ProxQP`  | Use ProxQP     | ON            |
 
 At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.

@@ -57,6 +57,7 @@ option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 option(MILPSolver_USE_PIPS "Whether MILPSolver will use PIPS-IPM++ or not." ON)
 option(MILPSolver_USE_DAQP "Whether MILPSolver will use DAQP or not." ON)
+option(MILPSolver_USE_ProxQP "Whether MILPSolver will use ProxQP or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -117,6 +118,17 @@ if (MILPSolver_USE_DAQP)
     find_package(DAQP)
     if (NOT DAQP_FOUND)
         set(MILPSolver_USE_DAQP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_ProxQP)
+    # Needed for ProxQPMILPSolver
+    # ProxSuite installs its CMake configuration, which finds Eigen (and
+    # Simde, if it has been built with vectorization); proxsuite_ROOT is a
+    # hint to its location
+    find_package(proxsuite 0.6 CONFIG)
+    if (NOT proxsuite_FOUND)
+        set(MILPSolver_USE_ProxQP OFF)
     endif ()
 endif ()
 
@@ -255,6 +267,12 @@ if (MILPSolver_USE_DAQP)
     target_link_libraries(${modName} PUBLIC DAQP::DAQP)
 endif ()
 
+if (MILPSolver_USE_ProxQP)
+    message(STATUS "MILPSolver: ProxQP found, configuring ProxQPMILPSolver")
+    target_sources(${modName} PRIVATE src/ProxQPMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC proxsuite::proxsuite)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -317,6 +335,12 @@ if (MILPSolver_USE_DAQP)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "DAQP*")
+endif ()
+
+if (MILPSolver_USE_ProxQP)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "ProxQP*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

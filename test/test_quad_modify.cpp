@@ -12,7 +12,8 @@
  * QuadFunction::modify_term() and the problem is solved again, and the value
  * is compared with that of a fresh Solver of the same type loaded with the
  * new coefficients. Each :MILPSolver among CPXMILPSolver, GRBMILPSolver,
- * HiGHSMILPSolver and DAQPMILPSolver that is not in the factory is skipped.
+ * HiGHSMILPSolver, DAQPMILPSolver and ProxQPMILPSolver that is not in the
+ * factory is skipped.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -96,7 +97,7 @@ int main( void )
 
  for( const std::string name :
        { "CPXMILPSolver" , "GRBMILPSolver" , "HiGHSMILPSolver" ,
-         "DAQPMILPSolver" } ) {
+         "DAQPMILPSolver" , "ProxQPMILPSolver" } ) {
   Solver * s;
   try {
    s = Solver::new_Solver( name );

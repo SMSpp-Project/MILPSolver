@@ -29,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   if the size has not changed (`intDAQPWarmStart`); it is built when
   `MILPSolver_USE_DAQP` is ON (CMake) or DAQP is in `DAQP_ROOT` (makefile)
 
+- `ProxQPMILPSolver`, the interface with the open-source proximal augmented
+  Lagrangian solver ProxQP of ProxSuite for convex QPs (and LPs) with linear
+  constraints and no integer variables, with its dense backend (the bounds
+  as box constraints) or its sparse one (`intProxQPBackend`): the problem is
+  loaded again whole at every Modification, and a solve starts from the
+  primal and dual solution of the previous one if the size has not changed
+  (`intProxQPWarmStart`); it is built when `MILPSolver_USE_ProxQP` is ON and
+  ProxSuite is found (CMake, `proxsuite_ROOT` as a hint) or ProxSuite is in
+  `proxsuite_ROOT` (makefile)
+
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,
