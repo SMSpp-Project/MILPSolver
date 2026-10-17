@@ -7,7 +7,7 @@
 #   The makefile takes in input the -I directives for all the external       #
 #   libraries needed by MILPSolver, i.e., core SMS++ and those of all the    #
 #   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS, DAQP,      #
-#   ProxQP and, on Linux, PIPS-IPM++). These are *not* copied into           #
+#   ProxQP, PIQP and, on Linux, PIPS-IPM++). These are *not* copied into     #
 #   $(MILPSINC): adding those -I directives to the compile commands will     #
 #   have to done by whatever "main" makefile is using this. Analogously, any #
 #   external library and the corresponding -L< libdirs > will have to be     #
@@ -30,6 +30,7 @@
 #           $(libPIPSINC)   = the -I$( PIPS-IPM++ library ), Linux only      #
 #           $(libDAQPINC)   = the -I$( DAQP library )                        #
 #           $(libProxSuiteINC) = the -I$( ProxSuite library )                #
+#           $(libPIQPINC)   = the -I$( PIQP library )                        #
 #           $(MILPSSDR)     = the directory where the source is              #
 #                                                                            #
 #   Output: $(MILPSOBJ)     = the final object(s) / library                  #
@@ -65,6 +66,10 @@ DAQP_PRESENT := $(wildcard $(subst $\",,$(DAQP_ROOT))/include/daqp/api.h)
 # that case
 ProxSuite_INCDIR := $(subst $\",,$(proxsuite_ROOT))/include
 ProxSuite_PRESENT := $(wildcard $(ProxSuite_INCDIR)/proxsuite/config.hpp)
+
+# non-empty if and only if PIQP is installed in $(piqp_ROOT), which is set by
+# extlib/makefile-libPIQP; PIQPMILPSolver is only built in that case
+PIQP_PRESENT := $(wildcard $(subst $\",,$(piqp_ROOT))/include/piqp/piqp.hpp)
 
 # each *MILPSolver.h includes a pair of files listing the algorithmic
 # parameters of its back-end, produced by the corresponding tool in
@@ -198,6 +203,11 @@ ifneq ($(ProxSuite_PRESENT),)
     MILPSH += $(MILPSSDR)/include/ProxQPMILPSolver.h
 endif
 
+ifneq ($(PIQP_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/PIQPMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/PIQPMILPSolver.h
+endif
+
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
@@ -283,6 +293,14 @@ $(MILPSSDR)/obj/ProxQPMILPSolver.o: $(MILPSSDR)/src/ProxQPMILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/ProxQPMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libProxSuiteINC) $(SW)
+endif
+
+ifneq ($(PIQP_PRESENT),)
+$(MILPSSDR)/obj/PIQPMILPSolver.o: $(MILPSSDR)/src/PIQPMILPSolver.cpp \
+	$(MILPSSDR)/include/PIQPMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/PIQPMILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(libPIQPINC) $(SW)
 endif
 
 ########################## End of makefile ###################################

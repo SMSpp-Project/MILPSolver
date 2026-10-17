@@ -26,12 +26,12 @@
  * value is compared).
  *
  * Every registered :MILPSolver among CPXMILPSolver, GRBMILPSolver,
- * HiGHSMILPSolver, DAQPMILPSolver and ProxQPMILPSolver solves the program,
- * and the optimal value and the duals are checked. SCIPMILPSolver is left out
- * because it gives the duals only when intComputeDuals is set, its presolve
- * otherwise solving this program without an LP; the reduced costs are handed
- * to the bounds by MILPSolver::write_dual_solution(), which is the same for
- * all of them.
+ * HiGHSMILPSolver, DAQPMILPSolver, ProxQPMILPSolver and PIQPMILPSolver
+ * solves the program, and the optimal value and the duals are checked.
+ * SCIPMILPSolver is left out because it gives the duals only when
+ * intComputeDuals is set, its presolve otherwise solving this program
+ * without an LP; the reduced costs are handed to the bounds by
+ * MILPSolver::write_dual_solution(), which is the same for all of them.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -76,7 +76,7 @@ using namespace SMSpp_di_unipi_it;
 
 static const std::vector< std::string > SolverNames =
  { "CPXMILPSolver" , "GRBMILPSolver" , "HiGHSMILPSolver" , "DAQPMILPSolver" ,
-   "ProxQPMILPSolver" };
+   "ProxQPMILPSolver" , "PIQPMILPSolver" };
 
 /// the tolerance of every comparison
 

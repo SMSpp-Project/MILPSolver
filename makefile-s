@@ -57,6 +57,9 @@ include $(MILPSSDR)/../extlib/makefile-libDAQP
 # include makefile for libProxSuite
 include $(MILPSSDR)/../extlib/makefile-libProxSuite
 
+# include makefile for libPIQP
+include $(MILPSSDR)/../extlib/makefile-libPIQP
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -86,6 +89,12 @@ endif
 # append the ProxSuite flags only when it is installed (it is header-only)
 ifneq ($(ProxSuite_PRESENT),)
     MILPSINC := $(MILPSINC) $(libProxSuiteINC)
+endif
+
+# append PIQP flags only when it is installed
+ifneq ($(PIQP_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libPIQPINC)
+    MILPSLIB := $(MILPSLIB) $(libPIQPLIB)
 endif
 
 ########################### End of makefile-s ################################

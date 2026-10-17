@@ -39,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ProxSuite is found (CMake, `proxsuite_ROOT` as a hint) or ProxSuite is in
   `proxsuite_ROOT` (makefile)
 
+- `PIQPMILPSolver`, the interface with the open-source proximal interior
+  point solver PIQP for convex QPs (and LPs) with linear constraints and no
+  integer variables, with its dense backend or its sparse one
+  (`intPIQPBackend`) and the bounds as box constraints of PIQP: the problem
+  is loaded again whole at every Modification, and each solve starts from
+  scratch, PIQP having no warm start; it is built when
+  `MILPSolver_USE_PIQP` is ON and PIQP 0.6 or later is found (CMake,
+  `piqp_ROOT` as a hint) or PIQP is in `piqp_ROOT` (makefile)
+
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,

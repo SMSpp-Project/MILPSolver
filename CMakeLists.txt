@@ -58,6 +58,7 @@ option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 option(MILPSolver_USE_PIPS "Whether MILPSolver will use PIPS-IPM++ or not." ON)
 option(MILPSolver_USE_DAQP "Whether MILPSolver will use DAQP or not." ON)
 option(MILPSolver_USE_ProxQP "Whether MILPSolver will use ProxQP or not." ON)
+option(MILPSolver_USE_PIQP "Whether MILPSolver will use PIQP or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -129,6 +130,17 @@ if (MILPSolver_USE_ProxQP)
     find_package(proxsuite 0.6 CONFIG)
     if (NOT proxsuite_FOUND)
         set(MILPSolver_USE_ProxQP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_PIQP)
+    # Needed for PIQPMILPSolver
+    # PIQP installs its CMake configuration, which finds Eigen; piqp_ROOT is
+    # a hint to its location. Its version file only accepts the exact
+    # version, hence 0.6 (the two-sided inequalities) is checked here
+    find_package(piqp CONFIG)
+    if (NOT piqp_FOUND OR piqp_VERSION VERSION_LESS 0.6)
+        set(MILPSolver_USE_PIQP OFF)
     endif ()
 endif ()
 
@@ -273,6 +285,18 @@ if (MILPSolver_USE_ProxQP)
     target_link_libraries(${modName} PUBLIC proxsuite::proxsuite)
 endif ()
 
+if (MILPSolver_USE_PIQP)
+    message(STATUS "MILPSolver: PIQP found, configuring PIQPMILPSolver")
+    target_sources(${modName} PRIVATE src/PIQPMILPSolver.cpp)
+    # the compiled library of PIQP, if it has been built, otherwise its
+    # header-only target
+    if (TARGET piqp::piqp)
+        target_link_libraries(${modName} PUBLIC piqp::piqp)
+    else ()
+        target_link_libraries(${modName} PUBLIC piqp::piqp_header_only)
+    endif ()
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -341,6 +365,12 @@ if (MILPSolver_USE_ProxQP)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "ProxQP*")
+endif ()
+
+if (MILPSolver_USE_PIQP)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "PIQP*")
 endif ()
 
 # Install the auto-generated configuration header (see above).
