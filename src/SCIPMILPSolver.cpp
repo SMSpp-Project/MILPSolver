@@ -36,7 +36,7 @@
 #include <cmath>
 #include <map>
 
-#include <Eigen/Dense>
+#include <Eigen/SparseCholesky>
 
 #include <LinearFunction.h>
 #include <QuadFunction.h>
@@ -3258,15 +3258,24 @@ void SCIPMILPSolver::set_assume_convex( void )
    }
   else
    if( convex ) {
-    // a non-separable one if its (dense) matrix is positive semidefinite
-    Eigen::MatrixXd Q = Eigen::MatrixXd::Zero( pos.size() , pos.size() );
+    // a non-separable one if its matrix Q is positive semidefinite, i.e.,
+    // if Q + tol I is positive definite up to the tolerance: by Sylvester's
+    // law of inertia, if all the pivots of its sparse LDL^T factorization
+    // are positive, which costs far less than the eigenvalues of a dense Q
+    // on the matrices of many variables and few terms of a QP
+    std::vector< Eigen::Triplet< double > > trip;
+    trip.reserve( terms.size() + pos.size() );
     for( const auto & [ i , j , v ] : terms )
-     Q( i , j ) += v;
+     trip.emplace_back( i , j , v );
+    for( int i = 0 ; i < int( pos.size() ) ; ++i )
+     trip.emplace_back( i , i , tol );
 
-    Eigen::SelfAdjointEigenSolver< Eigen::MatrixXd > es( Q ,
-							 Eigen::EigenvaluesOnly );
-    convex = ( es.info() == Eigen::Success ) &&
-             ( es.eigenvalues().minCoeff() >= - tol );
+    Eigen::SparseMatrix< double > Q( pos.size() , pos.size() );
+    Q.setFromTriplets( trip.begin() , trip.end() );
+
+    Eigen::SimplicialLDLT< Eigen::SparseMatrix< double > > ldlt( Q );
+    convex = ( ldlt.info() == Eigen::Success ) &&
+             ( ldlt.vectorD().minCoeff() > 0 );
     }
   }
 

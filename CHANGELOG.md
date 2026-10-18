@@ -59,6 +59,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `SCIPMILPSolver` tells whether a quadratic objective is convex from the
+  pivots of a sparse LDL^T factorization of Q + tol I, rather than from the
+  eigenvalues of a dense Q, which on the QPLIB instances of the MIQP
+  battery took longer than the solve itself and outside its time limit
+
 - `SCIPMILPSolver` solved a QP whose objective is not separable by spatial
   branch-and-bound when SCIP is built without LAPACK (through Ipopt), as
   it then cannot prove the auxiliary constraint z >= x^T Q x convex; with
