@@ -1,5 +1,11 @@
 # MILPSolver
 
+[![Pipeline](https://gitlab.com/smspp/milpsolver/badges/develop/pipeline.svg)](https://gitlab.com/smspp/milpsolver/-/pipelines?ref=develop)
+[![Release](https://gitlab.com/smspp/milpsolver/-/badges/release.svg)](https://gitlab.com/smspp/milpsolver/-/releases)
+[![Documentation](https://img.shields.io/badge/docs-Doxygen-blue)](https://smspp.gitlab.io/smspp-project/)
+[![C++ Standard](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
+
 A generic MILP Solver meta-interface for SMS++, with modules for interfacing
 with some actual solvers. Supports `LinearFunction`, `DQuadFunction` (diagonal
 quadratic) and `QuadFunction` (general quadratic, the last two cases not
