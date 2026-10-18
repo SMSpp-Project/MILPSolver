@@ -63,7 +63,8 @@ using namespace SMSpp_di_unipi_it;
 BlockSolverConfig * get_lpbsc( void )
 {
  static const std::vector< std::string > SolverNames =
-  { "CPXMILPSolver" , "GRBMILPSolver" , "HiGHSMILPSolver" , "SCIPMILPSolver" };
+  { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" , "HiGHSMILPSolver" ,
+    "SCIPMILPSolver" };
 
  auto lpbsc = dynamic_cast< BlockSolverConfig * >(
 		     Configuration::deserialize( "LPPar-dual.txt" ) );
@@ -362,8 +363,9 @@ int test_dynamic_in_wrapper( void ) {
  int failures = 0;
 
  for( const std::string name :
-       { "CPXMILPSolver" , "GRBMILPSolver" , "HiGHSMILPSolver" ,
-         "DAQPMILPSolver" , "QPOASESMILPSolver" , "ClarabelMILPSolver" } ) {
+       { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" ,
+         "HiGHSMILPSolver" , "DAQPMILPSolver" , "QPOASESMILPSolver" ,
+         "ClarabelMILPSolver" } ) {
   Solver * solver;
   try {
    solver = Solver::new_Solver( name );

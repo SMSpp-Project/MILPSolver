@@ -7,9 +7,9 @@
 #   The makefile takes in input the -I directives for all the external       #
 #   libraries needed by MILPSolver, i.e., core SMS++ and those of all the    #
 #   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS, DAQP,      #
-#   qpOASES, Clarabel and, on Linux, PIPS-IPM++). These are *not* copied     #
-#   into $(MILPSINC): adding those -I directives to the compile commands     #
-#   will have to done by whatever "main" makefile is using this.             #
+#   qpOASES, Clarabel, MOSEK and, on Linux, PIPS-IPM++). These are *not*     #
+#   copied into $(MILPSINC): adding those -I directives to the compile       #
+#   commands will have to done by whatever "main" makefile is using this.    #
 #   Analogously, any external library and the corresponding -L< libdirs >    #
 #   will have to be added to the final linking command by whatever "main"    #
 #   makefile is using this.                                                  #
@@ -31,6 +31,8 @@
 #           $(libDAQPINC)   = the -I$( DAQP library )                        #
 #           $(libqpOASESINC) = the -I$( qpOASES library )                    #
 #           $(libClarabelINC) = the -I$( Clarabel library )                  #
+#           $(libMOSEKINC)  = the -I$( MOSEK library )                       #
+#           $(MOSEK_PRESENT) = non-empty if MOSEK is installed               #
 #           $(MILPSSDR)     = the directory where the source is              #
 #                                                                            #
 #   Output: $(MILPSOBJ)     = the final object(s) / library                  #
@@ -80,7 +82,8 @@ CLARABEL_PRESENT := $(wildcard \
 # will look for, so that upgrading a back-end regenerates the pair rather than
 # leaving the stale one behind (see $(TOOLSSDR)/pars_names.probe)
 PARSNAMES := $(shell $(CC) -E -P -x c++ $(libCPLEXINC) $(libGUROBIINC) \
-	$(libSCIPINC) $(libHiGHSINC) "$(TOOLSSDR)/pars_names.probe" \
+	$(libSCIPINC) $(libHiGHSINC) $(if $(MOSEK_PRESENT),$(libMOSEKINC)) \
+	"$(TOOLSSDR)/pars_names.probe" \
 	2>/dev/null | sed -n 's/^[ \t]*SMSpp_pars //p' | tr -d ' \t')
 
 # a back-end whose version macros do not expand is not usable anyway: drop it
@@ -91,6 +94,7 @@ CPXPARSD   := $(addprefix $(MILPSIDR)/,$(filter CPX%,$(PARSNAMES)))
 GRBPARSD   := $(addprefix $(MILPSIDR)/,$(filter GRB%,$(PARSNAMES)))
 SCIPPARSD  := $(addprefix $(MILPSIDR)/,$(filter SCIP%,$(PARSNAMES)))
 HiGHSPARSD := $(addprefix $(MILPSIDR)/,$(filter HiGHS%,$(PARSNAMES)))
+MOSEKPARSD := $(addprefix $(MILPSIDR)/,$(filter MOSEK%,$(PARSNAMES)))
 
 # the parameters of PIPS-IPM++ are read out of its sources rather than out of
 # a library, hence they are not versioned and pips_pars needs to be told where
@@ -102,11 +106,12 @@ CPXPARSM   := $(CPXPARSD:_defs.h=_maps.h)
 GRBPARSM   := $(GRBPARSD:_defs.h=_maps.h)
 SCIPPARSM  := $(SCIPPARSD:_defs.h=_maps.h)
 HiGHSPARSM := $(HiGHSPARSD:_defs.h=_maps.h)
+MOSEKPARSM := $(MOSEKPARSD:_defs.h=_maps.h)
 PIPSPARSM  := $(PIPSPARSD:_defs.h=_maps.h)
 
 PARSH = $(CPXPARSD) $(CPXPARSM) $(GRBPARSD) $(GRBPARSM) \
 	$(SCIPPARSD) $(SCIPPARSM) $(HiGHSPARSD) $(HiGHSPARSM) \
-	$(PIPSPARSD) $(PIPSPARSM)
+	$(PIPSPARSD) $(PIPSPARSM) $(MOSEKPARSD) $(MOSEKPARSM)
 
 .PHONY: tools
 tools: $(PARSH)
@@ -162,6 +167,17 @@ $(HiGHSPARSM): $(HiGHSPARSD)
 	@test -f $@ || ( cd "$(TOOLSSDR)" && ./highs_pars )
 endif
 
+ifneq ($(MOSEKPARSD),)
+$(MOSEKPARSD):
+	@echo "[MILPSolver] generating $(@F) and $(@F:_defs.h=_maps.h)"
+	@rm -f "$(TOOLSSDR)/mosek_pars" "$(TOOLSSDR)/mosek_pars.o"
+	@$(MAKE) -C "$(TOOLSSDR)" mosek_pars
+	@cd "$(TOOLSSDR)" && ./mosek_pars
+
+$(MOSEKPARSM): $(MOSEKPARSD)
+	@test -f $@ || ( cd "$(TOOLSSDR)" && ./mosek_pars )
+endif
+
 ifneq ($(PIPSPARSD),)
 $(PIPSPARSD): $(PIPSPARSS)
 	@echo "[MILPSolver] generating $(@F) and $(@F:_defs.h=_maps.h)"
@@ -210,6 +226,11 @@ ifneq ($(CLARABEL_PRESENT),)
     MILPSH += $(MILPSSDR)/include/ClarabelMILPSolver.h
 endif
 
+ifneq ($(MOSEK_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/MOSEKMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/MOSEKMILPSolver.h
+endif
+
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
@@ -224,6 +245,7 @@ distclean: clean
 	rm -f $(MILPSSDR)/include/SCIP*_defs.h $(MILPSSDR)/include/SCIP*_maps.h
 	rm -f $(MILPSSDR)/include/HiGHS*_defs.h $(MILPSSDR)/include/HiGHS*_maps.h
 	rm -f $(MILPSSDR)/include/PIPS*_defs.h $(MILPSSDR)/include/PIPS*_maps.h
+	rm -f $(MILPSSDR)/include/MOSEK*_defs.h $(MILPSSDR)/include/MOSEK*_maps.h
 	rm -f $(TOOLSSDR)/.headers.stamp
 
 # phony targets - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -242,6 +264,10 @@ $(MILPSSDR)/obj/HiGHSMILPSolver.o: $(HiGHSPARSD) $(HiGHSPARSM)
 
 ifneq ($(PIPS_PRESENT),)
 $(MILPSSDR)/obj/PIPSMILPSolver.o:  $(PIPSPARSD) $(PIPSPARSM)
+endif
+
+ifneq ($(MOSEK_PRESENT),)
+$(MILPSSDR)/obj/MOSEKMILPSolver.o: $(MOSEKPARSD) $(MOSEKPARSM)
 endif
 
 $(MILPSSDR)/obj/MILPSolver.o: $(MILPSSDR)/src/MILPSolver.cpp \
@@ -303,6 +329,14 @@ $(MILPSSDR)/obj/ClarabelMILPSolver.o: $(MILPSSDR)/src/ClarabelMILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/ClarabelMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libClarabelINC) $(SW)
+endif
+
+ifneq ($(MOSEK_PRESENT),)
+$(MILPSSDR)/obj/MOSEKMILPSolver.o: $(MILPSSDR)/src/MOSEKMILPSolver.cpp \
+	$(MILPSSDR)/include/MOSEKMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/MOSEKMILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(libMOSEKINC) $(SW)
 endif
 
 ########################## End of makefile ###################################

@@ -196,6 +196,48 @@ if (MILPSolver_USE_HiGHS)
 
 endif ()
 
+if (MILPSolver_USE_MOSEK)
+    # Remove dots from MOSEK version
+    remove_dots(${MOSEK_VERSION} MOSEK_VERSION_NO_DOTS OFF)
+
+    set(MOSEK_PARS_NAME MOSEK${MOSEK_VERSION_NO_DOTS})
+    set(MOSEK_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/${MOSEK_PARS_NAME}_defs.h)
+    set(MOSEK_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/${MOSEK_PARS_NAME}_maps.h)
+
+    if (CMAKE_CROSSCOMPILING)
+        add_custom_command(
+                OUTPUT ${MOSEK_DEFS_FILE} ${MOSEK_MAPS_FILE}
+                COMMAND /bin/sh -c
+                        "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
+                        CC='${_native_cc}' \
+                        MOSEK_ROOT='$$MOSEK_ROOT' mosek_pars"
+                COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/mosek_pars'"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                COMMENT "Running native mosek_pars to generate the headers"
+                VERBATIM
+        )
+    else ()
+        add_executable(mosek_pars mosek_pars.cpp)
+        target_compile_features(mosek_pars PRIVATE cxx_std_20)
+        target_link_libraries(mosek_pars PRIVATE MOSEK::MOSEK)
+
+        add_custom_command(
+                OUTPUT ${MOSEK_DEFS_FILE} ${MOSEK_MAPS_FILE}
+                COMMAND $<TARGET_FILE:mosek_pars>
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                DEPENDS mosek_pars
+                COMMENT "Running mosek_pars to generate necessary headers"
+                VERBATIM
+        )
+    endif ()
+
+    add_custom_target(generate_mosek_headers
+            DEPENDS ${MOSEK_DEFS_FILE} ${MOSEK_MAPS_FILE}
+    )
+
+    add_dependencies(generate_headers generate_mosek_headers)
+endif ()
+
 if (MILPSolver_USE_PIPS)
     set(PIPS_DEFS_FILE ${MILPSolver_INCLUDE_DIR}/PIPS_defs.h)
     set(PIPS_MAPS_FILE ${MILPSolver_INCLUDE_DIR}/PIPS_maps.h)

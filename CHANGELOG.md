@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `MOSEKMILPSolver`, the interface with the commercial solver MOSEK (10 or
+  later) for LPs, MILPs, convex QPs and MIQPs with linear constraints:
+  bounds, sides, costs, coefficients, integrality, rows, columns and terms
+  of the quadratic objective are changed in place in the task, which keeps
+  its basis for the simplex; the duals and reduced costs follow the
+  convention of the other backends, and the certificates of infeasibility
+  and unboundedness come with the solve that finds them; `dblUpCutOff` and
+  `dblLwCutOff` stop a MIP from the callback of MOSEK, quadratic
+  constraints and the separation of user cuts or lazy constraints in a MIP
+  are refused, and every parameter of MOSEK can be given with its symbolic
+  name, listed for the installed version by `tools/mosek_pars`; it is
+  built when `MILPSolver_USE_MOSEK` is ON (CMake) or MOSEK is in
+  `MOSEK_ROOT` (makefile)
+
 - `QPOASESMILPSolver`, the interface with the open-source online active-set
   solver qpOASES for convex QPs (and LPs) with linear constraints, dense and
   with no integer variables, whose Hessian may be singular: a direction of

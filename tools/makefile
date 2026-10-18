@@ -2,7 +2,7 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of cpx_pars / scip_pars / grb_pars / highs_pars                 #
+#   makefile of cpx_pars / scip_pars / grb_pars / highs_pars / mosek_pars    #
 #                                                                            #
 #                              Antonio Frangioni                             #
 #                          Dipartimento di Informatica                       #
@@ -83,12 +83,14 @@ ifeq ($(strip $(MAKECMDGOALS)),)
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
     include $(DIR)/makefile_pips
+    include $(DIR)/makefile_mosek
 else ifneq ($(filter default debug release clean distclean,$(MAKECMDGOALS)),)
     include $(DIR)/makefile_cpx
     include $(DIR)/makefile_grb
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
     include $(DIR)/makefile_pips
+    include $(DIR)/makefile_mosek
 else
     ifneq ($(filter cpx_pars,$(MAKECMDGOALS)),)
 		include $(DIR)/makefile_cpx
@@ -105,10 +107,18 @@ else
 	ifneq ($(filter pips_pars,$(MAKECMDGOALS)),)
 		include $(DIR)/makefile_pips
 	endif
+	ifneq ($(filter mosek_pars,$(MAKECMDGOALS)),)
+		include $(DIR)/makefile_mosek
+	endif
 endif
 
 # collate all (defined) executables
 NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS) $(PIPS_PARS)
+
+# mosek_pars only if MOSEK is installed, it being an optional dependency
+ifneq ($(MOSEK_PRESENT),)
+    NAME += $(MOSEK_PARS)
+endif
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

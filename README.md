@@ -52,6 +52,10 @@ Currently available derived classes are:
 - `HiGHSMILPSolver`, providing the interface with the open-source
   [HiGHS](https://highs.dev)
 
+- `MOSEKMILPSolver`, providing the interface with the commercial
+  [MOSEK](https://www.mosek.com) (LP, MILP, convex QP and MIQP problems
+  with linear constraints)
+
 - `PIPSMILPSolver`, providing the interface with the open-source parallel
   interior-point solver
   [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp) (LP problems
@@ -114,6 +118,12 @@ the whole framework. What follows is about building it yourself.
 
 - for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev)
 
+- for `MOSEKMILPSolver` you will need [MOSEK](https://www.mosek.com) 10 or
+  later, in `MOSEK_ROOT` (the directory of a version, e.g.
+  `/opt/mosek/11.0`, or the one above it), and a license of it in
+  `~/mosek/mosek.lic` or wherever `MOSEKLM_LICENSE_FILE` says (MOSEK gives
+  [free academic licenses](https://www.mosek.com/products/academic-licenses/))
+
 - for `PIPSMILPSolver` you will need
   [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp), which is only
   available under Linux and requires an MPI implementation (note that
@@ -167,6 +177,7 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_DAQP`     | Use DAQP       | ON            |
 | `MILPSolver_USE_qpOASES`  | Use qpOASES    | ON            |
 | `MILPSolver_USE_Clarabel` | Use Clarabel   | ON            |
+| `MILPSolver_USE_MOSEK`    | Use MOSEK      | ON            |
 
 At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.
@@ -327,10 +338,10 @@ details about the non-warranty attached to this code are available in the
 license description file.
 
 The authors are not affiliated, associated, authorized, endorsed by, or in
-any way officially connected with IBM or Gurobi, or any of their subsidiaries
-or affiliates. The names IBM, ILOG, CPLEX and Gurobi as well as related
-names, marks, emblems and images are registered trademarks of their
-respective owners. The authors also do not claim any affiliation with the
+any way officially connected with IBM, Gurobi or MOSEK, or any of their
+subsidiaries or affiliates. The names IBM, ILOG, CPLEX, Gurobi and MOSEK as
+well as related names, marks, emblems and images are registered trademarks
+of their respective owners. The authors also do not claim any affiliation with the
 open-source projects developing SCIP and HiGHS: any fault in the code
 interfacing SMS++ with those is all and entirely ours.
 

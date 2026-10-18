@@ -28,10 +28,10 @@
  * makes GUROBI 13 end the warm re-solve in numerical trouble (status 12),
  * while <= 1e32 does not.
  *
- * Each :MILPSolver among CPXMILPSolver, GRBMILPSolver, HiGHSMILPSolver,
- * SCIPMILPSolver, DAQPMILPSolver, QPOASESMILPSolver and ClarabelMILPSolver
- * that is not in the factory is skipped, and the test is skipped (exit status
- * 77) if none of them is.
+ * Each :MILPSolver among CPXMILPSolver, GRBMILPSolver, MOSEKMILPSolver,
+ * HiGHSMILPSolver, SCIPMILPSolver, DAQPMILPSolver, QPOASESMILPSolver and
+ * ClarabelMILPSolver that is not in the factory is skipped, and the test is
+ * skipped (exit status 77) if none of them is.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -179,6 +179,7 @@ int main( void )
  int failures = 0 , tried = 0;
 
  for( const std::string name : { "CPXMILPSolver" , "GRBMILPSolver" ,
+                                 "MOSEKMILPSolver" ,
                                  "HiGHSMILPSolver" , "SCIPMILPSolver" ,
                                  "DAQPMILPSolver" , "QPOASESMILPSolver" ,
                                  "ClarabelMILPSolver" } ) {

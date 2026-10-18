@@ -102,7 +102,8 @@ using namespace SMSpp_di_unipi_it;
 /// the :MILPSolver to try, each skipped if it is not in the Solver factory
 
 static const std::vector< std::string > SolverNames =
- { "CPXMILPSolver" , "GRBMILPSolver" , "SCIPMILPSolver" , "HiGHSMILPSolver" };
+ { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" , "SCIPMILPSolver" ,
+   "HiGHSMILPSolver" };
 
 /// a dual value below this in absolute terms is taken to be zero
 
@@ -334,6 +335,8 @@ int main( void )
   try_int( "presolving/maxrounds" , 0 );                // SCIP
   try_str( "presolve" , "off" );                        // HiGHS
   try_str( "solver" , "simplex" );                      // HiGHS
+  try_int( "MSK_IPAR_OPTIMIZER" , 1 );                  // MOSEK
+  try_int( "MSK_IPAR_PRESOLVE_USE" , 0 );               // MOSEK
 
   std::cout << std::left << std::setw( 16 ) << name;
 

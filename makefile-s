@@ -60,6 +60,9 @@ include $(MILPSSDR)/../extlib/makefile-libqpOASES
 # include makefile for libClarabel
 include $(MILPSSDR)/../extlib/makefile-libClarabel
 
+# include makefile for libMOSEK
+include $(MILPSSDR)/../extlib/makefile-libMOSEK
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -96,6 +99,12 @@ endif
 ifneq ($(CLARABEL_PRESENT),)
     MILPSINC := $(MILPSINC) $(libClarabelINC)
     MILPSLIB := $(MILPSLIB) $(libClarabelLIB)
+endif
+
+# append MOSEK flags only when it is installed
+ifneq ($(MOSEK_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libMOSEKINC)
+    MILPSLIB := $(MILPSLIB) $(libMOSEKLIB)
 endif
 
 ########################### End of makefile-s ################################

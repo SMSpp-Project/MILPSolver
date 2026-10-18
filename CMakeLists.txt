@@ -60,6 +60,7 @@ option(MILPSolver_USE_DAQP "Whether MILPSolver will use DAQP or not." ON)
 option(MILPSolver_USE_qpOASES "Whether MILPSolver will use qpOASES or not." ON)
 option(MILPSolver_USE_Clarabel
         "Whether MILPSolver will use Clarabel or not." ON)
+option(MILPSolver_USE_MOSEK "Whether MILPSolver will use MOSEK or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -137,6 +138,14 @@ if (MILPSolver_USE_Clarabel)
     find_package(Clarabel)
     if (NOT Clarabel_FOUND)
         set(MILPSolver_USE_Clarabel OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_MOSEK)
+    # Needed for MOSEKMILPSolver
+    find_package(MOSEK 10.0)
+    if (NOT MOSEK_FOUND)
+        set(MILPSolver_USE_MOSEK OFF)
     endif ()
 endif ()
 
@@ -288,6 +297,12 @@ if (MILPSolver_USE_Clarabel)
     target_link_libraries(${modName} PUBLIC Clarabel::Clarabel)
 endif ()
 
+if (MILPSolver_USE_MOSEK)
+    message(STATUS "MILPSolver: MOSEK found, configuring MOSEKMILPSolver")
+    target_sources(${modName} PRIVATE src/MOSEKMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC MOSEK::MOSEK)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -362,6 +377,12 @@ if (MILPSolver_USE_Clarabel)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "Clarabel*")
+endif ()
+
+if (MILPSolver_USE_MOSEK)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "MOSEK*")
 endif ()
 
 # Install the auto-generated configuration header (see above).
