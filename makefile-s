@@ -57,6 +57,9 @@ include $(MILPSSDR)/../extlib/makefile-libDAQP
 # include makefile for libqpOASES
 include $(MILPSSDR)/../extlib/makefile-libqpOASES
 
+# include makefile for libClarabel
+include $(MILPSSDR)/../extlib/makefile-libClarabel
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -87,6 +90,12 @@ endif
 ifneq ($(QPOASES_PRESENT),)
     MILPSINC := $(MILPSINC) $(libqpOASESINC)
     MILPSLIB := $(MILPSLIB) $(libqpOASESLIB)
+endif
+
+# append Clarabel flags only when it is installed
+ifneq ($(CLARABEL_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libClarabelINC)
+    MILPSLIB := $(MILPSLIB) $(libClarabelLIB)
 endif
 
 ########################### End of makefile-s ################################

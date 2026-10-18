@@ -29,9 +29,9 @@
  * while <= 1e32 does not.
  *
  * Each :MILPSolver among CPXMILPSolver, GRBMILPSolver, HiGHSMILPSolver,
- * SCIPMILPSolver, DAQPMILPSolver and QPOASESMILPSolver that is not in the
- * factory is skipped, and the test is skipped (exit status 77) if none of
- * them is.
+ * SCIPMILPSolver, DAQPMILPSolver, QPOASESMILPSolver and ClarabelMILPSolver
+ * that is not in the factory is skipped, and the test is skipped (exit status
+ * 77) if none of them is.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -180,7 +180,8 @@ int main( void )
 
  for( const std::string name : { "CPXMILPSolver" , "GRBMILPSolver" ,
                                  "HiGHSMILPSolver" , "SCIPMILPSolver" ,
-                                 "DAQPMILPSolver" , "QPOASESMILPSolver" } ) {
+                                 "DAQPMILPSolver" , "QPOASESMILPSolver" ,
+                                 "ClarabelMILPSolver" } ) {
   if( ! Solver::has_Solver( name ) ) {
    std::cout << name << " is not in this build, skipped" << std::endl;
    continue;

@@ -42,6 +42,8 @@ set(DAQP_ROOT @DAQP_ROOT@)
 
 set(MILPSolver_USE_qpOASES @MILPSolver_USE_qpOASES@)
 set(qpOASES_ROOT @qpOASES_ROOT@)
+set(MILPSolver_USE_Clarabel @MILPSolver_USE_Clarabel@)
+set(Clarabel_ROOT @Clarabel_ROOT@)
 
 # ----- Requirements -------------------------------------------------------- #
 find_dependency(SMS++)
@@ -75,6 +77,10 @@ endif ()
 
 if (MILPSolver_USE_qpOASES)
     find_dependency(qpOASES)
+endif ()
+
+if (MILPSolver_USE_Clarabel)
+    find_dependency(Clarabel)
 endif ()
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)

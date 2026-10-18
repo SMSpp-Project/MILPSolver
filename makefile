@@ -7,12 +7,12 @@
 #   The makefile takes in input the -I directives for all the external       #
 #   libraries needed by MILPSolver, i.e., core SMS++ and those of all the    #
 #   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS, DAQP,      #
-#   qpOASES and, on Linux, PIPS-IPM++). These are *not* copied into          #
-#   $(MILPSINC): adding those -I directives to the compile commands will     #
-#   have to done by whatever "main" makefile is using this. Analogously, any #
-#   external library and the corresponding -L< libdirs > will have to be     #
-#   added to the final linking command by whatever "main" makefile is using  #
-#   this.                                                                    #
+#   qpOASES, Clarabel and, on Linux, PIPS-IPM++). These are *not* copied     #
+#   into $(MILPSINC): adding those -I directives to the compile commands     #
+#   will have to done by whatever "main" makefile is using this.             #
+#   Analogously, any external library and the corresponding -L< libdirs >    #
+#   will have to be added to the final linking command by whatever "main"    #
+#   makefile is using this.                                                  #
 #                                                                            #
 #   Note that, conversely, $(SMS++INC) is also assumed to include any        #
 #   -I directive corresponding to external libraries needed by SMS++, at     #
@@ -30,6 +30,7 @@
 #           $(libPIPSINC)   = the -I$( PIPS-IPM++ library ), Linux only      #
 #           $(libDAQPINC)   = the -I$( DAQP library )                        #
 #           $(libqpOASESINC) = the -I$( qpOASES library )                    #
+#           $(libClarabelINC) = the -I$( Clarabel library )                  #
 #           $(MILPSSDR)     = the directory where the source is              #
 #                                                                            #
 #   Output: $(MILPSOBJ)     = the final object(s) / library                  #
@@ -65,6 +66,12 @@ DAQP_PRESENT := $(wildcard $(subst $\",,$(DAQP_ROOT))/include/daqp/api.h)
 # case
 QPOASES_PRESENT := $(wildcard \
 	$(subst $\",,$(qpOASES_ROOT))/include/qpOASES.hpp)
+
+# non-empty if and only if Clarabel is installed in $(Clarabel_ROOT), which is
+# set by extlib/makefile-libClarabel; ClarabelMILPSolver is only built in that
+# case
+CLARABEL_PRESENT := $(wildcard \
+	$(subst $\",,$(Clarabel_ROOT))/include/c/DefaultSolver.h)
 
 # each *MILPSolver.h includes a pair of files listing the algorithmic
 # parameters of its back-end, produced by the corresponding tool in
@@ -198,6 +205,11 @@ ifneq ($(QPOASES_PRESENT),)
     MILPSH += $(MILPSSDR)/include/QPOASESMILPSolver.h
 endif
 
+ifneq ($(CLARABEL_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/ClarabelMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/ClarabelMILPSolver.h
+endif
+
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
@@ -283,6 +295,14 @@ $(MILPSSDR)/obj/QPOASESMILPSolver.o: $(MILPSSDR)/src/QPOASESMILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/QPOASESMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libqpOASESINC) $(SW)
+endif
+
+ifneq ($(CLARABEL_PRESENT),)
+$(MILPSSDR)/obj/ClarabelMILPSolver.o: $(MILPSSDR)/src/ClarabelMILPSolver.cpp \
+	$(MILPSSDR)/include/ClarabelMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/ClarabelMILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(libClarabelINC) $(SW)
 endif
 
 ########################## End of makefile ###################################

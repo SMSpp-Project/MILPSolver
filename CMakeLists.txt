@@ -58,6 +58,8 @@ option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 option(MILPSolver_USE_PIPS "Whether MILPSolver will use PIPS-IPM++ or not." ON)
 option(MILPSolver_USE_DAQP "Whether MILPSolver will use DAQP or not." ON)
 option(MILPSolver_USE_qpOASES "Whether MILPSolver will use qpOASES or not." ON)
+option(MILPSolver_USE_Clarabel
+        "Whether MILPSolver will use Clarabel or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -126,6 +128,15 @@ if (MILPSolver_USE_qpOASES)
     find_package(qpOASES 3.2)
     if (NOT qpOASES_FOUND)
         set(MILPSolver_USE_qpOASES OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_Clarabel)
+    # Needed for ClarabelMILPSolver
+    # Clarabel exposes no version number in its headers, so none is checked
+    find_package(Clarabel)
+    if (NOT Clarabel_FOUND)
+        set(MILPSolver_USE_Clarabel OFF)
     endif ()
 endif ()
 
@@ -270,6 +281,13 @@ if (MILPSolver_USE_qpOASES)
     target_link_libraries(${modName} PUBLIC qpOASES::qpOASES)
 endif ()
 
+if (MILPSolver_USE_Clarabel)
+    message(STATUS
+            "MILPSolver: Clarabel found, configuring ClarabelMILPSolver")
+    target_sources(${modName} PRIVATE src/ClarabelMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC Clarabel::Clarabel)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -338,6 +356,12 @@ if (MILPSolver_USE_qpOASES)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "QPOASES*")
+endif ()
+
+if (MILPSolver_USE_Clarabel)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "Clarabel*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

@@ -58,6 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   if the size has not changed (`intDAQPWarmStart`); it is built when
   `MILPSolver_USE_DAQP` is ON (CMake) or DAQP is in `DAQP_ROOT` (makefile)
 
+- `ClarabelMILPSolver`, the interface with the open-source interior-point
+  solver Clarabel for convex QPs (and LPs) with linear constraints, sparse
+  and with no integer variables: an unbounded problem is detected as such
+  (`kUnbounded`) and a singular Hessian needs no regularization, as in the
+  master problems of bundle methods with vertical cuts; Clarabel has no
+  warm start, hence the problem is loaded again whole at every Modification
+  and each solve starts from scratch; it is built when
+  `MILPSolver_USE_Clarabel` is ON (CMake) or Clarabel is in `Clarabel_ROOT`
+  (makefile)
+
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,

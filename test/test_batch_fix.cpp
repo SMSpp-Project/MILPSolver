@@ -80,7 +80,7 @@ using namespace SMSpp_di_unipi_it;
 
 static const std::vector< std::string > SolverNames =
  { "CPXMILPSolver" , "GRBMILPSolver" , "SCIPMILPSolver" , "HiGHSMILPSolver" ,
-   "DAQPMILPSolver" , "QPOASESMILPSolver" };
+   "DAQPMILPSolver" , "QPOASESMILPSolver" , "ClarabelMILPSolver" };
 
 /// the tolerance of every comparison
 

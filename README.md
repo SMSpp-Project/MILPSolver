@@ -67,6 +67,10 @@ Currently available derived classes are:
   and LP problems with linear constraints, dense, no integer variables, the
   Hessian possibly singular, hot starts between similar problems)
 
+- `ClarabelMILPSolver`, providing the interface with the open-source
+  interior-point solver [Clarabel](https://clarabel.org) (convex QP and LP
+  problems with linear constraints, sparse, no integer variables)
+
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
 found on the system, both with CMake and with the makefiles (see below
@@ -124,6 +128,13 @@ the whole framework. What follows is about building it yourself.
   [qpOASES](https://github.com/coin-or/qpOASES) 3.2 or later, installed
   with its CMake (`cmake --install`), in `qpOASES_ROOT`
 
+- for `ClarabelMILPSolver` you will need the C interface of Clarabel,
+  [Clarabel.cpp](https://github.com/oxfordcontrol/Clarabel.cpp), whose
+  build needs a Rust toolchain (`cargo`): since its CMake installs nothing,
+  copy its `include` directory and the `libclarabel_c` built by `cargo build
+  --release` in `rust_wrapper` to the `include` and `lib` directories of
+  `Clarabel_ROOT`
+
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
@@ -146,15 +157,16 @@ The library has the same configuration options of
 [SMS++](https://gitlab.com/smspp/smspp-project/-/wikis/Customize-the-configuration).
 Moreover, you can use the following configuration options:
 
-| Variable                 | Description    | Default value |
-| ------------------------ | -------------- | ------------- |
-| `MILPSolver_USE_CPLEX`   | Use CPLEX      | ON            |
-| `MILPSolver_USE_SCIP`    | Use SCIP       | ON            |
-| `MILPSolver_USE_GUROBI`  | Use GUROBI     | ON            |
-| `MILPSolver_USE_HiGHS`   | Use HiGHS      | ON            |
-| `MILPSolver_USE_PIPS`    | Use PIPS-IPM++ | ON            |
-| `MILPSolver_USE_DAQP`    | Use DAQP       | ON            |
-| `MILPSolver_USE_qpOASES` | Use qpOASES    | ON            |
+| Variable                  | Description    | Default value |
+| ------------------------- | -------------- | ------------- |
+| `MILPSolver_USE_CPLEX`    | Use CPLEX      | ON            |
+| `MILPSolver_USE_SCIP`     | Use SCIP       | ON            |
+| `MILPSolver_USE_GUROBI`   | Use GUROBI     | ON            |
+| `MILPSolver_USE_HiGHS`    | Use HiGHS      | ON            |
+| `MILPSolver_USE_PIPS`     | Use PIPS-IPM++ | ON            |
+| `MILPSolver_USE_DAQP`     | Use DAQP       | ON            |
+| `MILPSolver_USE_qpOASES`  | Use qpOASES    | ON            |
+| `MILPSolver_USE_Clarabel` | Use Clarabel   | ON            |
 
 At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.

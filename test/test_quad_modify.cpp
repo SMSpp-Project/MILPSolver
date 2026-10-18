@@ -10,10 +10,10 @@
  *
  * is loaded with ( a0 , b0 ), a and b are changed by
  * QuadFunction::modify_term() and the problem is solved again, and the value
- * is compared with that of a fresh Solver of the same type loaded with the
- * new coefficients. Each :MILPSolver among CPXMILPSolver, GRBMILPSolver,
- * SCIPMILPSolver, HiGHSMILPSolver, DAQPMILPSolver and QPOASESMILPSolver
- * that is not in the factory is skipped.
+ * is compared with that of a fresh Solver of the same type loaded with the new
+ * coefficients. Each :MILPSolver among CPXMILPSolver, GRBMILPSolver,
+ * SCIPMILPSolver, HiGHSMILPSolver, DAQPMILPSolver, QPOASESMILPSolver and
+ * ClarabelMILPSolver that is not in the factory is skipped.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -97,7 +97,8 @@ int main( void )
 
  for( const std::string name :
        { "CPXMILPSolver" , "GRBMILPSolver" , "SCIPMILPSolver" ,
-         "HiGHSMILPSolver" , "DAQPMILPSolver" , "QPOASESMILPSolver" } ) {
+         "HiGHSMILPSolver" , "DAQPMILPSolver" , "QPOASESMILPSolver" ,
+         "ClarabelMILPSolver" } ) {
   Solver * s;
   try {
    s = Solver::new_Solver( name );
