@@ -62,6 +62,11 @@ Currently available derived classes are:
   active-set solver [DAQP](https://github.com/darnstrom/daqp) (convex QP
   and LP problems with linear constraints, dense, no integer variables)
 
+- `QPOASESMILPSolver`, providing the interface with the open-source online
+  active-set solver [qpOASES](https://github.com/coin-or/qpOASES) (convex QP
+  and LP problems with linear constraints, dense, no integer variables, the
+  Hessian possibly singular, hot starts between similar problems)
+
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
 found on the system, both with CMake and with the makefiles (see below
@@ -115,6 +120,10 @@ the whole framework. What follows is about building it yourself.
 - for `DAQPMILPSolver` you will need [DAQP](https://github.com/darnstrom/daqp),
   installed with its CMake (`cmake --install`), in `DAQP_ROOT`
 
+- for `QPOASESMILPSolver` you will need
+  [qpOASES](https://github.com/coin-or/qpOASES) 3.2 or later, installed
+  with its CMake (`cmake --install`), in `qpOASES_ROOT`
+
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
@@ -145,6 +154,7 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_HiGHS`   | Use HiGHS      | ON            |
 | `MILPSolver_USE_PIPS`    | Use PIPS-IPM++ | ON            |
 | `MILPSolver_USE_DAQP`    | Use DAQP       | ON            |
+| `MILPSolver_USE_qpOASES` | Use qpOASES    | ON            |
 
 At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.

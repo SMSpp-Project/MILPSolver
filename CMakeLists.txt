@@ -57,6 +57,7 @@ option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 option(MILPSolver_USE_PIPS "Whether MILPSolver will use PIPS-IPM++ or not." ON)
 option(MILPSolver_USE_DAQP "Whether MILPSolver will use DAQP or not." ON)
+option(MILPSolver_USE_qpOASES "Whether MILPSolver will use qpOASES or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -117,6 +118,14 @@ if (MILPSolver_USE_DAQP)
     find_package(DAQP)
     if (NOT DAQP_FOUND)
         set(MILPSolver_USE_DAQP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_qpOASES)
+    # Needed for QPOASESMILPSolver
+    find_package(qpOASES 3.2)
+    if (NOT qpOASES_FOUND)
+        set(MILPSolver_USE_qpOASES OFF)
     endif ()
 endif ()
 
@@ -255,6 +264,12 @@ if (MILPSolver_USE_DAQP)
     target_link_libraries(${modName} PUBLIC DAQP::DAQP)
 endif ()
 
+if (MILPSolver_USE_qpOASES)
+    message(STATUS "MILPSolver: qpOASES found, configuring QPOASESMILPSolver")
+    target_sources(${modName} PRIVATE src/QPOASESMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC qpOASES::qpOASES)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -317,6 +332,12 @@ if (MILPSolver_USE_DAQP)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "DAQP*")
+endif ()
+
+if (MILPSolver_USE_qpOASES)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "QPOASES*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `QPOASESMILPSolver`, the interface with the open-source online active-set
+  solver qpOASES for convex QPs (and LPs) with linear constraints, dense and
+  with no integer variables, whose Hessian may be singular: a direction of
+  zero curvature is followed until a constraint blocks it, and an unbounded
+  problem is declared so. The problem is loaded again whole at every
+  Modification, and a solve is a hot start from the solution of the
+  previous one if the size has not changed (`intQPOASESHotStart`), repeated
+  from scratch if it does not end optimal; it is built when
+  `MILPSolver_USE_qpOASES` is ON (CMake) or qpOASES is in `qpOASES_ROOT`
+  (makefile)
+
 - `PIPSMILPSolver` solves convex QPs: the Hessian of the objective is given
   to PIPS-IPM++ node by node through the callbacks that had it empty, a
   term between the Variable of two nodes making `load_problem()` throw, and

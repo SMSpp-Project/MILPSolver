@@ -54,6 +54,9 @@ include $(MILPSSDR)/../extlib/makefile-libPIPS
 # include makefile for libDAQP
 include $(MILPSSDR)/../extlib/makefile-libDAQP
 
+# include makefile for libqpOASES
+include $(MILPSSDR)/../extlib/makefile-libqpOASES
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -78,6 +81,12 @@ endif
 ifneq ($(DAQP_PRESENT),)
     MILPSINC := $(MILPSINC) $(libDAQPINC)
     MILPSLIB := $(MILPSLIB) $(libDAQPLIB)
+endif
+
+# append qpOASES flags only when it is installed
+ifneq ($(QPOASES_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libqpOASESINC)
+    MILPSLIB := $(MILPSLIB) $(libqpOASESLIB)
 endif
 
 ########################### End of makefile-s ################################
