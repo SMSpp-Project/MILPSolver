@@ -73,6 +73,9 @@ include $(MILPSSDR)/../extlib/makefile-libPIQP
 # include makefile for libOSQP
 include $(MILPSSDR)/../extlib/makefile-libOSQP
 
+# include makefile for libqpmad
+include $(MILPSSDR)/../extlib/makefile-libqpmad
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -133,6 +136,11 @@ endif
 ifneq ($(OSQP_PRESENT),)
     MILPSINC := $(MILPSINC) $(libOSQPINC)
     MILPSLIB := $(MILPSLIB) $(libOSQPLIB)
+endif
+
+# append the qpmad flags only when it is installed (it is header-only)
+ifneq ($(QPMAD_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libqpmadINC)
 endif
 
 ############################ End of makefile #################################

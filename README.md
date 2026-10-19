@@ -96,6 +96,11 @@ Currently available derived classes are:
   splitting solver [OSQP](https://osqp.org) (convex QP and LP problems with
   linear constraints, sparse, no integer variables)
 
+- `QPMADMILPSolver`, providing the interface with the open-source dual
+  active-set solver [qpmad](https://github.com/asherikov/qpmad), of
+  Goldfarb and Idnani (strictly convex QP problems with linear constraints,
+  dense, the Hessian positive definite, no integer variables)
+
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
 found on the system, both with CMake and with the makefiles (see below
@@ -188,6 +193,11 @@ the whole framework. What follows is about building it yourself.
   library is linked with its symbols kept local, while with its shared one
   alone `OSQPMILPSolver` crashes in a program that also loads HiGHS
 
+- for `QPMADMILPSolver` you will need
+  [qpmad](https://github.com/asherikov/qpmad) 1.5 or later, which is
+  header-only and needs Eigen, installed with its CMake (`cmake --install`)
+  in `qpmad_ROOT`
+
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
@@ -224,6 +234,7 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_ProxQP`   | Use ProxQP     | ON            |
 | `MILPSolver_USE_PIQP`     | Use PIQP       | ON            |
 | `MILPSolver_USE_OSQP`     | Use OSQP       | ON            |
+| `MILPSolver_USE_qpmad`    | Use qpmad      | ON            |
 
 At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.

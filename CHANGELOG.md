@@ -113,6 +113,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is ON and OSQP 1.0 or later is found (CMake, `osqp_ROOT` as a hint) or
   OSQP is in `osqp_ROOT` (makefile)
 
+- `QPMADMILPSolver`, the interface with the open-source dual active-set
+  solver qpmad, of Goldfarb and Idnani, for strictly convex QPs with linear
+  constraints, dense and with no integer variables: H has to be positive
+  definite, and a solve whose Cholesky factorization of H fails ends with
+  `kError` unless H is regularized (`dblQPMADReg`); the problem is loaded
+  again whole at every Modification and each solve starts from the
+  unconstrained minimum, qpmad having no warm start of the active set, but
+  the Cholesky factor of H is kept from a solve to the next as long as H
+  has not changed (`intQPMADReuseFactor`); the multipliers, of which qpmad
+  only gives those of the active inequalities, are computed from its active
+  set; it is built when `MILPSolver_USE_qpmad` is ON and qpmad is found
+  (CMake, `qpmad_ROOT` as a hint) or qpmad is in `qpmad_ROOT` (makefile)
+
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,

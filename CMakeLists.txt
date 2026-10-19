@@ -64,6 +64,7 @@ option(MILPSolver_USE_MOSEK "Whether MILPSolver will use MOSEK or not." ON)
 option(MILPSolver_USE_ProxQP "Whether MILPSolver will use ProxQP or not." ON)
 option(MILPSolver_USE_PIQP "Whether MILPSolver will use PIQP or not." ON)
 option(MILPSolver_USE_OSQP "Whether MILPSolver will use OSQP or not." ON)
+option(MILPSolver_USE_qpmad "Whether MILPSolver will use qpmad or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -194,6 +195,16 @@ if (MILPSolver_USE_OSQP)
     endif ()
     if (NOT OSQP_TARGET OR NOT OSQP_API_FUNCTIONS)
         set(MILPSolver_USE_OSQP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_qpmad)
+    # Needed for QPMADMILPSolver
+    # qpmad is header-only and installs its CMake configuration, which finds
+    # Eigen; qpmad_ROOT is a hint to its location
+    find_package(qpmad CONFIG)
+    if (NOT qpmad_FOUND)
+        set(MILPSolver_USE_qpmad OFF)
     endif ()
 endif ()
 
@@ -385,6 +396,12 @@ if (MILPSolver_USE_OSQP)
     endif ()
 endif ()
 
+if (MILPSolver_USE_qpmad)
+    message(STATUS "MILPSolver: qpmad found, configuring QPMADMILPSolver")
+    target_sources(${modName} PRIVATE src/QPMADMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC qpmad::qpmad)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -483,6 +500,12 @@ if (MILPSolver_USE_OSQP)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "OSQP*")
+endif ()
+
+if (MILPSolver_USE_qpmad)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "QPMAD*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

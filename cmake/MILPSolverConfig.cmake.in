@@ -58,6 +58,9 @@ set(piqp_DIR @piqp_DIR@)
 set(MILPSolver_USE_OSQP @MILPSolver_USE_OSQP@)
 set(osqp_DIR @osqp_DIR@)
 
+set(MILPSolver_USE_qpmad @MILPSolver_USE_qpmad@)
+set(qpmad_DIR @qpmad_DIR@)
+
 # ----- Requirements -------------------------------------------------------- #
 find_dependency(SMS++)
 
@@ -110,6 +113,10 @@ endif ()
 
 if (MILPSolver_USE_OSQP)
     find_dependency(osqp CONFIG)
+endif ()
+
+if (MILPSolver_USE_qpmad)
+    find_dependency(qpmad CONFIG)
 endif ()
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)
