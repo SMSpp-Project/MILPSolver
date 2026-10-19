@@ -148,7 +148,8 @@ the whole framework. What follows is about building it yourself.
 - for `GRBMILPSolver` you will need
   [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
 
-- for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev)
+- for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev) 1.8.0 or
+  later
 
 - for `MOSEKMILPSolver` you will need [MOSEK](https://www.mosek.com) 10 or
   later, in `MOSEK_ROOT` (the directory of a version, e.g.

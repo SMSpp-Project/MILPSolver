@@ -106,7 +106,10 @@ endif ()
 
 if (MILPSolver_USE_HiGHS)
     # Needed for HiGHSMILPSolver
-    find_package(HiGHS 1.5.3)
+    # 1.8.0 is the first HiGHS whose C API has all that HiGHSMILPSolver
+    # calls: the callbacks are there since 1.6.0, Highs_setSparseSolution
+    # since 1.8.0
+    find_package(HiGHS 1.8.0)
     if (NOT HiGHS_FOUND)
         set(MILPSolver_USE_HiGHS OFF)
     endif ()

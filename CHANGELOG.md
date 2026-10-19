@@ -149,6 +149,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the HiGHS that `HiGHSMILPSolver` asks for is 1.8.0 or later: it calls the
+  callbacks of the C API of HiGHS, which came with 1.6.0, and
+  `Highs_setSparseSolution`, which came with 1.8.0, so that with a HiGHS
+  between 1.5.3 and 1.7.2 the configure accepted it and the build failed
+
 - `SCIPMILPSolver` tells whether a quadratic objective is convex from the
   pivots of a sparse LDL^T factorization of Q + tol I, rather than from the
   eigenvalues of a dense Q, which on the QPLIB instances of the MIQP
