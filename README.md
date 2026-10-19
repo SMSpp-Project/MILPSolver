@@ -81,6 +81,21 @@ Currently available derived classes are:
   interior-point solver [Clarabel](https://clarabel.org) (convex QP and LP
   problems with linear constraints, sparse, no integer variables)
 
+- `ProxQPMILPSolver`, providing the interface with the open-source proximal
+  augmented Lagrangian solver ProxQP of
+  [ProxSuite](https://github.com/Simple-Robotics/proxsuite) (convex QP and
+  LP problems with linear constraints, dense or sparse, no integer
+  variables)
+
+- `PIQPMILPSolver`, providing the interface with the open-source proximal
+  interior point solver [PIQP](https://github.com/PREDICT-EPFL/piqp)
+  (convex QP and LP problems with linear constraints, dense or sparse, no
+  integer variables)
+
+- `OSQPMILPSolver`, providing the interface with the open-source operator
+  splitting solver [OSQP](https://osqp.org) (convex QP and LP problems with
+  linear constraints, sparse, no integer variables)
+
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
 found on the system, both with CMake and with the makefiles (see below
@@ -151,6 +166,28 @@ the whole framework. What follows is about building it yourself.
   --release` in `rust_wrapper` to the `include` and `lib` directories of
   `Clarabel_ROOT`
 
+- for `ProxQPMILPSolver` you will need
+  [ProxSuite](https://github.com/Simple-Robotics/proxsuite) 0.6 or later,
+  which is header-only and needs Eigen (and Simde, unless it is configured
+  with `BUILD_WITH_VECTORIZATION_SUPPORT=OFF`), installed with its CMake
+  (`cmake --install`) in `proxsuite_ROOT`
+
+- for `PIQPMILPSolver` you will need
+  [PIQP](https://github.com/PREDICT-EPFL/piqp) 0.6 or later, which needs
+  Eigen, installed with its CMake (`cmake --install`) in `piqp_ROOT`; its
+  C++ interface is enough (`BUILD_C_INTERFACE=OFF`), and its compiled
+  library (the default `BUILD_WITH_TEMPLATE_INSTANTIATION=ON`) is used if
+  it has been built, its headers alone otherwise
+
+- for `OSQPMILPSolver` you will need [OSQP](https://github.com/osqp/osqp)
+  1.0 or later, installed with its CMake (`cmake --install`) in
+  `osqp_ROOT`, with its builtin linear algebra and in double precision (the
+  defaults); its static library is used if it has been built (the
+  default), its shared one otherwise. OSQP exports its internal functions,
+  and one of them (`csc_copy`) is also in HiGHS: on Linux, its static
+  library is linked with its symbols kept local, while with its shared one
+  alone `OSQPMILPSolver` crashes in a program that also loads HiGHS
+
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
@@ -184,6 +221,9 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_qpOASES`  | Use qpOASES    | ON            |
 | `MILPSolver_USE_Clarabel` | Use Clarabel   | ON            |
 | `MILPSolver_USE_MOSEK`    | Use MOSEK      | ON            |
+| `MILPSolver_USE_ProxQP`   | Use ProxQP     | ON            |
+| `MILPSolver_USE_PIQP`     | Use PIQP       | ON            |
+| `MILPSolver_USE_OSQP`     | Use OSQP       | ON            |
 
 At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.

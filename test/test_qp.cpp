@@ -50,16 +50,17 @@
  *
  * Each :MILPSolver among CPXMILPSolver, GRBMILPSolver, MOSEKMILPSolver,
  * SCIPMILPSolver, HiGHSMILPSolver, DAQPMILPSolver, QPOASESMILPSolver,
- * ClarabelMILPSolver and PIPSMILPSolver that is not in the factory is skipped,
- * and the test exits with 77 if none of them is; a name on the command line
- * restricts the run to that Solver. A Solver is run on each case it is meant
- * to handle, and on each of the others it has to refuse the model cleanly, by
- * an exception or by a status not below kError, rather than give a wrong
- * answer. A Solver that does not give the duals of a case is not a failure,
- * but one whose duals are wrong is. SCIPMILPSolver solves a QP through the
- * outer approximation of an auxiliary constraint, which leaves the value exact
- * to its feasibility tolerance but the solution only to about the square root
- * of it, hence its solutions are compared to 1e-3 rather than 1e-5.
+ * ClarabelMILPSolver, ProxQPMILPSolver, PIQPMILPSolver, OSQPMILPSolver and
+ * PIPSMILPSolver that is not in the factory is skipped, and the test exits
+ * with 77 if none of them is; a name on the command line restricts the run to
+ * that Solver. A Solver is run on each case it is meant to handle, and on each
+ * of the others it has to refuse the model cleanly, by an exception or by a
+ * status not below kError, rather than give a wrong answer. A Solver that does
+ * not give the duals of a case is not a failure, but one whose duals are wrong
+ * is. SCIPMILPSolver solves a QP through the outer approximation of an
+ * auxiliary constraint, which leaves the value exact to its feasibility
+ * tolerance but the solution only to about the square root of it, hence its
+ * solutions are compared to 1e-3 rather than 1e-5.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -112,15 +113,18 @@ struct Ability {
  };
 
 static const std::vector< Ability > Solvers = {
- { "CPXMILPSolver"   , true  , true  , 1e-5 } ,
- { "GRBMILPSolver"   , true  , true  , 1e-5 } ,
- { "MOSEKMILPSolver" , true  , true  , 1e-5 } ,
- { "SCIPMILPSolver"  , true  , true  , 1e-3 } ,
- { "HiGHSMILPSolver" , true  , false , 1e-5 } ,
- { "DAQPMILPSolver"  , true  , false , 1e-5 } ,
- { "QPOASESMILPSolver" , true , false , 1e-5 } ,
- { "ClarabelMILPSolver" , true , false , 1e-5 } ,
- { "PIPSMILPSolver"  , true  , false , 1e-5 } };
+ { "CPXMILPSolver"      , true  , true  , 1e-5 } ,
+ { "GRBMILPSolver"      , true  , true  , 1e-5 } ,
+ { "MOSEKMILPSolver"    , true  , true  , 1e-5 } ,
+ { "SCIPMILPSolver"     , true  , true  , 1e-3 } ,
+ { "HiGHSMILPSolver"    , true  , false , 1e-5 } ,
+ { "DAQPMILPSolver"     , true  , false , 1e-5 } ,
+ { "QPOASESMILPSolver"  , true  , false , 1e-5 } ,
+ { "ClarabelMILPSolver" , true  , false , 1e-5 } ,
+ { "ProxQPMILPSolver"   , true  , false , 1e-5 } ,
+ { "PIQPMILPSolver"     , true  , false , 1e-5 } ,
+ { "OSQPMILPSolver"     , true  , false , 1e-5 } ,
+ { "PIPSMILPSolver"     , true  , false , 1e-5 } };
 
 /// the tolerance on the values and on the solutions
 

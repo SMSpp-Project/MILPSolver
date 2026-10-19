@@ -13,8 +13,8 @@
  * is compared with that of a fresh Solver of the same type loaded with the new
  * coefficients. Each :MILPSolver among CPXMILPSolver, GRBMILPSolver,
  * MOSEKMILPSolver, SCIPMILPSolver, HiGHSMILPSolver, DAQPMILPSolver,
- * QPOASESMILPSolver and ClarabelMILPSolver that is not in the factory is
- * skipped.
+ * QPOASESMILPSolver, ClarabelMILPSolver, ProxQPMILPSolver, PIQPMILPSolver and
+ * OSQPMILPSolver that is not in the factory is skipped.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -99,7 +99,8 @@ int main( void )
  for( const std::string name :
        { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" ,
          "SCIPMILPSolver" , "HiGHSMILPSolver" , "DAQPMILPSolver" ,
-         "QPOASESMILPSolver" , "ClarabelMILPSolver" } ) {
+         "QPOASESMILPSolver" , "ClarabelMILPSolver" , "ProxQPMILPSolver" ,
+         "PIQPMILPSolver" , "OSQPMILPSolver" } ) {
   Solver * s;
   try {
    s = Solver::new_Solver( name );

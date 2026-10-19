@@ -63,6 +63,15 @@ include $(MILPSSDR)/../extlib/makefile-libClarabel
 # include makefile for libMOSEK
 include $(MILPSSDR)/../extlib/makefile-libMOSEK
 
+# include makefile for libProxSuite
+include $(MILPSSDR)/../extlib/makefile-libProxSuite
+
+# include makefile for libPIQP
+include $(MILPSSDR)/../extlib/makefile-libPIQP
+
+# include makefile for libOSQP
+include $(MILPSSDR)/../extlib/makefile-libOSQP
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -105,6 +114,23 @@ endif
 ifneq ($(MOSEK_PRESENT),)
     MILPSINC := $(MILPSINC) $(libMOSEKINC)
     MILPSLIB := $(MILPSLIB) $(libMOSEKLIB)
+endif
+
+# append the ProxSuite flags only when it is installed (it is header-only)
+ifneq ($(ProxSuite_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libProxSuiteINC)
+endif
+
+# append PIQP flags only when it is installed
+ifneq ($(PIQP_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libPIQPINC)
+    MILPSLIB := $(MILPSLIB) $(libPIQPLIB)
+endif
+
+# append OSQP flags only when it is installed
+ifneq ($(OSQP_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libOSQPINC)
+    MILPSLIB := $(MILPSLIB) $(libOSQPLIB)
 endif
 
 ########################### End of makefile-s ################################

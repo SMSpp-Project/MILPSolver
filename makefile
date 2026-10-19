@@ -7,9 +7,10 @@
 #   The makefile takes in input the -I directives for all the external       #
 #   libraries needed by MILPSolver, i.e., core SMS++ and those of all the    #
 #   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS, DAQP,      #
-#   qpOASES, Clarabel, MOSEK and, on Linux, PIPS-IPM++). These are *not*     #
-#   copied into $(MILPSINC): adding those -I directives to the compile       #
-#   commands will have to done by whatever "main" makefile is using this.    #
+#   qpOASES, Clarabel, MOSEK, ProxQP, PIQP, OSQP and, on Linux, PIPS-IPM++). #
+#   These are *not* copied into $(MILPSINC): adding those -I directives to   #
+#   the compile commands will have to done by whatever "main" makefile is    #
+#   using this.                                                              #
 #   Analogously, any external library and the corresponding -L< libdirs >    #
 #   will have to be added to the final linking command by whatever "main"    #
 #   makefile is using this.                                                  #
@@ -33,6 +34,9 @@
 #           $(libClarabelINC) = the -I$( Clarabel library )                  #
 #           $(libMOSEKINC)  = the -I$( MOSEK library )                       #
 #           $(MOSEK_PRESENT) = non-empty if MOSEK is installed               #
+#           $(libProxSuiteINC) = the -I$( ProxSuite library )                #
+#           $(libPIQPINC)   = the -I$( PIQP library )                        #
+#           $(libOSQPINC)   = the -I$( OSQP library )                        #
 #           $(MILPSSDR)     = the directory where the source is              #
 #                                                                            #
 #   Output: $(MILPSOBJ)     = the final object(s) / library                  #
@@ -74,6 +78,21 @@ QPOASES_PRESENT := $(wildcard \
 # case
 CLARABEL_PRESENT := $(wildcard \
 	$(subst $\",,$(Clarabel_ROOT))/include/c/DefaultSolver.h)
+
+# non-empty if and only if ProxSuite is installed in $(proxsuite_ROOT), which
+# is set by extlib/makefile-libProxSuite; ProxQPMILPSolver is only built in
+# that case
+ProxSuite_INCDIR := $(subst $\",,$(proxsuite_ROOT))/include
+ProxSuite_PRESENT := $(wildcard $(ProxSuite_INCDIR)/proxsuite/config.hpp)
+
+# non-empty if and only if PIQP is installed in $(piqp_ROOT), which is set by
+# extlib/makefile-libPIQP; PIQPMILPSolver is only built in that case
+PIQP_PRESENT := $(wildcard $(subst $\",,$(piqp_ROOT))/include/piqp/piqp.hpp)
+
+# non-empty if and only if OSQP 1.0 is installed in $(osqp_ROOT), which is set
+# by extlib/makefile-libOSQP; OSQPMILPSolver is only built in that case
+OSQP_PRESENT := $(wildcard \
+	$(subst $\",,$(osqp_ROOT))/include/osqp/osqp_api_functions.h)
 
 # each *MILPSolver.h includes a pair of files listing the algorithmic
 # parameters of its back-end, produced by the corresponding tool in
@@ -231,6 +250,21 @@ ifneq ($(MOSEK_PRESENT),)
     MILPSH += $(MILPSSDR)/include/MOSEKMILPSolver.h
 endif
 
+ifneq ($(ProxSuite_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/ProxQPMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/ProxQPMILPSolver.h
+endif
+
+ifneq ($(PIQP_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/PIQPMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/PIQPMILPSolver.h
+endif
+
+ifneq ($(OSQP_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/OSQPMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/OSQPMILPSolver.h
+endif
+
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
@@ -337,6 +371,30 @@ $(MILPSSDR)/obj/MOSEKMILPSolver.o: $(MILPSSDR)/src/MOSEKMILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/MOSEKMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(libMOSEKINC) $(SW)
+endif
+
+ifneq ($(ProxSuite_PRESENT),)
+$(MILPSSDR)/obj/ProxQPMILPSolver.o: $(MILPSSDR)/src/ProxQPMILPSolver.cpp \
+	$(MILPSSDR)/include/ProxQPMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/ProxQPMILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(libProxSuiteINC) $(SW)
+endif
+
+ifneq ($(PIQP_PRESENT),)
+$(MILPSSDR)/obj/PIQPMILPSolver.o: $(MILPSSDR)/src/PIQPMILPSolver.cpp \
+	$(MILPSSDR)/include/PIQPMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/PIQPMILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(libPIQPINC) $(SW)
+endif
+
+ifneq ($(OSQP_PRESENT),)
+$(MILPSSDR)/obj/OSQPMILPSolver.o: $(MILPSSDR)/src/OSQPMILPSolver.cpp \
+	$(MILPSSDR)/include/OSQPMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/OSQPMILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(libOSQPINC) $(SW)
 endif
 
 ########################## End of makefile ###################################

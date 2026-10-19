@@ -365,7 +365,8 @@ int test_dynamic_in_wrapper( void ) {
  for( const std::string name :
        { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" ,
          "HiGHSMILPSolver" , "DAQPMILPSolver" , "QPOASESMILPSolver" ,
-         "ClarabelMILPSolver" } ) {
+         "ClarabelMILPSolver" , "ProxQPMILPSolver" , "PIQPMILPSolver" ,
+         "OSQPMILPSolver" } ) {
   Solver * solver;
   try {
    solver = Solver::new_Solver( name );

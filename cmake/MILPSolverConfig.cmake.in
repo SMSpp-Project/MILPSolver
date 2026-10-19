@@ -42,11 +42,21 @@ set(DAQP_ROOT @DAQP_ROOT@)
 
 set(MILPSolver_USE_qpOASES @MILPSolver_USE_qpOASES@)
 set(qpOASES_ROOT @qpOASES_ROOT@)
+
 set(MILPSolver_USE_Clarabel @MILPSolver_USE_Clarabel@)
 set(Clarabel_ROOT @Clarabel_ROOT@)
 
 set(MILPSolver_USE_MOSEK @MILPSolver_USE_MOSEK@)
 set(MOSEK_ROOT @MOSEK_ROOT@)
+
+set(MILPSolver_USE_ProxQP @MILPSolver_USE_ProxQP@)
+set(proxsuite_DIR @proxsuite_DIR@)
+
+set(MILPSolver_USE_PIQP @MILPSolver_USE_PIQP@)
+set(piqp_DIR @piqp_DIR@)
+
+set(MILPSolver_USE_OSQP @MILPSolver_USE_OSQP@)
+set(osqp_DIR @osqp_DIR@)
 
 # ----- Requirements -------------------------------------------------------- #
 find_dependency(SMS++)
@@ -88,6 +98,18 @@ endif ()
 
 if (MILPSolver_USE_MOSEK)
     find_dependency(MOSEK)
+endif ()
+
+if (MILPSolver_USE_ProxQP)
+    find_dependency(proxsuite 0.6 CONFIG)
+endif ()
+
+if (MILPSolver_USE_PIQP)
+    find_dependency(piqp CONFIG)
+endif ()
+
+if (MILPSolver_USE_OSQP)
+    find_dependency(osqp CONFIG)
 endif ()
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)
