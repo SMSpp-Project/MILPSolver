@@ -14,7 +14,8 @@
  * coefficients. Each :MILPSolver among CPXMILPSolver, GRBMILPSolver,
  * MOSEKMILPSolver, SCIPMILPSolver, HiGHSMILPSolver, DAQPMILPSolver,
  * QPOASESMILPSolver, ClarabelMILPSolver, ProxQPMILPSolver, PIQPMILPSolver,
- * OSQPMILPSolver and QPMADMILPSolver that is not in the factory is skipped.
+ * OSQPMILPSolver, QPMADMILPSolver and QuadProgMILPSolver that is not in the
+ * factory is skipped.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -100,7 +101,8 @@ int main( void )
        { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" ,
          "SCIPMILPSolver" , "HiGHSMILPSolver" , "DAQPMILPSolver" ,
          "QPOASESMILPSolver" , "ClarabelMILPSolver" , "ProxQPMILPSolver" ,
-         "PIQPMILPSolver" , "OSQPMILPSolver" , "QPMADMILPSolver" } ) {
+         "PIQPMILPSolver" , "OSQPMILPSolver" , "QPMADMILPSolver" ,
+         "QuadProgMILPSolver" } ) {
   Solver * s;
   try {
    s = Solver::new_Solver( name );

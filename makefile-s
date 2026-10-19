@@ -75,6 +75,9 @@ include $(MILPSSDR)/../extlib/makefile-libOSQP
 # include makefile for libqpmad
 include $(MILPSSDR)/../extlib/makefile-libqpmad
 
+# include makefile for libquadprog
+include $(MILPSSDR)/../extlib/makefile-libquadprog
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -139,6 +142,11 @@ endif
 # append the qpmad flags only when it is installed (it is header-only)
 ifneq ($(QPMAD_PRESENT),)
     MILPSINC := $(MILPSINC) $(libqpmadINC)
+endif
+
+# append the quadprog flags only when it is installed (it has no header)
+ifneq ($(QUADPROG_PRESENT),)
+    MILPSLIB := $(MILPSLIB) $(libquadprogLIB)
 endif
 
 ########################### End of makefile-s ################################

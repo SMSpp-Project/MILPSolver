@@ -126,6 +126,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   set; it is built when `MILPSolver_USE_qpmad` is ON and qpmad is found
   (CMake, `qpmad_ROOT` as a hint) or qpmad is in `qpmad_ROOT` (makefile)
 
+- `QuadProgMILPSolver`, the interface with the open-source dual active-set
+  solver quadprog, the original implementation of the method of Goldfarb
+  and Idnani, for the same QPs as `QPMADMILPSolver`: each finite bound and
+  side is a constraint of quadprog and an equality is one, the multipliers
+  are those of quadprog, the inverse of the Cholesky factor of H, regularized
+  if so asked (`dblQuadProgReg`), is computed once and kept as long as H has
+  not changed (`intQuadProgReuseFactor`), and quadprog has no limit on the
+  iterations or the time; quadprog is under the GPL, and it is built when
+  `MILPSolver_USE_quadprog` is ON and `libquadprog` is found (CMake,
+  `quadprog_ROOT` as a hint) or is in `quadprog_ROOT/lib` (makefile)
+
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,

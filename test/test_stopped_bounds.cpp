@@ -17,10 +17,10 @@
  * optimal value. Each :MILPSolver among CPXMILPSolver, GRBMILPSolver,
  * MOSEKMILPSolver, HiGHSMILPSolver, SCIPMILPSolver, DAQPMILPSolver,
  * QPOASESMILPSolver, ClarabelMILPSolver, ProxQPMILPSolver, PIQPMILPSolver,
- * OSQPMILPSolver and QPMADMILPSolver that is not in the factory is skipped,
- * and the test is skipped (exit status 77) if none of them is; nothing is
- * checked on the first solve of a Solver that ends within the time limit
- * anyway.
+ * OSQPMILPSolver, QPMADMILPSolver and QuadProgMILPSolver that is not in the
+ * factory is skipped, and the test is skipped (exit status 77) if none of
+ * them is; nothing is checked on the first solve of a Solver that ends
+ * within the time limit anyway.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -89,7 +89,8 @@ int main( void )
                                  "DAQPMILPSolver" , "QPOASESMILPSolver" ,
                                  "ClarabelMILPSolver" , "ProxQPMILPSolver" ,
                                  "PIQPMILPSolver" , "OSQPMILPSolver" ,
-                                 "QPMADMILPSolver" } ) {
+                                 "QPMADMILPSolver" ,
+                                 "QuadProgMILPSolver" } ) {
   if( ! Solver::has_Solver( name ) ) {
    std::cout << name << " is not in this build, skipped" << std::endl;
    continue;

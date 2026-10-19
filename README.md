@@ -101,6 +101,12 @@ Currently available derived classes are:
   Goldfarb and Idnani (strictly convex QP problems with linear constraints,
   dense, the Hessian positive definite, no integer variables)
 
+- `QuadProgMILPSolver`, providing the interface with the open-source dual
+  active-set solver [quadprog](https://github.com/quadprog/quadprog), the
+  original implementation of the method of Goldfarb and Idnani (same class
+  of problems as `QPMADMILPSolver`); quadprog is under the GPL, hence a
+  library built with it is too
+
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
 found on the system, both with CMake and with the makefiles (see below
@@ -198,6 +204,13 @@ the whole framework. What follows is about building it yourself.
   header-only and needs Eigen, installed with its CMake (`cmake --install`)
   in `qpmad_ROOT`
 
+- for `QuadProgMILPSolver` you will need
+  [quadprog](https://github.com/quadprog/quadprog), which has no library of
+  its own: its three C sources (`solve.QP.c`, `linear-algebra.c`,
+  `qr-update.c`) are compiled into `libquadprog` in `quadprog_ROOT/lib`,
+  exporting only `qpgen2_`, as `INSTALL.sh --with-quadprog` of the umbrella
+  does
+
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
@@ -235,6 +248,7 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_PIQP`     | Use PIQP       | ON            |
 | `MILPSolver_USE_OSQP`     | Use OSQP       | ON            |
 | `MILPSolver_USE_qpmad`    | Use qpmad      | ON            |
+| `MILPSolver_USE_quadprog` | Use quadprog   | ON            |
 
 At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.

@@ -65,6 +65,8 @@ option(MILPSolver_USE_ProxQP "Whether MILPSolver will use ProxQP or not." ON)
 option(MILPSolver_USE_PIQP "Whether MILPSolver will use PIQP or not." ON)
 option(MILPSolver_USE_OSQP "Whether MILPSolver will use OSQP or not." ON)
 option(MILPSolver_USE_qpmad "Whether MILPSolver will use qpmad or not." ON)
+option(MILPSolver_USE_quadprog
+        "Whether MILPSolver will use quadprog or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -205,6 +207,15 @@ if (MILPSolver_USE_qpmad)
     find_package(qpmad CONFIG)
     if (NOT qpmad_FOUND)
         set(MILPSolver_USE_qpmad OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_quadprog)
+    # Needed for QuadProgMILPSolver
+    # quadprog is under the GPL, hence a MILPSolver built with it is too
+    find_package(quadprog)
+    if (NOT quadprog_FOUND)
+        set(MILPSolver_USE_quadprog OFF)
     endif ()
 endif ()
 
@@ -402,6 +413,13 @@ if (MILPSolver_USE_qpmad)
     target_link_libraries(${modName} PUBLIC qpmad::qpmad)
 endif ()
 
+if (MILPSolver_USE_quadprog)
+    message(STATUS
+            "MILPSolver: quadprog found, configuring QuadProgMILPSolver")
+    target_sources(${modName} PRIVATE src/QuadProgMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC quadprog::quadprog)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -506,6 +524,12 @@ if (MILPSolver_USE_qpmad)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "QPMAD*")
+endif ()
+
+if (MILPSolver_USE_quadprog)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "QuadProg*")
 endif ()
 
 # Install the auto-generated configuration header (see above).
