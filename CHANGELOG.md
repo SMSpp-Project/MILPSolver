@@ -149,6 +149,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `QuadProgMILPSolver` projects the solution on the bounds of the
+  variables, which quadprog has as constraints and satisfies only up to the
+  accuracy of the dual method on the regularized Hessian: a fixed variable
+  came back up to 4e-3 away from its value, and `ColVariable::set_value()`
+  refused it (10 of the 60 cases of the PolyhedralFunctionBlock battery
+  with QuadProgMILPSolver as the solver of the master of the bundle)
+
 - the HiGHS that `HiGHSMILPSolver` asks for is 1.8.0 or later: it calls the
   callbacks of the C API of HiGHS, which came with 1.6.0, and
   `Highs_setSparseSolution`, which came with 1.8.0, so that with a HiGHS

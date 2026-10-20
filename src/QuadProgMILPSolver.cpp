@@ -290,6 +290,12 @@ int QuadProgMILPSolver::guts_of_compute( void )
 
  d_status = kOK;
 
+ // the bounds are constraints of quadprog, satisfied only up to the
+ // accuracy of the dual method on the regularized H: x is projected on
+ // them, so that a fixed variable gets exactly its value
+ for( int j = 0 ; j < d_n ; ++j )
+  d_x[ j ] = std::clamp( d_x[ j ] , double( lb[ j ] ) , double( ub[ j ] ) );
+
  // the value is computed on H as loaded, not regularized
  for( int i = 0 ; i < d_n ; ++i ) {
   double Hx = 0;
