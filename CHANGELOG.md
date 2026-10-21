@@ -165,6 +165,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- an Objective whose Function is a `PolyhedralFunction` makes the
+  exception say that the `PolyhedralFunctionBlock` has to be in its
+  linearized representation, rather than that the type of the Function is
+  unknown
+- `variable_with_index()` and `constraint_with_index()` of a dynamic column
+  or row check the index against the dynamic ones, rather than reading past
+  them
 - `SCIPMILPSolver` gives no unbounded ray when the problem has a quadratic
   objective or quadratic rows: the ray of SCIP is then that of its LP
   relaxation, where they are outer approximated, and on an unbounded QP it

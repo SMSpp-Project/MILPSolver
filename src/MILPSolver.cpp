@@ -1002,8 +1002,9 @@ const ColVariable * MILPSolver::static_variable_with_index( int i ) const
 
 const ColVariable * MILPSolver::dynamic_variable_with_index( int i ) const
 {
- if( ( static_vars < i ) || ( i < numcols ) )
-  return( idx_to_dvar[ i - static_vars ] );
+ const int k = i - static_vars;
+ if( ( k >= 0 ) && ( k < int( idx_to_dvar.size() ) ) )
+  return( idx_to_dvar[ k ] );
 
  return( nullptr );
  }
@@ -1048,8 +1049,9 @@ const FRowConstraint * MILPSolver::static_constraint_with_index( int i )
 
 const FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
  const {
- if( ( static_cons < i ) || ( i < numrows ) )
-  return( idx_to_dcon[ i - static_cons ] );
+ const int k = i - static_cons;
+ if( ( k >= 0 ) && ( k < int( idx_to_dcon.size() ) ) )
+  return( idx_to_dcon[ k ] );
 
  return( nullptr );
  }
@@ -1509,6 +1511,15 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 
   return;
   }
+
+ // the natural representation of a PolyhedralFunctionBlock, which a
+ // :MILPSolver reads only in its linearized one
+ if( dynamic_cast< const PolyhedralFunction * >( obj->get_function() ) )
+  throw( std::invalid_argument(
+             "MILPSolver::scan_objective: the Objective of a " +
+             obj->get_Block()->classname() + " is a PolyhedralFunction: a "
+             "PolyhedralFunctionBlock has to be in its linearized "
+             "representation (static_variables 1 in its BlockConfig)" ) );
 
  throw( std::invalid_argument(
             "MILPSolver::scan_objective: "
