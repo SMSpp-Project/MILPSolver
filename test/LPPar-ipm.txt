@@ -118,7 +118,8 @@ ComputeConfig # exact type of the ComputeConfig object
 
 # now all the integer parameters
 intLogVerb                       0
-MSK_IPAR_OPTIMIZER               4  # the interior point
+MSK_IPAR_OPTIMIZER               6  # the interior point of MOSEK 12 (4
+                                    # in MOSEK 10 and 11)
 MSK_IPAR_PRESOLVE_USE            0  # no presolve
 
 0  # number of double parameters

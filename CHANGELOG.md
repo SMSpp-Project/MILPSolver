@@ -183,6 +183,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `test_farkas` takes the values of `MSK_IPAR_OPTIMIZER` from the `mosek.h`
+  of the build and `test/LPPar-ipm.txt` gives the interior point of MOSEK 12:
+  MOSEK 12 numbers the optimizers differently, and with it the test asked
+  for the deprecated interior point and got no ray on the unbounded QP
+
 - an Objective whose Function is a `PolyhedralFunction` makes the
   exception say that the `PolyhedralFunctionBlock` has to be in its
   linearized representation, rather than that the type of the Function is

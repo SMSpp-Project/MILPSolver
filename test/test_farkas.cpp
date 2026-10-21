@@ -106,6 +106,18 @@
 
 #include "MILPSolver.h"
 
+// the values of the enumerated parameters of MOSEK change from a version to
+// the other (those of MSK_IPAR_OPTIMIZER did in MOSEK 12), so they are taken
+// from the mosek.h of the build when MOSEK is there
+#if __has_include( <mosek.h> )
+ #include <mosek.h>
+ static constexpr int msk_dual_simplex = MSK_OPTIMIZER_DUAL_SIMPLEX;
+ static constexpr int msk_free = MSK_OPTIMIZER_FREE;
+#else
+ static constexpr int msk_dual_simplex = 0;  // no MOSEK, never used
+ static constexpr int msk_free = 0;
+#endif
+
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- USING -----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -479,7 +491,7 @@ int main( void )
   try_int( "presolving/maxrounds" , 0 );                // SCIP
   try_str( "presolve" , "off" );                        // HiGHS
   try_str( "solver" , "simplex" );                      // HiGHS
-  try_int( "MSK_IPAR_OPTIMIZER" , 1 );                  // MOSEK
+  try_int( "MSK_IPAR_OPTIMIZER" , msk_dual_simplex );   // MOSEK
   try_int( "MSK_IPAR_PRESOLVE_USE" , 0 );               // MOSEK
 
   std::cout << std::left << std::setw( 16 ) << name;
@@ -698,7 +710,7 @@ int main( void )
   // the unbounded QP: is the ray a ray? - - - - - - - - - - - - - - - - - -
 
   // the simplex asked for above for the certificates does not solve a QP
-  try_int( "MSK_IPAR_OPTIMIZER" , 2 );                  // MOSEK
+  try_int( "MSK_IPAR_OPTIMIZER" , msk_free );           // MOSEK
 
   all_passed &= check_ray( solver , name );
 

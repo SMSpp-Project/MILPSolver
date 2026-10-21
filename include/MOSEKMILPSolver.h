@@ -304,9 +304,10 @@ class MOSEKMILPSolver : public MILPSolver {
  /** Besides those of MILPSolver and those of Solver that are mapped onto a
   * parameter of MOSEK [see the class], every integer parameter of MOSEK
   * can be set with its symbolic name, e.g., MSK_IPAR_OPTIMIZER with the
-  * value of the MSKoptimizertypee it has to take (1 for the dual simplex,
-  * 4 for the interior point). A value MOSEK refuses throws
-  * std::invalid_argument.
+  * value of the MSKoptimizertypee it has to take in the version of MOSEK
+  * of the build, since the values of an enumeration may change from a
+  * version to the other (MSK_OPTIMIZER_INTPNT is 4 in MOSEK 10 and 11, 6
+  * in MOSEK 12). A value MOSEK refuses throws std::invalid_argument.
   *
   * intCutSepPar can be set, but a MIP solve asking for the separation of
   * user cuts or lazy constraints throws [see the class]. */
