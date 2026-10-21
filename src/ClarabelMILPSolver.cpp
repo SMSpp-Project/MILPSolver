@@ -336,10 +336,12 @@ int ClarabelMILPSolver::guts_of_compute( void )
  clarabel_DefaultSolver_f64_solve( solver );
  const auto sol = clarabel_DefaultSolver_f64_solution( solver );
  d_status = sol.status;
- if( solved() ) {
+ // x is also the ray of a dual infeasible problem, and z the certificate of
+ // a primal infeasible one
+ if( solved() || ( d_status == ClarabelDualInfeasible ) )
   std::copy( sol.x , sol.x + d_n , d_x.begin() );
+ if( solved() || ( d_status == ClarabelPrimalInfeasible ) )
   std::copy( sol.z , sol.z + d_m , d_z.begin() );
-  }
  clarabel_DefaultSolver_f64_free( solver );
 
  // the value is computed here rather than taken from Clarabel, so that it
@@ -489,6 +491,78 @@ void ClarabelMILPSolver::get_dual_solution( Configuration * solc )
   pi[ i ] = lam( d_n + i );
 
  MILPSolver::write_dual_solution( pi , rc );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool ClarabelMILPSolver::has_var_direction( void )
+{
+ return( d_loaded && ( d_status == ClarabelDualInfeasible ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ClarabelMILPSolver::get_var_direction( Configuration * dirc )
+{
+ if( ! has_var_direction() )
+  throw( std::logic_error( "ClarabelMILPSolver::get_var_direction: "
+			   "no unbounded direction available" ) );
+
+ // P x = 0 and q' x < 0 for the problem Clarabel minimizes, whose q is
+ // that of the Block negated for a maximization: x is a ray of the Block
+ MILPSolver::write_var_solution( d_x );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool ClarabelMILPSolver::has_dual_direction( void )
+{
+ return( d_loaded && ( d_status == ClarabelPrimalInfeasible ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ClarabelMILPSolver::get_dual_direction( Configuration * dirc )
+{
+ if( ! has_dual_direction() )
+  throw( std::logic_error( "ClarabelMILPSolver::get_dual_direction: "
+			   "no dual unbounded direction available" ) );
+
+ // A' z = 0 and b' z < 0: the multiplier of a constraint is that of its
+ // lower side minus that of its upper one, nonnegative where the lower side
+ // is used, which is the sign of the Farkas certificates of the other
+ // :MILPSolver, and the value of the certificate is - b' z
+ auto y = [ & ]( int k ) {
+  double v = 0;
+  if( d_lo[ k ] >= 0 )
+   v += d_z[ d_lo[ k ] ];
+  if( d_up[ k ] >= 0 )
+   v -= d_z[ d_up[ k ] ];
+  return( v );
+  };
+
+ double value = 0;
+ for( int r = 0 ; r < d_m ; ++r )
+  value -= d_b[ r ] * d_z[ r ];
+
+ std::vector< double > pi( numrows );
+ for( int i = 0 ; i < numrows ; ++i )
+  pi[ i ] = y( d_n + i );
+
+ // the multipliers of the columns, c - A' y, or - A' y with
+ // intHomogeneousDirection, computed out of the matrix so that they are
+ // those of y exactly
+ std::vector< double > dj( d_n , 0 );
+ for( int j = 0 ; j < d_n ; ++j ) {
+  if( ! homogeneous_direction )
+   dj[ j ] = objective[ j ];
+  for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
+   dj[ j ] -= matval[ k ] * pi[ matind[ k ] ];
+  }
+
+ f_dual_direction_value = value;
+
+ MILPSolver::write_dual_solution( pi , dj );
  }
 
 /*--------------------------------------------------------------------------*/

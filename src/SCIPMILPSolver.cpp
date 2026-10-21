@@ -712,6 +712,14 @@ void SCIPMILPSolver::get_var_solution( Configuration * solc )
 
 bool SCIPMILPSolver::has_var_direction( void )
 {
+ // a quadratic objective (through the constraint of its auxiliary
+ // variable) or quadratic rows are nonlinear constraints of SCIP, whose ray
+ // is then that of the LP relaxation, where they are outer approximated,
+ // and need not be a ray of the problem
+ auto hdlr = SCIPfindConshdlr( scip , "nonlinear" );
+ if( hdlr && ( SCIPconshdlrGetNConss( hdlr ) > 0 ) )
+  return( false );
+
  return( SCIPhasPrimalRay( scip ) );
 }
 

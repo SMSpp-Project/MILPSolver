@@ -79,13 +79,14 @@ Currently available derived classes are:
 
 - `ClarabelMILPSolver`, providing the interface with the open-source
   interior-point solver [Clarabel](https://clarabel.org) (convex QP and LP
-  problems with linear constraints, sparse, no integer variables)
+  problems with linear constraints, sparse, no integer variables, with the
+  unbounded rays and the Farkas certificates of infeasible problems)
 
 - `ProxQPMILPSolver`, providing the interface with the open-source proximal
   augmented Lagrangian solver ProxQP of
   [ProxSuite](https://github.com/Simple-Robotics/proxsuite) (convex QP and
   LP problems with linear constraints, dense or sparse, no integer
-  variables)
+  variables, with the unbounded rays)
 
 - `PIQPMILPSolver`, providing the interface with the open-source proximal
   interior point solver [PIQP](https://github.com/PREDICT-EPFL/piqp)
@@ -94,7 +95,8 @@ Currently available derived classes are:
 
 - `OSQPMILPSolver`, providing the interface with the open-source operator
   splitting solver [OSQP](https://osqp.org) (convex QP and LP problems with
-  linear constraints, sparse, no integer variables)
+  linear constraints, sparse, no integer variables, with the unbounded rays
+  and the Farkas certificates of infeasible problems)
 
 - `QPMADMILPSolver`, providing the interface with the open-source dual
   active-set solver [qpmad](https://github.com/asherikov/qpmad), of

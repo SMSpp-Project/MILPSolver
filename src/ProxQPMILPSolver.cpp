@@ -346,6 +346,12 @@ int ProxQPMILPSolver::guts_of_compute( void )
 
  d_status = int( res.info.status );
 
+ // the ray of a dual infeasible problem, which ProxQP leaves in place of
+ // the solution
+ d_cx.resize( 0 );
+ if( d_status == int( pqp::QPSolverOutput::PROXQP_DUAL_INFEASIBLE ) )
+  d_cx = res.x;
+
  // the value is computed here, from the solution, rather than taken from
  // ProxQP
  d_fval = 0;
@@ -495,6 +501,28 @@ void ProxQPMILPSolver::get_dual_solution( Configuration * solc )
     rc[ j ] = - d_sign * d_z[ d_box_pos[ j ] ];
 
  MILPSolver::write_dual_solution( pi , rc );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool ProxQPMILPSolver::has_var_direction( void )
+{
+ return( ( d_status == int( pqp::QPSolverOutput::PROXQP_DUAL_INFEASIBLE ) )
+	 && ( d_cx.size() == d_n ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ProxQPMILPSolver::get_var_direction( Configuration * dirc )
+{
+ if( ! has_var_direction() )
+  throw( std::logic_error( "ProxQPMILPSolver::get_var_direction: "
+			   "no unbounded direction available" ) );
+
+ // H x = 0 and g' x < 0 for the problem ProxQP minimizes, whose g is that
+ // of the Block negated for a maximization: x is a ray of the Block
+ MILPSolver::write_var_solution(
+			    std::vector< double >( d_cx.begin() , d_cx.end() ) );
  }
 
 /*--------------------------------------------------------------------------*/

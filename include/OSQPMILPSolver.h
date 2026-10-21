@@ -106,9 +106,15 @@ namespace SMSpp_di_unipi_it
  *   are accurate to the tolerances of the ADMM only (dblFAccSol and
  *   dblOSQPEpsRel), and the value of the solution is computed from it;
  *
- * - no unbounded ray or infeasibility certificate is provided, i.e., the
- *   has_var_direction() / has_dual_direction() interface of CDASolver is
- *   not implemented. */
+ * - when OSQP says that the problem is dual infeasible its certificate is
+ *   a ray x with P x = 0, q' x < 0 and A x in the recession cone of the
+ *   sides, which get_var_direction() writes in the Variable, and when it
+ *   says that it is primal infeasible its certificate is a y with A' y = 0
+ *   and u' max( y , 0 ) + l' min( y , 0 ) < 0, which get_dual_direction()
+ *   writes in the Constraint with the sign of the certificates of the
+ *   other :MILPSolver; neither is given for the inaccurate infeasibility
+ *   statuses of OSQP, nor when the infeasibility of crossing sides is seen
+ *   before OSQP is called. */
 
 class OSQPMILPSolver : public MILPSolver
 {
@@ -254,6 +260,22 @@ class OSQPMILPSolver : public MILPSolver
 
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
+ /// returns true if OSQP has given a certificate of dual infeasibility
+
+ bool has_var_direction( void ) override;
+
+ /// writes the unbounded ray in the Variable of the Block
+
+ void get_var_direction( Configuration * dirc = nullptr ) override;
+
+ /// returns true if OSQP has given a certificate of primal infeasibility
+
+ bool has_dual_direction( void ) override;
+
+ /// writes the Farkas certificate in the Constraint of the Block
+
+ void get_dual_direction( Configuration * dirc = nullptr ) override;
+
 /** @} ---------------------------------------------------------------------*/
 /*------------------ METHODS FOR HANDLING THE PARAMETERS -------------------*/
 /*--------------------------------------------------------------------------*/
@@ -381,6 +403,7 @@ class OSQPMILPSolver : public MILPSolver
 
  std::vector< OSQPFloat > d_x;   ///< primal solution
  std::vector< OSQPFloat > d_y;   ///< multipliers of the rows of A
+ std::vector< OSQPFloat > d_cert;  ///< certificate of infeasibility
  double d_fval = 0;              ///< value of the last solution
  int d_status = -1;              ///< status of the last solve
  bool d_iter_limit = false;      ///< true if it has hit intMaxIter

@@ -88,9 +88,14 @@ namespace SMSpp_di_unipi_it
  * - the value of the solution is computed from it rather than taken from
  *   Clarabel, and both get_lb() and get_ub() return it;
  *
- * - no unbounded ray or infeasibility certificate is provided, i.e., the
- *   has_var_direction() / has_dual_direction() interface of CDASolver is
- *   not implemented. */
+ * - when Clarabel says that the problem is dual infeasible its primal
+ *   variables are a ray x with P x = 0, q' x < 0 and A x in - K, which
+ *   get_var_direction() writes in the Variable, and when it says that it is
+ *   primal infeasible its dual variables are a Farkas certificate z with
+ *   A' z = 0, b' z < 0 and z in the dual cone of K, which
+ *   get_dual_direction() writes in the Constraint with the sign of the
+ *   certificates of the other :MILPSolver; neither is given when Clarabel
+ *   only says that the problem is almost infeasible. */
 
 class ClarabelMILPSolver : public MILPSolver
 {
@@ -188,6 +193,22 @@ class ClarabelMILPSolver : public MILPSolver
  /// writes the dual solution in the Constraint of the Block
 
  void get_dual_solution( Configuration * solc = nullptr ) override;
+
+ /// returns true if Clarabel has said that the problem is dual infeasible
+
+ bool has_var_direction( void ) override;
+
+ /// writes the unbounded ray in the Variable of the Block
+
+ void get_var_direction( Configuration * dirc = nullptr ) override;
+
+ /// returns true if Clarabel has said that the problem is primal infeasible
+
+ bool has_dual_direction( void ) override;
+
+ /// writes the Farkas certificate in the Constraint of the Block
+
+ void get_dual_direction( Configuration * dirc = nullptr ) override;
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------ METHODS FOR HANDLING THE PARAMETERS -------------------*/
@@ -293,8 +314,8 @@ class ClarabelMILPSolver : public MILPSolver
 
  bool d_loaded = false;          ///< true if the problem has been loaded
 
- std::vector< double > d_x;      ///< primal solution
- std::vector< double > d_z;      ///< multipliers of the rows of A
+ std::vector< double > d_x;      ///< primal solution, or unbounded ray
+ std::vector< double > d_z;      ///< multipliers of the rows of A, or ray
  double d_fval = 0;              ///< value of the last solution
  int d_status = 0;               ///< the status of Clarabel of the last solve
 

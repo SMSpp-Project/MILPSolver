@@ -300,6 +300,7 @@ int OSQPMILPSolver::guts_of_compute( void )
 {
  d_iter_limit = false;
  d_fval = 0;
+ d_cert.clear();
 
  // a problem with no variables, or with crossing sides of a row or bounds
  // of a variable, is solved here, OSQP not accepting any of them
@@ -405,6 +406,15 @@ int OSQPMILPSolver::guts_of_compute( void )
 
  d_status = d_solver->info->status_val;
  d_iter_limit = d_solver->info->iter >= d_settings.max_iter;
+
+ // the certificate of an infeasibility, a ray of x for the dual one and a
+ // combination of the rows for the primal one
+ if( d_status == OSQP_DUAL_INFEASIBLE )
+  d_cert.assign( d_solver->solution->dual_inf_cert ,
+		 d_solver->solution->dual_inf_cert + d_n );
+ if( d_status == OSQP_PRIMAL_INFEASIBLE )
+  d_cert.assign( d_solver->solution->prim_inf_cert ,
+		 d_solver->solution->prim_inf_cert + d_m );
 
  // the value is computed here, from the solution, rather than taken from
  // OSQP
@@ -574,6 +584,78 @@ void OSQPMILPSolver::get_dual_solution( Configuration * solc )
    rc[ j ] = - d_sign * d_y[ d_box_pos[ j ] ];
 
  MILPSolver::write_dual_solution( pi , rc );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool OSQPMILPSolver::has_var_direction( void )
+{
+ return( ( d_status == OSQP_DUAL_INFEASIBLE ) &&
+	 ( d_cert.size() == std::size_t( d_n ) ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void OSQPMILPSolver::get_var_direction( Configuration * dirc )
+{
+ if( ! has_var_direction() )
+  throw( std::logic_error( "OSQPMILPSolver::get_var_direction: "
+			   "no unbounded direction available" ) );
+
+ // P x = 0 and q' x < 0 for the problem OSQP minimizes, whose q is that of
+ // the Block negated for a maximization: x is a ray of the Block
+ MILPSolver::write_var_solution(
+		       std::vector< double >( d_cert.begin() , d_cert.end() ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool OSQPMILPSolver::has_dual_direction( void )
+{
+ return( ( d_status == OSQP_PRIMAL_INFEASIBLE ) &&
+	 ( d_cert.size() == std::size_t( d_m ) ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void OSQPMILPSolver::get_dual_direction( Configuration * dirc )
+{
+ if( ! has_dual_direction() )
+  throw( std::logic_error( "OSQPMILPSolver::get_dual_direction: "
+			   "no dual unbounded direction available" ) );
+
+ // A' y = 0 with y > 0 on the upper side of a row and y < 0 on the lower
+ // one: the certificates of the other :MILPSolver are nonnegative where
+ // the lower side is used, hence the multiplier of a row is - y, that of a
+ // row left out is zero, and the value of the certificate is
+ // - u' max( y , 0 ) - l' min( y , 0 )
+ double value = 0;
+ for( OSQPInt r = 0 ; r < d_m ; ++r )
+  if( d_cert[ r ] > 0 )
+   value -= d_u[ r ] * d_cert[ r ];
+  else
+   if( d_cert[ r ] < 0 )
+    value -= d_l[ r ] * d_cert[ r ];
+
+ std::vector< double > pi( d_row_pos.size() , 0 );
+ for( std::size_t i = 0 ; i < d_row_pos.size() ; ++i )
+  if( d_row_pos[ i ] >= 0 )
+   pi[ i ] = - d_cert[ d_row_pos[ i ] ];
+
+ // the multipliers of the columns, c - A' y, or - A' y with
+ // intHomogeneousDirection, computed out of the matrix so that they are
+ // those of y exactly
+ std::vector< double > dj( d_n , 0 );
+ for( OSQPInt j = 0 ; j < d_n ; ++j ) {
+  if( ! homogeneous_direction )
+   dj[ j ] = objective[ j ];
+  for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
+   dj[ j ] -= matval[ k ] * pi[ matind[ k ] ];
+  }
+
+ f_dual_direction_value = value;
+
+ MILPSolver::write_dual_solution( pi , dj );
  }
 
 /*--------------------------------------------------------------------------*/

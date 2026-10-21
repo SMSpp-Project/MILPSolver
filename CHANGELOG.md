@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each of its rows, between the static columns and rows and the dynamic
   ones; a change of the function, or of the sense of the Objective, loads
   the problem again, and `get_num_epigraphs()` says how many there are
+
+- `ClarabelMILPSolver` and `OSQPMILPSolver` give the unbounded ray of a
+  dual infeasible problem through `get_var_direction()` and the Farkas
+  certificate of a primal infeasible one through `get_dual_direction()`,
+  with the sign of those of the other :MILPSolver and with
+  `intHomogeneousDirection`, and `ProxQPMILPSolver` gives the ray;
+  `test_farkas` checks them, and checks on an unbounded convex QP with a
+  singular Hessian that the ray of every :MILPSolver that gives one is a
+  ray
+
 - `MOSEKMILPSolver`, the interface with the commercial solver MOSEK (10 or
   later) for LPs, MILPs, convex QPs and MIQPs with linear constraints:
   bounds, sides, costs, coefficients, integrality, rows, columns and terms
@@ -161,6 +171,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than returning a solution that is not there
 
 ### Fixed
+
+- `SCIPMILPSolver` gives no unbounded ray when the problem has a quadratic
+  objective or quadratic rows: the ray of SCIP is then that of its LP
+  relaxation, where they are outer approximated, and on an unbounded QP it
+  was not a ray of the problem
 
 - `QuadProgMILPSolver` projects the solution on the bounds of the
   variables, which quadprog has as constraints and satisfies only up to the

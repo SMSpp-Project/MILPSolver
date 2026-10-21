@@ -112,9 +112,13 @@ namespace SMSpp_di_unipi_it
  *   come out as 0.999999999, and the value of the solution is computed
  *   from it;
  *
- * - no unbounded ray or infeasibility certificate is provided, i.e., the
- *   has_var_direction() / has_dual_direction() interface of CDASolver is
- *   not implemented. */
+ * - when ProxQP says that the problem is dual infeasible its primal
+ *   variables are a ray x with H x = 0, g' x < 0 and x in the recession
+ *   cone of the constraints, which get_var_direction() writes in the
+ *   Variable; no Farkas certificate is given for a primal infeasible
+ *   problem, as the one of the sparse backend of ProxQP 0.7 is not one of
+ *   the problem as given (the dense backend does not tell such a problem
+ *   from one it cannot solve, and stops at its iteration limit). */
 
 class ProxQPMILPSolver : public MILPSolver
 {
@@ -257,6 +261,14 @@ class ProxQPMILPSolver : public MILPSolver
 
  void get_dual_solution( Configuration * solc = nullptr ) override;
 
+ /// returns true if ProxQP has said that the problem is dual infeasible
+
+ bool has_var_direction( void ) override;
+
+ /// writes the unbounded ray in the Variable of the Block
+
+ void get_var_direction( Configuration * dirc = nullptr ) override;
+
 /** @} ---------------------------------------------------------------------*/
 /*------------------ METHODS FOR HANDLING THE PARAMETERS -------------------*/
 /*--------------------------------------------------------------------------*/
@@ -375,6 +387,7 @@ class ProxQPMILPSolver : public MILPSolver
  Eigen::VectorXd d_x;            ///< primal solution
  Eigen::VectorXd d_y;            ///< multipliers of the equalities
  Eigen::VectorXd d_z;            ///< of the inequalities, then of the box
+ Eigen::VectorXd d_cx;           ///< unbounded ray
  int d_ws_backend = -1;          ///< backend that gave d_x, d_y and d_z
  double d_fval = 0;              ///< value of the last solution
  int d_status = -1;              ///< the status of the last solve

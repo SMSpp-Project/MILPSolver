@@ -62,6 +62,21 @@
  * parameter that asks for the multipliers of the ray, \f$ - A' y \f$, rather
  * than the reduced costs of an optimal dual point, \f$ c - A' y \f$.
  *
+ * Finally, the unbounded side of the same interface is checked on a convex
+ * QP whose Hessian is singular,
+ *
+ *     min  ( x - y )^2 - x - y  s.t.  x + y >= 1 ,  x , y >= 0
+ *
+ * which goes to minus infinity along ( 1 , 1 ). Where a Solver reports it
+ * unbounded and has a ray to give, the ray written in the Variable must be
+ * one, i.e. H d = 0, c' d < 0 and d in the recession cone of the
+ * constraints; a Solver that gives no ray, or that does not tell this QP
+ * from a bounded one, is reported and not failed, this being a check of the
+ * rays and not of the QP solvers. The :MILPSolver that do not detect the
+ * infeasibility of the linear programs above (ProxQPMILPSolver, whose
+ * dense backend stops at its iteration limit on them) are only checked on
+ * this QP.
+ *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
@@ -87,6 +102,8 @@
 
 #include "OneVarConstraint.h"
 
+#include "QuadFunction.h"
+
 #include "MILPSolver.h"
 
 /*--------------------------------------------------------------------------*/
@@ -103,7 +120,12 @@ using namespace SMSpp_di_unipi_it;
 
 static const std::vector< std::string > SolverNames =
  { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" , "SCIPMILPSolver" ,
-   "HiGHSMILPSolver" };
+   "HiGHSMILPSolver" , "ClarabelMILPSolver" , "OSQPMILPSolver" };
+
+/// the :MILPSolver whose ray only is checked, as they do not tell the
+/// infeasible program of the certificates from one they cannot solve
+
+static const std::vector< std::string > RayNames = { "ProxQPMILPSolver" };
 
 /// a dual value below this in absolute terms is taken to be zero
 
@@ -244,6 +266,128 @@ static AbstractBlock * build_boxed( double u , double cost ,
  ab->generate_objective();
 
  return( ab );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+/// builds the unbounded QP of the file comment
+
+static AbstractBlock * build_unbounded( std::vector< ColVariable > * & x )
+{
+ auto ab = new AbstractBlock();
+
+ x = new std::vector< ColVariable >( 2 );
+ for( auto & v : *x ) {
+  v.set_type( ColVariable::kContinuous );
+  v.is_positive( true );
+  }
+ ab->add_static_variable( *x , "x" );
+
+ // x + y >= 1
+ auto rows = new std::vector< FRowConstraint >( 1 );
+ (*rows)[ 0 ].set_function( new LinearFunction(
+  { std::make_pair( &(*x)[ 0 ] , 1.0 ) ,
+    std::make_pair( &(*x)[ 1 ] , 1.0 ) } ) );
+ (*rows)[ 0 ].set_lhs( 1 );
+ (*rows)[ 0 ].set_rhs( Inf< double >() );
+ (*rows)[ 0 ].set_Block( ab );
+ ab->add_static_constraint( *rows , "rows" );
+
+ // x^2 + y^2 - 2xy - x - y
+ QuadFunction::v_coeff_triple diag = { { &(*x)[ 0 ] , -1 , 1 } ,
+				       { &(*x)[ 1 ] , -1 , 1 } };
+ QuadFunction::v_off_diag_term offdiag = { { 1 , 0 , -2 } };
+ auto obj = new FRealObjective( ab , new QuadFunction( std::move( diag ) ,
+						       std::move( offdiag ) ) );
+ obj->set_sense( Objective::eMin );
+ ab->set_objective( obj );
+
+ ab->generate_abstract_variables();
+ ab->generate_abstract_constraints();
+ ab->generate_objective();
+
+ return( ab );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+/// checks the ray the Solver gives on the unbounded QP of the file comment
+/** Returns false only if the Solver gives a ray that is not one. */
+
+static bool check_ray( Solver * solver , const std::string & name )
+{
+ bool passed = true;
+ std::cout << std::left << std::setw( 16 ) << name << " unbounded:";
+
+ std::vector< ColVariable > * ux;
+ auto unbounded = build_unbounded( ux );
+ bool registered = true;
+ try { unbounded->register_Solver( solver ); }
+ catch( const std::exception & e ) {
+  registered = false;
+  std::cout << " the QP is refused: " << e.what() << std::endl;
+  }
+
+ if( registered ) {
+  int ustatus = Solver::kError;
+  try { ustatus = solver->compute(); }
+  catch( const std::exception & e ) {
+   std::cout << " the QP is refused: " << e.what();
+   }
+
+  auto cda = dynamic_cast< CDASolver * >( solver );
+  bool has = false;
+  if( ustatus == Solver::kUnbounded )
+   try { has = cda && cda->has_var_direction(); }
+   catch( const std::exception & e ) {
+    std::cout << " has_var_direction() throws: " << e.what();
+    passed = false;
+    }
+
+  if( ustatus != Solver::kUnbounded )
+   std::cout << " not reported unbounded (status " << ustatus << ")";
+  else
+   if( ! has )
+    std::cout << " has no ray to give";
+   else {
+    cda->get_var_direction();
+    double d0 = (*ux)[ 0 ].get_value();
+    double d1 = (*ux)[ 1 ].get_value();
+    const double scale = std::max( std::abs( d0 ) , std::abs( d1 ) );
+    std::cout << " ray ( " << d0 << " , " << d1 << " )";
+    if( scale <= Eps ) {
+     std::cout << " -> KO, the ray is zero";
+     passed = false;
+     }
+    else {
+     // scaled to unit infinity norm: H d = 2 ( d0 - d1 , d1 - d0 ),
+     // c' d = - d0 - d1, and the recession cone is d0 + d1 >= 0, d >= 0
+     d0 /= scale;
+     d1 /= scale;
+     const double tol = 1e-6;
+     if( std::abs( d0 - d1 ) > tol ) {
+      std::cout << " -> KO, H d is not zero";
+      passed = false;
+      }
+     else if( - d0 - d1 >= - tol ) {
+      std::cout << " -> KO, c' d is not negative";
+      passed = false;
+      }
+     else if( ( d0 < - tol ) || ( d1 < - tol ) ) {
+      std::cout << " -> KO, d leaves the bounds";
+      passed = false;
+      }
+     else
+      std::cout << " -> OK";
+     }
+    }
+
+  std::cout << std::endl;
+  unbounded->unregister_Solver( solver );
+  }
+ delete unbounded;
+
+ return( passed );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -551,6 +695,23 @@ int main( void )
    std::cout << std::endl;
    }
 
+  // the unbounded QP: is the ray a ray? - - - - - - - - - - - - - - - - - -
+
+  // the simplex asked for above for the certificates does not solve a QP
+  try_int( "MSK_IPAR_OPTIMIZER" , 2 );                  // MOSEK
+
+  all_passed &= check_ray( solver , name );
+
+  delete solver;
+  }
+
+ for( const auto & name : RayNames ) {
+  if( ! Solver::has_Solver( name ) )
+   continue;
+  auto solver = Solver::new_Solver( name );
+  any_solver = true;
+  solver->set_par( MILPSolver::intLogVerb , 0 );
+  all_passed &= check_ray( solver , name );
   delete solver;
   }
 
