@@ -109,6 +109,13 @@ Currently available derived classes are:
   of problems as `QPMADMILPSolver`); quadprog is under the GPL, hence a
   library built with it is too
 
+Whatever the back-end, the solution of a continuous problem can be checked
+by `MILPSolver` itself against the optimality conditions: with the parameter
+`dblKKTTol` positive, the primal residual, the dual residual and the gap of
+the solution are measured on the `Block` after each solve, and a solution
+that exceeds the tolerance is reported as `kError` (only the primal residual
+is measured on a MIP, or when the back-end gives no duals).
+
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
 found on the system, both with CMake and with the makefiles (see below

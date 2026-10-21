@@ -45,6 +45,13 @@
  *   the Solver solves again, and its value is compared with that of a fresh
  *   Solver of the same type loaded with the modified problem.
  *
+ * - KKT check: the QP is solved again with dblKKTTol set to the tolerance
+ *   on the solution of the Solver, which has to return kOK with the
+ *   residuals of MILPSolver::get_kkt_residuals() within it (the dual ones
+ *   only if the Solver gives the duals); then OSQPMILPSolver, with its
+ *   accuracy at 1e-2 and no polishing, has to be caught by a check at 1e-6
+ *   and return kError.
+ *
  * Each model is in the only sub-Block of a root Block with an empty
  * objective, as PIPSMILPSolver needs at least one nested Block.
  *
@@ -74,6 +81,7 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <iostream>
@@ -475,6 +483,93 @@ static int test_qp( const Ability & ab , bool nonsep ,
 
 /*--------------------------------------------------------------------------*/
 
+/// KKT check: the residuals of a solution within the tolerance of the Solver
+
+static int test_kkt( const Ability & ab , bool nonsep ,
+		     Objective::of_type sense )
+{
+ if( ! ab.qp )
+  return( 0 );
+
+ std::ostringstream what;
+ what << "KKT check, QP " << ( nonsep ? "QuadFunction" : "DQuadFunction" )
+      << ( sense == Objective::eMin ? " min" : " max" );
+
+ auto p = make_qp( nonsep , sense );
+ auto s = new_solver( ab.name , true );
+ s->set_par( MILPSolver::dblKKTTol , ab.xtol );
+
+ double value;
+ std::string why;
+ bool ok = run( s , p.block , true , value , why );
+ const auto & r = static_cast< MILPSolver * >( s )->get_kkt_residuals();
+ std::cout << ab.name << ", " << what.str() << ": ";
+ if( ! ok )
+  std::cout << why << ", ";
+ std::cout << "primal " << r[ 0 ] << ", dual " << r[ 1 ] << ", gap "
+	   << r[ 2 ];
+ // the dual residuals are NaN only if there are no duals
+ ok = ok && ( r[ 0 ] <= ab.xtol ) &&
+      ( std::isnan( r[ 1 ] ) || ( r[ 1 ] <= ab.xtol ) ) &&
+      ( std::isnan( r[ 2 ] ) || ( r[ 2 ] <= ab.xtol ) );
+ std::cout << ( ok ? " -> OK" : " -> KO" ) << std::endl;
+
+ try {
+  p.block->unregister_Solver( s );
+  }
+ catch( ... ) {}
+ delete s;
+ delete p.block;
+ return( ! ok );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+/// KKT check: a solution from a sloppy OSQPMILPSolver has to be caught
+
+static int test_kkt_sloppy( void )
+{
+ if( ! Solver::has_Solver( "OSQPMILPSolver" ) )
+  return( 0 );
+
+ auto p = make_qp( true , Objective::eMin );
+ auto s = new_solver( "OSQPMILPSolver" , true );
+ s->set_par( MILPSolver::dblKKTTol , 1e-6 );
+ s->set_par( Solver::dblFAccSol , 1e-2 );
+ (void) s->set_par( std::string( "dblOSQPEpsRel" ) , 1e-2 );
+ (void) s->set_par( std::string( "intOSQPPolishing" ) , 0 );
+
+ int status = Solver::kUnEval;
+ try {
+  p.block->register_Solver( s );
+  status = s->compute();
+  }
+ catch( std::exception & e ) {
+  std::cout << "OSQPMILPSolver, KKT check of a sloppy solution: exception: "
+	    << e.what() << " -> KO" << std::endl;
+  delete s;
+  delete p.block;
+  return( 1 );
+  }
+
+ const auto & r = static_cast< MILPSolver * >( s )->get_kkt_residuals();
+ const bool ok = ( status == Solver::kError ) &&
+                 ( std::max( { r[ 0 ] , r[ 1 ] , r[ 2 ] } ) > 1e-6 );
+ std::cout << "OSQPMILPSolver, KKT check of a sloppy solution: status "
+	   << status << ", primal " << r[ 0 ] << ", dual " << r[ 1 ]
+	   << ", gap " << r[ 2 ] << ( ok ? " -> OK" : " -> KO" ) << std::endl;
+
+ try {
+  p.block->unregister_Solver( s );
+  }
+ catch( ... ) {}
+ delete s;
+ delete p.block;
+ return( ! ok );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 /// MIQP: the value against the known optimum
 
 static int test_miqp( const Ability & ab )
@@ -659,8 +754,10 @@ int main( int argc , char ** argv )
   any = true;
 
   for( bool nonsep : { true , false } )
-   for( auto sense : { Objective::eMin , Objective::eMax } )
+   for( auto sense : { Objective::eMin , Objective::eMax } ) {
     failures += test_qp( ab , nonsep , sense );
+    failures += test_kkt( ab , nonsep , sense );
+    }
 
   failures += test_miqp( ab );
 
@@ -671,6 +768,9 @@ int main( int argc , char ** argv )
   std::cout << "no :MILPSolver in this build: nothing to do" << std::endl;
   return( 77 );
   }
+
+ if( ( argc <= 1 ) || ( std::string( argv[ 1 ] ) == "OSQPMILPSolver" ) )
+  failures += test_kkt_sloppy();
 
  std::cout << ( failures ? "Shit happened!!" : "All tests passed!!" )
 	   << std::endl;

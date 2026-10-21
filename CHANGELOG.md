@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `dblKKTTol`, off by default: when positive, `compute()` writes the
+  solution in the `Block` after a solve that returns `kOK` and measures
+  its primal residual, its dual residual and its gap, with the duals in the
+  convention of `write_dual_solution()` and the multipliers of the bounds
+  taken as the reduced costs that the duals of the rows imply, and returns
+  `kError` if one of them exceeds the value; `get_kkt_residuals()` gives
+  them, and `test_qp` checks every back-end and a sloppy `OSQPMILPSolver`
+
 - `ClarabelMILPSolver` and `OSQPMILPSolver` give the unbounded ray of a
   dual infeasible problem through `get_var_direction()` and the Farkas
   certificate of a primal infeasible one through `get_dual_direction()`,

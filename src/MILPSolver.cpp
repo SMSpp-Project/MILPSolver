@@ -772,6 +772,160 @@ double MILPSolver::get_problem_ub( const ColVariable & var ) const
 
 /*--------------------------------------------------------------------------*/
 
+double MILPSolver::check_kkt( void )
+{
+ const double NaN = std::numeric_limits< double >::quiet_NaN();
+ kkt_residuals.fill( NaN );
+
+ if( ! has_var_solution() )
+  return( 0 );
+
+ get_var_solution( nullptr );
+
+ // the sides a multiplier may point to, and the residual of a value
+ auto scale = []( double v ) {
+  return( std::isfinite( v ) ? std::max( 1.0 , std::abs( v ) ) : 1.0 );
+  };
+ auto viol = [ & scale ]( double v , double l , double u ) {
+  return( std::max( { l - v , v - u , 0.0 } ) /
+	  ( v < l ? scale( l ) : scale( u ) ) );
+  };
+
+ // walk the columns and the rows of the problem in the order of the solver
+ std::vector< ColVariable * > cols;
+ std::vector< FRowConstraint * > rows;
+ for( auto qb : v_BFS ) {
+  for( const auto & group : qb->get_static_variable_groups() )
+   if( group )
+    group->for_each_as< ColVariable >( [ & cols ]( ColVariable & v ) {
+      cols.push_back( & v ); } );
+  for( const auto & group : qb->get_static_constraint_groups() )
+   if( group )
+    group->for_each_as< FRowConstraint >( [ & rows ]( FRowConstraint & c ) {
+      rows.push_back( & c ); } );
+  }
+ for( auto v : idx_to_dvar )
+  if( v )
+   cols.push_back( const_cast< ColVariable * >( v ) );
+ for( auto c : idx_to_dcon )
+  if( c )
+   rows.push_back( const_cast< FRowConstraint * >( c ) );
+
+ // primal residual - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ bool mip = false;
+ std::vector< std::array< double , 2 > > bnd( cols.size() );
+ double rp = 0;
+ for( std::size_t j = 0 ; j < cols.size() ; ++j ) {
+  const auto x = cols[ j ]->get_value();
+  // the bounds of the Block, not those a back-end clips to its infinity
+  bnd[ j ] = cols[ j ]->is_fixed() ? std::array< double , 2 >{ x , x }
+                                   : MILPSolver::get_problem_bounds(
+							      * cols[ j ] );
+  rp = std::max( rp , viol( x , bnd[ j ][ 0 ] , bnd[ j ][ 1 ] ) );
+  if( cols[ j ]->is_integer() && ( relax_int_vars == 0 ) ) {
+   mip = true;
+   rp = std::max( rp , std::abs( x - std::round( x ) ) );
+   }
+  }
+
+ bool linear = true;
+ std::vector< double > act( rows.size() );
+ for( std::size_t i = 0 ; i < rows.size() ; ++i ) {
+  auto f = rows[ i ]->get_function();
+  if( ! dynamic_cast< LinearFunction * >( f ) )
+   linear = false;
+  f->compute();
+  act[ i ] = f->get_value();
+  rp = std::max( rp , viol( act[ i ] , rows[ i ]->get_lhs() ,
+			    rows[ i ]->get_rhs() ) );
+  }
+
+ kkt_residuals[ 0 ] = rp;
+
+ // the dual part needs the duals and a differentiable Objective - - - - - - -
+ if( mip || ( ! linear ) || ( ! has_dual_solution() ) )
+  return( rp );
+
+ // the gradient of the Objective, as that of a minimization
+ const double sgn = objsense < 0 ? -1 : 1;
+ std::vector< double > z( numcols , 0 );
+ double fx = 0;
+ for( auto qb : v_BFS ) {
+  if( is_objective_excluded( qb ) )
+   continue;
+  auto obj = dynamic_cast< FRealObjective * >( qb->get_objective() );
+  if( ! obj )
+   continue;
+  auto f = dynamic_cast< C05Function * >( obj->get_function() );
+  if( ! f )
+   return( rp );
+  f->compute();
+  fx += f->get_value();
+  std::vector< Function::FunctionValue > g( f->get_num_active_var() );
+  f->get_linearization_coefficients( g.data() );
+  for( Index k = 0 ; k < g.size() ; ++k ) {
+   auto j = index_of_variable(
+		     static_cast< const ColVariable * >( f->get_active_var( k ) ) );
+   if( ( j >= 0 ) && ( j < numcols ) )
+    z[ j ] += sgn * g[ k ];
+   }
+  }
+
+ double gnorm = 0;
+ for( auto gj : z )
+  gnorm = std::max( gnorm , std::abs( gj ) );
+
+ try {
+  get_dual_solution( nullptr );
+  }
+ catch( std::exception & ) {  // the duals do not even fit the Block
+  kkt_residuals[ 1 ] = Inf< double >();
+  return( Inf< double >() );
+  }
+
+ // the multipliers of the rows, and z = g - A' pi - - - - - - - - - - - - - -
+ double rd = 0;
+ double gap = 0;
+ for( std::size_t i = 0 ; i < rows.size() ; ++i ) {
+  const double pi = - sgn * rows[ i ]->get_dual();
+  if( pi == 0 )
+   continue;
+  const double lhs = rows[ i ]->get_lhs();
+  const double rhs = rows[ i ]->get_rhs();
+  const double side = pi > 0 ? lhs : rhs;
+  if( std::isfinite( side ) )
+   gap += std::abs( pi * ( act[ i ] - side ) );
+  else
+   rd = std::max( rd , std::abs( pi ) );
+  auto lf = static_cast< LinearFunction * >( rows[ i ]->get_function() );
+  for( const auto & [ var , a ] : lf->get_v_var() ) {
+   auto j = index_of_variable( var );
+   if( ( j >= 0 ) && ( j < numcols ) )
+    z[ j ] -= pi * a;
+   }
+  }
+
+ // the multipliers of the bounds
+ for( std::size_t j = 0 ; j < cols.size() ; ++j ) {
+  auto jj = index_of_variable( cols[ j ] );
+  if( ( jj < 0 ) || ( jj >= numcols ) || ( z[ jj ] == 0 ) )
+   continue;
+  const double bound = z[ jj ] > 0 ? bnd[ j ][ 0 ] : bnd[ j ][ 1 ];
+  if( std::isfinite( bound ) )
+   gap += std::abs( z[ jj ] * ( cols[ j ]->get_value() - bound ) );
+  else
+   rd = std::max( rd , std::abs( z[ jj ] ) );
+  }
+
+ kkt_residuals[ 1 ] = rd / std::max( 1.0 , gnorm );
+ kkt_residuals[ 2 ] = gap / scale( fx );
+
+ return( std::max( { kkt_residuals[ 0 ] , kkt_residuals[ 1 ] ,
+		     kkt_residuals[ 2 ] } ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 std::array< double , 2 > MILPSolver::get_problem_bounds(
 					      const ColVariable & var ) const
 {
@@ -1542,9 +1696,12 @@ int MILPSolver::compute( bool changedvars )
  // separation loop driven here when intRelaxIntVars == 2; in both cases
  // we need write access to the Block (the cut callback can write the LP
  // solution into the Variable; the explicit loop does the same via
- // get_var_solution()), so a full lock() is acquired. Otherwise the
- // Block is only read_lock()-ed for the duration of process_modifications
- const bool may_separate = ( CutSepPar > 0 ) || ( relax_int_vars == 2 );
+ // get_var_solution()), so a full lock() is acquired, and so it is when
+ // the solution is checked [see dblKKTTol], which writes it in the Block.
+ // Otherwise the Block is only read_lock()-ed for the duration of
+ // process_modifications
+ const bool may_separate = ( CutSepPar > 0 ) || ( relax_int_vars == 2 ) ||
+                           ( kkt_tol > 0 );
 
  bool owned = f_Block->is_owned_by( f_id );
  if( ! owned ) {
@@ -1628,6 +1785,22 @@ int MILPSolver::compute( bool changedvars )
 	  << sts << ", value = " << get_var_value() << std::endl;
    f_log->precision( savprec );
    }
+  }
+
+ // the check of the optimality conditions [see dblKKTTol] - - - - - - - - -
+ kkt_residuals.fill( std::numeric_limits< double >::quiet_NaN() );
+ if( ( kkt_tol > 0 ) && ( sts == kOK ) && ( check_kkt() > kkt_tol ) ) {
+  if( f_log && ( log_verbosity >= 1 ) ) {
+   static const char * what[] = { "primal residual" , "dual residual" ,
+				  "gap" };
+   *f_log << "MILPSolver::compute: the solution fails the check of the "
+	  << "optimality conditions at " << kkt_tol << ":";
+   for( int k = 0 ; k < 3 ; ++k )
+    if( kkt_residuals[ k ] > kkt_tol )
+     *f_log << " " << what[ k ] << " " << kkt_residuals[ k ];
+   *f_log << std::endl;
+   }
+  sts = kError;
   }
 
  if( ( ! owned ) && may_separate )
@@ -3117,6 +3290,14 @@ void MILPSolver::set_par( idx_type par , double value )
   return;
   }
 
+ if( par == dblKKTTol ) {
+  if( std::isnan( value ) || ( value < 0 ) )
+   throw( std::invalid_argument(
+              "MILPSolver::set_par: dblKKTTol must be nonnegative" ) );
+  kkt_tol = value;
+  return;
+  }
+
  CDASolver::set_par( par , value );
  }
 
@@ -3210,6 +3391,9 @@ double MILPSolver::get_dflt_dbl_par( idx_type par ) const
  if( par == dblObjRemovalTol )
   return( 1e-12 );
 
+ if( par == dblKKTTol )
+  return( 0 );
+
  return( CDASolver::get_dflt_dbl_par( par ) );
  }
 
@@ -3279,6 +3463,9 @@ double MILPSolver::get_dbl_par( idx_type par ) const
 {
  if( par == dblObjRemovalTol )
   return( obj_removal_tol );
+
+ if( par == dblKKTTol )
+  return( kkt_tol );
 
  return( CDASolver::get_dbl_par( par ) );
  }
@@ -3388,15 +3575,19 @@ Solver::idx_type MILPSolver::dbl_par_str2idx( const std::string & name ) const
  if( name == "dblObjRemovalTol" )
   return( dblObjRemovalTol );
 
+ if( name == "dblKKTTol" )
+  return( dblKKTTol );
+
  return( CDASolver::dbl_par_str2idx( name ) );
  }
 
 /*--------------------------------------------------------------------------*/
 
 const std::string & MILPSolver::dbl_par_idx2str( idx_type idx ) const {
- static const std::string name = "dblObjRemovalTol";
- if( idx == dblObjRemovalTol )
-  return( name );
+ static const std::vector< std::string > names = { "dblObjRemovalTol" ,
+						   "dblKKTTol" };
+ if( ( idx >= dblObjRemovalTol ) && ( idx <= dblKKTTol ) )
+  return( names[ idx - dblObjRemovalTol ] );
 
  return( CDASolver::dbl_par_idx2str( idx ) );
  }

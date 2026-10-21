@@ -69,7 +69,9 @@ Three testers for the `MILPSolver` module, each registered as a separate
   and duals are checked (the duals through the stationarity of the KKT
   conditions too), an MIQP, and a sequence of Modifications of the QP
   (coefficients of the objective, a side, a row added and removed, a
-  variable fixed), each solved again and compared with a fresh Solver. A
+  variable fixed), each solved again and compared with a fresh Solver; the
+  QP is also solved with `dblKKTTol` on, every Solver having to pass the
+  check, and a sloppy `OSQPMILPSolver` having to be caught by it. A
   Solver that is not meant to handle a model has to refuse it with an
   exception or an error status rather than answer.
 

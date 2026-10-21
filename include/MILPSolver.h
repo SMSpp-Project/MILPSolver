@@ -66,6 +66,8 @@
 
 #include <algorithm>
 
+#include <array>
+
 #include <atomic>
 
 #include <cmath>
@@ -282,6 +284,42 @@ class MILPSolver : public CDASolver
    * CPXMILPSolver, GRBMILPSolver, SCIPMILPSolver and HiGHSMILPSolver use it.
    * Changing it affects subsequent removals without reloading the model. */
   dblObjRemovalTol = dblLastParCDAS ,
+  /// tolerance of the check of the optimality conditions, 0 = no check
+  /**< If positive, whenever the solve returns kOK compute() writes the
+   * solution in the Block [see get_var_solution() and get_dual_solution()]
+   * and checks it against the Block itself, with the convention of the duals
+   * of write_dual_solution(). For the problem written as
+   * \f$ \min \{ f(x) : l \leq A x \leq u , \underline{x} \leq x \leq
+   * \overline{x} \} \f$ (a maximization is checked as the minimization of
+   * \f$ - f \f$), with \f$ \pi = - y \f$ the multipliers of the rows,
+   * \f$ y \f$ being their get_dual(), and
+   * \f$ z = \nabla f(x) - A^\top \pi \f$ the ones of the bounds, three
+   * residuals are measured:
+   *
+   * - primal: the largest violation of a row or of a bound (and of the
+   *   integrality of an integer Variable in a MIP), each divided by
+   *   \f$ \max\{ 1 , | \text{side} | \} \f$;
+   *
+   * - dual: the largest part of a \f$ \pi_i \f$ or \f$ z_j \f$ whose sign
+   *   points to an infinite side or bound, divided by
+   *   \f$ \max\{ 1 , \| \nabla f(x) \|_\infty \} \f$;
+   *
+   * - gap: \f$ \sum_i | \pi_i ( A_i x - b_i ) | + \sum_j | z_j ( x_j -
+   *   \beta_j ) | \f$, with \f$ b_i \f$ and \f$ \beta_j \f$ the side
+   *   and the bound the sign of the multiplier points to, divided by
+   *   \f$ \max\{ 1 , | f(x) | \} \f$; for a convex QP this is the
+   *   difference between the primal and the dual value.
+   *
+   * The dual residual and the gap are only measured on a continuous problem
+   * (or with intRelaxIntVars != 0) with linear rows, an Objective whose
+   * Function is a C05Function and a Solver that has a dual solution; for a
+   * MIP, or when the back-end gives no duals, only the primal residual is.
+   * If one of them is larger than the value, compute() returns kError, says
+   * which on the log, and the solution can still be read; the residuals of
+   * the last check are given by get_kkt_residuals(). Since the solution is
+   * written in the Block, compute() holds the Block under a write lock()
+   * when the check is on. The default is 0. */
+  dblKKTTol ,
   /// First allowed new double parameter for derived classes
   dblLastAlgParMILP
   };
@@ -898,6 +936,16 @@ class MILPSolver : public CDASolver
   return( f_dual_direction_value );
   }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the residuals of the last check of the optimality conditions
+ /** The primal residual, the dual residual and the gap of the solution
+ * returned by the last compute() [see dblKKTTol], NaN for those that were
+ * not measured, all of them if the check is off or the solve did not
+ * return kOK. */
+
+ [[nodiscard]] const std::array< double , 3 > & get_kkt_residuals( void )
+  const { return( kkt_residuals ); }
+
 /** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1313,6 +1361,15 @@ class MILPSolver : public CDASolver
  /// objective coefficient removal tolerance (see dblObjRemovalTol)
  double obj_removal_tol = 1e-12;
 
+ /// tolerance of the check of the optimality conditions (see dblKKTTol)
+ double kkt_tol = 0;
+
+ /// the residuals of the last check [see get_kkt_residuals()]
+ std::array< double , 3 > kkt_residuals = {
+  std::numeric_limits< double >::quiet_NaN() ,
+  std::numeric_limits< double >::quiet_NaN() ,
+  std::numeric_limits< double >::quiet_NaN() };
+
  /// the rows of the pool [see separate_in_callback()]
  std::vector< const FRowConstraint * > v_cut_pool;
 
@@ -1456,6 +1513,14 @@ class MILPSolver : public CDASolver
  virtual double get_problem_ub( const ColVariable & var ) const;
 
  /// gets both bounds for the given variable in the problem
+ /// checks the optimality conditions of the solution [see dblKKTTol]
+ /** Writes the solution in the Block, measures the residuals in
+  * #kkt_residuals and returns the largest of them. */
+
+ double check_kkt( void );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
  virtual std::array< double , 2 > get_problem_bounds(
 					     const ColVariable & var ) const;
 
