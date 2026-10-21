@@ -163,6 +163,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `load_problem()` scans the columns with buffers kept for the whole load,
+  rather than with a std::set, a std::map and two vectors of its own for
+  each column, the entries of a column being the same in the same order,
+  and `GRBMILPSolver` gathers the nonzero diagonal of a quadratic objective
+  in one pass rather than erasing the zeros one at a time
+
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,
   the 1e-5 of 0.10.0 making many QPs less precise and slower (the Lagrangian
   dual of a UC master and of an SDDP stage); a QP that the active set QP

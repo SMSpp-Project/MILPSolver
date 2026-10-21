@@ -1252,6 +1252,16 @@ class MILPSolver : public CDASolver
   * queries while constructing and updating the MILP matrix. */
  std::unordered_set< Block * > BFS_set;
 
+ /// buffers of the scan of the columns, kept for the whole load
+ /** Each column is scanned with these rather than with containers of its
+  * own [see scan_variable()]: the rows it is active in, ( row , position )
+  * pairs sorted by row, the ( row , coefficient ) entries of the column and
+  * the bounds it has. */
+ std::vector< FRowConstraint * > f_scan_rows;
+ std::vector< std::pair< int , Index > > f_scan_pos;
+ std::vector< std::pair< int , double > > f_scan_sorted;
+ std::vector< OneVarConstraint * > f_scan_bounds;
+
  std::string prob_name;    ///< problem name
  std::string output_file;  ///< output file
 
@@ -1543,13 +1553,16 @@ class MILPSolver : public CDASolver
 
 /*--------------------------------------------------------------------------*/
  /// gets the active constraints for the specified variable
- std::vector< FRowConstraint * > get_active_constraints(
-					     const ColVariable & var ) const;
+ /** The constraints are written in \p active_constraints, which is cleared
+  * first, so that a caller scanning many variables keeps one buffer. */
+ void get_active_constraints( const ColVariable & var ,
+               std::vector< FRowConstraint * > & active_constraints ) const;
 
  /// gets the active bounds for the specified variable
- std::vector< OneVarConstraint * > get_active_bounds(
-					     const ColVariable & var ,
-               bool first_scan = false ) const;
+ /** As get_active_constraints(), the bounds go in \p active_bounds. */
+ void get_active_bounds( const ColVariable & var ,
+                         std::vector< OneVarConstraint * > & active_bounds ,
+                         bool first_scan = false ) const;
 
 /*--------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */

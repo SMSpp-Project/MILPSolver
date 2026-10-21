@@ -372,22 +372,16 @@ void GRBMILPSolver::load_problem( void )
  GRBsetintattr( model , GRB_INT_ATTR_MODELSENSE , objsense);
 
  if( is_sqp || is_qp ) {
-  // Now we just add the diagonal elements of the quadratic matrix
-  std::vector< double > double_q_obj = q_objective;
+  // Now we just add the diagonal elements of the quadratic matrix, the
+  // nonzero ones with their indices
+  std::vector< double > double_q_obj;
   std::vector< int > qp_indices;
-  int n_qp = 0;
-
-  // creating a vector containg only non-zero coefficients for quadratic terms and corresponding indices
-  for( int i = 0 ; i < numcols ; ++i ) {
-	 if( double_q_obj[ n_qp ] != 0 ) {
-	  n_qp = n_qp + 1;
-	  qp_indices.push_back( i );
-	 }
-	 else{
-    auto iter = double_q_obj.begin();
-	  double_q_obj.erase( std::next( iter , n_qp) );
+  for( int i = 0 ; i < numcols ; ++i )
+   if( q_objective[ i ] != 0 ) {
+    double_q_obj.push_back( q_objective[ i ] );
+    qp_indices.push_back( i );
     }
-  }
+  int n_qp = qp_indices.size();
 
   // adding q_objective information automatically changes the problem type
   // from linear to quadratic

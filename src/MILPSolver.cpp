@@ -344,12 +344,10 @@ void MILPSolver::load_problem( void )
    // appear more than once in the same constraint (so active_stuff() lists
    // it more than once), but it contributes a single matrix entry (with the
    // coefficients summed); see the matching coalescing in scan_variable()
-   std::set< const FRowConstraint * > seen;
-   for( auto * i : var.active_stuff() )
-    if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
-      if( is_mine( row->get_Block() ) )
-       if( seen.insert( row ).second )
-        ++nzelements;
+   get_active_constraints( var , f_scan_rows );
+   std::sort( f_scan_rows.begin() , f_scan_rows.end() );
+   nzelements += std::unique( f_scan_rows.begin() , f_scan_rows.end() )
+                 - f_scan_rows.begin();
    };
 
   for( auto groups : { & qb->get_static_variable_groups() ,
@@ -944,24 +942,26 @@ std::array< double , 2 > MILPSolver::get_problem_bounds(
 
 /*--------------------------------------------------------------------------*/
 
-std::vector< FRowConstraint * > MILPSolver::get_active_constraints(
-					      const ColVariable & var ) const
+void MILPSolver::get_active_constraints(
+                         const ColVariable & var ,
+                         std::vector< FRowConstraint * > & active_constraints )
+ const
 {
- std::vector< FRowConstraint * > active_constraints;
+ active_constraints.clear();
  for( auto * i : var.active_stuff() )
   if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
     if( is_mine( row->get_Block() ) )
      active_constraints.push_back( row );
- 
- return( active_constraints );
  }
 
 /*--------------------------------------------------------------------------*/
 
-std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
-					      const ColVariable & var , bool first_scan ) const
+void MILPSolver::get_active_bounds( const ColVariable & var ,
+                            std::vector< OneVarConstraint * > & active_bounds ,
+                            bool first_scan ) const
 {
- std::vector< OneVarConstraint * > active_bounds;
+ active_bounds.clear();
+
  
  /* If the option intSingleBound is activated, then each constraint can have 
  *  just a single OneVarConstraint associated, which is stored in the vectors
@@ -988,8 +988,6 @@ std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
    if( auto row = dynamic_cast< OneVarConstraint * >( i ) )
     active_bounds.push_back( row );
   }
-
- return( active_bounds );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1247,7 +1245,7 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
   xctype[ col ] = 'C';  // Continuous
 
  // Get linear active constraints
- auto active_constraints = get_active_constraints( var );
+ get_active_constraints( var , f_scan_rows );
 
  /* We have to check wheter we have quadratic constraints in the model or not.
   * If the model is LP, then matbeg, matcnt, ... store the matrix coefficients
@@ -1260,13 +1258,20 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
   // network formulations): emitting one (row, col) entry per occurrence is
   // both wrong (the coefficients must add up, not repeat) and rejected by
   // some backends (HiGHS >= 1.14 errors on duplicate row indices). The
-  // std::map keeps the entries sorted by row index, as the solvers expect;
-  // it stays consistent with the distinct count of the nzelements counter.
-  std::map< int , double > col_entries;
-  for( auto * con : active_constraints ) {
-   const int row = index_of_constraint( con );
-   if( col_entries.count( row ) )
+  // entries are sorted by row index, as the solvers expect, and the count
+  // stays consistent with the distinct count of the nzelements counter;
+  // the buffers are those of the whole load, not one per column
+  f_scan_pos.clear();
+  for( Index k = 0 ; k < f_scan_rows.size() ; ++k )
+   f_scan_pos.emplace_back( index_of_constraint( f_scan_rows[ k ] ) , k );
+  std::sort( f_scan_pos.begin() , f_scan_pos.end() );
+
+  // the first occurrence of each row is summed, the others are dropped
+  f_scan_sorted.clear();
+  for( Index k = 0 ; k < f_scan_pos.size() ; ++k ) {
+   if( k && ( f_scan_pos[ k ].first == f_scan_pos[ k - 1 ].first ) )
     continue;                  // this constraint has already been summed
+   auto * con = f_scan_rows[ f_scan_pos[ k ].second ];
    auto * f = static_cast< const LinearFunction * >( con->get_function() );
    double coeff = 0;
    bool found = false;
@@ -1281,14 +1286,14 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
                "MILPSolver::scan_variable: "
                "this ColVariable is not active in the examined "
                "FRowConstraint" ) );
-   col_entries[ row ] = coeff;
+   f_scan_sorted.emplace_back( f_scan_pos[ k ].first , coeff );
    }
 
-  matcnt[ col ] = col_entries.size();
+  matcnt[ col ] = f_scan_sorted.size();
   matbeg[ col ] = ( col == 0 ) ? 0 : matbeg[ col - 1 ] + matcnt[ col - 1 ];
 
   Index j = 0;
-  for( const auto & [ row , coeff ] : col_entries ) {
+  for( const auto & [ row , coeff ] : f_scan_sorted ) {
    matind[ matbeg[ col ] + j ] = row;
    matval[ matbeg[ col ] + j ] = coeff;
    ++j;
@@ -1544,7 +1549,8 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 void MILPSolver::scan_static_variable_bound( const ColVariable & var )
 {
  // Get vector of bounds
- auto active_bounds = get_active_bounds( var , true );
+ auto & active_bounds = f_scan_bounds;
+ get_active_bounds( var , active_bounds , true );
 
  // This function should be called only if the parameter single_bound is
  // set to true. Thus, we have to check that maximum a single OneVarConstraint
@@ -1568,7 +1574,8 @@ void MILPSolver::scan_static_variable_bound( const ColVariable & var )
 void MILPSolver::scan_dynamic_variable_bound( const ColVariable & var )
 {
  // Get vector of bounds
- auto active_bounds = get_active_bounds( var );
+ auto & active_bounds = f_scan_bounds;
+ get_active_bounds( var , active_bounds );
 
  // This function should be called only if the parameter single_bound is
  // set to true. Thus, we have to check that maximum a single OneVarConstraint
@@ -4061,8 +4068,10 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
 
  int col = 0;
 
- auto set_bound = [ this , & rc , & col ]( ColVariable & var ) {
-  auto active_bounds = get_active_bounds( var );
+ std::vector< OneVarConstraint * > active_bounds;
+ auto set_bound = [ this , & rc , & col , & active_bounds ](
+                                                         ColVariable & var ) {
+  get_active_bounds( var , active_bounds );
 
   // bounds that will have the dual value set.
   OneVarConstraint * lhs_con = nullptr;
