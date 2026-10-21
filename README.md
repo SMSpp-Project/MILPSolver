@@ -160,8 +160,8 @@ the whole framework. What follows is about building it yourself.
 - for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev) 1.8.0 or
   later
 
-- for `MOSEKMILPSolver` you will need [MOSEK](https://www.mosek.com) 10 or
-  later, in `MOSEK_ROOT` (the directory of a version, e.g.
+- for `MOSEKMILPSolver` you will need [MOSEK](https://www.mosek.com) 11.0.1
+  or later, in `MOSEK_ROOT` (the directory of a version, e.g.
   `/opt/mosek/11.0`, or the one above it), and a license of it in
   `~/mosek/mosek.lic` or wherever `MOSEKLM_LICENSE_FILE` says (MOSEK gives
   [free academic licenses](https://www.mosek.com/products/academic-licenses/))
@@ -173,22 +173,23 @@ the whole framework. What follows is about building it yourself.
   route is MUMPS, while other backends, e.g. PARDISO or MA57, are
   subject to licensing)
 
-- for `DAQPMILPSolver` you will need [DAQP](https://github.com/darnstrom/daqp),
-  installed with its CMake (`cmake --install`), in `DAQP_ROOT`
+- for `DAQPMILPSolver` you will need [DAQP](https://github.com/darnstrom/daqp)
+  0.8.2 or later, installed with its CMake (`cmake --install`), in
+  `DAQP_ROOT`
 
 - for `QPOASESMILPSolver` you will need
   [qpOASES](https://github.com/coin-or/qpOASES) 3.2 or later, installed
   with its CMake (`cmake --install`), in `qpOASES_ROOT`
 
 - for `ClarabelMILPSolver` you will need the C interface of Clarabel,
-  [Clarabel.cpp](https://github.com/oxfordcontrol/Clarabel.cpp), whose
-  build needs a Rust toolchain (`cargo`): since its CMake installs nothing,
-  copy its `include` directory and the `libclarabel_c` built by `cargo build
-  --release` in `rust_wrapper` to the `include` and `lib` directories of
-  `Clarabel_ROOT`
+  [Clarabel.cpp](https://github.com/oxfordcontrol/Clarabel.cpp) 0.11.1 or
+  later, whose build needs a Rust toolchain (`cargo`): since its CMake
+  installs nothing, copy its `include` directory and the `libclarabel_c`
+  built by `cargo build --release` in `rust_wrapper` to the `include` and
+  `lib` directories of `Clarabel_ROOT`
 
 - for `ProxQPMILPSolver` you will need
-  [ProxSuite](https://github.com/Simple-Robotics/proxsuite) 0.6 or later,
+  [ProxSuite](https://github.com/Simple-Robotics/proxsuite) 0.4 or later,
   which is header-only and needs Eigen (and Simde, unless it is configured
   with `BUILD_WITH_VECTORIZATION_SUPPORT=OFF`), installed with its CMake
   (`cmake --install`) in `proxsuite_ROOT`

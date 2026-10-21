@@ -126,7 +126,8 @@ endif ()
 
 if (MILPSolver_USE_DAQP)
     # Needed for DAQPMILPSolver
-    # DAQP exposes no version number in its headers, so none is checked here
+    # DAQP exposes no version number: FindDAQP accepts 0.8.2 or later only,
+    # by a macro of its headers [see FindDAQP.cmake]
     find_package(DAQP)
     if (NOT DAQP_FOUND)
         set(MILPSolver_USE_DAQP OFF)
@@ -143,7 +144,8 @@ endif ()
 
 if (MILPSolver_USE_Clarabel)
     # Needed for ClarabelMILPSolver
-    # Clarabel exposes no version number in its headers, so none is checked
+    # Clarabel exposes no version number: FindClarabel looks for clarabel.h,
+    # which Clarabel.cpp has from 0.11.1 [see FindClarabel.cmake]
     find_package(Clarabel)
     if (NOT Clarabel_FOUND)
         set(MILPSolver_USE_Clarabel OFF)
@@ -152,7 +154,8 @@ endif ()
 
 if (MILPSolver_USE_MOSEK)
     # Needed for MOSEKMILPSolver
-    find_package(MOSEK 10.0)
+    # 11.0.1 is the first with the error codes of writing an LP file
+    find_package(MOSEK 11.0.1)
     if (NOT MOSEK_FOUND)
         set(MILPSolver_USE_MOSEK OFF)
     endif ()
@@ -162,8 +165,9 @@ if (MILPSolver_USE_ProxQP)
     # Needed for ProxQPMILPSolver
     # ProxSuite installs its CMake configuration, which finds Eigen (and
     # Simde, if it has been built with vectorization); proxsuite_ROOT is a
-    # hint to its location
-    find_package(proxsuite 0.6 CONFIG)
+    # hint to its location. 0.4 is the first with the HessianType of dense
+    # ProxQP, and its version file accepts any later 0.x
+    find_package(proxsuite 0.4 CONFIG)
     if (NOT proxsuite_FOUND)
         set(MILPSolver_USE_ProxQP OFF)
     endif ()
@@ -206,8 +210,9 @@ endif ()
 if (MILPSolver_USE_qpmad)
     # Needed for QPMADMILPSolver
     # qpmad is header-only and installs its CMake configuration, which finds
-    # Eigen; qpmad_ROOT is a hint to its location
-    find_package(qpmad CONFIG)
+    # Eigen; qpmad_ROOT is a hint to its location. 1.5 is the first that
+    # exports the target qpmad::qpmad, and its version file accepts any 1.x
+    find_package(qpmad 1.5 CONFIG)
     if (NOT qpmad_FOUND)
         set(MILPSolver_USE_qpmad OFF)
     endif ()
@@ -215,7 +220,8 @@ endif ()
 
 if (MILPSolver_USE_quadprog)
     # Needed for QuadProgMILPSolver
-    # quadprog is under the GPL, hence a MILPSolver built with it is too
+    # quadprog is under the GPL, hence a MILPSolver built with it is too; it
+    # has no version number, and its qpgen2_ has not changed for decades
     find_package(quadprog)
     if (NOT quadprog_FOUND)
         set(MILPSolver_USE_quadprog OFF)

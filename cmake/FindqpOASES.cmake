@@ -59,6 +59,21 @@ if (NOT qpOASES_FOUND)
             PATH_SUFFIXES include
             DOC "qpOASES include directory.")
 
+    # ----- Tell 3.2 apart when there is no CMake configuration ------------- #
+    # Only 3.2.2 installs one; the headers of 3.2 define int_t, which those
+    # of 3.1 do not, hence qpOASES_INT_T is required and the version is
+    # then taken as 3.2
+    if (qpOASES_VERSION)
+        set(qpOASES_INT_T TRUE)
+    elseif (qpOASES_INCLUDE_DIR AND
+            EXISTS "${qpOASES_INCLUDE_DIR}/qpOASES/Types.hpp")
+        file(STRINGS "${qpOASES_INCLUDE_DIR}/qpOASES/Types.hpp" qpOASES_INT_T
+             REGEX "typedef[^;]*[ \t]int_t;")
+        if (qpOASES_INT_T)
+            set(qpOASES_VERSION 3.2)
+        endif ()
+    endif ()
+
     # ----- Find the qpOASES library ---------------------------------------- #
     if (UNIX)
         find_library(qpOASES_LIBRARY
@@ -84,7 +99,7 @@ if (NOT qpOASES_FOUND)
     # (see the documentation of the FindPackageHandleStandardArgs module).
     find_package_handle_standard_args(
             qpOASES
-            REQUIRED_VARS qpOASES_LIBRARY qpOASES_INCLUDE_DIR
+            REQUIRED_VARS qpOASES_LIBRARY qpOASES_INCLUDE_DIR qpOASES_INT_T
             VERSION_VAR qpOASES_VERSION)
 endif ()
 

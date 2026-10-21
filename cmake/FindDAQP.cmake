@@ -23,7 +23,8 @@
 #                                                                             #
 #    This find module is provided because the CMake configuration file of     #
 #    DAQP is installed in <prefix>/cmake, where find_package() does not look  #
-#    on Linux and macOS, and DAQP exposes no version number in its headers.   #
+#    on Linux and macOS, and DAQP exposes no version number in its headers:   #
+#    0.8.2 or later is told apart by a macro of its constants.h.              #
 #                                                                             #
 #                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
@@ -45,6 +46,15 @@ if (NOT DAQP_FOUND)
             PATHS ${DAQP_ROOT}
             PATH_SUFFIXES include
             DOC "DAQP include directory.")
+
+    # ----- Check that it is 0.8.2 or later --------------------------------- #
+    # The headers carry no version number: DAQP_DEFAULT_EPS_PROX, which
+    # DAQPMILPSolver uses, is in those of 0.8.2 and later only, hence
+    # DAQP_EPS_PROX is required
+    if (DAQP_INCLUDE_DIR AND EXISTS "${DAQP_INCLUDE_DIR}/daqp/constants.h")
+        file(STRINGS "${DAQP_INCLUDE_DIR}/daqp/constants.h" DAQP_EPS_PROX
+             REGEX "define[ \t]+DAQP_DEFAULT_EPS_PROX")
+    endif ()
 
     # ----- Find the DAQP library ------------------------------------------- #
     if (UNIX)
@@ -82,7 +92,7 @@ if (NOT DAQP_FOUND)
     # vcpkg triplet) has none, and the library is then a static one
     find_package_handle_standard_args(
             DAQP
-            REQUIRED_VARS DAQP_LIBRARY DAQP_INCLUDE_DIR)
+            REQUIRED_VARS DAQP_LIBRARY DAQP_INCLUDE_DIR DAQP_EPS_PROX)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #

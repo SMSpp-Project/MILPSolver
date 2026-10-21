@@ -28,6 +28,8 @@
 #    looked for in a prefix where clarabel.h and its c/ subdirectory are in   #
 #    include and libclarabel_c is in lib; a static libclarabel_c also needs   #
 #    the system libraries of the Rust standard library.                       #
+#    Clarabel.cpp carries no version number, and the clarabel.h looked for    #
+#    is there from 0.11.1 (Clarabel.h before), the first version accepted.    #
 #                                                                             #
 #                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
@@ -45,7 +47,7 @@ if (NOT Clarabel_FOUND)
     # ----- Find the Clarabel include directory ----------------------------- #
     # clarabel.h includes the headers in its c/ subdirectory
     find_path(Clarabel_INCLUDE_DIR
-            NAMES c/DefaultSolver.h
+            NAMES clarabel.h
             PATHS ${Clarabel_ROOT}
             PATH_SUFFIXES include include/clarabel
             DOC "Clarabel include directory.")

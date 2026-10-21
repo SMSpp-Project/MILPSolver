@@ -163,6 +163,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- the minimum versions of the QP back-ends are those their code builds and
+  passes the tests with, checked by CMake: MOSEK 11.0.1 (was 10.0, which
+  lacks some error codes), ProxSuite 0.4 (was 0.6), qpmad 1.5, DAQP 0.8.2
+  and Clarabel.cpp 0.11.1, the last two from their headers, which carry no
+  version number, as does qpOASES when it has no CMake configuration;
+  the configuration of the installed MILPSolver asks for the same
+  versions
+
 - the CI runs the batteries of the QPs of qpbenchmark (`batchMPC_C`,
   `batchMM_C` and their dense versions) in a stage `test-qpb` of their
   own, after `test-miqp`, and the job `test` leaves them out

@@ -5,7 +5,7 @@
  * Header file for the MOSEKMILPSolver class, which implements the
  * MILPSolver interface for Mixed-Integer Linear and convex Quadratic
  * Programs using the Optimizer API for C of MOSEK. Only supports MOSEK
- * versions >= 10.0.
+ * versions >= 11.0.1.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
