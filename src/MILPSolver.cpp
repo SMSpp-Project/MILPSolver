@@ -181,11 +181,6 @@ void MILPSolver::load_problem( void )
  numnnzq = 0;
  objsense = 0;
 
- v_epigraph.clear();
- m_epigraph_coef.clear();
- epigraph_cols = 0;
- epigraph_rows = 0;
-
  // locking the Block
  bool owned = f_Block->is_owned_by( f_id );
  if( ( ! owned ) && ( ! f_Block->read_lock() ) )
@@ -363,33 +358,7 @@ void MILPSolver::load_problem( void )
     if( group )
      group->for_each_as< ColVariable >( counter );
 
-  if( ! is_objective_excluded( qb ) )
-   count_epigraph( qb , nzelements );
-
   ++num_block;
-  }
-
- // the columns and the rows of the epigraphs come after the static ones and
- // before the dynamic ones; each ColVariable of a function gets its
- // coefficients in the rows of the epigraph
- numcols += epigraph_cols;
- numrows += epigraph_rows;
- for( auto & e : v_epigraph ) {
-  e.col += static_vars;
-  e.row += static_cons;
-
-  const auto & A = e.f->get_A();
-  for( Index i = 0 ; i < A.size() ; ++i )
-   for( Index j = 0 ; j < A[ i ].size() ; ++j )
-    if( A[ i ][ j ] != 0 ) {
-     auto var = dynamic_cast< const ColVariable * >(
-                                                 e.f->get_active_var( j ) );
-     if( ! var )
-      throw( std::invalid_argument(
-                 "MILPSolver::load_problem: a Variable of a "
-                 "PolyhedralFunction is not a ColVariable" ) );
-     m_epigraph_coef[ var ].emplace_back( e.row + i , A[ i ][ j ] );
-     }
   }
 
  DEBUG_LOG( "Number of blocks      = " << num_block << std::endl );
@@ -485,8 +454,6 @@ void MILPSolver::load_problem( void )
   }
  std::sort( scon_to_idx.begin() , scon_to_idx.end() );
 
- scan_epigraph_rows( row );
-
  // scan the dynamic constraints- - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -526,8 +493,6 @@ void MILPSolver::load_problem( void )
 
  std::sort( svar_to_idx.begin() , svar_to_idx.end() );
 
- scan_epigraph_cols( col );
-
  // scan the dynamic variables- - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -564,8 +529,6 @@ void MILPSolver::load_problem( void )
    num_block++;
    }
   std::sort( scon_to_idx.begin() , scon_to_idx.end() );
-
-  scan_epigraph_rows( row );
 
   // scan the dynamic constraints - - - - - - - - - - - - - - - - - - - - - -
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -613,15 +576,6 @@ void MILPSolver::load_problem( void )
   if( auto * obj = dynamic_cast< FRealObjective * >( qb->get_objective() ) )
    scan_objective( obj );
   }
-
- // the coefficients of the epigraphs are in the columns by now, provided
- // that every Variable of the functions is one of the problem
- for( const auto & [ var , coef ] : m_epigraph_coef )
-  if( index_of_variable( var ) == Inf< int >() )
-   throw( std::invalid_argument(
-              "MILPSolver::load_problem: a Variable of a PolyhedralFunction "
-              "is not in the Block" ) );
- m_epigraph_coef.clear();
 
  // unlock the Block- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -870,10 +824,9 @@ std::vector< OneVarConstraint * > MILPSolver::get_active_bounds(
       const_cast< OneVarConstraint * >( svar_to_bound[ idx ] ) );
    }
   else { // the variable is dynamic
-   const auto k = idx - static_vars - epigraph_cols;
-   if( dvar_to_bound[ k ] != nullptr )
-    active_bounds.push_back(
-     const_cast< OneVarConstraint * >( dvar_to_bound[ k ] ) );
+   if( dvar_to_bound[ idx - static_vars ] != nullptr )
+    active_bounds.push_back( 
+     const_cast< OneVarConstraint * >( dvar_to_bound[ idx - static_vars ] ) );
    }
   }
  else { // The option is not activated, scan all active stuff
@@ -1016,9 +969,6 @@ const ColVariable * MILPSolver::variable_with_index( int i ) const
  if( i < static_vars )
   return( static_variable_with_index( i ) );
 
- if( i < static_vars + epigraph_cols )
-  return( nullptr );  // the column of an epigraph
-
  return( dynamic_variable_with_index( i ) );
  }
 
@@ -1052,9 +1002,8 @@ const ColVariable * MILPSolver::static_variable_with_index( int i ) const
 
 const ColVariable * MILPSolver::dynamic_variable_with_index( int i ) const
 {
- const int k = i - static_vars - epigraph_cols;
- if( ( k >= 0 ) && ( k < int( idx_to_dvar.size() ) ) )
-  return( idx_to_dvar[ k ] );
+ if( ( static_vars < i ) || ( i < numcols ) )
+  return( idx_to_dvar[ i - static_vars ] );
 
  return( nullptr );
  }
@@ -1065,9 +1014,6 @@ const FRowConstraint * MILPSolver::constraint_with_index( int i ) const
 {
  if( i < static_cons )
   return( static_constraint_with_index( i ) );
-
- if( i < static_cons + epigraph_rows )
-  return( nullptr );  // a row of an epigraph
 
  return( dynamic_constraint_with_index( i ) );
  }
@@ -1102,9 +1048,8 @@ const FRowConstraint * MILPSolver::static_constraint_with_index( int i )
 
 const FRowConstraint * MILPSolver::dynamic_constraint_with_index( int i )
  const {
- const int k = i - static_cons - epigraph_rows;
- if( ( k >= 0 ) && ( k < int( idx_to_dcon.size() ) ) )
-  return( idx_to_dcon[ k ] );
+ if( ( static_cons < i ) || ( i < numrows ) )
+  return( idx_to_dcon[ i - static_cons ] );
 
  return( nullptr );
  }
@@ -1182,11 +1127,6 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
                "FRowConstraint" ) );
    col_entries[ row ] = coeff;
    }
-
-  // the rows of the epigraphs where the variable is
-  if( auto it = m_epigraph_coef.find( & var ) ; it != m_epigraph_coef.end() )
-   for( const auto & [ row , coeff ] : it->second )
-    col_entries[ row ] += coeff;
 
   matcnt[ col ] = col_entries.size();
   matbeg[ col ] = ( col == 0 ) ? 0 : matbeg[ col - 1 ] + matcnt[ col - 1 ];
@@ -1517,13 +1457,6 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
   return;
   }
 
- // a PolyhedralFunction is the column of its epigraph [see count_epigraph()]
- for( const auto & e : v_epigraph )
-  if( e.f == obj->get_function() ) {
-   objective[ e.col ] += 1;
-   return;
-   }
-
  if( auto * qf = dynamic_cast< const QuadFunction * >(
 						 obj->get_function() ) ) {
   /* Non separable Quadratic objective function */
@@ -1580,142 +1513,6 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
  throw( std::invalid_argument(
             "MILPSolver::scan_objective: "
             "unknown type of Objective Function" ) );
- }
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::count_epigraph( Block * qb , Index & nzelements )
-{
- auto * obj = dynamic_cast< FRealObjective * >( qb->get_objective() );
- if( ! obj )
-  return;
-
- auto * f = dynamic_cast< PolyhedralFunction * >( obj->get_function() );
- if( ! f )
-  return;
-
- // v >= max_i { A_i x + b_i } is the function where v is minimized, and
- // v <= min_i { A_i x + b_i } where it is maximized; elsewhere v would leave
- // the function
- if( f->is_convex() !=
-     ( qb->get_objective_sense() == Objective::eMin ) )
-  throw( std::invalid_argument(
-             "MILPSolver::load_problem: a convex PolyhedralFunction "
-             "maximized, or a concave one minimized, has no epigraph" ) );
-
- v_epigraph.push_back( { f , epigraph_cols , epigraph_rows } );
- ++epigraph_cols;
- epigraph_rows += f->get_nrows();
-
- const auto & A = f->get_A();
- for( Index i = 0 ; i < A.size() ; ++i ) {
-  for( auto a : A[ i ] )
-   if( a != 0 )
-    ++nzelements;
-  if( ! f->is_row_vertical( i ) )
-   ++nzelements;  // the column of the epigraph
-  }
- }
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::scan_epigraph_rows( Index & row )
-{
- for( Index k = 0 ; k < v_epigraph.size() ; ++k ) {
-  const auto & e = v_epigraph[ k ];
-  const auto & A = e.f->get_A();
-  const auto & b = e.f->get_b();
-  const bool convex = e.f->is_convex();
-
-  for( Index i = 0 ; i < A.size() ; ++i ) {
-   const bool vertical = e.f->is_row_vertical( i );
-
-   // A_i x - v <= - b_i if convex, >= if concave, without v if vertical
-   sense[ row ] = convex ? 'L' : 'G';
-   rhs[ row ] = - b[ i ];
-   rngval[ row ] = 0;
-
-   if( numquadrows != 0 ) {  // the matrix is stored by rows
-    matbeg[ row ] = ( row == 0 ) ? 0 : matbeg[ row - 1 ] + matcnt[ row - 1 ];
-    Index nnz = 0;
-    for( Index j = 0 ; j < A[ i ].size() ; ++j )
-     if( A[ i ][ j ] != 0 ) {
-      auto var = static_cast< const ColVariable * >(
-                                               e.f->get_active_var( j ) );
-      matind[ matbeg[ row ] + nnz ] = index_of_variable( var );
-      matval[ matbeg[ row ] + nnz ] = A[ i ][ j ];
-      ++nnz;
-      }
-    if( ! vertical ) {
-     matind[ matbeg[ row ] + nnz ] = e.col;
-     matval[ matbeg[ row ] + nnz ] = -1;
-     ++nnz;
-     }
-    matcnt[ row ] = nnz;
-    }
-
-   const auto name = "pf_" + std::to_string( k ) + "_" + std::to_string( i );
-   rowname[ row ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
-   ++row;
-   }
-  }
- }
-
-/*--------------------------------------------------------------------------*/
-
-void MILPSolver::scan_epigraph_cols( Index & col )
-{
- for( Index k = 0 ; k < v_epigraph.size() ; ++k ) {
-  const auto & e = v_epigraph[ k ];
-  // the global bound is a lower bound if convex, an upper one if concave
-  if( e.f->is_convex() ) {
-   lb[ col ] = e.f->is_bound_set() ? double( e.f->get_global_lower_bound() )
-                                   : - Inf< double >();
-   ub[ col ] = Inf< double >();
-   }
-  else {
-   lb[ col ] = - Inf< double >();
-   ub[ col ] = e.f->is_bound_set() ? double( e.f->get_global_upper_bound() )
-                                   : Inf< double >();
-   }
-  xctype[ col ] = 'C';
-
-  if( numquadrows == 0 ) {  // the matrix is stored by columns
-   matbeg[ col ] = ( col == 0 ) ? 0 : matbeg[ col - 1 ] + matcnt[ col - 1 ];
-   Index nnz = 0;
-   for( Index i = 0 ; i < e.f->get_nrows() ; ++i )
-    if( ! e.f->is_row_vertical( i ) ) {
-     matind[ matbeg[ col ] + nnz ] = e.row + i;
-     matval[ matbeg[ col ] + nnz ] = -1;
-     ++nnz;
-     }
-   matcnt[ col ] = nnz;
-   }
-
-  const auto name = "pfv_" + std::to_string( k );
-  colname[ col ] = strcpy( new char[ name.length() + 1 ] , name.c_str() );
-  ++col;
-  }
- }
-
-/*--------------------------------------------------------------------------*/
-
-bool MILPSolver::changes_epigraph( const Modification * mod ) const
-{
- if( dynamic_cast< const ObjectiveMod * >( mod ) )
-  return( true );
-
- const Function * f = nullptr;
- if( auto fm = dynamic_cast< const FunctionMod * >( mod ) )
-  f = fm->function();
- else
-  if( auto fvm = dynamic_cast< const FunctionModVars * >( mod ) )
-   f = fvm->function();
-  else
-   return( false );
-
- return( std::any_of( v_epigraph.begin() , v_epigraph.end() ,
-                      [ f ]( const auto & e ) { return( e.f == f ); } ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1907,13 +1704,6 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
  // the Modification of an Objective to be ignored are not about the model
  if( touches_excluded_objective( mod ) )
   return;
-
- // the epigraph of a PolyhedralFunction is not changed row by row: the
- // problem is loaded again
- if( ( ! v_epigraph.empty() ) && changes_epigraph( mod ) ) {
-  f_reset = true;
-  return;
-  }
 
  // for all other Modification, dispatch the appropriate virtual method
  if( auto vm = dynamic_cast< const VariableMod * >( mod ) ) {
@@ -3108,15 +2898,14 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
     svar_to_bound[ idx ] = con; // Update the dictionary
    }
   else { // the variable is dynamic
-   const auto k = idx - static_vars - epigraph_cols;
-   if( dvar_to_bound[ k ] != nullptr ) // There was already a bound set
+   if( dvar_to_bound[ idx - static_vars ] != nullptr ) // There was already a bound set
      throw( std::logic_error(
                 "MILPSolver::add_dynamic_bound: only a single "
                 "OneVarConstraint can be associated to a variable when "
                 "the option intSingleBound is set to 1" ) );
 
    else // No OneVarConstraint was previously associated with the variable.
-    dvar_to_bound[ k ] = con; // Update the dictionary
+    dvar_to_bound[ idx - static_vars ] = con; // Update the dictionary
    }
   }
  }
@@ -3137,8 +2926,7 @@ void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  if( ( it1 != dcon_to_idx.end() ) && ( it1->first == con ) ) {
   index = it1->second;
   dcon_to_idx.erase( it1 );
-  idx_to_dcon.erase( idx_to_dcon.begin() +
-                     ( index - static_cons - epigraph_rows ) );
+  idx_to_dcon.erase( idx_to_dcon.begin() + ( index - static_cons ) );
   }
  else
   throw( std::runtime_error(
@@ -3185,10 +2973,9 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
  if( ( it1 != dvar_to_idx.end() ) && ( it1->first == var ) ) {
   index = it1->second;
   dvar_to_idx.erase( it1 );
-  const auto k = index - static_vars - epigraph_cols;
-  idx_to_dvar.erase( idx_to_dvar.begin() + k );
+  idx_to_dvar.erase( idx_to_dvar.begin() + ( index - static_vars ) );
   if( single_bound )
-    dvar_to_bound.erase( dvar_to_bound.begin() + k );
+    dvar_to_bound.erase( dvar_to_bound.begin() + ( index - static_vars ) );
   }
  else
   throw( std::runtime_error(
@@ -3260,7 +3047,7 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
   if( idx < static_vars ) // the variable is static
    svar_to_bound[ idx ] = nullptr;
   else // the variable is dynamic
-   dvar_to_bound[ idx - static_vars - epigraph_cols ] = nullptr;
+   dvar_to_bound[ idx - static_vars ] = nullptr;
   }
  }
 
@@ -3799,10 +3586,6 @@ void MILPSolver::check_status( void )
   dv = v - sv;
  }
 
- // the columns and the rows of the epigraphs are neither static nor dynamic
- v += epigraph_cols;
- c += epigraph_rows;
-
  // Unlock the Block
  if( ! owned )
   f_Block->read_unlock();
@@ -4011,7 +3794,7 @@ void MILPSolver::write_var_solution( const std::vector< double > & x )
  // reliable map for writing the dynamic part of the solution back.
  for( std::size_t i = 0 ; i < idx_to_dvar.size() ; ++i )
   const_cast< ColVariable * >( idx_to_dvar[ i ] )->set_value(
-                                  x[ static_vars + epigraph_cols + i ] );
+                                                x[ static_vars + i ] );
  }  // end( MILPSolver::write_var_solution )
 
 /*--------------------------------------------------------------------------*/
@@ -4060,7 +3843,7 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
     continue;
    if( ! dynamic_cast< LinearFunction * >( c->get_function() ) )
     continue;   // skip quadratic rows
-   const std::size_t row = static_cons + epigraph_rows + i;
+   const std::size_t row = static_cons + i;
    if( row < pi.size() )
     c->set_dual( - pi[ row ] );
    }
@@ -4176,7 +3959,7 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
  for( std::size_t i = 0 ; i < idx_to_dvar.size() ; ++i ) {
   if( ! idx_to_dvar[ i ] )
    continue;
-  col = int( static_vars + epigraph_cols + i );
+  col = int( static_vars + i );
   set_bound( * const_cast< ColVariable * >( idx_to_dvar[ i ] ) );
   }
  }  // end( MILPSolver::write_dual_solution )

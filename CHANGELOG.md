@@ -9,13 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- an Objective whose Function is a `PolyhedralFunction`, e.g., that of a
-  `PolyhedralFunctionBlock` in its natural representation, is written as
-  the epigraph of the function, one column for its value and one row for
-  each of its rows, between the static columns and rows and the dynamic
-  ones; a change of the function, or of the sense of the Objective, loads
-  the problem again, and `get_num_epigraphs()` says how many there are
-
 - `ClarabelMILPSolver` and `OSQPMILPSolver` give the unbounded ray of a
   dual infeasible problem through `get_var_direction()` and the Farkas
   certificate of a primal infeasible one through `get_dual_direction()`,
@@ -184,9 +177,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refused it (10 of the 60 cases of the PolyhedralFunctionBlock battery
   with QuadProgMILPSolver as the solver of the master of the bundle)
 
-- `variable_with_index()` and `constraint_with_index()` of a dynamic column
-  or row check the index against the dynamic ones, rather than reading past
-  them
 - the HiGHS that `HiGHSMILPSolver` asks for is 1.8.0 or later: it calls the
   callbacks of the C API of HiGHS, which came with 1.6.0, and
   `Highs_setSparseSolution`, which came with 1.8.0, so that with a HiGHS

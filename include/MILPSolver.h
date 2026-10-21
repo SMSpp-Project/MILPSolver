@@ -87,8 +87,6 @@
 /// namespace for the Structured Modeling System++ (SMS++)
 namespace SMSpp_di_unipi_it
 {
-class PolyhedralFunction;  // written as its epigraph [see MILPSolver]
-
 /*--------------------------------------------------------------------------*/
 /*------------------------- CLASS MILPSolver -------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -130,22 +128,6 @@ class PolyhedralFunction;  // written as its epigraph [see MILPSolver]
  *
  * 2. Then, the dynamic part, i.e., the part of the rows (Constraints) and
  *    columns (Variables) that can potentially change or stop existing.
- *
- * An Objective whose Function is a PolyhedralFunction (e.g., that of a
- * PolyhedralFunctionBlock in its "natural" representation) is written as
- * the epigraph of the function: one column \f$ v \f$, which takes the place
- * of the function in the objective, and one row for each row \f$ i \f$ of
- * the PolyhedralFunction, \f$ A_i x + b_i \leq v \f$ if it is convex and
- * \f$ A_i x + b_i \geq v \f$ if it is concave, or \f$ A_i x + b_i \leq 0
- * \f$ (\f$ \geq 0 \f$) without \f$ v \f$ for a vertical row, the global
- * bound being the lower (upper) bound of \f$ v \f$. This is the same
- * problem only where the function is minimized if it is convex and
- * maximized if it is concave, hence the other cases are rejected. These
- * columns and rows come after the static ones and before the dynamic ones,
- * and they correspond to no Variable and no Constraint of the Block [see
- * variable_with_index() and constraint_with_index()]; any change of the
- * PolyhedralFunction, or of the sense of the Objective, loads the problem
- * again [see process_modifications()].
  *
  * After set_Block() has been called, the constraint matrix is assumed to
  * have all the information needed from the Block to solve the problem.
@@ -476,15 +458,6 @@ class MILPSolver : public CDASolver
 
  /// returns the number of non-zero elements
  [[nodiscard]] int get_nzelements( void ) const { return( matval.size() ); }
-
- /// returns the number of PolyhedralFunction written as their epigraph
- /** Returns the number of the Objective whose Function is a
-  * PolyhedralFunction, each of which is written as its epigraph, with one
-  * column and as many rows as the rows of the function [see the general
-  * notes]. */
- [[nodiscard]] int get_num_epigraphs( void ) const {
-  return( v_epigraph.size() );
-  }
 
  /// returns the sense of the objective function, see CPXchgobjsen()
  [[nodiscard]] int get_objsense( void ) const { return( objsense ); }
@@ -1420,25 +1393,6 @@ class MILPSolver : public CDASolver
  int static_cons{};        ///< Number of static constraints
  int static_quadcons{};    ///< Number of static quadratic constraints
 
- /// a PolyhedralFunction of an Objective, written as its epigraph
- struct Epigraph {
-  PolyhedralFunction * f;        ///< the function
-  int col;                       ///< the column of its value
-  int row;                       ///< its first row, one per row of f
-  };
-
- std::vector< Epigraph > v_epigraph;  ///< the epigraphs, in BFS order
- int epigraph_cols{};      ///< Number of columns of the epigraphs
- int epigraph_rows{};      ///< Number of rows of the epigraphs
-
- /// the coefficients of each ColVariable in the rows of the epigraphs
- /** Only used while the problem is loaded: the (row, coefficient) pairs of
-  * each ColVariable that is active in a PolyhedralFunction written as its
-  * epigraph, which scan_variable() adds to its column. */
- std::unordered_map< const ColVariable * ,
-                     std::vector< std::pair< int , double > > >
-  m_epigraph_coef;
-
  /** Warm start structures used by the solver.
  *
  * These fields store the initial solution data that can be provided to
@@ -1974,33 +1928,6 @@ class MILPSolver : public CDASolver
   * @param obj a FRealObjective */
 
  void scan_objective( const FRealObjective * obj );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// records the epigraph of the PolyhedralFunction of an Objective, if any
- /** If the Objective of \p qb has a PolyhedralFunction, records its epigraph
-  * in v_epigraph, with the column and the first row relative to the end of
-  * the static columns and rows, and adds its nonzeros to \p nzelements;
-  * throws if the function is convex and \p qb maximizes, or the converse. */
-
- void count_epigraph( Block * qb , Index & nzelements );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// fills the rows of the epigraphs, from \p row on
-
- void scan_epigraph_rows( Index & row );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// fills the columns of the epigraphs, from \p col on
-
- void scan_epigraph_cols( Index & col );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// whether \p mod changes a function written as its epigraph
- /** True if \p mod is a change of a PolyhedralFunction written as its
-  * epigraph, or of the sense of an Objective, which may make the epigraph
-  * the wrong one. */
-
- bool changes_epigraph( const Modification * mod ) const;
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
