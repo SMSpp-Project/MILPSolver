@@ -163,6 +163,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- the CI runs the batteries of the QPs of qpbenchmark (`batchMPC_C`,
+  `batchMM_C` and their dense versions) in a stage `test-qpb` of their
+  own, after `test-miqp`, and the job `test` leaves them out
+
 - `load_problem()` scans the columns with buffers kept for the whole load,
   rather than with a std::set, a std::map and two vectors of its own for
   each column, the entries of a column being the same in the same order,

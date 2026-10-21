@@ -17,6 +17,7 @@ stages:
   - build
   - test
   - test-miqp
+  - test-qpb
   - deploy
 
 build:
@@ -103,7 +104,16 @@ test:
   extends: .test_template
   stage: test
   script:
-    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -E "QuadFunction_test/batches/batch(CL|LC|QL)_I" --test-dir smspp-project/build --no-tests=error
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -E "QuadFunction_test/batches/batch((CL|LC|QL)_I|(MPC|MM)_C)" --test-dir smspp-project/build --no-tests=error
+
+# the QPs of qpbenchmark (MPC and Maros-Meszaros), in a stage of their own
+# for the same reason: their batteries run MOSEK, whose license may cap the
+# sessions as well
+test-qpb:
+  extends: .test_template
+  stage: test-qpb
+  script:
+    - ctest -V -C Release -L "$CI_PROJECT_TITLE" -R "QuadFunction_test/batches/batch(MPC|MM)_C" --test-dir smspp-project/build --no-tests=error
 
 test-miqp:
   extends: .test_template
