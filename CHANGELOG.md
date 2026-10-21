@@ -143,6 +143,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `MILPSolver_USE_quadprog` is ON and `libquadprog` is found (CMake,
   `quadprog_ROOT` as a hint) or is in `quadprog_ROOT/lib` (makefile)
 
+- the C++20 module `smspp.milpsolver` (`src/MILPSolver.cppm`), which exports
+  every name that the headers declare at namespace scope and re-exports
+  `smspp`, so that a source file can write `import smspp.milpsolver;` in
+  place of the `#include` of the headers; it is built with the CMake option
+  `SMSpp_BUILD_MODULE`, as the target `SMS++::MILPSolver_module`. The names
+  of a backend are there only if the backend is
+
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,
