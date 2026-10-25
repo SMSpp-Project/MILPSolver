@@ -1169,15 +1169,14 @@ class MILPSolver : public CDASolver
   *    has index ( i + static_*s ), that is, it is the column/row
   *    ( i + static_*s ) of the constraint matrix.
   * 
-  *  - svar_to_bound : vector of single OneVarConstraint * associated to 
-  *    each static variable. The order of the variables used to sort the 
-  *    array is the one given by Block::get_static_variables.
-  *    NOTE: this is used only if the option intSingleBound is set to 1.
+  *  - svar_to_bound : the OneVarConstraint * associated to each static
+  *    variable, in the order of the columns, so that the reduced costs are
+  *    written without looking for the bounds among the active stuff of each
+  *    variable [see write_dual_solution()]. If the option intSingleBound is
+  *    set to 1, each variable has at most one.
   *
-  *  - dvar_to_bound : vector of single OneVarConstraint * associated to 
-  *    each dynamic variable. The order of the variables used to sort the 
-  *    array is the one given by Block::get_static_variables.
-  *    NOTE: this is used only if the option intSingleBound is set to 1.
+  *  - dvar_to_bound : the same for the dynamic variables, in the order of
+  *    idx_to_dvar.
   *
   * Using these vectors of pair we can at any time locate the index of each
   * constraint and variable within the constraint matrix, and viceversa.
@@ -1201,10 +1200,10 @@ class MILPSolver : public CDASolver
  std::vector< const FRowConstraint * > idx_to_dcon;     
                                         ///< from index to dynamic constraint
 
- std::vector< const OneVarConstraint * > svar_to_bound; 
-                                         ///< from static variable to bound
- std::vector< const OneVarConstraint * > dvar_to_bound; 
-                                         /// from dynamic variable to bound
+ std::vector< std::vector< OneVarConstraint * > > svar_to_bound;
+                                         ///< from static variable to bounds
+ std::vector< std::vector< OneVarConstraint * > > dvar_to_bound;
+                                         ///< from dynamic variable to bounds
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- FIELDS FOR PROBLEM DESCRIPTION ---------------------*/
@@ -1403,9 +1402,7 @@ class MILPSolver : public CDASolver
  int log_verbosity = 0;
 
  /* if true, no more than one OneVarConstraint can be associated to a
- *  single variable. 
- *  Moreover, the vectors svar_to_bound and dvar_to_bound are activated
- *  to guarantee a direct link between variables and bound. */
+ *  single variable. */
  bool single_bound = false;
 
  /* if true, the model should be cleared and re-loaded. This parameter
@@ -1559,10 +1556,11 @@ class MILPSolver : public CDASolver
                std::vector< FRowConstraint * > & active_constraints ) const;
 
  /// gets the active bounds for the specified variable
- /** As get_active_constraints(), the bounds go in \p active_bounds. */
+ /** As get_active_constraints(), the bounds go in \p active_bounds. They are
+  * found among the active stuff of the variable, which is what
+  * svar_to_bound and dvar_to_bound keep track of. */
  void get_active_bounds( const ColVariable & var ,
-                         std::vector< OneVarConstraint * > & active_bounds ,
-                         bool first_scan = false ) const;
+                       std::vector< OneVarConstraint * > & active_bounds ) const;
 
 /*--------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */
