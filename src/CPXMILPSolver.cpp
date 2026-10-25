@@ -631,37 +631,9 @@ int CPXMILPSolver::guts_of_compute( void )
   return( sol_status );
   }
 
- int cpx_status = CPXgetstat( env , lp );
- // Ill-conditioned convex QPs can receive an infeasible status from
- // simplex even when their homogeneous constraints admit the zero point.
- // This occurs in scaled level masters with large multipliers. Verify the
- // status with one barrier solve before exposing it to callers as a proof
- // of infeasibility. Preserve all tolerances and restore the selected QP
- // method for subsequent solves; a low-precision retry remains low precision.
- if( is_qp && cpx_status == CPX_STAT_INFEASIBLE ) {
-  int method;
-  if( const int error = CPXgetintparam( env , CPXPARAM_QPMethod , & method ) ) {
-   sol_status = decode_cpx_error( error );
-   return( sol_status );
-   }
-  if( method != CPX_ALG_BARRIER ) {
-   if( const int error = CPXsetintparam( env , CPXPARAM_QPMethod ,
-                                       CPX_ALG_BARRIER ) ) {
-    sol_status = decode_cpx_error( error );
-    return( sol_status );
-    }
-   DEBUG_LOG( "Retrying an infeasible QP with barrier" << std::endl );
-   const int retry_error = CPXqpopt( env , lp );
-   const int restore_error = CPXsetintparam( env , CPXPARAM_QPMethod , method );
-   if( restore_error || retry_error ) {
-    sol_status = decode_cpx_error( restore_error ? restore_error : retry_error );
-    return( sol_status );
-    }
-   cpx_status = CPXgetstat( env , lp );
-   }
-  }
-
- sol_status = decode_lqp_status( cpx_status );
+ // Respect the selected algorithm and propagate its status directly.
+ // An infeasible primal level projection is an ordinary empty-level result.
+ sol_status = decode_lqp_status( CPXgetstat( env , lp ) );
  return( sol_status );
 
  }  // end( CPXMILPSolver::guts_of_compute )
