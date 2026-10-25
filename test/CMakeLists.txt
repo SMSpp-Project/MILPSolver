@@ -144,6 +144,13 @@ add_test(NAME test_cutoff_status
          COMMAND test_cutoff_status
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_free_workspace ------------------------------------------------- #
+
+add_milp_test(test_free_workspace test_free_workspace.cpp)
+add_test(NAME test_free_workspace
+         COMMAND test_free_workspace
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)

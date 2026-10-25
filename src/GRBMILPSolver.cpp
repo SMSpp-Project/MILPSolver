@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <queue>
 #include <iostream>
 #include <map>
@@ -235,6 +236,10 @@ void GRBMILPSolver::clear_problem( unsigned int what )
   GRBfreemodel( model );
   model = nullptr;
   }
+
+ f_kept = KeptSolution();
+ f_vbasis.clear();
+ f_cbasis.clear();
  }
 
  /*--------------------------------------------------------------------------*/
@@ -280,11 +285,168 @@ GRBmodel * GRBMILPSolver::updated_model( void ) const
  if( f_model_dirty ) {
   f_model_dirty = false;
   GRBupdatemodel( model );
+  // a changed model has no solution, the kept one included
+  f_kept.valid = false;
   }
 
  return( model );
 
  }  // end( GRBMILPSolver::updated_model )
+
+/*--------------------------------------------------------------------------*/
+
+int GRBMILPSolver::sol_int_attr( const char * name , int * value ) const
+{
+ auto m = updated_model();
+ if( ! f_kept.valid )
+  return( GRBgetintattr( m , name , value ) );
+
+ if( ! std::strcmp( name , GRB_INT_ATTR_STATUS ) )
+  *value = f_kept.status;
+ else
+  if( ! std::strcmp( name , GRB_INT_ATTR_SOLCOUNT ) )
+   *value = f_kept.solcount;
+  else
+   return( GRB_ERROR_DATA_NOT_AVAILABLE );
+
+ return( 0 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+int GRBMILPSolver::sol_dbl_attr( const char * name , double * value ) const
+{
+ auto m = updated_model();
+ if( ! f_kept.valid )
+  return( GRBgetdblattr( m , name , value ) );
+
+ if( ! std::strcmp( name , GRB_DBL_ATTR_OBJVAL ) )
+  *value = f_kept.objval;
+ else
+  if( ! std::strcmp( name , GRB_DBL_ATTR_OBJBOUND ) ) {
+   if( f_kept.objbound_err )
+    return( f_kept.objbound_err );
+   *value = f_kept.objbound;
+   }
+  else
+   if( ! std::strcmp( name , GRB_DBL_ATTR_RUNTIME ) )
+    *value = f_kept.runtime;
+   else
+    if( ! std::strcmp( name , GRB_DBL_ATTR_NODECOUNT ) )
+     *value = f_kept.nodecount;
+    else
+     return( GRB_ERROR_DATA_NOT_AVAILABLE );
+
+ return( 0 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+int GRBMILPSolver::sol_dbl_attrarray( const char * name , int first ,
+                                      int len , double * values ) const
+{
+ auto m = updated_model();
+ if( ! f_kept.valid )
+  return( GRBgetdblattrarray( m , name , first , len , values ) );
+
+ const std::vector< double > * v = nullptr;
+ if( ! std::strcmp( name , GRB_DBL_ATTR_X ) )
+  v = & f_kept.x;
+ else
+  if( ! std::strcmp( name , GRB_DBL_ATTR_RC ) )
+   v = & f_kept.rc;
+  else
+   if( ! std::strcmp( name , GRB_DBL_ATTR_PI ) )
+    v = & f_kept.pi;
+
+ if( ( ! v ) || ( first < 0 ) || ( len < 0 ) ||
+     ( std::size_t( first ) + std::size_t( len ) > v->size() ) )
+  return( GRB_ERROR_DATA_NOT_AVAILABLE );
+
+ std::copy_n( v->begin() + first , len , values );
+ return( 0 );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::free_workspace( void )
+{
+ auto m = updated_model();
+ int n , r;
+ if( GRBgetintattr( m , GRB_INT_ATTR_NUMVARS , & n ) ||
+     GRBgetintattr( m , GRB_INT_ATTR_NUMCONSTRS , & r ) )
+  return;
+
+ KeptSolution kept;
+ kept.x.resize( n );
+ kept.rc.resize( n );
+ kept.pi.resize( r );
+ if( GRBgetintattr( m , GRB_INT_ATTR_STATUS , & kept.status ) ||
+     GRBgetintattr( m , GRB_INT_ATTR_SOLCOUNT , & kept.solcount ) ||
+     GRBgetdblattr( m , GRB_DBL_ATTR_OBJVAL , & kept.objval ) ||
+     GRBgetdblattr( m , GRB_DBL_ATTR_RUNTIME , & kept.runtime ) ||
+     GRBgetdblattrarray( m , GRB_DBL_ATTR_X , 0 , n , kept.x.data() ) ||
+     GRBgetdblattrarray( m , GRB_DBL_ATTR_RC , 0 , n , kept.rc.data() ) ||
+     ( r && GRBgetdblattrarray( m , GRB_DBL_ATTR_PI , 0 , r ,
+                                kept.pi.data() ) ) )
+  return;  // a solution that cannot be read whole is left in the model
+
+ kept.objbound_err = GRBgetdblattr( m , GRB_DBL_ATTR_OBJBOUND ,
+                                    & kept.objbound );
+ if( GRBgetdblattr( m , GRB_DBL_ATTR_NODECOUNT , & kept.nodecount ) )
+  kept.nodecount = 0;
+
+ // the basis, which a solve that ends without one (say, a barrier without
+ // crossover) does not have: the next solve then starts cold
+ std::vector< int > vb( n ) , cb( r );
+ if( GRBgetintattrarray( m , GRB_INT_ATTR_VBASIS , 0 , n , vb.data() ) ||
+     ( r && GRBgetintattrarray( m , GRB_INT_ATTR_CBASIS , 0 , r ,
+                                cb.data() ) ) ) {
+  vb.clear();
+  cb.clear();
+  }
+
+ auto copy = GRBcopymodel( m );
+ if( ! copy )
+  return;
+
+ GRBfreemodel( model );
+ model = copy;
+ apply_env_parameters();
+
+ f_kept = std::move( kept );
+ f_kept.valid = true;
+ f_vbasis = std::move( vb );
+ f_cbasis = std::move( cb );
+
+ }  // end( GRBMILPSolver::free_workspace )
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::restore_basis( void )
+{
+ if( f_vbasis.empty() )
+  return;
+
+ auto vb = std::move( f_vbasis );
+ auto cb = std::move( f_cbasis );
+ f_vbasis.clear();
+ f_cbasis.clear();
+
+ auto m = updated_model();
+ int n , r;
+ if( GRBgetintattr( m , GRB_INT_ATTR_NUMVARS , & n ) ||
+     GRBgetintattr( m , GRB_INT_ATTR_NUMCONSTRS , & r ) ||
+     ( std::size_t( n ) < vb.size() ) || ( std::size_t( r ) < cb.size() ) )
+  return;
+
+ vb.resize( n , GRB_NONBASIC_LOWER );
+ cb.resize( r , GRB_BASIC );
+ GRBsetintattrarray( m , GRB_INT_ATTR_VBASIS , 0 , n , vb.data() );
+ if( r )
+  GRBsetintattrarray( m , GRB_INT_ATTR_CBASIS , 0 , r , cb.data() );
+
+ }  // end( GRBMILPSolver::restore_basis )
 
 /*--------------------------------------------------------------------------*/
 
@@ -777,6 +939,9 @@ int GRBMILPSolver::guts_of_compute( void )
   GRBwrite( updated_model() , output_file.c_str() );
  }
 
+ // the solution kept from the previous solve is about to be replaced
+ f_kept.valid = false;
+
  // figure out which API function is to be called - - - - - - - - - - - - - -
  bool is_qp = false;
  int qp;
@@ -838,7 +1003,7 @@ int GRBMILPSolver::guts_of_compute( void )
    }
 
   int m_status;
-  GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
+  sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
 
   // a run that the callback interrupted at a cutoff is no failure, and
   // MILPSolver::compute() gives kCutOff for it
@@ -859,13 +1024,15 @@ int GRBMILPSolver::guts_of_compute( void )
   f_callback_set = false;
   }
 
+ restore_basis();
+
  if( int status = optimize( updated_model() ) ) {
   sol_status = decode_grb_error( status );
   return( sol_status );
   }
 
  int m_status;
- GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
+ sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
 
  // If Gurobi's presolve returned INF_OR_UNBD it can't tell whether the
  // model is infeasible or unbounded. Per Gurobi documentation, the way
@@ -885,7 +1052,7 @@ int GRBMILPSolver::guts_of_compute( void )
    sol_status = decode_grb_error( status );
    return( sol_status );
    }
-  GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , & m_status );
+  sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
   }
 
@@ -897,6 +1064,12 @@ int GRBMILPSolver::guts_of_compute( void )
  // infeasible or an unbounded model has, comes from a solve of its own
  if( ( sol_status == kInfeasible ) || ( sol_status == kUnbounded ) )
   compute_certificate( m_status );
+
+ // an optimal LP, whose solution is all in X, Pi and RC, can do without the
+ // workspace of GUROBI until the next solve [see intFreeWorkspace]
+ if( f_free_workspace && ( m_status == GRB_OPTIMAL ) && ( ! is_qp ) &&
+     ( numquadrows == 0 ) )
+  free_workspace();
 
  return( sol_status );
 
@@ -1118,7 +1291,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     case( kStopIter ):
     case( kCutOff ):
     case( kStopTime ):
-     GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
+     sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
      if( m_status == GRB_CUTOFF )
@@ -1136,7 +1309,7 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
          lower_bound = -Inf< OFValue >();
          break;
          }
-        GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &lower_bound );
+        sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &lower_bound );
         }
       else {
         // OBJBOUND belongs to the branch-and-bound: a model solved without
@@ -1147,15 +1320,13 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
         // *is* the bound, and reporting -infinity instead throws away what
         // the Solver has proved; otherwise (say, a sub-optimal or stopped
         // solve) there is no bound
-        if( GRBgetdblattr( updated_model() ,
-                           GRB_DBL_ATTR_OBJBOUND , &lower_bound ) ||
+        if( sol_dbl_attr( GRB_DBL_ATTR_OBJBOUND , &lower_bound ) ||
             ( std::abs( lower_bound ) >= GRB_INFINITY ) ) {
          if( m_status != GRB_OPTIMAL ) {
           lower_bound = -Inf< OFValue >();
           break;
           }
-         GRBgetdblattr( updated_model() ,
-                        GRB_DBL_ATTR_OBJVAL , &lower_bound );
+         sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &lower_bound );
          }
         }
 
@@ -1196,14 +1367,14 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       }
 
     case( kOK ):
-     GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
+     sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
      if( m_status == GRB_CUTOFF )
       throw( std::runtime_error(
                  "GRBMILPSolver: no solution information is available "
                  "with GRB_CUTOFF status" ) );
-     GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &lower_bound );
+     sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &lower_bound );
      lower_bound += constant_value;
      break;
 
@@ -1258,14 +1429,14 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
       }
 
     case( kOK ):
-     GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
+     sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
      if( m_status == GRB_CUTOFF )
       throw( std::runtime_error(
                  "GRBMILPSolver: no solution information is available "
                  "with GRB_CUTOFF status" ) );
-     GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &upper_bound );
+     sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &upper_bound );
      upper_bound += constant_value;
      break;
 
@@ -1296,7 +1467,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     case( kStopIter ):
     case( kCutOff ):
     case( kStopTime ):
-     GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
+     sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
      // when a gurobi model stop with cutoff status, 
      // no solution information is available
      if( m_status == GRB_CUTOFF )
@@ -1314,20 +1485,18 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
          upper_bound = Inf< OFValue >();
          break;
          }
-        GRBgetdblattr( updated_model() , GRB_DBL_ATTR_OBJVAL , &upper_bound );
+        sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &upper_bound );
         }
       else
         // as in get_lb(): no OBJBOUND is the optimal value if optimal and
         // no bound otherwise
-        if( GRBgetdblattr( updated_model() ,
-                           GRB_DBL_ATTR_OBJBOUND , &upper_bound ) ||
+        if( sol_dbl_attr( GRB_DBL_ATTR_OBJBOUND , &upper_bound ) ||
             ( std::abs( upper_bound ) >= GRB_INFINITY ) ) {
          if( m_status != GRB_OPTIMAL ) {
           upper_bound = Inf< OFValue >();
           break;
           }
-         GRBgetdblattr( updated_model() ,
-                        GRB_DBL_ATTR_OBJVAL , &upper_bound );
+         sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &upper_bound );
          }
      upper_bound += constant_value;
      break;
@@ -1361,8 +1530,7 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
 bool GRBMILPSolver::has_var_solution( void )
 {
  int n_solution;
- int status = GRBgetintattr( updated_model() ,
-                             GRB_INT_ATTR_SOLCOUNT , & n_solution );
+ int status = sol_int_attr( GRB_INT_ATTR_SOLCOUNT , & n_solution );
 
  if( status )
   throw( std::runtime_error(
@@ -1402,7 +1570,7 @@ void GRBMILPSolver::get_var_solution( Configuration * solc )
  std::vector< double > x( numcols , 0 );
  std::vector< double > x_grb( tot_grb_vars, 0 );
 
- if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_X , 0 , tot_grb_vars , x_grb.data() ) )
+ if( sol_dbl_attrarray( GRB_DBL_ATTR_X , 0 , tot_grb_vars , x_grb.data() ) )
   throw( std::runtime_error(
              "GRBMILPSolver::get_var_solution: "
              "unable to get the solution with GRB_DBL_ATTR_X" ) );
@@ -1465,7 +1633,7 @@ bool GRBMILPSolver::has_var_direction( void )
  // Sometimes we could be interested in retrieveing dual values also for 
  // unfeasible model to prove dual unboundness
  int m_status;
- GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
+ sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
 
  int n_ranged_con = map_rng_con_aux_var.size();
  int n_aux_quad_var = grb_idx_aux_qvar.size();
@@ -1562,7 +1730,7 @@ bool GRBMILPSolver::has_dual_solution( void )
   // Sometimes we could be interested in retrieveing dual values also for 
   // unfeasible model to prove dual unboundness
  int m_status;
- GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , &m_status );
+ sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
 
  std::vector< double > farkas( numrows , 0 );
 
@@ -1609,10 +1777,9 @@ bool GRBMILPSolver::has_dual_solution( void )
  // probe, and asking for the first one fails with DATA_NOT_AVAILABLE: its
  // dual solution is all in the reduced costs, which are probed instead.
  std::vector< double > small_pi( 1 , 0 );
- if( int status = GRBgetdblattrarray( updated_model() ,
-                                      numrows ? GRB_DBL_ATTR_PI
-                                              : GRB_DBL_ATTR_RC , 0 ,
-                                      1 , small_pi.data() ) ) {
+ if( int status = sol_dbl_attrarray( numrows ? GRB_DBL_ATTR_PI
+                                               : GRB_DBL_ATTR_RC , 0 ,
+                                       1 , small_pi.data() ) ) {
   // Warning message
   std::string msg = std::string("GRBMILPSolver Warning [")
     + __func__ + "]: Query of dual values with attributes GRB_PI " 
@@ -1661,14 +1828,14 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
  std::vector< double > dj_grb( numcols + n_ranged_con + grb_idx_aux_qvar.size(), 0 );
 
  if( numrows > 0 )
-  if( int status = GRBgetdblattrarray( updated_model() ,
-                                       GRB_DBL_ATTR_PI , 0 , 
-                      numrows - nq_linnull , pi_grb.data() ) )
+  if( int status = sol_dbl_attrarray( GRB_DBL_ATTR_PI , 0 ,
+                                       numrows - nq_linnull ,
+                                       pi_grb.data() ) )
    throw( std::runtime_error(
               "GRBMILPSolver::get_dual_solution: "
               "unable to get dual values querying GRB_PI" ) );
 
- if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_RC , 0 , 
+ if( sol_dbl_attrarray( GRB_DBL_ATTR_RC , 0 , 
           numcols + n_ranged_con + grb_idx_aux_qvar.size() , dj_grb.data() ) )
   throw( std::runtime_error(
              "GRBMILPSolver::get_dual_solution: "
@@ -1750,7 +1917,7 @@ bool GRBMILPSolver::has_dual_direction( void )
  std::vector< double > y( numrows , 0 );
 
  int model_status;
- GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , & model_status );
+ sol_int_attr( GRB_INT_ATTR_STATUS , & model_status );
 
  switch( model_status ) {
   case( GRB_INFEASIBLE ):
@@ -1843,7 +2010,7 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
   // the model is genuinely infeasible with an empty column domain; any other
   // failure is a real error and is re-thrown.
   int model_status = -1;
-  GRBgetintattr( updated_model() , GRB_INT_ATTR_STATUS , & model_status );
+  sol_int_attr( GRB_INT_ATTR_STATUS , & model_status );
 
   bool empty_domain = false;
   if( model_status == GRB_INFEASIBLE ) {
@@ -4328,7 +4495,7 @@ Solver::OFValue GRBMILPSolver::get_bestbound_callback( void ) {
 int GRBMILPSolver::get_nodes( void ) const
 {
  double nodecnt;
- GRBgetdblattr( updated_model() , GRB_DBL_ATTR_NODECOUNT , & nodecnt );
+ sol_dbl_attr( GRB_DBL_ATTR_NODECOUNT , & nodecnt );
  return( nodecnt );
  }
 
@@ -4524,7 +4691,7 @@ bool GRBMILPSolver::has_feasible_sol( void )
 double GRBMILPSolver::get_runtime( void ) const
 {
  double runtime = 0;
- GRBgetdblattr( updated_model() , GRB_DBL_ATTR_RUNTIME , &runtime );
+ sol_dbl_attr( GRB_DBL_ATTR_RUNTIME , &runtime );
  
  return( runtime );
  }
@@ -4663,7 +4830,7 @@ std::string GRBMILPSolver::grb_int_par_map( idx_type par ) const
   }
 
  // GUROBI parameters
- if( ( par >= intFirstGUROBIPar ) && ( par < intLastAlgParGRBS ) ) {
+ if( ( par >= intFirstGUROBIPar ) && ( par < intFreeWorkspace ) ) {
   return( SMSpp_to_GUROBI_int_pars[ par - intFirstGUROBIPar ] );
 
   }
@@ -4703,6 +4870,11 @@ void GRBMILPSolver::set_par( idx_type par , int value )
  // mapping below
  if( par == intLogVerb )
   log_verbosity = value;
+
+ if( par == intFreeWorkspace ) {
+  f_free_workspace = bool( value );
+  return;
+  }
 
  if( par == intMaxIter ) { // intMaxIter is an int parameter in sms++ but a double in Gurobi
   set_par( par , (double)value );
@@ -4873,6 +5045,9 @@ Solver::idx_type GRBMILPSolver::get_num_vstr_par( void ) const {
 
 int GRBMILPSolver::get_dflt_int_par( idx_type par ) const
 {
+ if( par == intFreeWorkspace )
+  return( 0 );
+
  // intCutSepPar is now handled by MILPSolver base
 
  std::string gp = grb_int_par_map( par );
@@ -4959,6 +5134,9 @@ const std::vector< std::string > & GRBMILPSolver::get_dflt_vstr_par(
 
 int GRBMILPSolver::get_int_par( idx_type par ) const
 {
+ if( par == intFreeWorkspace )
+  return( f_free_workspace );
+
  // intCutSepPar is now handled by MILPSolver base
 
  std::string gp = grb_int_par_map( par );
@@ -5069,6 +5247,9 @@ Solver::idx_type GRBMILPSolver::int_par_str2idx(
  if( idx < Inf< idx_type >() )
   return( idx );
 
+ if( name == "intFreeWorkspace" )
+  return( intFreeWorkspace );
+
  // GUROBI parameters
  std::string gurobi_par = name;
  auto array_pos = std::find( SMSpp_to_GUROBI_int_pars.begin() ,
@@ -5097,8 +5278,13 @@ const std::string & GRBMILPSolver::int_par_idx2str( idx_type idx ) const
  static std::string par_name;
  par_name.reserve( 512 );
 
- if( ( idx >= intFirstGUROBIPar ) && ( idx < intLastAlgParGRBS ) ) {
+ if( ( idx >= intFirstGUROBIPar ) && ( idx < intFreeWorkspace ) ) {
   par_name = SMSpp_to_GUROBI_int_pars[ idx - intFirstGUROBIPar ];
+  return( par_name );
+  }
+
+ if( idx == intFreeWorkspace ) {
+  par_name = "intFreeWorkspace";
   return( par_name );
   }
 

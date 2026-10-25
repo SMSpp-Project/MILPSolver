@@ -117,39 +117,43 @@ void MILPSolver::set_Block( Block * block )
 
 void MILPSolver::clear_problem( unsigned int what )
 {
+ // clear() keeps the capacity, i.e., a second copy of the model next to the
+ // one of the back-end for as long as the Solver lives: it is given back
+ auto release = []( auto & v ) { v.clear(); v.shrink_to_fit(); };
+
  if( what & 1u ) {
-  matbeg.clear();
-  matcnt.clear();
-  matind.clear();
-  matval.clear();
-  xctype.clear();
-  q_part.clear();
+  release( matbeg );
+  release( matcnt );
+  release( matind );
+  release( matval );
+  release( xctype );
+  release( q_part );
 
   for( auto & i: colname )
    delete[] i;
   for( auto & i: rowname )
    delete[] i;
-  colname.clear();
-  rowname.clear();
+  release( colname );
+  release( rowname );
   }
 
  if( what & 2u ) {
-  objective.clear();
-  q_objective.clear();
-  ndq_objective.clear();
-  ndq_rowind.clear();
-  ndq_colind.clear();
+  release( objective );
+  release( q_objective );
+  release( ndq_objective );
+  release( ndq_rowind );
+  release( ndq_colind );
   }
 
  if( what & 4u ) {
-  sense.clear();
-  rhs.clear();
-  rngval.clear();
+  release( sense );
+  release( rhs );
+  release( rngval );
   }
 
  if( what & 8u ) {
-  lb.clear();
-  ub.clear();
+  release( lb );
+  release( ub );
   }
  }
 

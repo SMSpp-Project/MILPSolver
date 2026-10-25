@@ -101,8 +101,10 @@ class GRBMILPSolver : public MILPSolver {
  enum int_par_type_GRBS {
   // note: intCutSepPar has moved to MILPSolver base (enum int_par_type_MILP)
   intFirstGUROBIPar = intLastAlgParMILP ,  ///< first Gurobi int/long parameter
+  /// free the workspace of GUROBI after each optimal continuous solve
+  intFreeWorkspace = intFirstGUROBIPar + GRB_NUM_INT_PARS ,
   /// first allowed new int parameter for derived classes
-  intLastAlgParGRBS = intFirstGUROBIPar + GRB_NUM_INT_PARS
+  intLastAlgParGRBS
   };
 
  /// enum for double parameters
@@ -314,7 +316,16 @@ void add_mip_starts(
   *           a feasible solution is generated
   *
   *   See vintCutSepCfgInd for properly setting Configurations for the
-  *   corresponding calls to generate_dynamic_constraint(). */
+  *   corresponding calls to generate_dynamic_constraint().
+  *
+  * - intFreeWorkspace [0]: if nonzero, after a solve of a continuous model
+  *   ending optimal the solution, the duals, the reduced costs and the basis
+  *   are kept by the Solver, and the model is replaced by a copy of itself,
+  *   which frees the workspace GUROBI keeps after a solve (several times
+  *   the memory of the model itself); the next solve starts from the kept
+  *   basis, hence from the same point. The price is one factorization of
+  *   the basis per solve. It pays when many Solver keep their model between
+  *   solves, as those of the subproblems of a decomposition do. */
 
  void set_par( idx_type par , int value ) override;
 
@@ -755,6 +766,38 @@ void add_mip_starts(
  GRBmodel * updated_model( void ) const;
 
 /*--------------------------------------------------------------------------*/
+ /// an attribute of the solution, from the model or from what was kept
+ /** The attributes of the solution of the last solve: those that the model
+  * has, or those kept when the workspace was freed, for the copy of the
+  * model has none [see intFreeWorkspace and free_workspace()]. The returned
+  * value is that of the GUROBI call it stands for. */
+
+ int sol_int_attr( const char * name , int * value ) const;
+
+ int sol_dbl_attr( const char * name , double * value ) const;
+
+ int sol_dbl_attrarray( const char * name , int first , int len ,
+                        double * values ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// keeps the solution and the basis, and replaces the model by a copy
+ /** Called after a solve of a continuous model ending optimal when
+  * intFreeWorkspace is nonzero: the attributes of the solution and the basis
+  * are kept, and the model is replaced by a copy of itself, with no
+  * workspace. If GUROBI cannot copy the model, nothing changes. */
+
+ void free_workspace( void );
+
+/*--------------------------------------------------------------------------*/
+ /// gives the model the basis kept by free_workspace(), if any
+ /** A row or a column added since gets the status of a basic row or of a
+  * column at its lower bound, which is how GUROBI warm starts after the
+  * same change to a model it has kept; a model with fewer rows or columns
+  * than the basis starts cold. */
+
+ void restore_basis( void );
+
+/*--------------------------------------------------------------------------*/
  /// the objective coefficients of the given columns, read in one call
  /** Reads the linear coefficient of the Objective for each of the given
   * columns, in one call and therefore bringing the model up to date once
@@ -796,6 +839,30 @@ void add_mip_starts(
  mutable bool f_model_dirty = false;
 
  bool f_callback_set;  // true if the callback has been set
+
+ bool f_free_workspace = false;  ///< intFreeWorkspace
+
+ /// the attributes of the solution kept by free_workspace()
+ /**< Valid until the model is changed or solved again, which is when GUROBI
+  * discards the solution of a model it keeps [see updated_model()]. */
+ struct KeptSolution {
+  bool valid = false;
+  int status = 0;
+  int solcount = 0;
+  double objval = 0;
+  int objbound_err = 0;  ///< the GUROBI error asking ObjBound, if any
+  double objbound = 0;
+  double runtime = 0;
+  double nodecount = 0;
+  std::vector< double > x;   ///< X
+  std::vector< double > rc;  ///< RC
+  std::vector< double > pi;  ///< Pi
+  };
+ mutable KeptSolution f_kept;
+
+ /// the basis kept by free_workspace(), until the next solve
+ std::vector< int > f_vbasis;
+ std::vector< int > f_cbasis;
 
  /// how many GRBMILPSolver are using the shared environment
  static unsigned int f_env_users;

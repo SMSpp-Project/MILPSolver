@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is not empty (e.g., `make SMSppMOD=1`), with clang++ 16 or later [see
   `lib/makefile-mod` of SMS++]
 
+- `intFreeWorkspace` of `GRBMILPSolver`, off by default: after a solve of
+  a continuous model ending optimal, the solution, the duals, the reduced
+  costs and the basis are kept by the `Solver` and the model is replaced
+  by a copy of itself, which frees the workspace GUROBI keeps after a
+  solve, and the next solve starts from the kept basis. On the 200
+  subproblems of a Benders decomposition of a PyPSA-Eur instance with 200
+  scenarios the peak memory goes from 50 to 30 GB, with the same rounds
+  and time; `test_free_workspace` checks that the two give the same
+  values, primal and dual, across changes of sides, bounds and costs and
+  an infeasible solve
+
 - `dblKKTTol`, off by default: when positive, `compute()` writes the
   solution in the `Block` after a solve that returns `kOK` and measures
   its primal residual, its dual residual and its gap, with the duals in the
@@ -173,6 +184,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `clang-scan-deps`) or MSVC 19.34, or a module it imports that is not
   there: the option is turned off with a warning that says why, and the
   build goes on with the headers [see `cmake/CheckModule.cmake` of SMS++]
+
+- `MILPSolver::clear_problem()` gives back the memory of the arrays the
+  model is loaded from, which `clear()` kept, so that a `Solver` no longer
+  holds a second copy of its model next to the one of the back-end
 
 - the minimum versions of the QP back-ends are those their code builds and
   passes the tests with, checked by CMake: MOSEK 11.0.1 (was 10.0, which
