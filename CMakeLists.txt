@@ -439,10 +439,10 @@ add_library(${modNamespace}::${modName} ALIAS ${modName})
 # when SMSpp_BUILD_MODULE is ON, which needs CMake 3.28 or later, the Ninja or
 # Visual Studio generator and a compiler that scans the dependencies of the
 # modules.
+# Where these are missing, or a module it imports is not there, the option
+# is turned off with a warning [see CheckModule.cmake of SMS++].
+smspp_check_module(${modNamespace}::SMS++_module)
 if (SMSpp_BUILD_MODULE)
-    if (CMAKE_VERSION VERSION_LESS 3.28)
-        message(FATAL_ERROR "SMSpp_BUILD_MODULE needs CMake 3.28 or later")
-    endif ()
     # the scan of the module dependencies, and $<LINK_ONLY> honoured also for
     # the target itself, which cmake_policy(VERSION 3.15) above leaves off
     cmake_policy(SET CMP0155 NEW)

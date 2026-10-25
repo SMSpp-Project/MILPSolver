@@ -287,6 +287,23 @@ ifneq ($(QUADPROG_PRESENT),)
     MILPSH += $(MILPSSDR)/include/QuadProgMILPSolver.h
 endif
 
+# the C++20 module smspp.milpsolver - - - - - - - - - - - - - - - - - - - - -
+# [see makefile-mod of SMS++]
+
+# the -D that select the headers of the back-ends in the module
+MILPSMODD = $(addprefix -DMILPSolver_MODULE_,CPLEX GUROBI SCIP HiGHS \
+	$(if $(PIPS_PRESENT),PIPS) $(if $(DAQP_PRESENT),DAQP) \
+	$(if $(QPOASES_PRESENT),qpOASES) $(if $(CLARABEL_PRESENT),Clarabel) \
+	$(if $(MOSEK_PRESENT),MOSEK) $(if $(ProxSuite_PRESENT),ProxQP) \
+	$(if $(PIQP_PRESENT),PIQP) $(if $(OSQP_PRESENT),OSQP) \
+	$(if $(QPMAD_PRESENT),qpmad) $(if $(QUADPROG_PRESENT),quadprog))
+
+$(eval $(call SMSppMODrule,MILPS,$(MILPSSDR),MILPSolver,smspp.milpsolver,\
+	$(SMS++MOD),$(MILPSMODD)))
+
+# the interface includes the *MILPSolver.h, hence the parameter headers
+$(MILPSSDR)/obj/MILPSolver_module.o: $(PARSH)
+
 # clean target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::

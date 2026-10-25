@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- the makefiles build the C++20 module `smspp.milpsolver` when `SMSppMOD`
+  is not empty (e.g., `make SMSppMOD=1`), with clang++ 16 or later [see
+  `lib/makefile-mod` of SMS++]
+
 - `dblKKTTol`, off by default: when positive, `compute()` writes the
   solution in the `Block` after a solve that returns `kOK` and measures
   its primal residual, its dual residual and its gap, with the duals in the
@@ -162,6 +166,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of a backend are there only if the backend is
 
 ### Changed
+
+- `SMSpp_BUILD_MODULE` no longer stops the configuration when the C++20
+  module cannot be built, i.e., with a CMake older than 3.28, a generator
+  other than Ninja or Visual Studio, a compiler other than Clang 16 (with
+  `clang-scan-deps`) or MSVC 19.34, or a module it imports that is not
+  there: the option is turned off with a warning that says why, and the
+  build goes on with the headers [see `cmake/CheckModule.cmake` of SMS++]
 
 - the minimum versions of the QP back-ends are those their code builds and
   passes the tests with, checked by CMake: MOSEK 11.0.1 (was 10.0, which
