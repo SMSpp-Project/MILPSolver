@@ -423,6 +423,7 @@ void MILPSolver::load_problem( void )
  // Acccount also for link between variables and bound
  svar_to_bound.clear();
  dvar_to_bound.clear();
+ m_more_bounds.clear();
  svar_to_bound.reserve( static_vars );
  dvar_to_bound.reserve( numcols - static_vars );
 
@@ -1536,7 +1537,8 @@ void MILPSolver::scan_static_variable_bound( const ColVariable & var )
               "OneVarConstraint can be associated to a variable when "
               "the option intSingleBound is set to 1" ) );
 
- svar_to_bound.push_back( active_bounds );
+ svar_to_bound.push_back( nullptr );
+ set_column_bounds( svar_to_bound.back() , var , active_bounds );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1555,7 +1557,41 @@ void MILPSolver::scan_dynamic_variable_bound( const ColVariable & var )
               "OneVarConstraint can be associated to a variable when "
               "the option intSingleBound is set to 1" ) );
 
- dvar_to_bound.push_back( active_bounds );
+ dvar_to_bound.push_back( nullptr );
+ set_column_bounds( dvar_to_bound.back() , var , active_bounds );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::set_column_bounds( OneVarConstraint * & slot ,
+                                    const ColVariable & var ,
+                       const std::vector< OneVarConstraint * > & bounds )
+{
+ slot = bounds.empty() ? nullptr : bounds.front();
+ if( bounds.size() > 1 )
+  m_more_bounds[ & var ].assign( bounds.begin() + 1 , bounds.end() );
+ else
+  m_more_bounds.erase( & var );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::get_column_bounds( int col , const ColVariable & var ,
+                           std::vector< OneVarConstraint * > & bounds ) const
+{
+ bounds.clear();
+ auto first = ( col < static_vars ) ? svar_to_bound[ col ]
+                                    : dvar_to_bound[ col - static_vars ];
+ if( ! first )
+  return;
+
+ bounds.push_back( first );
+ if( m_more_bounds.empty() )
+  return;
+
+ auto it = m_more_bounds.find( & var );
+ if( it != m_more_bounds.end() )
+  bounds.insert( bounds.end() , it->second.begin() , it->second.end() );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -3038,15 +3074,19 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 
  // the new bound goes with the others of the variable; with the check on
  // SingleBound active, there must be none
- auto & bounds = ( idx < static_vars ) ? svar_to_bound[ idx ]
-                                       : dvar_to_bound[ idx - static_vars ];
- if( single_bound && ( ! bounds.empty() ) )
+ auto & slot = ( idx < static_vars ) ? svar_to_bound[ idx ]
+                                     : dvar_to_bound[ idx - static_vars ];
+ if( single_bound && slot )
   throw( std::logic_error(
              "MILPSolver::add_dynamic_bound: only a single "
              "OneVarConstraint can be associated to a variable when "
              "the option intSingleBound is set to 1" ) );
 
- bounds.push_back( const_cast< OneVarConstraint * >( con ) );
+ auto bound = const_cast< OneVarConstraint * >( con );
+ if( slot )
+  m_more_bounds[ var ].push_back( bound );
+ else
+  slot = bound;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -3114,6 +3154,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
   dvar_to_idx.erase( it1 );
   idx_to_dvar.erase( idx_to_dvar.begin() + ( index - static_vars ) );
   dvar_to_bound.erase( dvar_to_bound.begin() + ( index - static_vars ) );
+  m_more_bounds.erase( var );
   }
  else
   throw( std::runtime_error(
@@ -3178,11 +3219,25 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  lb[ idx ] = bd[ 0 ];
  ub[ idx ] = bd[ 1 ];
 
- // the bound leaves the others of the variable
- auto & bounds = ( idx < static_vars ) ? svar_to_bound[ idx ]
-                                       : dvar_to_bound[ idx - static_vars ];
- bounds.erase( std::remove( bounds.begin() , bounds.end() , con ) ,
-               bounds.end() );
+ // the bound leaves the others of the variable: one of these, if any,
+ // takes its place in the slot of the column
+ auto & slot = ( idx < static_vars ) ? svar_to_bound[ idx ]
+                                     : dvar_to_bound[ idx - static_vars ];
+ auto it = m_more_bounds.find( var );
+ if( slot == con ) {
+  slot = nullptr;
+  if( it != m_more_bounds.end() ) {
+   slot = it->second.back();
+   it->second.pop_back();
+   }
+  }
+ else
+  if( it != m_more_bounds.end() )
+   it->second.erase( std::remove( it->second.begin() , it->second.end() ,
+                                  con ) , it->second.end() );
+
+ if( ( it != m_more_bounds.end() ) && it->second.empty() )
+  m_more_bounds.erase( it );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -4011,10 +4066,11 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
 
  int col = 0;
 
- auto set_bound = [ this , & rc , & col ]( ColVariable & var ) {
+ std::vector< OneVarConstraint * > active_bounds;
+ auto set_bound = [ this , & rc , & col , & active_bounds ](
+                                                         ColVariable & var ) {
   // the bounds of the column, kept up to date [see svar_to_bound]
-  const auto & active_bounds = ( col < static_vars ) ? svar_to_bound[ col ]
-                                         : dvar_to_bound[ col - static_vars ];
+  get_column_bounds( col , var , active_bounds );
 
   // bounds that will have the dual value set.
   OneVarConstraint * lhs_con = nullptr;

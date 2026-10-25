@@ -185,6 +185,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   there: the option is turned off with a warning that says why, and the
   build goes on with the headers [see `cmake/CheckModule.cmake` of SMS++]
 
+- `write_dual_solution()` finds the bounds of each column in constant time,
+  from a bound per column kept up to date when Variable and bounds are
+  added or removed, with the few columns having more than one in a map,
+  instead of looking for them with a `dynamic_cast` among the active stuff
+  of every Variable at each call, which on an `InvestmentBlock` over a
+  `TwoStageStochasticBlock` solved as a MILP took more than half of the
+  time; the duals written are the same
+
 - `MILPSolver::clear_problem()` gives back the memory of the arrays the
   model is loaded from, which `clear()` kept, so that a `Solver` no longer
   holds a second copy of its model next to the one of the back-end
