@@ -1606,11 +1606,16 @@ void MOSEKMILPSolver::objective_function_modification(
    auto dcoeffit = delta_coeff->begin();
 
    for( auto v : *vars ) {
-    if( *( idxit++ ) < Inf< Index >() ) {
+    const auto i = *( idxit++ );
+    if( i < Inf< Index >() ) {
      auto c = index_of_variable( static_cast< const ColVariable * >( v ) );
      cidx.push_back( c );
      delta.push_back( std::get< 0 >( *dcoeffit ) );
-     add_to_hessian( c , c , 2 * std::get< 1 >( *dcoeffit ) );
+     // the diagonal takes the value that the Function has, not the delta:
+     // a sequence of changes that brings a coefficient back would otherwise
+     // leave a rounding error on it, which on a singular Hessian is enough
+     // for MOSEK to refuse the objective as not convex
+     set_hessian( c , c , 2 * fqf->get_quadratic_coefficient( i ) );
      }
     ++dcoeffit;
     }

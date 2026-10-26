@@ -245,6 +245,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `MOSEKMILPSolver` gives the diagonal of the Hessian the value of the
+  quadratic coefficient of the objective, not the sum of the deltas of
+  its changes: a coefficient that went back to its value after a few
+  changes kept a rounding error, which on a singular Hessian (e.g., the
+  Wolfe dual of a SVM with a polynomial kernel) made MOSEK refuse the
+  objective as not convex
+
 - `FindHiGHS.cmake` links the extras library of HiGHS (`libhighs_extras.a`)
   after a static `libhighs.a`, which calls its functions from HiGHS 1.15
   on: a static build of HiGHS, as the one of vcpkg, left the tools and the
