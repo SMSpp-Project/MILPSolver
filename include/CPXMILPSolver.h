@@ -782,6 +782,14 @@ class CPXMILPSolver : public MILPSolver {
   std::vector< int > cpx_quad_con_aux;
   std::vector< int > cpx_idx_aux_qvar; // Need to be sorted
 
+ /// true if row i is a quadratic constraint
+ /** After load_problem() the base representation, q_part included, is gone
+  * [see MILPSolver::clear_problem()], and what is left is this. */
+ bool is_quad_row( int i ) const {
+  return( ( i < int( cpx_quad_con_aux.size() ) ) &&
+          ( cpx_quad_con_aux[ i ] != -1 ) );
+  }
+
  // function to retrieve actual idx of variable considering auxiliary ones
  int cpx_index_of_variable( const ColVariable * var ) const;
 

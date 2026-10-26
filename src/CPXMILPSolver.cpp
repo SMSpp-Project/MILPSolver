@@ -1629,7 +1629,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
                "CPXgetx() in QCP" ) );
   
   for( int i = 0 ; i < numrows ; ++i ) {
-    if( q_part[ i ].empty() ) {
+    if( ! is_quad_row( i ) ) {
       // Simple Linear Constraint
       pi[ i ] = pi_cpx[ count_pi ];
       count_pi++;
@@ -1815,7 +1815,7 @@ int CPXMILPSolver::cpx_index_of_linear_constraint( const FRowConstraint * con ) 
  }
  else{
   // Check if we are actually asking the index of a linear constraint
-  if( ! q_part[ idx].empty() )
+  if( is_quad_row( idx ) )
     throw( std::runtime_error(
                "CPXMILPSolver::cpx_index_of_linear_constraint: "
                "tried to retrieve index of quadratic constraint "
@@ -1828,7 +1828,7 @@ int CPXMILPSolver::cpx_index_of_linear_constraint( const FRowConstraint * con ) 
   // auxiliary variable has not been built.
   auto new_idx = idx;
   for( int j = 0 ; j < idx ; j++ ) {
-    if( ( ! q_part[ j ].empty() )  && ( cpx_quad_var_aux[ j ] == -1 ) ) {
+    if( is_quad_row( j ) && ( cpx_quad_var_aux[ j ] == -1 ) ) {
       // Quadratic constraint without linear part
       new_idx--;
     }

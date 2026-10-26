@@ -163,6 +163,11 @@ GRBMILPSolver::GRBMILPSolver( void ) :
               "GRBemptyenv returned with status " +
               std::to_string( status ) ) );
 
+  // starting the environment prints the license parameters and banner, once
+  // per process: off while it starts, on again after, so that the log of the
+  // models is as before
+  GRBsetintparam( f_shared_env , GRB_INT_PAR_OUTPUTFLAG , 0 );
+
   // starting the environment contacts the license service, which can refuse
   // the request for reasons that have nothing to do with this process (the
   // network, or too many sessions of the same license at the same moment);
@@ -189,6 +194,8 @@ GRBMILPSolver::GRBMILPSolver( void ) :
    std::this_thread::sleep_for( std::chrono::seconds(
                                  std::min( 1u << ( trial - 1 ) , 30u ) ) );
    }
+
+  GRBsetintparam( f_shared_env , GRB_INT_PAR_OUTPUTFLAG , 1 );
   }
 
  env = f_shared_env;
@@ -1885,7 +1892,7 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
                "unable to get quadratic dual values querying GRB_QCPI" ) );
   
   for( int i = 0 ; i < numrows ; ++i ) {
-    if( q_part[ i ].empty() ) {
+    if( ! is_quad_row( i ) ) {
       // Simple Linear Constraint
       pi[ i ] = pi_grb[ count_pi ];
       count_pi++;
@@ -2241,7 +2248,7 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
  }
  else{
   // Check if we are actually asking the index of a linear constraint
-  if( ! q_part[ idx].empty() )
+  if( is_quad_row( idx ) )
     throw( std::runtime_error(
                "GRBMILPSolver::grb_index_of_linear_constraint: "
                "tried to retrieve index of quadratic constraint "
@@ -2256,7 +2263,7 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var ) cons
   // index sets for both linear and quadratic constraints.
   auto new_idx = idx;
   for( int j = 0 ; j < idx ; j++ ) {
-    if( ( ! q_part[ j ].empty() ) && ( grb_quad_var_aux[ j ] == -1 ) ) {
+    if( is_quad_row( j ) && ( grb_quad_var_aux[ j ] == -1 ) ) {
       // Quadratic constraint without linear part
       new_idx--;
     }

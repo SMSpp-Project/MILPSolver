@@ -189,6 +189,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `GRBMILPSolver` starts the environment of GUROBI with `OutputFlag` off,
+  which it turns on again right after: the license parameters and banner
+  are no longer printed, once per process, and the log of the tests on the
+  CI, which start thousands of processes, stays within the limit of
+  GitLab
+
 - the pipeline builds the module also with its makefiles, after CMake, and
   runs on a change of the makefiles too [see `ci/makefile` of the umbrella]
 
@@ -238,6 +244,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than returning a solution that is not there
 
 ### Fixed
+
+- the duals of a model with quadratic constraints in `GRBMILPSolver` and
+  `CPXMILPSolver`, and the index of a linear row among them, no longer
+  read `q_part`, which `load_problem()` empties: they tell the quadratic
+  rows by the indices the back-end keeps [see `is_quad_row()`]. Since
+  `clear_problem()` gives the memory back, the reading crashed, e.g., in
+  `linear_constraints_test` of BundleSolver
 
 - the makefiles build `CPXMILPSolver`, `GRBMILPSolver`, `SCIPMILPSolver`
   and `HiGHSMILPSolver` only if CPLEX, Gurobi, SCIP and HiGHS are there,
