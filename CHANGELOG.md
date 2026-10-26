@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `MILPSolver::get_elapsed_iterations()` gives the iterations of the
+  back-end in the last `compute()`, all its solves summed: those of DAQP in
+  `DAQPMILPSolver` and the working set recalculations of qpOASES in
+  `QPOASESMILPSolver`, those of a hot start repeated from scratch included;
+  0 for the back-ends that do not count them
+
 - the makefiles build the C++20 module `smspp.milpsolver` when `SMSppMOD`
   is not empty (e.g., `make SMSppMOD=1`), with clang++ 16 or later [see
   `lib/makefile-mod` of SMS++]
@@ -112,7 +118,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   solver DAQP for convex QPs (and LPs) with linear constraints, dense and
   with no integer variables: the problem is loaded again whole at every
   Modification, and a solve starts from the working set of the previous one
-  if the size has not changed (`intDAQPWarmStart`); it is built when
+  if the size has not changed (`intDAQPWarmStart`), but for the constraints
+  that either problem fixes, which are active only if the new one fixes
+  them; it is built when
   `MILPSolver_USE_DAQP` is ON (CMake) or DAQP is in `DAQP_ROOT` (makefile)
 
 - `ClarabelMILPSolver`, the interface with the open-source interior-point

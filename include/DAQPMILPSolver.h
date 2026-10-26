@@ -66,7 +66,8 @@ namespace SMSpp_di_unipi_it
  * The data are kept dense: DAQP is meant for the small and medium problems,
  * typically solved many times with small changes, where an active-set
  * method is at its best, since the working set of the previous solution is
- * a good start for the next one (see intDAQPWarmStart).
+ * a good start for the next one (see intDAQPWarmStart); the iterations of
+ * DAQP in the last compute() are given by get_elapsed_iterations().
  *
  * The following restrictions apply:
  *
@@ -77,7 +78,9 @@ namespace SMSpp_di_unipi_it
  *   Modification is received the problem is loaded again whole from the
  *   Block [see MILPSolver::reload_on_modification()], and if its size has
  *   not changed the working set of the previous solution is the start of
- *   the next one;
+ *   the next one, but for the constraints that either problem fixes (a
+ *   variable with equal bounds, an equality row), which are active in the
+ *   new one if and only if it fixes them;
  *
  * - a problem whose H is singular, e.g., a Linear Program, is solved by
  *   proximal-point iterations, whose solution and multipliers are accurate

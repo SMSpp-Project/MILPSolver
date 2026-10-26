@@ -103,10 +103,17 @@ void DAQPMILPSolver::clear_problem( unsigned int what )
 
 void DAQPMILPSolver::load_problem( void )
 {
+ // the workspace points to the old data, which are about to change; its
+ // working set is kept across the clear_problem() of MILPSolver, so that
+ // the problem loaded again whole after a Modification starts from it
+ free_workspace();
+ auto ws = std::move( d_ws );
+ const int ws_n = d_ws_n;
+
  MILPSolver::load_problem();
 
- // the workspace points to the old data, which are about to change
- free_workspace();
+ d_ws = std::move( ws );
+ d_ws_n = ws_n;
 
  if( numquadrows > 0 )
   throw( std::invalid_argument( "DAQPMILPSolver::load_problem: "
@@ -208,12 +215,14 @@ int DAQPMILPSolver::guts_of_compute( void )
   free_workspace();
 
   // the constraints the problem fixes, and the working set of the previous
-  // solve on the others, if any and of the same size
+  // solve on the others, if any and of the same size; a constraint that the
+  // previous problem fixed and this one does not is left out, since it was
+  // active for being fixed rather than at the solution
   d_sense = d_fixed;
   if( d_warm_start && ( d_ws_n == d_n ) &&
       ( d_ws.size() == std::size_t( d_m ) ) )
    for( int i = 0 ; i < d_m ; ++i )
-    if( ! d_fixed[ i ] )
+    if( ( ! d_fixed[ i ] ) && ( ! ( d_ws[ i ] & DAQP_IMMUTABLE ) ) )
      d_sense[ i ] |= d_ws[ i ] & ( DAQP_ACTIVE | 2 );
 
   d_qp = DAQPProblem{};
@@ -256,6 +265,7 @@ int DAQPMILPSolver::guts_of_compute( void )
  d_res.lam = d_lam.data();
  daqp_solve( & d_res , & d_work );
  d_exitflag = d_res.exitflag;
+ elapsed_iter += d_res.iter;
 
  // the value is computed here rather than taken from DAQP, whose value of a
  // problem solved by proximal-point iterations (e.g., a Linear Program) is

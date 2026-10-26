@@ -107,7 +107,17 @@ void QPOASESMILPSolver::clear_problem( unsigned int what )
 
 void QPOASESMILPSolver::load_problem( void )
 {
+ // the problem of qpOASES, which reads the copies of H and A of the
+ // previous problem, is kept across the clear_problem() of MILPSolver, so
+ // that the problem loaded again whole after a Modification is a hot start
+ // from its solution
+ auto qp = std::move( d_qp );
+ const bool qp_solved = d_qp_solved;
+
  MILPSolver::load_problem();
+
+ d_qp = std::move( qp );
+ d_qp_solved = qp_solved;
 
  if( numquadrows > 0 )
   throw( std::invalid_argument( "QPOASESMILPSolver::load_problem: "
@@ -273,6 +283,7 @@ int QPOASESMILPSolver::solve_from_scratch( void )
 			      d_nc ? d_lbA.data() : nullptr ,
 			      d_nc ? d_ubA.data() : nullptr ,
 			      done , timed ? & time : nullptr );
+ elapsed_iter += done;
 
  return( decode( ret , nwsr , done ) );
  }
@@ -309,6 +320,7 @@ int QPOASESMILPSolver::hot_start( void )
 			done , timed ? & time : nullptr );
   d_cur = nxt;
   }
+ elapsed_iter += done;
 
  return( decode( ret , nwsr , done ) );
  }

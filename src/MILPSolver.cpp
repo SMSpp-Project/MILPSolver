@@ -1738,6 +1738,7 @@ int MILPSolver::compute( bool changedvars )
 
  // dispatch to the derived class for the actual back-end solve - - - - - - -
  f_cutoff_stop = false;
+ elapsed_iter = 0;
  int sts = guts_of_compute();
 
  // a run that the callback interrupted at a cutoff stopped where it was asked

@@ -78,7 +78,10 @@ namespace SMSpp_di_unipi_it
  * The data are kept dense: qpOASES is meant for the small and medium
  * problems, typically solved many times with small changes, where its
  * homotopy from the solution of the previous problem to that of the new
- * one is at its best (see intQPOASESHotStart).
+ * one is at its best (see intQPOASESHotStart); the iterations of qpOASES in
+ * the last compute(), i.e., its working set recalculations, those of a hot
+ * start repeated from scratch included, are given by
+ * get_elapsed_iterations().
  *
  * The following restrictions apply:
  *

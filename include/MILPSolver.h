@@ -937,6 +937,17 @@ class MILPSolver : public CDASolver
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the iterations of the back-end in the last compute()
+ /** The iterations that the back-end has made in the last compute(), all
+  * its solves summed [see elapsed_iter], what an iteration is being the
+  * back-end's own (e.g., a change of the working set for an active-set
+  * method); 0 for a back-end that does not count them. */
+
+ [[nodiscard]] long get_elapsed_iterations( void ) const override {
+  return( elapsed_iter );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// the residuals of the last check of the optimality conditions
  /** The primal residual, the dual residual and the gap of the solution
  * returned by the last compute() [see dblKKTTol], NaN for those that were
@@ -1453,6 +1464,12 @@ class MILPSolver : public CDASolver
  std::vector< char * > rowname;
 
  int sol_status = kUnEval; ///< Solution status (OK, Infeasible, Unbounded, ...)
+
+ /// the iterations of the back-end in the current compute()
+ /** Cleared by compute() before the first solve, and increased by each
+  * guts_of_compute() of a derived class that counts the iterations of its
+  * back-end [see get_elapsed_iterations()]. */
+ long elapsed_iter = 0;
 
  /// whether the callback of the cutoffs has interrupted the current solve
  /** Set by the callback of a derived class (possibly from several threads
