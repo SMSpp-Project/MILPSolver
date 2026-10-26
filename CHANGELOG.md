@@ -245,6 +245,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `FindHiGHS.cmake` links the extras library of HiGHS (`libhighs_extras.a`)
+  after a static `libhighs.a`, which calls its functions from HiGHS 1.15
+  on: a static build of HiGHS, as the one of vcpkg, left the tools and the
+  consumers of MILPSolver with undefined references to
+  `HighsExtras_getApi`
+
 - the duals of a model with quadratic constraints in `GRBMILPSolver` and
   `CPXMILPSolver`, and the index of a linear row among them, no longer
   read `q_part`, which `load_problem()` empties: they tell the quadratic

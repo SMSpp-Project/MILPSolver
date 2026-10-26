@@ -180,6 +180,25 @@ if (HiGHS_FOUND)
     endif ()
     unset(_HiGHS_hipo_line)
 
+    # From version 1.15, a static libhighs calls the functions of the extras
+    # library of HiGHS, which is static too in such a build (shared, and
+    # loaded at run time, otherwise) and must be linked explicitly, as the
+    # highs target of the upstream highs-config.cmake does.
+    if (UNIX AND HiGHS_LIBRARY MATCHES "\\${CMAKE_STATIC_LIBRARY_SUFFIX}$")
+        get_filename_component(_HiGHS_libdir "${HiGHS_LIBRARY}" DIRECTORY)
+        set(_HiGHS_extras ${CMAKE_STATIC_LIBRARY_PREFIX}highs_extras)
+        find_library(HiGHS_EXTRAS_LIBRARY
+                NAMES ${_HiGHS_extras}${CMAKE_STATIC_LIBRARY_SUFFIX}
+                PATHS ${_HiGHS_libdir}
+                NO_DEFAULT_PATH
+                DOC "HiGHS extras library.")
+        if (HiGHS_EXTRAS_LIBRARY)
+            set(HiGHS_LIBRARIES ${HiGHS_EXTRAS_LIBRARY} ${HiGHS_LIBRARIES})
+        endif ()
+        unset(_HiGHS_libdir)
+        unset(_HiGHS_extras)
+    endif ()
+
     if (NOT TARGET HiGHS::HiGHS)
         if (WIN32)
             add_library(HiGHS::HiGHS SHARED IMPORTED)
