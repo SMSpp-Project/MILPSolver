@@ -553,7 +553,8 @@ class CPXMILPSolver : public MILPSolver {
   *
   * The following two methods retrieve the upper and lower bound for the
   * given variable considering both the Variable bounds and all the active
-  * OneVarConstraints active for that Variable. */
+  * OneVarConstraints active for that Variable.
+  *  @{ */
 
  /// gets the LB for the given variable in the problem
  double get_problem_lb( const ColVariable & var ) const override;

@@ -459,7 +459,7 @@ class MILPSolver : public CDASolver
  * @param set       Index of the group within qb.
  * @param counter   Current number of elements of type T that have been
  *                  scanned.
- * @param T         The element type of the group. Should be either
+ * @tparam T        The element type of the group. Should be either
  *                  FRowConstraint or ColVariable, depending on the group
  *                  being scanned.
  */
