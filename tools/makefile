@@ -46,7 +46,7 @@ endif
 COMMON_SW = -std=c++20
 
 # debug switches
-SW_DEBUG = -g -glldb -fno-inline
+SW_DEBUG = -g $(SMSppSWDBG) -fno-inline
 # production switches
 SW_RELEASE = -O3 -DNDEBUG
 
@@ -112,13 +112,11 @@ else
 	endif
 endif
 
-# collate all (defined) executables
-NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS) $(PIPS_PARS)
-
-# mosek_pars only if MOSEK is installed, it being an optional dependency
-ifneq ($(MOSEK_PRESENT),)
-    NAME += $(MOSEK_PARS)
-endif
+# collate all (defined) executables, each of those of a solver only if the
+# solver is installed [see extlib/makefile-lib*], as with CMake
+NAME = $(if $(CPLEX_PRESENT),$(CPX_PARS)) $(if $(GUROBI_PRESENT),$(GRB_PARS)) \
+	$(if $(HiGHS_PRESENT),$(HIGHS_PARS)) $(if $(SCIP_PRESENT),$(SCIP_PARS)) \
+	$(if $(MOSEK_PRESENT),$(MOSEK_PARS)) $(PIPS_PARS)
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

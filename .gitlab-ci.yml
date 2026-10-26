@@ -49,6 +49,10 @@ build:
     - git -C "smspp-project/$CI_PROJECT_TITLE" submodule update --init --recursive --quiet
     - cmake -S smspp-project -B smspp-project/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DBUILD_MILPSolver=ON -DBUILD_tests=ON
     - cmake --build smspp-project/build --target install
+    # the makefiles too, which have to keep building what CMake builds [see
+    # ci/makefile of the umbrella]
+    - make -C smspp-project -f ci/makefile -j$(nproc)
+           MODULE="$CI_PROJECT_TITLE"
   artifacts:
     paths:
       - smspp-project/build
@@ -63,6 +67,9 @@ build:
       - test/*
       - tools/*
       - CMakeLists.txt
+      - makefile*
+      - lib/makefile*
+      - test/makefile*
       - .gitlab-ci.yml
 
 # the suite is 180 minutes against the 3h cap a job has on the GitLab.com
@@ -98,6 +105,9 @@ build:
       - test/*
       - tools/*
       - CMakeLists.txt
+      - makefile*
+      - lib/makefile*
+      - test/makefile*
       - .gitlab-ci.yml
 
 test:

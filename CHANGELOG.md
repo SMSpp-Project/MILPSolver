@@ -178,6 +178,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- the pipeline builds the module also with its makefiles, after CMake, and
+  runs on a change of the makefiles too [see `ci/makefile` of the umbrella]
+
 - `SMSpp_BUILD_MODULE` no longer stops the configuration when the C++20
   module cannot be built, i.e., with a CMake older than 3.28, a generator
   other than Ninja or Visual Studio, a compiler other than Clang 16 (with
@@ -224,6 +227,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than returning a solution that is not there
 
 ### Fixed
+
+- the makefiles build `CPXMILPSolver`, `GRBMILPSolver`, `SCIPMILPSolver`
+  and `HiGHSMILPSolver` only if CPLEX, Gurobi, SCIP and HiGHS are there,
+  as `CPLEX_PRESENT`, `GUROBI_PRESENT`, `SCIP_PRESENT` and `HiGHS_PRESENT`
+  of `extlib` say, as for the optional back-ends, and add their -I and
+  libraries only then, and `tools/makefile` builds the tool of a solver
+  only if the solver is there: a build without CPLEX (e.g., the image of
+  the pipelines) failed on `ilcplex/cplex.h`
+
+- the makefiles of the tests and of the tools build also with g++: they
+  take the option that stops at the first error and the one of the
+  debugging information, which clang++ and g++ spell differently
+  (`-ferror-limit=1` and `-glldb` against `-fmax-errors=1` and `-ggdb`),
+  from `SMSppSWERR` and `SMSppSWDBG` of `lib/makefile-OS` of SMS++
+
+- the makefile finds `tools/` also when `MILPSSDR` is an absolute path:
+  `./` was put in front of it, which turned `/home/...` into `./home/...`
 
 - `test_farkas` takes the values of `MSK_IPAR_OPTIMIZER` from the `mosek.h`
   of the build and `test/LPPar-ipm.txt` gives the interior point of MOSEK 12:

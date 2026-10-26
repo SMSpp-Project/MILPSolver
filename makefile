@@ -28,6 +28,10 @@
 #           $(libGUROBIINC) = the -I$( Gurobi library )                      #
 #           $(libSCIPINC)   = the -I$( SCIP library )                        #
 #           $(libHiGHSINC)  = the -I$( HiGHS library )                       #
+#           $(CPLEX_PRESENT), $(GUROBI_PRESENT), $(SCIP_PRESENT),            #
+#           $(HiGHS_PRESENT) = non-empty if the solver is installed, each    #
+#                              *MILPSolver being built only in that case     #
+#                              [see extlib/makefile-lib*]                    #
 #           $(libPIPSINC)   = the -I$( PIPS-IPM++ library ), Linux only      #
 #           $(libDAQPINC)   = the -I$( DAQP library )                        #
 #           $(libqpOASESINC) = the -I$( qpOASES library )                    #
@@ -52,7 +56,9 @@
 ##############################################################################
 
 # tools: the parameter headers of the back-ends - - - - - - - - - - - - - - -
-TOOLSSDR := ./$(MILPSSDR)/tools
+# the tools of the source directory, which may be given as a relative or as
+# an absolute path, or be empty, i.e., the current one
+TOOLSSDR := $(if $(MILPSSDR),$(MILPSSDR),.)/tools
 MILPSIDR := $(MILPSSDR)/include
 
 # PIPS-IPM++ source tree, needed only by PIPSMILPSolver and tools/pips_pars;
@@ -223,19 +229,31 @@ endif
 
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
-	$(MILPSSDR)/obj/CPXMILPSolver.o \
-	$(MILPSSDR)/obj/GRBMILPSolver.o \
-	$(MILPSSDR)/obj/SCIPMILPSolver.o \
-	$(MILPSSDR)/obj/HiGHSMILPSolver.o
+MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o
 
 MILPSINC = -I$(MILPSSDR)/include
 
-MILPSH = $(MILPSSDR)/include/MILPSolver.h \
-	$(MILPSSDR)/include/CPXMILPSolver.h \
-	$(MILPSSDR)/include/GRBMILPSolver.h \
-	$(MILPSSDR)/include/SCIPMILPSolver.h \
-	$(MILPSSDR)/include/HiGHSMILPSolver.h
+MILPSH = $(MILPSSDR)/include/MILPSolver.h
+
+ifneq ($(CPLEX_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/CPXMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/CPXMILPSolver.h
+endif
+
+ifneq ($(GUROBI_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/GRBMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/GRBMILPSolver.h
+endif
+
+ifneq ($(SCIP_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/SCIPMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/SCIPMILPSolver.h
+endif
+
+ifneq ($(HiGHS_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/HiGHSMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/HiGHSMILPSolver.h
+endif
 
 ifneq ($(PIPS_PRESENT),)
     MILPSOBJ += $(MILPSSDR)/obj/PIPSMILPSolver.o
@@ -291,7 +309,9 @@ endif
 # [see makefile-mod of SMS++]
 
 # the -D that select the headers of the back-ends in the module
-MILPSMODD = $(addprefix -DMILPSolver_MODULE_,CPLEX GUROBI SCIP HiGHS \
+MILPSMODD = $(addprefix -DMILPSolver_MODULE_,$(if $(CPLEX_PRESENT),CPLEX) \
+	$(if $(GUROBI_PRESENT),GUROBI) $(if $(SCIP_PRESENT),SCIP) \
+	$(if $(HiGHS_PRESENT),HiGHS) \
 	$(if $(PIPS_PRESENT),PIPS) $(if $(DAQP_PRESENT),DAQP) \
 	$(if $(QPOASES_PRESENT),qpOASES) $(if $(CLARABEL_PRESENT),Clarabel) \
 	$(if $(MOSEK_PRESENT),MOSEK) $(if $(ProxSuite_PRESENT),ProxQP) \
@@ -299,7 +319,7 @@ MILPSMODD = $(addprefix -DMILPSolver_MODULE_,CPLEX GUROBI SCIP HiGHS \
 	$(if $(QPMAD_PRESENT),qpmad) $(if $(QUADPROG_PRESENT),quadprog))
 
 $(eval $(call SMSppMODrule,MILPS,$(MILPSSDR),MILPSolver,smspp.milpsolver,\
-	$(SMS++MOD),$(MILPSMODD)))
+	SMS++,$(MILPSMODD)))
 
 # the interface includes the *MILPSolver.h, hence the parameter headers
 $(MILPSSDR)/obj/MILPSolver_module.o: $(PARSH)
@@ -316,9 +336,11 @@ distclean: clean
 	rm -f $(MILPSSDR)/include/CPX*_defs.h $(MILPSSDR)/include/CPX*_maps.h
 	rm -f $(MILPSSDR)/include/GRB*_defs.h $(MILPSSDR)/include/GRB*_maps.h
 	rm -f $(MILPSSDR)/include/SCIP*_defs.h $(MILPSSDR)/include/SCIP*_maps.h
-	rm -f $(MILPSSDR)/include/HiGHS*_defs.h $(MILPSSDR)/include/HiGHS*_maps.h
+	rm -f $(MILPSSDR)/include/HiGHS*_defs.h \
+	$(MILPSSDR)/include/HiGHS*_maps.h
 	rm -f $(MILPSSDR)/include/PIPS*_defs.h $(MILPSSDR)/include/PIPS*_maps.h
-	rm -f $(MILPSSDR)/include/MOSEK*_defs.h $(MILPSSDR)/include/MOSEK*_maps.h
+	rm -f $(MILPSSDR)/include/MOSEK*_defs.h \
+	$(MILPSSDR)/include/MOSEK*_maps.h
 	rm -f $(TOOLSSDR)/.headers.stamp
 
 # phony targets - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
