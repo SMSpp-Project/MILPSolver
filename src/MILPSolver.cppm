@@ -56,6 +56,9 @@ module;
 #if defined( MILPSolver_MODULE_GUROBI )
  #include "GRBMILPSolver.h"
 #endif
+#if defined( MILPSolver_MODULE_HPIPM )
+ #include "HPIPMMILPSolver.h"
+#endif
 #if defined( MILPSolver_MODULE_HiGHS )
  #include "HiGHSMILPSolver.h"
 #endif
@@ -83,9 +86,6 @@ module;
 #endif
 #if defined( MILPSolver_MODULE_quadprog )
  #include "QuadProgMILPSolver.h"
-#endif
-#if defined( MILPSolver_MODULE_HPIPM )
- #include "HPIPMMILPSolver.h"
 #endif
 #if defined( MILPSolver_MODULE_SCIP )
  #include "SCIPMILPSolver.h"
@@ -119,6 +119,11 @@ export namespace SMSpp_di_unipi_it {
  // GRBMILPSolver.h
 #if defined( MILPSolver_MODULE_GUROBI )
  using SMSpp_di_unipi_it::GRBMILPSolver;
+#endif
+
+ // HPIPMMILPSolver.h
+#if defined( MILPSolver_MODULE_HPIPM )
+ using SMSpp_di_unipi_it::HPIPMMILPSolver;
 #endif
 
  // HiGHSMILPSolver.h
@@ -169,33 +174,11 @@ export namespace SMSpp_di_unipi_it {
  using SMSpp_di_unipi_it::QuadProgMILPSolver;
 #endif
 
- // HPIPMMILPSolver.h
-#if defined( MILPSolver_MODULE_HPIPM )
- using SMSpp_di_unipi_it::HPIPMMILPSolver;
-#endif
-
  // SCIPMILPSolver.h
 #if defined( MILPSolver_MODULE_SCIP )
  using SMSpp_di_unipi_it::SCIPMILPSolver;
  using SMSpp_di_unipi_it::SCIPMILPSolver_CBK;
 #endif
-}
-
-export namespace proxsuite {
- namespace proxqp {
-  namespace dense {
-  }
- }
-}
-
-export namespace proxsuite {
- namespace proxqp {
-  namespace sparse {
-  }
- }
-}
-
-export namespace qpOASES {
 }
 
 /*--------------------------------------------------------------------------*/
