@@ -67,6 +67,7 @@ option(MILPSolver_USE_OSQP "Whether MILPSolver will use OSQP or not." ON)
 option(MILPSolver_USE_qpmad "Whether MILPSolver will use qpmad or not." ON)
 option(MILPSolver_USE_quadprog
         "Whether MILPSolver will use quadprog or not." ON)
+option(MILPSolver_USE_HPIPM "Whether MILPSolver will use HPIPM or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -225,6 +226,17 @@ if (MILPSolver_USE_quadprog)
     find_package(quadprog)
     if (NOT quadprog_FOUND)
         set(MILPSolver_USE_quadprog OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_HPIPM)
+    # Needed for HPIPMMILPSolver
+    # HPIPM exposes no version number: FindHPIPM accepts 0.1.2 or later
+    # only, by the masks of the bounds in its headers, and finds BLASFEO too
+    # [see FindHPIPM.cmake]
+    find_package(HPIPM)
+    if (NOT HPIPM_FOUND)
+        set(MILPSolver_USE_HPIPM OFF)
     endif ()
 endif ()
 
@@ -429,6 +441,12 @@ if (MILPSolver_USE_quadprog)
     target_link_libraries(${modName} PUBLIC quadprog::quadprog)
 endif ()
 
+if (MILPSolver_USE_HPIPM)
+    message(STATUS "MILPSolver: HPIPM found, configuring HPIPMMILPSolver")
+    target_sources(${modName} PRIVATE src/HPIPMMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC HPIPM::HPIPM)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -466,7 +484,7 @@ if (SMSpp_BUILD_MODULE)
     # the interface takes the header and the names of a backend only if it
     # is there [see the #if in src/MILPSolver.cppm]
     foreach (backend CPLEX SCIP GUROBI HiGHS PIPS DAQP qpOASES Clarabel MOSEK
-             ProxQP PIQP OSQP qpmad quadprog)
+             ProxQP PIQP OSQP qpmad quadprog HPIPM)
         if (MILPSolver_USE_${backend})
             target_compile_definitions(${modName}_module PRIVATE
                     MILPSolver_MODULE_${backend})
@@ -592,6 +610,12 @@ if (MILPSolver_USE_quadprog)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "QuadProg*")
+endif ()
+
+if (MILPSolver_USE_HPIPM)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "HPIPM*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

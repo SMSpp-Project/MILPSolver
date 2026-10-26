@@ -83,7 +83,7 @@ static const std::vector< std::string > SolverNames =
  { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" , "SCIPMILPSolver" ,
    "HiGHSMILPSolver" , "DAQPMILPSolver" , "QPOASESMILPSolver" ,
    "ClarabelMILPSolver" , "ProxQPMILPSolver" , "PIQPMILPSolver" ,
-   "OSQPMILPSolver" };
+   "OSQPMILPSolver" , "HPIPMMILPSolver" };
 
 /// the shapes of the groups [see the file comment]
 

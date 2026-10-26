@@ -64,6 +64,10 @@ set(qpmad_DIR @qpmad_DIR@)
 set(MILPSolver_USE_quadprog @MILPSolver_USE_quadprog@)
 set(quadprog_ROOT @quadprog_ROOT@)
 
+set(MILPSolver_USE_HPIPM @MILPSolver_USE_HPIPM@)
+set(HPIPM_ROOT @HPIPM_ROOT@)
+set(BLASFEO_ROOT @BLASFEO_ROOT@)
+
 # ----- Requirements -------------------------------------------------------- #
 find_dependency(SMS++)
 
@@ -124,6 +128,10 @@ endif ()
 
 if (MILPSolver_USE_quadprog)
     find_dependency(quadprog)
+endif ()
+
+if (MILPSolver_USE_HPIPM)
+    find_dependency(HPIPM)
 endif ()
 
 list(REMOVE_AT CMAKE_MODULE_PATH -1)

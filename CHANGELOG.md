@@ -24,6 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   values, primal and dual, across changes of sides, bounds and costs and
   an infeasible solve
 
+- `HPIPMMILPSolver`, the interface with the dense interior-point solver
+  of HPIPM (0.1.2 or later, on BLASFEO) for convex QPs and LPs with linear
+  constraints: the rows with equal sides and the fixed variables are its
+  equalities, whose dependent ones it removes, the other bounds and rows
+  its box and general constraints, an infinite side masked out; the duals
+  follow the convention of the other backends, `intHPIPMMode` picks the
+  mode of HPIPM (ROBUST by default) and `intHPIPMWarmStart` starts a solve
+  from the previous solution; it is built when `MILPSolver_USE_HPIPM` is
+  ON and `FindHPIPM` finds it (CMake) or HPIPM is in `HPIPM_ROOT`
+  (makefile), and the tests of the QP backends run it
+
 - `dblKKTTol`, off by default: when positive, `compute()` writes the
   solution in the `Block` after a solve that returns `kOK` and measures
   its primal residual, its dual residual and its gap, with the duals in the

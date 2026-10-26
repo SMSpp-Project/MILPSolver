@@ -30,9 +30,9 @@
  *
  * Each :MILPSolver among CPXMILPSolver, GRBMILPSolver, MOSEKMILPSolver,
  * HiGHSMILPSolver, SCIPMILPSolver, DAQPMILPSolver, QPOASESMILPSolver,
- * ClarabelMILPSolver, ProxQPMILPSolver, PIQPMILPSolver and OSQPMILPSolver that
- * is not in the factory is skipped, and the test is skipped (exit status 77)
- * if none of them is.
+ * ClarabelMILPSolver, ProxQPMILPSolver, PIQPMILPSolver, OSQPMILPSolver and
+ * HPIPMMILPSolver that is not in the factory is skipped, and the test is
+ * skipped (exit status 77) if none of them is.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -184,7 +184,8 @@ int main( void )
                                  "HiGHSMILPSolver" , "SCIPMILPSolver" ,
                                  "DAQPMILPSolver" , "QPOASESMILPSolver" ,
                                  "ClarabelMILPSolver" , "ProxQPMILPSolver" ,
-                                 "PIQPMILPSolver" , "OSQPMILPSolver" } ) {
+                                 "PIQPMILPSolver" , "OSQPMILPSolver" ,
+                                 "HPIPMMILPSolver" } ) {
   if( ! Solver::has_Solver( name ) ) {
    std::cout << name << " is not in this build, skipped" << std::endl;
    continue;

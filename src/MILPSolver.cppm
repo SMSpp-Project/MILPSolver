@@ -84,6 +84,9 @@ module;
 #if defined( MILPSolver_MODULE_quadprog )
  #include "QuadProgMILPSolver.h"
 #endif
+#if defined( MILPSolver_MODULE_HPIPM )
+ #include "HPIPMMILPSolver.h"
+#endif
 #if defined( MILPSolver_MODULE_SCIP )
  #include "SCIPMILPSolver.h"
 #endif
@@ -164,6 +167,11 @@ export namespace SMSpp_di_unipi_it {
  // QuadProgMILPSolver.h
 #if defined( MILPSolver_MODULE_quadprog )
  using SMSpp_di_unipi_it::QuadProgMILPSolver;
+#endif
+
+ // HPIPMMILPSolver.h
+#if defined( MILPSolver_MODULE_HPIPM )
+ using SMSpp_di_unipi_it::HPIPMMILPSolver;
 #endif
 
  // SCIPMILPSolver.h

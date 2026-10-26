@@ -109,6 +109,12 @@ Currently available derived classes are:
   of problems as `QPMADMILPSolver`); quadprog is under the GPL, hence a
   library built with it is too
 
+- `HPIPMMILPSolver`, providing the interface with the open-source
+  interior-point solver [HPIPM](https://github.com/giaf/hpipm), built on the
+  linear algebra of [BLASFEO](https://github.com/giaf/blasfeo) for the small
+  and dense problems of Model Predictive Control (convex QP and LP problems
+  with linear constraints, dense, no integer variables)
+
 Whatever the back-end, the solution of a continuous problem can be checked
 by `MILPSolver` itself against the optimality conditions: with the parameter
 `dblKKTTol` positive, the primal residual, the dual residual and the gap of
@@ -222,6 +228,14 @@ the whole framework. What follows is about building it yourself.
   exporting only `qpgen2_`, as `INSTALL.sh --with-quadprog` of the umbrella
   does
 
+- for `HPIPMMILPSolver` you will need [HPIPM](https://github.com/giaf/hpipm)
+  0.1.2 or later and [BLASFEO](https://github.com/giaf/blasfeo), installed
+  with their CMake (`cmake --install`) in `HPIPM_ROOT` and `BLASFEO_ROOT`
+  (the latter defaults to the former); the library of HPIPM has to find
+  that of BLASFEO at run time, e.g., by both being in the same directory and
+  HPIPM being built with `-DCMAKE_INSTALL_RPATH='$ORIGIN'`, as `INSTALL.sh`
+  of the umbrella does
+
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
@@ -260,6 +274,7 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_OSQP`     | Use OSQP       | ON            |
 | `MILPSolver_USE_qpmad`    | Use qpmad      | ON            |
 | `MILPSolver_USE_quadprog` | Use quadprog   | ON            |
+| `MILPSolver_USE_HPIPM`    | Use HPIPM      | ON            |
 
 At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.

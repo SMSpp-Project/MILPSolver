@@ -7,9 +7,9 @@
 #   The makefile takes in input the -I directives for all the external       #
 #   libraries needed by MILPSolver, i.e., core SMS++ and those of all the    #
 #   individual *MILPSolver (currently Cplex, Gurobi, SCIP, HiGHS, DAQP,      #
-#   qpOASES, Clarabel, MOSEK, ProxQP, PIQP, OSQP, qpmad, quadprog and, on    #
-#   Linux, PIPS-IPM++). These are *not* copied into $(MILPSINC): adding      #
-#   those -I directives to the compile commands will have to done by         #
+#   qpOASES, Clarabel, MOSEK, ProxQP, PIQP, OSQP, qpmad, quadprog, HPIPM     #
+#   and, on Linux, PIPS-IPM++). These are *not* copied into $(MILPSINC):     #
+#   adding those -I directives to the compile commands will have to done by  #
 #   whatever "main" makefile is using this.                                  #
 #   Analogously, any external library and the corresponding -L< libdirs >    #
 #   will have to be added to the final linking command by whatever "main"    #
@@ -43,6 +43,7 @@
 #           $(libOSQPINC)   = the -I$( OSQP library )                        #
 #           $(libqpmadINC)  = the -I$( qpmad library )                       #
 #           $(quadprog_ROOT) = the directory where quadprog is installed     #
+#           $(libHPIPMINC)  = the -I$( HPIPM and BLASFEO libraries )         #
 #           $(MILPSSDR)     = the directory where the source is              #
 #                                                                            #
 #   Output: $(MILPSOBJ)     = the final object(s) / library                  #
@@ -111,6 +112,11 @@ QPMAD_PRESENT := $(wildcard $(subst $\",,$(qpmad_ROOT))/include/qpmad/solver.h)
 # built in that case
 QUADPROG_PRESENT := $(wildcard \
 	$(subst $\",,$(quadprog_ROOT))/lib/libquadprog.*)
+
+# non-empty if and only if HPIPM is installed in $(HPIPM_ROOT), which is set
+# by extlib/makefile-libHPIPM; HPIPMMILPSolver is only built in that case
+HPIPM_PRESENT := $(wildcard \
+	$(subst $\",,$(HPIPM_ROOT))/include/hpipm_d_dense_qp_ipm.h)
 
 # each *MILPSolver.h includes a pair of files listing the algorithmic
 # parameters of its back-end, produced by the corresponding tool in
@@ -305,6 +311,11 @@ ifneq ($(QUADPROG_PRESENT),)
     MILPSH += $(MILPSSDR)/include/QuadProgMILPSolver.h
 endif
 
+ifneq ($(HPIPM_PRESENT),)
+    MILPSOBJ += $(MILPSSDR)/obj/HPIPMMILPSolver.o
+    MILPSH += $(MILPSSDR)/include/HPIPMMILPSolver.h
+endif
+
 # the C++20 module smspp.milpsolver - - - - - - - - - - - - - - - - - - - - -
 # [see makefile-mod of SMS++]
 
@@ -316,7 +327,8 @@ MILPSMODD = $(addprefix -DMILPSolver_MODULE_,$(if $(CPLEX_PRESENT),CPLEX) \
 	$(if $(QPOASES_PRESENT),qpOASES) $(if $(CLARABEL_PRESENT),Clarabel) \
 	$(if $(MOSEK_PRESENT),MOSEK) $(if $(ProxSuite_PRESENT),ProxQP) \
 	$(if $(PIQP_PRESENT),PIQP) $(if $(OSQP_PRESENT),OSQP) \
-	$(if $(QPMAD_PRESENT),qpmad) $(if $(QUADPROG_PRESENT),quadprog))
+	$(if $(QPMAD_PRESENT),qpmad) $(if $(QUADPROG_PRESENT),quadprog) \
+	$(if $(HPIPM_PRESENT),HPIPM))
 
 $(eval $(call SMSppMODrule,MILPS,$(MILPSSDR),MILPSolver,smspp.milpsolver,\
 	SMS++,$(MILPSMODD)))
@@ -472,6 +484,14 @@ $(MILPSSDR)/obj/QuadProgMILPSolver.o: $(MILPSSDR)/src/QuadProgMILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/QuadProgMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(SW)
+endif
+
+ifneq ($(HPIPM_PRESENT),)
+$(MILPSSDR)/obj/HPIPMMILPSolver.o: $(MILPSSDR)/src/HPIPMMILPSolver.cpp \
+	$(MILPSSDR)/include/HPIPMMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/HPIPMMILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(libHPIPMINC) $(SW)
 endif
 
 ########################## End of makefile ###################################

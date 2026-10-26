@@ -366,7 +366,7 @@ int test_dynamic_in_wrapper( void ) {
        { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" ,
          "HiGHSMILPSolver" , "DAQPMILPSolver" , "QPOASESMILPSolver" ,
          "ClarabelMILPSolver" , "ProxQPMILPSolver" , "PIQPMILPSolver" ,
-         "OSQPMILPSolver" } ) {
+         "OSQPMILPSolver" , "HPIPMMILPSolver" } ) {
   Solver * solver;
   try {
    solver = Solver::new_Solver( name );
