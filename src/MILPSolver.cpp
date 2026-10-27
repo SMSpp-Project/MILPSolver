@@ -3974,7 +3974,45 @@ void MILPSolver::check_status( void )
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::write_var_solution( const std::vector< double > & x )
+bool MILPSolver::selected_Blocks( Configuration * solc , const char * who ,
+                                  std::unordered_set< const Block * > & sel )
+ const
+{
+ auto c = dynamic_cast< SimpleConfiguration< std::vector< int > > * >( solc );
+ if( ! c )
+  return( false );
+
+ sel.clear();
+ bool own = false;
+ for( auto k : c->f_value ) {
+  if( k == -1 ) {
+   own = true;
+   continue;
+   }
+  if( ( k < 0 ) || ( Index( k ) >= f_Block->get_number_nested_Blocks() ) )
+   throw( std::invalid_argument( std::string( who ) + ": invalid index " +
+                                 std::to_string( k ) ) );
+  sel.insert( f_Block->get_nested_Block( k ) );
+  }
+
+ // the sub-Blocks of a selected sub-Block are selected too: in BFS order
+ // the father of a Block comes before it, the Block itself first of all,
+ // whose own selection does not extend to its sub-Blocks
+ for( auto qb : v_BFS )
+  if( ( qb != f_Block ) && ( qb->get_f_Block() != f_Block ) &&
+      sel.count( qb->get_f_Block() ) )
+   sel.insert( qb );
+
+ if( own )
+  sel.insert( f_Block );
+
+ return( true );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::write_var_solution( const std::vector< double > & x ,
+                                     Configuration * solc )
 {
  if( x.empty() )  // actually no solution passed
   return;         // silently return
@@ -3983,16 +4021,27 @@ void MILPSolver::write_var_solution( const std::vector< double > & x )
   throw( std::invalid_argument(
              "MILPSolver::write_var_solution: x too short" ) );
 
+ std::unordered_set< const Block * > sel;
+ const bool part = selected_Blocks( solc , "MILPSolver::write_var_solution" ,
+                                    sel );
+
  int col = 0;
 
  auto set = [ & x , & col ]( ColVariable & v ) {
   v.set_value( x[ col++ ] );
   };
 
- for( auto qb : v_BFS )
+ // the columns of a Block not asked for are skipped a group at a time
+ for( auto qb : v_BFS ) {
+  const bool write = ( ! part ) || sel.count( qb );
   for( const auto & group : qb->get_static_variable_groups() )
-   if( group )
-    group->for_each_as< ColVariable >( set );
+   if( group ) {
+    if( write )
+     group->for_each_as< ColVariable >( set );
+    else
+     col += group->get_num_elements();
+    }
+  }
 
  // Dynamic columns are appended to the solver in modification-arrival order,
  // which is generally different from the block/BFS order above (for example,
@@ -4001,15 +4050,22 @@ void MILPSolver::write_var_solution( const std::vector< double > & x )
  // add_dynamic_variable() / remove_dynamic_variable(), so it is the only
  // reliable map for writing the dynamic part of the solution back.
  for( std::size_t i = 0 ; i < idx_to_dvar.size() ; ++i )
-  const_cast< ColVariable * >( idx_to_dvar[ i ] )->set_value(
-                                                x[ static_vars + i ] );
+  if( idx_to_dvar[ i ] &&
+      ( ( ! part ) || sel.count( idx_to_dvar[ i ]->get_Block() ) ) )
+   const_cast< ColVariable * >( idx_to_dvar[ i ] )->set_value(
+                                                 x[ static_vars + i ] );
  }  // end( MILPSolver::write_var_solution )
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
-				      const std::vector< double > & rc )
+				      const std::vector< double > & rc ,
+				      Configuration * solc )
 {
+ std::unordered_set< const Block * > sel;
+ const bool part = selected_Blocks( solc , "MILPSolver::write_dual_solution" ,
+                                    sel );
+
  // handle dual variables, if any- - - - - - - - - - - - - - - - - - - - - -
  if( ! pi.empty() ) {  // there actually is a dual solution
 
@@ -4017,25 +4073,29 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
    throw( std::invalid_argument(
               "MILPSolver::write_dual_solution: pi too short" ) );
 
-  // NOTE: this only supports pi written for linear constraints!
-  // TODO: extend pi to quadratic constraints
+  // pi has a value for every row, the quadratic ones included, each back-end
+  // putting there the multiplier of the row however it gets it
   int row = 0;
 
   auto set = [ & pi , & row ]( FRowConstraint & c ) {
-    if( dynamic_cast< LinearFunction * >( c.get_function() ) )
-      c.set_dual( - pi[ row++ ] );
-    else
-      // Skip quadratic rows
-      row++;
+   c.set_dual( - pi[ row++ ] );
    };
 
   /* The static rows are written in the block/BFS order they were loaded in,
    * which is the order of the running counter. */
 
-  for( auto qb : v_BFS )
+  for( auto qb : v_BFS ) {
+   const bool write = ( ! part ) || sel.count( qb );
    for( const auto & group : qb->get_static_constraint_groups() )
-    if( group )
-     group->for_each_as< FRowConstraint >( set );
+    if( group ) {
+     if( write )
+      group->for_each_as< FRowConstraint >( set );
+     else
+      if( group->get_num_elements() &&
+          group->elements_are< FRowConstraint >() )
+       row += group->get_num_elements();
+     }
+   }
 
   /* The dynamic rows are appended to the solver in modification-arrival
    * order, which is generally different from the block/BFS order the static
@@ -4047,10 +4107,8 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
 
   for( std::size_t i = 0 ; i < idx_to_dcon.size() ; ++i ) {
    auto c = const_cast< FRowConstraint * >( idx_to_dcon[ i ] );
-   if( ! c )
+   if( ( ! c ) || ( part && ( ! sel.count( c->get_Block() ) ) ) )
     continue;
-   if( ! dynamic_cast< LinearFunction * >( c->get_function() ) )
-    continue;   // skip quadratic rows
    const std::size_t row = static_cons + i;
    if( row < pi.size() )
     c->set_dual( - pi[ row ] );
@@ -4158,17 +4216,24 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
 
  // the static columns are in the block/BFS order they were loaded in, as
  // for the primal values [see write_var_solution()]
- for( auto qb : v_BFS )
+ for( auto qb : v_BFS ) {
+  const bool write = ( ! part ) || sel.count( qb );
   for( const auto & group : qb->get_static_variable_groups() )
-   if( group )
-    group->for_each_as< ColVariable >( set_bound );
+   if( group ) {
+    if( write )
+     group->for_each_as< ColVariable >( set_bound );
+    else
+     col += group->get_num_elements();
+    }
+  }
 
  // the dynamic columns all come after the static ones, in the order they
  // have been appended to the solver, which idx_to_dvar keeps: walking the
  // groups of each Block in turn would hand the reduced cost of a dynamic
  // column to a static one of the Block that follows
  for( std::size_t i = 0 ; i < idx_to_dvar.size() ; ++i ) {
-  if( ! idx_to_dvar[ i ] )
+  if( ( ! idx_to_dvar[ i ] ) ||
+      ( part && ( ! sel.count( idx_to_dvar[ i ]->get_Block() ) ) ) )
    continue;
   col = int( static_vars + i );
   set_bound( * const_cast< ColVariable * >( idx_to_dvar[ i ] ) );

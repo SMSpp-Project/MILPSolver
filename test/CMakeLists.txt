@@ -151,6 +151,20 @@ add_test(NAME test_free_workspace
          COMMAND test_free_workspace
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_partial_solution ----------------------------------------------- #
+
+add_milp_test(test_partial_solution test_partial_solution.cpp)
+add_test(NAME test_partial_solution
+         COMMAND test_partial_solution
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_qcp_dual ------------------------------------------------------- #
+
+add_milp_test(test_qcp_dual test_qcp_dual.cpp)
+add_test(NAME test_qcp_dual
+         COMMAND test_qcp_dual
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)

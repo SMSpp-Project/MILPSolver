@@ -1,5 +1,5 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - LPPar-ws.txt - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - LPPar-ws.txt  - - - - - - - - - - - - - - - -
 #
 # A txt description of a BlockSolverConfig for a LPBlock having two
 # GRBMILPSolver, which differ only in intFreeWorkspace: the first keeps the
@@ -110,5 +110,5 @@ dblRelAcc                    1e-08
 # pointer to the "extra" Configuration
 * # [none]
 
-# - - - - - - - - - - - - - - - END LPPar-ws.txt - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - END LPPar-ws.txt  - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

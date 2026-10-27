@@ -440,7 +440,7 @@ void ClarabelMILPSolver::get_var_solution( Configuration * solc )
   throw( std::logic_error( "ClarabelMILPSolver::get_var_solution: "
 			   "no solution available" ) );
 
- MILPSolver::write_var_solution( d_x );
+ MILPSolver::write_var_solution( d_x , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -490,7 +490,7 @@ void ClarabelMILPSolver::get_dual_solution( Configuration * solc )
  for( int i = 0 ; i < numrows ; ++i )
   pi[ i ] = lam( d_n + i );
 
- MILPSolver::write_dual_solution( pi , rc );
+ MILPSolver::write_dual_solution( pi , rc , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -510,7 +510,7 @@ void ClarabelMILPSolver::get_var_direction( Configuration * dirc )
 
  // P x = 0 and q' x < 0 for the problem Clarabel minimizes, whose q is
  // that of the Block negated for a maximization: x is a ray of the Block
- MILPSolver::write_var_solution( d_x );
+ MILPSolver::write_var_solution( d_x , dirc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -562,7 +562,7 @@ void ClarabelMILPSolver::get_dual_direction( Configuration * dirc )
 
  f_dual_direction_value = value;
 
- MILPSolver::write_dual_solution( pi , dj );
+ MILPSolver::write_dual_solution( pi , dj , dirc );
  }
 
 /*--------------------------------------------------------------------------*/

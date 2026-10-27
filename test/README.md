@@ -62,6 +62,27 @@ Three testers for the `MILPSolver` module, each registered as a separate
   reaches and to give the optimal value otherwise, and a second solve with
   a cutoff after a first one has to give either, and not throw.
 
+- `test_free_workspace` verifies that a `GRBMILPSolver` freeing the
+  workspace of Gurobi after each solve (`intFreeWorkspace 1`) gives the same
+  status, value, primal values and duals as one keeping it, across warm
+  re-solves after changes of sides, bounds and costs, an infeasible solve
+  and a solve with no change. The two Solver are configured by
+  `LPPar-ws.txt`.
+
+- `test_partial_solution` verifies that each `:MILPSolver` of the build
+  writes, with a `SimpleConfiguration< std::vector< int > >` given to
+  `get_var_solution()` and `get_dual_solution()`, only the part of the
+  solution of the sub-Blocks it lists (and of the Block itself for -1),
+  dynamic rows and columns included, that any other `Configuration` gives
+  the whole solution, and that an index of no sub-Block throws.
+
+- `test_qcp_dual` verifies the duals that each `:MILPSolver` of the build
+  solving a convex problem with quadratic rows writes in them, one with and
+  one without a linear part, and in the linear rows that follow them, on a
+  small problem whose multipliers are known; the `:MILPSolver` are those
+  that take quadratic rows (`LPPar-qcp.txt`), CPLEX and Gurobi have to solve
+  it, SCIP is skipped if it gives no duals of them.
+
 - `test_qp` verifies what each `:MILPSolver` of the build does with small
   quadratic models whose optimum is known: a convex QP with a separable and
   a non-separable objective, minimized and (its opposite) maximized, with

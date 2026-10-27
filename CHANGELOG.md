@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `QPOASESMILPSolver`, those of a hot start repeated from scratch included;
   0 for the back-ends that do not count them
 
+- `get_var_solution()`, `get_dual_solution()`, `get_var_direction()` and
+  `get_dual_direction()` of every :MILPSolver write only a part of the
+  solution when they are given a `SimpleConfiguration< std::vector< int > >`:
+  the sub-Blocks of the `Block` it lists, each with all its sub-Blocks, and
+  the `Block` itself without them for -1; the columns and rows not asked for
+  are skipped a group at a time, and any other `Configuration` gives the
+  whole solution as before. `test_partial_solution` checks it on every
+  back-end, dynamic rows and columns included
+
 - the makefiles build the C++20 module `smspp.milpsolver` when `SMSppMOD`
   is not empty (e.g., `make SMSppMOD=1`), with clang++ 16 or later [see
   `lib/makefile-mod` of SMS++]
@@ -272,6 +281,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rows by the indices the back-end keeps [see `is_quad_row()`]. Since
   `clear_problem()` gives the memory back, the reading crashed, e.g., in
   `linear_constraints_test` of BundleSolver
+
+- `write_dual_solution()` writes in the quadratic rows the dual that the
+  back-end gives them, which it skipped, leaving there whatever was there
+  before: `CPXMILPSolver` and `GRBMILPSolver` computed it, and it was lost;
+  `GRBMILPSolver` gives a quadratic row with a linear part the dual of its
+  linear row, as `CPXMILPSolver` does, and no longer that of the quadratic
+  constraint Gurobi gets it with, which has the opposite sign
+
+- the dual that `CPXMILPSolver` writes in a quadratic row was always -1, and
+  the duals of the linear rows that follow a quadratic row with no linear
+  part were shifted by one: a quadratic row with a linear part takes the
+  dual of its linear row, and one with no linear part the multiplier that
+  its dual slack gives; `test_qcp_dual` checks them on every back-end that
+  takes quadratic rows
 
 - the makefiles build `CPXMILPSolver`, `GRBMILPSolver`, `SCIPMILPSolver`
   and `HiGHSMILPSolver` only if CPLEX, Gurobi, SCIP and HiGHS are there,

@@ -705,7 +705,7 @@ void SCIPMILPSolver::get_var_solution( Configuration * solc )
              "SCIPMILPSolver::get_var_solution: "
              "unable to get the SCIP solution values" ) );
 
- MILPSolver::write_var_solution( x );
+ MILPSolver::write_var_solution( x , solc );
  } 
 
 /*--------------------------------------------------------------------------*/
@@ -731,7 +731,7 @@ void SCIPMILPSolver::get_var_direction( Configuration * dirc )
  for( int i = 0 ; i < numcols ; ++i )
   x[ i ] = SCIPgetPrimalRayVal( scip , vars[ i ] );
 
- MILPSolver::write_var_solution( x );
+ MILPSolver::write_var_solution( x , dirc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -791,7 +791,7 @@ void SCIPMILPSolver::get_dual_solution( Configuration * solc )
   dj[ j ] = SCIPgetVarRedcost( scip , vars[ j ] );
   
  // Call the method of the base class
- MILPSolver::write_dual_solution( pi , dj );
+ MILPSolver::write_dual_solution( pi , dj , solc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -840,7 +840,7 @@ void SCIPMILPSolver::get_dual_direction( Configuration * dirc )
  // has_dual_direction_value() reports that this Solver does not have it
 
  // Call the method of the base class
- MILPSolver::write_dual_solution( y , dj );
+ MILPSolver::write_dual_solution( y , dj , dirc );
  }
 
 /*--------------------------------------------------------------------------*/

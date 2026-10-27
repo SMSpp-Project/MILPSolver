@@ -1,0 +1,32 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - LPPar-qcp.txt - - - - - - - - - - - - - - - -
+#
+# A txt description of a BlockSolverConfig attaching to a Block every
+# :MILPSolver that takes quadratic constraints, for test_qcp_dual.cpp, which
+# keeps those of the build; the others refuse the problem as soon as they
+# are attached to the Block, when they load it
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+BlockSolverConfig     # exact type of the Configuration object
+
+1  # the BlockSolverConfig is a "differential" one: values are being set
+
+3  # number of (the names of) Solver in this BlockSolverConfig
+# now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
+CPXMILPSolver        # name of Solver, if it is in the build
+GRBMILPSolver        # name of Solver, if it is in the build
+SCIPMILPSolver       # name of Solver, if it is in the build
+
+3  # number of ComputeConfig in this BlockSolverConfig
+
+# now all the ComputeConfig, one per Solver in the same order
+*LPCfg-qcp-CPX.txt   # CPXMILPSolver
+*LPCfg-qcp-GRB.txt   # GRBMILPSolver
+*LPCfg-all-SCIP.txt  # SCIPMILPSolver
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - END LPPar-qcp.txt - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

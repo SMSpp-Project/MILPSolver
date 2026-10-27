@@ -878,10 +878,15 @@ class CPXMILPSolver : public MILPSolver {
         Index row ,
         bool lin_null );
 
- /** Evaluate the gradient of a specific quadratic constraint
-  * in the optimum find by CPLEX. */
+ /// the dual of the quadratic row with no linear part of index row
+ /** CPLEX gives no dual of a quadratic constraint, but its dual slack, which
+  * is the multiplier times the gradient of the constraint at the solution
+  * \p x_sol (auxiliary columns included): the multiplier is read on the
+  * component of the gradient largest in absolute value, the constraint
+  * being taken from CPLEX [see CPXgetqconstr()], as the quadratic part of
+  * the matrix-based representation is gone after the load. */
  double evaluate_dual_qcon( Index row ,
-        std::vector< double > x_sol );
+                            const std::vector< double > & x_sol );
 
  /// FRowConstraints with \f$ lhs > rhs \f$ in their current state
  /** CPLEX encodes a ranged row with \f$ \mathit{rngval} =

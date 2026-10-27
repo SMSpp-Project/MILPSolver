@@ -1515,7 +1515,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
                "unable to get the solution with CPXgetx()" ) );
  }
 
- MILPSolver::write_var_solution( x );
+ MILPSolver::write_var_solution( x , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1547,7 +1547,7 @@ void CPXMILPSolver::get_var_direction( Configuration * dirc )
                "unable to get the dual ray with CPXgetray()" ) );
  }
 
- MILPSolver::write_var_solution( x );
+ MILPSolver::write_var_solution( x , dirc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1634,15 +1634,16 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
       pi[ i ] = pi_cpx[ count_pi ];
       count_pi++;
     }
-    else{
-      // Quadratic Constraint: dual is not directly exposed by CPXgetpi,
-      // recover it from the KKT residual via evaluate_dual_qcon().
+    else if( cpx_quad_var_aux[ i ] != -1 ) {
+      // Quadratic Constraint with a linear part: it is q x + v <= q_0 with
+      // v >= x^T Q x, and the dual of the linear row is that of the row
+      pi[ i ] = pi_cpx[ count_pi ];
+      count_pi++;
+    }
+    else {
+      // Quadratic Constraint with no linear part: CPXgetpi() has no row
+      // for it, the dual is recovered from its dual slack
       pi[ i ] = evaluate_dual_qcon( i , x_q );
-
-      if( cpx_quad_con_aux[ i ] != -1 ) {
-        // Linear part available, simply skip the retrieved dual value
-        count_pi++;
-      }
     }   
   }
  }
@@ -1668,7 +1669,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
               "error retrieving reduced costs with CPXgetdj()" ) );
 
  // Call the method of the base class
- MILPSolver::write_dual_solution( pi , dj );
+ MILPSolver::write_dual_solution( pi , dj , solc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1737,7 +1738,7 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
   }
 
  // Call the method of the base class
- MILPSolver::write_dual_solution( y , dj );
+ MILPSolver::write_dual_solution( y , dj , dirc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -4900,63 +4901,64 @@ void CPXMILPSolver::generate_qcon_matrix( std::vector< int > & qidx1 ,
 
 /*--------------------------------------------------------------------------*/
 
- double CPXMILPSolver::evaluate_dual_qcon( Index row ,
-        std::vector< double > x_sol )
+double CPXMILPSolver::evaluate_dual_qcon( Index row ,
+                                          const std::vector< double > & x_sol )
 {
-  // Retrieve index of quadratic constraint in the specific index set
-  int qcon_idx = cpx_quad_con_aux[ row ];
-  if( qcon_idx == -1 )
-    throw( std::runtime_error("Error in retrieving index of quadratic constraint "
-      " in CPXMILPSolver::evaluate_dual_qcon()" ) );
+ const int qcon_idx = cpx_quad_con_aux[ row ];
+ if( qcon_idx == -1 )
+  throw( std::logic_error( "CPXMILPSolver::evaluate_dual_qcon: row " +
+                           std::to_string( row ) + " is not quadratic" ) );
 
-  // retrieve quadratic matrix
-  auto QMatrix = q_part[ row ];
-  int n_nz_QMat = QMatrix.size();
+ // the quadratic constraint as CPLEX has it: a first call with no space
+ // gives the sizes, as minus the surpluses
+ int linnz , quadnz , linsurplus , quadsurplus;
+ double rhs;
+ char sense;
+ CPXgetqconstr( env , lp , & linnz , & quadnz , & rhs , & sense , nullptr ,
+                nullptr , 0 , & linsurplus , nullptr , nullptr , nullptr , 0 ,
+                & quadsurplus , qcon_idx );
+ const int linspace = std::max( 0 , - linsurplus );
+ const int quadspace = std::max( 0 , - quadsurplus );
+ std::vector< int > linind( linspace ) , quadrow( quadspace ) ,
+                    quadcol( quadspace );
+ std::vector< double > linval( linspace ) , quadval( quadspace );
+ if( CPXgetqconstr( env , lp , & linnz , & quadnz , & rhs , & sense ,
+                    linind.data() , linval.data() , linspace , & linsurplus ,
+                    quadrow.data() , quadcol.data() , quadval.data() ,
+                    quadspace , & quadsurplus , qcon_idx ) )
+  throw( std::runtime_error( "CPXMILPSolver::evaluate_dual_qcon: unable to "
+                             "get the quadratic constraint of row " +
+                             std::to_string( row ) ) );
 
-  // Evaluate gradient in optimum. Due to the usually high sparsity of 
-  // quadratic matrix, we will store this also in a sparse way.
-  std::vector< int > ind_gradient;
-  ind_gradient.reserve( n_nz_QMat );
-  std::vector< double > val_gradient;
-  val_gradient.reserve( n_nz_QMat );
-
-  for( auto it = QMatrix.begin(); it != QMatrix.end(); ++it) {
-    auto tuple_idxs = it->first;
-    int first_idx = tuple_idxs.first;
-    int second_idx = tuple_idxs.second;
-
-    double coeff = it->second;
-    
-    // Verify if we already have seen the row index
-    auto it_idx = std::find( ind_gradient.begin() , ind_gradient.end() , first_idx );
-    if( it_idx == ind_gradient.end() ) {
-      // Insert new element into the gradient structures
-      ind_gradient.push_back( first_idx );
-      val_gradient.push_back( coeff * x_sol[ second_idx ] );
-    }
-    else{
-      // In this case we have to sum the new quantity to the previous one evaluated
-      // (we are doing a dot product).
-      auto dist = it_idx - ind_gradient.begin();
-      val_gradient[ dist ] += coeff * x_sol[ second_idx ];
-    }
+ // the gradient of the constraint at x_sol
+ std::vector< double > grad( x_sol.size() , 0 );
+ for( int k = 0 ; k < linnz ; ++k )
+  grad[ linind[ k ] ] += linval[ k ];
+ for( int k = 0 ; k < quadnz ; ++k ) {
+  grad[ quadrow[ k ] ] += quadval[ k ] * x_sol[ quadcol[ k ] ];
+  grad[ quadcol[ k ] ] += quadval[ k ] * x_sol[ quadrow[ k ] ];
   }
 
-  // Retrieve dual slack values for specifc quadratic constraint.
-  int nz_sl;
-  std::vector< int > ind( n_nz_QMat , -1 );
-  std::vector< double > val( n_nz_QMat , 0 );
-  int surplus_p;
+ // the dual slack of the constraint is its multiplier times the gradient,
+ // which is read on the component of the gradient largest in absolute value
+ int nz , surplus;
+ std::vector< int > ind( x_sol.size() );
+ std::vector< double > val( x_sol.size() );
+ if( CPXgetqconstrdslack( env , lp , qcon_idx , & nz , ind.data() ,
+                          val.data() , int( ind.size() ) , & surplus ) )
+  throw( std::runtime_error( "CPXMILPSolver::evaluate_dual_qcon: unable to "
+                             "get the dual slack of row " +
+                             std::to_string( row ) ) );
 
-  int status = CPXgetqconstrdslack( env , lp , qcon_idx , & nz_sl, ind.data() ,
-    val.data() , n_nz_QMat , & surplus_p );
-  if( status )
-    throw( std::runtime_error(
-               "CPXMILPSolver: error while retrieving dual slack values for "
-               "constraint " + std::to_string( row ) ) );
+ int best = -1;
+ double largest = 0;
+ for( int k = 0 ; k < nz ; ++k )
+  if( std::abs( grad[ ind[ k ] ] ) > largest ) {
+   largest = std::abs( grad[ ind[ k ] ] );
+   best = k;
+   }
 
-
-  return( -1.0 );
+ return( ( best < 0 ) ? 0 : val[ best ] / grad[ ind[ best ] ] );
  }
 
 /*--------------------------------------------------------------------------*/

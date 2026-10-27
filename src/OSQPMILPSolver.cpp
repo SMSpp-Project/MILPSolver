@@ -542,7 +542,7 @@ void OSQPMILPSolver::get_var_solution( Configuration * solc )
 			   "no solution available" ) );
 
  MILPSolver::write_var_solution(
-  std::vector< double >( d_x.begin() , d_x.end() ) );
+  std::vector< double >( d_x.begin() , d_x.end() ) , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -583,7 +583,7 @@ void OSQPMILPSolver::get_dual_solution( Configuration * solc )
   if( d_box_pos[ j ] >= 0 )
    rc[ j ] = - d_sign * d_y[ d_box_pos[ j ] ];
 
- MILPSolver::write_dual_solution( pi , rc );
+ MILPSolver::write_dual_solution( pi , rc , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -605,7 +605,7 @@ void OSQPMILPSolver::get_var_direction( Configuration * dirc )
  // P x = 0 and q' x < 0 for the problem OSQP minimizes, whose q is that of
  // the Block negated for a maximization: x is a ray of the Block
  MILPSolver::write_var_solution(
-		       std::vector< double >( d_cert.begin() , d_cert.end() ) );
+  std::vector< double >( d_cert.begin() , d_cert.end() ) , dirc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -655,7 +655,7 @@ void OSQPMILPSolver::get_dual_direction( Configuration * dirc )
 
  f_dual_direction_value = value;
 
- MILPSolver::write_dual_solution( pi , dj );
+ MILPSolver::write_dual_solution( pi , dj , dirc );
  }
 
 /*--------------------------------------------------------------------------*/

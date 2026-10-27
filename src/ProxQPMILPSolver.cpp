@@ -454,7 +454,7 @@ void ProxQPMILPSolver::get_var_solution( Configuration * solc )
 			   "no solution available" ) );
 
  MILPSolver::write_var_solution(
-  std::vector< double >( d_x.data() , d_x.data() + d_x.size() ) );
+  std::vector< double >( d_x.data() , d_x.data() + d_x.size() ) , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -500,7 +500,7 @@ void ProxQPMILPSolver::get_dual_solution( Configuration * solc )
    if( d_box_pos[ j ] >= 0 )
     rc[ j ] = - d_sign * d_z[ d_box_pos[ j ] ];
 
- MILPSolver::write_dual_solution( pi , rc );
+ MILPSolver::write_dual_solution( pi , rc , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -522,7 +522,7 @@ void ProxQPMILPSolver::get_var_direction( Configuration * dirc )
  // H x = 0 and g' x < 0 for the problem ProxQP minimizes, whose g is that
  // of the Block negated for a maximization: x is a ray of the Block
  MILPSolver::write_var_solution(
-			    std::vector< double >( d_cx.begin() , d_cx.end() ) );
+  std::vector< double >( d_cx.begin() , d_cx.end() ) , dirc );
  }
 
 /*--------------------------------------------------------------------------*/

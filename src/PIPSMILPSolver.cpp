@@ -605,7 +605,7 @@ void PIPSMILPSolver::get_var_solution( Configuration * solc )
   throw( std::runtime_error( "PIPSMILPSolver::get_var_solution: the PIPS "
 			     "primal solution vector has extra entries" ) );
 
- MILPSolver::write_var_solution( x );
+ MILPSolver::write_var_solution( x , solc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -708,7 +708,7 @@ void PIPSMILPSolver::get_dual_solution( Configuration * solc )
 			     "reduced-cost vector has unexpected extra "
 			     "entries" ) );
 
- MILPSolver::write_dual_solution( pi , rc );
+ MILPSolver::write_dual_solution( pi , rc , solc );
 }
 
 /*--------------------------------------------------------------------------*/

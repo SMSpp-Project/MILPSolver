@@ -1002,7 +1002,7 @@ void HiGHSMILPSolver::get_var_solution( Configuration * solc )
              "an error occurred in Highs_getSolution()" ) );
 
  col_value.resize( numcols );
- MILPSolver::write_var_solution( col_value );
+ MILPSolver::write_var_solution( col_value , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1031,7 +1031,7 @@ void HiGHSMILPSolver::get_var_direction( Configuration * dirc )
              "an error occurred in Highs_getPrimalRay()" ) );
 
  col_value.resize( numcols );
- MILPSolver::write_var_solution( col_value );
+ MILPSolver::write_var_solution( col_value , dirc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1103,7 +1103,7 @@ void HiGHSMILPSolver::get_dual_solution( Configuration * solc )
  col_dual.resize( numcols );
 
  // Call the method of the base class
- MILPSolver::write_dual_solution( row_dual , col_dual );
+ MILPSolver::write_dual_solution( row_dual , col_dual , solc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1169,7 +1169,7 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
  dj.resize( numcols , 0 );
 
  // Call the method of the base class
- MILPSolver::write_dual_solution( y , dj );
+ MILPSolver::write_dual_solution( y , dj , dirc );
 }
 
 /*--------------------------------------------------------------------------*/

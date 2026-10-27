@@ -370,7 +370,7 @@ void QPMADMILPSolver::get_var_solution( Configuration * solc )
   throw( std::logic_error( "QPMADMILPSolver::get_var_solution: "
 			   "no solution available" ) );
 
- MILPSolver::write_var_solution( d_x );
+ MILPSolver::write_var_solution( d_x , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -405,7 +405,7 @@ void QPMADMILPSolver::get_dual_solution( Configuration * solc )
  for( int i = 0 ; i < d_nc ; ++i )
   pi[ i ] = d_sign * d_y[ d_n + i ];
 
- MILPSolver::write_dual_solution( pi , rc );
+ MILPSolver::write_dual_solution( pi , rc , solc );
  }
 
 /*--------------------------------------------------------------------------*/

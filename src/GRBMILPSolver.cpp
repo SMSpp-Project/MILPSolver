@@ -1611,7 +1611,7 @@ void GRBMILPSolver::get_var_solution( Configuration * solc )
    }
   }
 
- MILPSolver::write_var_solution( x );
+ MILPSolver::write_var_solution( x , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1710,7 +1710,7 @@ void GRBMILPSolver::get_var_direction( Configuration * dirc )
    }
   }
  
- MILPSolver::write_var_solution( x );
+ MILPSolver::write_var_solution( x , dirc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1898,22 +1898,21 @@ void GRBMILPSolver::get_dual_solution( Configuration * solc )
       count_pi++;
     }
     else{
-      // Quadratic Constraint
-
-      // Evaluate dual for quadratic constraint
-      int idx_q_con  = grb_quad_con_aux[ i ];
-      pi[ i ] = pi_quad[ idx_q_con ];
-
-      if( grb_quad_var_aux[ i ] != -1 ) {
-        // Linear part available, simply skip the retrieved dual value
-        count_pi++;
-      }
+      // Quadratic Constraint: with a linear part it is the linear row
+      // a x + v <= rhs plus the quadratic one v >= x' Q x, of opposite
+      // sense, whose multipliers are the same up to the sign, and the dual
+      // of the row is that of the linear row; without, the dual of the
+      // quadratic constraint
+      if( grb_quad_var_aux[ i ] != -1 )
+        pi[ i ] = pi_grb[ count_pi++ ];
+      else
+        pi[ i ] = pi_quad[ grb_quad_con_aux[ i ] ];
     }   
   }
  }
 
  // Call the method of the base class
- MILPSolver::write_dual_solution( pi , dj );
+ MILPSolver::write_dual_solution( pi , dj , solc );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2107,7 +2106,7 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
  }
 
  // Call the method of the base class
- MILPSolver::write_dual_solution( y , dj );
+ MILPSolver::write_dual_solution( y , dj , dirc );
 }
 
 /*--------------------------------------------------------------------------*/

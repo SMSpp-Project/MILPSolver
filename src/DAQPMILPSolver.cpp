@@ -382,7 +382,7 @@ void DAQPMILPSolver::get_var_solution( Configuration * solc )
   throw( std::logic_error( "DAQPMILPSolver::get_var_solution: "
 			   "no solution available" ) );
 
- MILPSolver::write_var_solution( d_x );
+ MILPSolver::write_var_solution( d_x , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -419,7 +419,7 @@ void DAQPMILPSolver::get_dual_solution( Configuration * solc )
  for( int i = d_n ; i < d_m ; ++i )
   pi[ i - d_n ] = - d_sign * d_lam[ i ];
 
- MILPSolver::write_dual_solution( pi , rc );
+ MILPSolver::write_dual_solution( pi , rc , solc );
  }
 
 /*--------------------------------------------------------------------------*/

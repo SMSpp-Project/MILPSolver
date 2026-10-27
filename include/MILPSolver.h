@@ -137,6 +137,13 @@ namespace SMSpp_di_unipi_it
  * compute(), get_var_solution() and new_var_solution(), derived from the
  * Solver class, do nothing and should be implemented by derived classes.
  *
+ * The derived classes implement get_var_solution(), get_dual_solution() and
+ * the two methods of the directions with write_var_solution() and
+ * write_dual_solution(), to which they hand the Configuration they are
+ * given: a SimpleConfiguration< std::vector< int > > listing sub-Blocks of
+ * the Block, and -1 for the Block itself, has only that part of the solution
+ * written, any other Configuration all of it [see write_var_solution()].
+ *
  * The class defines also an interface that the derived classes should
  * implement to support Modification. The method process_modifications() is
  * already implemented and it is the one that dispatches the Modifications
@@ -872,9 +879,22 @@ class MILPSolver : public CDASolver
   * natural format, i.e., x[ i ] is the value of the ColVariable corresponding
   * to the i-th column in the coefficient matrix as constructed by
   * MILPSolver; this method writes it in the Block. It can obviously be used
-  * to implement get_var_solution(). */
- 
- void write_var_solution( const std::vector< double > & x );
+  * to implement get_var_solution().
+  *
+  * \p solc selects the part of the solution that is written, as the
+  * Configuration of get_var_solution() [see Solver.h] does. If it is a
+  * SimpleConfiguration< std::vector< int > >, only the ColVariable of the
+  * Block that its f_value lists are written: an index k >= 0 stands for the
+  * k-th sub-Block of the Block, i.e., get_nested_Block( k ), together with
+  * all its sub-Blocks, recursively, while -1 stands for the ColVariable of
+  * the Block itself, without those of its sub-Blocks. Any other
+  * Configuration, nullptr included, asks for the whole solution. An index
+  * that is neither -1 nor that of a sub-Block throws std::invalid_argument.
+  * The columns not asked for are skipped a group at a time, so writing a
+  * part costs in proportion to the part rather than to the whole Block. */
+
+ void write_var_solution( const std::vector< double > & x ,
+                          Configuration * solc = nullptr );
 
 /*--------------------------------------------------------------------------*/
  /// does nothing as there is nothing to do
@@ -899,10 +919,16 @@ class MILPSolver : public CDASolver
   * not it ignores the thing; maybe we'll add a general mechanism to throw
   * exception instead.
   *
-  * This method can obviously be used to implement get_dual_solution(). */
- 
+  * This method can obviously be used to implement get_dual_solution().
+  *
+  * \p solc selects the part of the solution that is written as in
+  * write_var_solution(): the dual values of the FRowConstraint and the
+  * reduced costs of the ColVariable of the Block it lists, a row or column
+  * belonging to the Block its Constraint or Variable belongs to. */
+
  void write_dual_solution( const std::vector< double > & pi ,
-			   const std::vector< double > & rc );
+			   const std::vector< double > & rc ,
+			   Configuration * solc = nullptr );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// true if the solver handed over the value of the dual direction
@@ -1087,6 +1113,17 @@ class MILPSolver : public CDASolver
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- PROTECTED METHODS ------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ /// the Block of #v_BFS whose solution solc asks for
+ /** Returns false if \p solc asks for the whole solution, otherwise true and
+  * the Block of #v_BFS whose ColVariable and FRowConstraint have to be
+  * written in \p sel [see write_var_solution()]; \p who is the name of the
+  * method in the exception thrown on an invalid index. */
+
+ bool selected_Blocks( Configuration * solc , const char * who ,
+                       std::unordered_set< const Block * > & sel ) const;
+
 /*--------------------------------------------------------------------------*/
 
  /// derived-class hook performing the actual back-end solve

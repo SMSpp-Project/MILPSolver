@@ -426,7 +426,7 @@ void PIQPMILPSolver::get_var_solution( Configuration * solc )
 			   "no solution available" ) );
 
  MILPSolver::write_var_solution(
-  std::vector< double >( d_x.data() , d_x.data() + d_x.size() ) );
+  std::vector< double >( d_x.data() , d_x.data() + d_x.size() ) , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -467,7 +467,7 @@ void PIQPMILPSolver::get_dual_solution( Configuration * solc )
  for( int j = 0 ; j < d_n ; ++j )
   rc[ j ] = - d_sign * d_zb[ j ];
 
- MILPSolver::write_dual_solution( pi , rc );
+ MILPSolver::write_dual_solution( pi , rc , solc );
  }
 
 /*--------------------------------------------------------------------------*/

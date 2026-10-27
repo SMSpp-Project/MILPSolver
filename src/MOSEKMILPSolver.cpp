@@ -751,7 +751,7 @@ void MOSEKMILPSolver::get_var_solution( Configuration * solc )
  if( numcols > 0 )
   check( MSK_getxx( task , f_soltype , x.data() ) , "get_var_solution" );
 
- MILPSolver::write_var_solution( x );
+ MILPSolver::write_var_solution( x , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -776,7 +776,7 @@ void MOSEKMILPSolver::get_var_direction( Configuration * dirc )
  if( numcols > 0 )
   check( MSK_getxx( task , f_soltype , x.data() ) , "get_var_direction" );
 
- MILPSolver::write_var_solution( x );
+ MILPSolver::write_var_solution( x , dirc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -825,7 +825,7 @@ void MOSEKMILPSolver::get_dual_solution( Configuration * solc )
    rc[ j ] -= sux[ j ];
   }
 
- MILPSolver::write_dual_solution( pi , rc );
+ MILPSolver::write_dual_solution( pi , rc , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -919,7 +919,7 @@ void MOSEKMILPSolver::get_dual_direction( Configuration * dirc )
 
  f_dual_direction_value = value;
 
- MILPSolver::write_dual_solution( y , dj );
+ MILPSolver::write_dual_solution( y , dj , dirc );
  }
 
 /*--------------------------------------------------------------------------*/
