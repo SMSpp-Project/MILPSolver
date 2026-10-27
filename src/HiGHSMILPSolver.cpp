@@ -129,6 +129,7 @@ void HiGHSMILPSolver::clear_problem( unsigned int what )
  MILPSolver::clear_problem( 0 );
 
  Highs_clearModel(highs);
+ f_kept = KeptSolution();
  n_free_slacks = 0;
  q_hessian.clear();
  q_hessian_nnz = 0;
@@ -144,6 +145,7 @@ void HiGHSMILPSolver::load_problem( void )
  q_hessian.clear();
  q_hessian_nnz = 0;
  f_hessian_changed = false;
+ f_kept = KeptSolution();
 
  int model_status = Highs_getModelStatus( highs );
  if( model_status == kHighsModelStatusModelEmpty )
@@ -518,6 +520,9 @@ int HiGHSMILPSolver::guts_of_compute( void )
  // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
  // This method is only responsible for the actual HiGHS call.
 
+ // what free_workspace() kept is the solution of the previous solve
+ f_kept.valid = false;
+
  // the changes to the Hessian made by the Modification are passed in one go
  pass_hessian( "guts_of_compute" );
 
@@ -724,9 +729,105 @@ int HiGHSMILPSolver::guts_of_compute( void )
   }
  else
   sol_status = decode_model_status( m_status );
+
+ // an optimal LP, whose solution is all in the four vectors of
+ // Highs_getSolution(), can do without the memory HiGHS keeps after a solve
+ // until the next one
+ if( ( m_status == kHighsModelStatusOptimal ) && ( int_vars == 0 ) &&
+     ( q_hessian_nnz == 0 ) )
+  free_workspace();
+
  return( sol_status );
 
  }  // end( HiGHSMILPSolver::guts_of_compute )
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::free_workspace( void )
+{
+ KeptSolution kept;
+ kept.col_value.resize( Highs_getNumCol( highs ) );
+ kept.col_dual.resize( kept.col_value.size() );
+ kept.row_value.resize( Highs_getNumRow( highs ) );
+ kept.row_dual.resize( kept.row_value.size() );
+ kept.objval = Highs_getObjectiveValue( highs );
+ if( ( Highs_getIntInfoValue( highs , "primal_solution_status" ,
+                              & kept.primal_status ) != kHighsStatusOk ) ||
+     ( Highs_getIntInfoValue( highs , "dual_solution_status" ,
+                              & kept.dual_status ) != kHighsStatusOk ) ||
+     ( Highs_getSolution( highs , kept.col_value.data() ,
+                          kept.col_dual.data() , kept.row_value.data() ,
+                          kept.row_dual.data() ) == kHighsStatusError ) )
+  return;  // a solution that cannot be read whole is left in HiGHS
+
+ // Highs_create() gives a Highs, whose C++ interface copies the options,
+ // the model (with the names) and the basis in one go each
+ auto & old = * static_cast< Highs * >( highs );
+ auto copy = Highs_create();
+ auto & h = * static_cast< Highs * >( copy );
+ if( ( h.passOptions( old.getOptions() ) == HighsStatus::kError ) ||
+     ( h.passModel( old.getModel() ) == HighsStatus::kError ) ) {
+  Highs_destroy( copy );
+  return;
+  }
+ if( old.getBasis().valid )
+  h.setBasis( old.getBasis() );
+
+ Highs_destroy( highs );
+ highs = copy;
+
+ f_kept = std::move( kept );
+ f_kept.valid = true;
+
+ }  // end( HiGHSMILPSolver::free_workspace )
+
+/*--------------------------------------------------------------------------*/
+
+double HiGHSMILPSolver::sol_objval( void ) const
+{
+ return( f_kept.valid ? f_kept.objval : Highs_getObjectiveValue( highs ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+HighsInt HiGHSMILPSolver::sol_int_info( const char * name ,
+                                        HighsInt * value ) const
+{
+ if( f_kept.valid ) {
+  if( ! std::strcmp( name , "primal_solution_status" ) ) {
+   *value = f_kept.primal_status;
+   return( kHighsStatusOk );
+   }
+  if( ! std::strcmp( name , "dual_solution_status" ) ) {
+   *value = f_kept.dual_status;
+   return( kHighsStatusOk );
+   }
+  }
+
+ return( Highs_getIntInfoValue( highs , name , value ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+HighsInt HiGHSMILPSolver::sol_solution( double * col_value ,
+                                        double * col_dual ,
+                                        double * row_value ,
+                                        double * row_dual ) const
+{
+ if( ! f_kept.valid )
+  return( Highs_getSolution( highs , col_value , col_dual , row_value ,
+                             row_dual ) );
+
+ const auto copy = []( const std::vector< double > & v , double * out ) {
+  if( out )
+   std::copy( v.begin() , v.end() , out );
+  };
+ copy( f_kept.col_value , col_value );
+ copy( f_kept.col_dual , col_dual );
+ copy( f_kept.row_value , row_value );
+ copy( f_kept.row_dual , row_dual );
+ return( kHighsStatusOk );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -885,7 +986,7 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
     case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
     case( kOK ):
     case( kUnEval ): // Sometimes it could be asked also during the computation
-      lower_bound = Highs_getObjectiveValue( highs );
+      lower_bound = sol_objval();
       lower_bound += constant_value;
       break;
 
@@ -924,7 +1025,7 @@ Solver::OFValue HiGHSMILPSolver::get_lb( void )
       }
 
     case( kOK ):
-     lower_bound = Highs_getObjectiveValue( highs );
+     lower_bound = sol_objval();
      lower_bound += constant_value;
      break;
 
@@ -967,7 +1068,7 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
       }
 
     case( kOK ):
-     upper_bound = Highs_getObjectiveValue( highs );
+     upper_bound = sol_objval();
      upper_bound += constant_value;
      break;
 
@@ -987,7 +1088,7 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
 
     case( kOK ):
     case( kUnEval ): // Sometimes it could be asked also during the computation
-     upper_bound = Highs_getObjectiveValue( highs );
+     upper_bound = sol_objval();
      upper_bound += constant_value;
      break;
 
@@ -1019,7 +1120,7 @@ Solver::OFValue HiGHSMILPSolver::get_ub( void )
 bool HiGHSMILPSolver::has_var_solution( void )
 {
  int sol_status , status;
- status = Highs_getIntInfoValue( highs , "primal_solution_status" ,
+ status = sol_int_info( "primal_solution_status" ,
 				 &sol_status );
 
  if( status == kHighsStatusError )
@@ -1063,7 +1164,7 @@ void HiGHSMILPSolver::get_var_solution( Configuration * solc )
  std::vector< double > row_dual( row_value.size() );
 
  int status;
- status = Highs_getSolution( highs , col_value.data() , col_dual.data() ,
+ status = sol_solution( col_value.data() , col_dual.data() ,
                             row_value.data() , row_dual.data() );
 
  if( status == kHighsStatusError )
@@ -1109,7 +1210,7 @@ void HiGHSMILPSolver::get_var_direction( Configuration * dirc )
 bool HiGHSMILPSolver::has_dual_solution( void )
 { 
  int dual_sol_status;
- Highs_getIntInfoValue( highs , "dual_solution_status" , & dual_sol_status );
+ sol_int_info( "dual_solution_status" , & dual_sol_status );
  
  switch( dual_sol_status ) {
   case( kHighsSolutionStatusNone): // There is no solution information
@@ -1132,7 +1233,7 @@ bool HiGHSMILPSolver::has_dual_solution( void )
 bool HiGHSMILPSolver::is_dual_feasible( void )
 {
  int dual_sol_status;
- Highs_getIntInfoValue( highs , "dual_solution_status" , & dual_sol_status );
+ sol_int_info( "dual_solution_status" , & dual_sol_status );
  
  switch( dual_sol_status ) {
   case( kHighsSolutionStatusNone): // There is no solution information
@@ -1161,7 +1262,7 @@ void HiGHSMILPSolver::get_dual_solution( Configuration * solc )
  std::vector< double > row_dual( row_value.size() );  // == pi
 
  int status;
- status = Highs_getSolution( highs , col_value.data() , col_dual.data() ,
+ status = sol_solution( col_value.data() , col_dual.data() ,
                             row_value.data() , row_dual.data() );
 
  if( status == kHighsStatusError )

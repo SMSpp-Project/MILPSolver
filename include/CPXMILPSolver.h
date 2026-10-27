@@ -728,6 +728,31 @@ class CPXMILPSolver : public MILPSolver {
  double f_saved_cutoff = 0;    ///< its value before set_lp_cutoff()
  int f_saved_method = 0;       ///< LPMethod before set_lp_cutoff()
 
+ /// the solution of the last solve, kept by free_workspace()
+ /**< Valid from the end of the solve that free_workspace() follows to the
+  * start of the next one: the copy of the problem that replaces the solved
+  * one has no solution, and the problem only changes within compute(),
+  * before the solve [see MILPSolver::process_modifications()]. */
+ struct KeptSolution {
+  bool valid = false;
+  int stat = 0;                  ///< CPXgetstat()
+  int method = 0;                ///< the four outputs of CPXsolninfo()
+  int type = 0;
+  int pfeas = 0;
+  int dfeas = 0;
+  double objval = 0;             ///< CPXgetobjval()
+  int bestobj_err = 0;           ///< the error of CPXgetbestobjval(), if any
+  double bestobjval = 0;         ///< CPXgetbestobjval()
+  std::vector< double > x;       ///< CPXgetx()
+  std::vector< double > pi;      ///< CPXgetpi()
+  std::vector< double > dj;      ///< CPXgetdj()
+  };
+ KeptSolution f_kept;
+
+ /// the basis kept by free_workspace(), until the next solve
+ std::vector< int > f_cstat;
+ std::vector< int > f_rstat;
+
  // note: CutSepPar (the bitwise-encoded cut/lazy separation parameter)
  // is now an inherited member of MILPSolver base
 
@@ -866,6 +891,47 @@ class CPXMILPSolver : public MILPSolver {
 
  /// gives back the limit and the method set_lp_cutoff() has changed
  void reset_lp_cutoff( void );
+
+ /// keeps the solution and the basis, and replaces the problem by a copy
+ /** Called after each solve of an LP ending optimal: the solution, the
+  * duals, the reduced costs and the basis are kept, and the problem is
+  * replaced by a copy of itself, which has none of the memory CPLEX keeps
+  * after a solve (several times that of the problem itself) and the next
+  * solve, which starts from the kept basis, does not need. If CPLEX cannot
+  * copy the problem, nothing changes. */
+
+ void free_workspace( void );
+
+ /// gives the problem the basis kept by free_workspace(), if any
+ /** A row or a column added since gets the status of a basic row or of a
+  * column at its lower bound, which is how CPLEX warm starts after the
+  * same change to a problem it has kept; a problem with fewer rows or
+  * columns than the basis starts cold. */
+
+ void restore_basis( void );
+
+ /** @name The solution of the last solve
+  * Each stands for the CPLEX call with the same arguments but the
+  * environment and the problem, and returns what that call returns: the
+  * value is read from the problem, or from what free_workspace() has kept,
+  * for the copy of the problem has none.
+  * @{ */
+
+ int sol_stat( void ) const;
+
+ int sol_info( int * method , int * type , int * pfeas , int * dfeas ) const;
+
+ int sol_objval( double * value ) const;
+
+ int sol_bestobjval( double * value ) const;
+
+ int sol_x( double * x , int begin , int end ) const;
+
+ int sol_pi( double * pi , int begin , int end ) const;
+
+ int sol_dj( double * dj , int begin , int end ) const;
+
+ /** @} ---------------------------------------------------------------- */
 
  /** Reloads a constraint.
   * To be used as fallback method for constraint FunctionMods. */

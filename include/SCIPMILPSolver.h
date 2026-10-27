@@ -502,6 +502,35 @@ class SCIPMILPSolver : public MILPSolver
    *  should be disabled.  */
  int ComputeDuals;
 
+ /// the solution of the last solve, kept by free_workspace()
+ /**< Valid from the end of the solve that free_workspace() follows to the
+  * start of the next one: the problem has no transformed form, hence no
+  * solution, after it, and it only changes within compute(), before the
+  * solve [see MILPSolver::process_modifications()]. */
+ struct KeptSolution {
+  bool valid = false;
+  SCIP_STATUS status = SCIP_STATUS_UNKNOWN;  ///< SCIPgetStatus()
+  double primalbound = 0;          ///< SCIPgetPrimalbound()
+  double dualbound = 0;            ///< SCIPgetDualbound()
+  long long nodes = 0;             ///< SCIPgetNTotalNodes()
+  bool has_sol = false;            ///< whether there was a best solution
+  std::vector< double > x;         ///< its values
+  bool dual_available = false;     ///< SCIPisDualSolAvailable()
+  bool has_duals = false;          ///< whether the two below were read
+  std::vector< double > pi;        ///< SCIPgetDualSolVal() of each row
+  std::vector< double > dj;        ///< SCIPgetVarRedcost() of each column
+  };
+ KeptSolution f_kept;
+
+ /// keeps the solution, and frees the transformed problem
+ /** Called after each solve of an LP ending optimal: the solution, and the
+  * duals if they are available, are kept, and the transformed problem is
+  * freed, with the LP and the rest of what SCIP keeps after a solve (as
+  * much as the problem itself). The next solve, which in SCIP starts from
+  * scratch after any change to the problem, does not need it. */
+
+ void free_workspace( void );
+
  /** vector containing the indices of the Configuration for the various
   * user cuts / lazy constraints separations in the "Configuration DB" */
  std::vector< int > CutSepCfgInd;

@@ -417,6 +417,14 @@ void GRBMILPSolver::free_workspace( void )
  if( ! copy )
   return;
 
+ // the copy is named after the model with "_copy" appended: it gets the
+ // name of the model, which is what a written model says
+ char * name = nullptr;
+ if( ! GRBgetstrattr( m , GRB_STR_ATTR_MODELNAME , & name ) && name ) {
+  GRBsetstrattr( copy , GRB_STR_ATTR_MODELNAME , name );
+  GRBupdatemodel( copy );
+  }
+
  GRBfreemodel( model );
  model = copy;
  apply_env_parameters();
@@ -1078,9 +1086,8 @@ int GRBMILPSolver::guts_of_compute( void )
   compute_certificate( m_status );
 
  // an optimal LP, whose solution is all in X, Pi and RC, can do without the
- // workspace of GUROBI until the next solve [see intFreeWorkspace]
- if( f_free_workspace && ( m_status == GRB_OPTIMAL ) && ( ! is_qp ) &&
-     ( numquadrows == 0 ) )
+ // workspace of GUROBI until the next solve [see free_workspace()]
+ if( ( m_status == GRB_OPTIMAL ) && ( ! is_qp ) && ( numquadrows == 0 ) )
   free_workspace();
 
  return( sol_status );
@@ -4880,7 +4887,7 @@ std::string GRBMILPSolver::grb_int_par_map( idx_type par ) const
   }
 
  // GUROBI parameters
- if( ( par >= intFirstGUROBIPar ) && ( par < intFreeWorkspace ) ) {
+ if( ( par >= intFirstGUROBIPar ) && ( par < intLastAlgParGRBS ) ) {
   return( SMSpp_to_GUROBI_int_pars[ par - intFirstGUROBIPar ] );
 
   }
@@ -4920,11 +4927,6 @@ void GRBMILPSolver::set_par( idx_type par , int value )
  // mapping below
  if( par == intLogVerb )
   log_verbosity = value;
-
- if( par == intFreeWorkspace ) {
-  f_free_workspace = bool( value );
-  return;
-  }
 
  if( par == intMaxIter ) { // intMaxIter is an int parameter in sms++ but a double in Gurobi
   set_par( par , (double)value );
@@ -5095,9 +5097,6 @@ Solver::idx_type GRBMILPSolver::get_num_vstr_par( void ) const {
 
 int GRBMILPSolver::get_dflt_int_par( idx_type par ) const
 {
- if( par == intFreeWorkspace )
-  return( 0 );
-
  // intCutSepPar is now handled by MILPSolver base
 
  std::string gp = grb_int_par_map( par );
@@ -5184,9 +5183,6 @@ const std::vector< std::string > & GRBMILPSolver::get_dflt_vstr_par(
 
 int GRBMILPSolver::get_int_par( idx_type par ) const
 {
- if( par == intFreeWorkspace )
-  return( f_free_workspace );
-
  // intCutSepPar is now handled by MILPSolver base
 
  std::string gp = grb_int_par_map( par );
@@ -5297,9 +5293,6 @@ Solver::idx_type GRBMILPSolver::int_par_str2idx(
  if( idx < Inf< idx_type >() )
   return( idx );
 
- if( name == "intFreeWorkspace" )
-  return( intFreeWorkspace );
-
  // GUROBI parameters
  std::string gurobi_par = name;
  auto array_pos = std::find( SMSpp_to_GUROBI_int_pars.begin() ,
@@ -5328,13 +5321,8 @@ const std::string & GRBMILPSolver::int_par_idx2str( idx_type idx ) const
  static std::string par_name;
  par_name.reserve( 512 );
 
- if( ( idx >= intFirstGUROBIPar ) && ( idx < intFreeWorkspace ) ) {
+ if( ( idx >= intFirstGUROBIPar ) && ( idx < intLastAlgParGRBS ) ) {
   par_name = SMSpp_to_GUROBI_int_pars[ idx - intFirstGUROBIPar ];
-  return( par_name );
-  }
-
- if( idx == intFreeWorkspace ) {
-  par_name = "intFreeWorkspace";
   return( par_name );
   }
 

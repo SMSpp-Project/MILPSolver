@@ -62,12 +62,12 @@ Three testers for the `MILPSolver` module, each registered as a separate
   reaches and to give the optimal value otherwise, and a second solve with
   a cutoff after a first one has to give either, and not throw.
 
-- `test_free_workspace` verifies that a `GRBMILPSolver` freeing the
-  workspace of Gurobi after each solve (`intFreeWorkspace 1`) gives the same
-  status, value, primal values and duals as one keeping it, across warm
-  re-solves after changes of sides, bounds and costs, an infeasible solve
-  and a solve with no change. The two Solver are configured by
-  `LPPar-ws.txt`.
+- `test_free_workspace` verifies that every `:MILPSolver` of
+  `LPPar-all.txt` that the build has, each of which may free after a solve
+  the memory that its back-end keeps and the next solve does not need,
+  gives the same status, value, primal values and duals as the others,
+  across warm re-solves after changes of sides, bounds and costs, an
+  infeasible solve and a solve with no change.
 
 - `test_partial_solution` verifies that each `:MILPSolver` of the build
   writes, with a `SimpleConfiguration< std::vector< int > >` given to

@@ -166,6 +166,7 @@ void SCIPMILPSolver::clear_problem( unsigned int what )
  MILPSolver::clear_problem( what );
 
  SCIP_CALL_ABORT( SCIPfreeProb( scip ) );
+ f_kept = KeptSolution();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -176,6 +177,7 @@ void SCIPMILPSolver::load_problem( void )
 
  vars.clear();
  cons.clear();
+ f_kept = KeptSolution();
 
  qobj_idx1.clear();
  qobj_idx2.clear();
@@ -528,6 +530,9 @@ int SCIPMILPSolver::guts_of_compute( void )
   f_check_convex = false;
   }
 
+ // what free_workspace() kept is the solution of the previous solve
+ f_kept.valid = false;
+
  auto st =  SCIPsolve( scip ) ;
 
  // decode SCIP exit status - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -548,8 +553,59 @@ int SCIPMILPSolver::guts_of_compute( void )
   default:                        sol_status = kError + SCIPgetStatus( scip );
   }
 
+ // an optimal LP can do without the transformed problem until the next
+ // solve, which builds it again in any case
+ const auto nonzero = []( double d ) { return( d != 0 ); };
+ if( ( SCIPgetStatus( scip ) == SCIP_STATUS_OPTIMAL ) && ( int_vars == 0 ) &&
+     ( numquadrows == 0 ) &&
+     std::none_of( q_objective.begin() , q_objective.end() , nonzero ) &&
+     std::none_of( ndq_objective.begin() , ndq_objective.end() , nonzero ) )
+  free_workspace();
+
  return( sol_status );
  }
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::free_workspace( void )
+{
+ KeptSolution kept;
+ kept.status = SCIPgetStatus( scip );
+ kept.primalbound = SCIPgetPrimalbound( scip );
+ kept.dualbound = SCIPgetDualbound( scip );
+ kept.nodes = SCIPgetNTotalNodes( scip );
+
+ if( SCIP_SOL * sol = SCIPgetBestSol( scip ) ) {
+  kept.x.resize( numcols );
+  if( SCIPgetSolVals( scip , sol , numcols , vars.data() , kept.x.data() )
+      != SCIP_OKAY )
+   return;  // a solution that cannot be read whole is left in SCIP
+  kept.has_sol = true;
+  }
+
+ // the duals as get_dual_solution() reads them, which is whether or not
+ // SCIP says they are available [see has_dual_solution()]
+ kept.dual_available = SCIPisDualSolAvailable( scip , FALSE );
+ kept.pi.resize( numrows );
+ kept.dj.resize( numcols );
+ kept.has_duals = true;
+ for( int i = 0 ; ( i < numrows ) && kept.has_duals ; ++i )
+  if( SCIPgetDualSolVal( scip , cons[ i ] , & kept.pi[ i ] , nullptr )
+      != SCIP_OKAY )
+   kept.has_duals = false;
+ if( kept.has_duals )
+  for( int j = 0 ; j < numcols ; ++j )
+   kept.dj[ j ] = SCIPgetVarRedcost( scip , vars[ j ] );
+ else
+  return;  // duals that cannot be read whole are left in SCIP
+
+ if( SCIPfreeTransform( scip ) != SCIP_OKAY )
+  return;
+
+ f_kept = std::move( kept );
+ f_kept.valid = true;
+
+ }  // end( SCIPMILPSolver::free_workspace )
 
 /*--------------------------------------------------------------------------*/
 
@@ -599,7 +655,8 @@ Solver::OFValue SCIPMILPSolver::get_lb( void )
     case( kUnbounded ):  lower_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): lower_bound = Inf< OFValue >();  break;
     default:
-     lower_bound = scip_bound( scip , SCIPgetDualbound( scip ) ,
+     lower_bound = scip_bound( scip , f_kept.valid ? f_kept.dualbound
+                                                : SCIPgetDualbound( scip ) ,
                                lower_bound );
     }
    break;
@@ -608,7 +665,8 @@ Solver::OFValue SCIPMILPSolver::get_lb( void )
     case( kUnbounded ):  lower_bound = Inf< OFValue >();  break;
     case( kInfeasible ): lower_bound = -Inf< OFValue >(); break;
     default:
-     lower_bound = scip_bound( scip , SCIPgetPrimalbound( scip ) ,
+     lower_bound = scip_bound( scip , f_kept.valid ? f_kept.primalbound
+                                                : SCIPgetPrimalbound( scip ) ,
                                lower_bound );
     }
    break;
@@ -632,7 +690,8 @@ Solver::OFValue SCIPMILPSolver::get_ub( void )
     case( kUnbounded ):  upper_bound = -Inf< OFValue >(); break;
     case( kInfeasible ): upper_bound = Inf< OFValue >();  break;
     default:
-     upper_bound = scip_bound( scip , SCIPgetPrimalbound( scip ) ,
+     upper_bound = scip_bound( scip , f_kept.valid ? f_kept.primalbound
+                                                : SCIPgetPrimalbound( scip ) ,
                                upper_bound );
     }
    break;
@@ -642,7 +701,8 @@ Solver::OFValue SCIPMILPSolver::get_ub( void )
     case( kUnbounded ):  upper_bound = Inf< OFValue >();  break;
     case( kInfeasible ): upper_bound = -Inf< OFValue >(); break;
     default:
-     upper_bound = scip_bound( scip , SCIPgetDualbound( scip ) ,
+     upper_bound = scip_bound( scip , f_kept.valid ? f_kept.dualbound
+                                                : SCIPgetDualbound( scip ) ,
                                upper_bound );
     }
    break;
@@ -693,6 +753,12 @@ Solver::OFValue SCIPMILPSolver::get_var_value( void )
 
 void SCIPMILPSolver::get_var_solution( Configuration * solc )
 {
+ if( f_kept.valid ) {
+  if( f_kept.has_sol )
+   MILPSolver::write_var_solution( f_kept.x , solc );
+  return;
+  }
+
  SCIP_SOL * sol = SCIPgetBestSol( scip );
  if( ! sol )
   return;
@@ -754,7 +820,8 @@ bool SCIPMILPSolver::has_dual_solution( void )
              "to retrieve dual values you must specify the "
              "intComputeDuals parameter" ) );
 
- has_dual_solution = SCIPisDualSolAvailable( scip , print );
+ has_dual_solution = f_kept.valid ? f_kept.dual_available
+                                   : SCIPisDualSolAvailable( scip , print );
  
  if( has_dual_solution )
    return( true );
@@ -780,6 +847,15 @@ bool SCIPMILPSolver::is_dual_feasible( void )
 
 void SCIPMILPSolver::get_dual_solution( Configuration * solc )
 {
+ if( f_kept.valid ) {
+  if( f_kept.has_duals ) {
+   auto pi = f_kept.pi;
+   auto dj = f_kept.dj;
+   MILPSolver::write_dual_solution( pi , dj , solc );
+   }
+  return;
+  }
+
  std::vector< SCIP_Real > pi( numrows , 0 );
  std::vector< SCIP_Real > dj( numcols , 0 );
 
@@ -855,7 +931,7 @@ void SCIPMILPSolver::write_lp( const std::string & filename )
 
 int SCIPMILPSolver::get_nodes( void ) const
 {
- return( ( int ) SCIPgetNTotalNodes( scip ) );
+ return( int( f_kept.valid ? f_kept.nodes : SCIPgetNTotalNodes( scip ) ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2338,6 +2414,11 @@ void SCIPMILPSolver::set_par( idx_type par, int value )
                                      FALSE) );
    SCIP_CALL_ABORT( SCIPsetBoolParam(scip, "misc/allowweakdualreds",
                                      FALSE) );
+   // and the solutions of the previous solve, which SCIP keeps when the
+   // problem changes and gives the next solve as candidates: one that is
+   // still optimal becomes the best solution in place of that of the LP,
+   // which is the one the duals belong to
+   SCIP_CALL_ABORT( SCIPsetIntParam(scip, "limits/maxorigsol", 0) );
 
    return;
   case( intMaxIter ):

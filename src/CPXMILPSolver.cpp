@@ -170,6 +170,9 @@ void CPXMILPSolver::clear_problem( unsigned int what )
   }
 
  f_inverted_rows.clear();
+ f_kept = KeptSolution();
+ f_cstat.clear();
+ f_rstat.clear();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -188,6 +191,9 @@ void CPXMILPSolver::load_problem( void )
  if( lp )
   CPXfreeprob( env , & lp );
  lp = CPXcreateprob( env , & status , prob_name.c_str() );
+ f_kept = KeptSolution();
+ f_cstat.clear();
+ f_rstat.clear();
 
  std::vector< double > cpx_lb = lb;
  std::vector< double > cpx_ub = ub;
@@ -517,6 +523,9 @@ int CPXMILPSolver::guts_of_compute( void )
  // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
  // This method is only responsible for the actual CPLEX call.
 
+ // what free_workspace() kept is the solution of the previous solve
+ f_kept.valid = false;
+
  // short-circuit: any FRowConstraint with lhs > rhs makes the problem
  // structurally infeasible (see f_inverted_rows documentation)
  if( ! f_inverted_rows.empty() ) {
@@ -610,7 +619,7 @@ int CPXMILPSolver::guts_of_compute( void )
    return( sol_status );
    }
 
-  sol_status = decode_mip_status( CPXgetstat( env , lp ) );
+  sol_status = decode_mip_status( sol_stat() );
   return( sol_status );
   }
 
@@ -626,6 +635,7 @@ int CPXMILPSolver::guts_of_compute( void )
   current_Cntx_id = 0;
   }
 
+ restore_basis();
  const bool lp_cutoff = set_lp_cutoff();
  const int status = is_qp ? CPXqpopt( env , lp ) : CPXlpopt( env , lp );
  if( lp_cutoff )
@@ -640,15 +650,175 @@ int CPXMILPSolver::guts_of_compute( void )
  // An infeasible primal level projection is an ordinary empty-level result.
  // The dual simplex stopped by the limit on its objective that
  // set_lp_cutoff() gives it has stopped at the cutoff of this Solver
- const int stat = CPXgetstat( env , lp );
+ const int stat = sol_stat();
  if( lp_cutoff && ( ( stat == CPX_STAT_ABORT_OBJ_LIM ) ||
                     ( stat == CPX_STAT_ABORT_DUAL_OBJ_LIM ) ) )
   sol_status = kCutOff;
  else
   sol_status = decode_lqp_status( stat );
+
+ // an optimal LP, whose solution is all in x, pi and dj, can do without the
+ // memory CPLEX keeps after a solve until the next one
+ if( ( stat == CPX_STAT_OPTIMAL ) &&
+     ( CPXgetprobtype( env , lp ) == CPXPROB_LP ) )
+  free_workspace();
+
  return( sol_status );
 
  }  // end( CPXMILPSolver::guts_of_compute )
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::free_workspace( void )
+{
+ const int n = CPXgetnumcols( env , lp );
+ const int r = CPXgetnumrows( env , lp );
+
+ KeptSolution kept;
+ kept.x.resize( n );
+ kept.dj.resize( n );
+ kept.pi.resize( r );
+ kept.stat = CPXgetstat( env , lp );
+ if( CPXsolninfo( env , lp , & kept.method , & kept.type , & kept.pfeas ,
+                  & kept.dfeas ) ||
+     CPXgetobjval( env , lp , & kept.objval ) ||
+     ( n && ( CPXgetx( env , lp , kept.x.data() , 0 , n - 1 ) ||
+              CPXgetdj( env , lp , kept.dj.data() , 0 , n - 1 ) ) ) ||
+     ( r && CPXgetpi( env , lp , kept.pi.data() , 0 , r - 1 ) ) )
+  return;  // a solution that cannot be read whole is left in the problem
+
+ kept.bestobj_err = CPXgetbestobjval( env , lp , & kept.bestobjval );
+
+ // the basis, which a solve that ends without one (say, a barrier without
+ // crossover) does not have: the next solve then starts cold
+ std::vector< int > cstat( n ) , rstat( r );
+ if( CPXgetbase( env , lp , n ? cstat.data() : nullptr ,
+                 r ? rstat.data() : nullptr ) ) {
+  cstat.clear();
+  rstat.clear();
+  }
+
+ int status = 0;
+ auto copy = CPXcloneprob( env , lp , & status );
+ if( status || ( ! copy ) )
+  return;
+
+ CPXfreeprob( env , & lp );
+ lp = copy;
+
+ f_kept = std::move( kept );
+ f_kept.valid = true;
+ f_cstat = std::move( cstat );
+ f_rstat = std::move( rstat );
+
+ }  // end( CPXMILPSolver::free_workspace )
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::restore_basis( void )
+{
+ if( f_cstat.empty() && f_rstat.empty() )
+  return;
+
+ auto cstat = std::move( f_cstat );
+ auto rstat = std::move( f_rstat );
+ f_cstat.clear();
+ f_rstat.clear();
+
+ const int n = CPXgetnumcols( env , lp );
+ const int r = CPXgetnumrows( env , lp );
+ if( ( std::size_t( n ) < cstat.size() ) ||
+     ( std::size_t( r ) < rstat.size() ) )
+  return;
+
+ cstat.resize( n , CPX_AT_LOWER );
+ rstat.resize( r , CPX_BASIC );
+ CPXcopybase( env , lp , n ? cstat.data() : nullptr ,
+              r ? rstat.data() : nullptr );
+
+ }  // end( CPXMILPSolver::restore_basis )
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::sol_stat( void ) const
+{
+ return( f_kept.valid ? f_kept.stat : CPXgetstat( env , lp ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+int CPXMILPSolver::sol_info( int * method , int * type , int * pfeas ,
+                             int * dfeas ) const
+{
+ if( ! f_kept.valid )
+  return( CPXsolninfo( env , lp , method , type , pfeas , dfeas ) );
+
+ if( method ) *method = f_kept.method;
+ if( type ) *type = f_kept.type;
+ if( pfeas ) *pfeas = f_kept.pfeas;
+ if( dfeas ) *dfeas = f_kept.dfeas;
+ return( 0 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+int CPXMILPSolver::sol_objval( double * value ) const
+{
+ if( ! f_kept.valid )
+  return( CPXgetobjval( env , lp , value ) );
+
+ *value = f_kept.objval;
+ return( 0 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+int CPXMILPSolver::sol_bestobjval( double * value ) const
+{
+ if( ! f_kept.valid )
+  return( CPXgetbestobjval( env , lp , value ) );
+
+ if( f_kept.bestobj_err )
+  return( f_kept.bestobj_err );
+ *value = f_kept.bestobjval;
+ return( 0 );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+// a range of what free_workspace() has kept, with the error CPLEX gives for
+// one outside the problem
+static int kept_range( const std::vector< double > & v , double * out ,
+                       int begin , int end )
+{
+ if( ( begin < 0 ) || ( end < begin - 1 ) ||
+     ( std::size_t( end + 1 ) > v.size() ) )
+  return( CPXERR_INDEX_RANGE );
+
+ std::copy( v.begin() + begin , v.begin() + end + 1 , out );
+ return( 0 );
+ }
+
+int CPXMILPSolver::sol_x( double * x , int begin , int end ) const
+{
+ if( ! f_kept.valid )
+  return( CPXgetx( env , lp , x , begin , end ) );
+ return( kept_range( f_kept.x , x , begin , end ) );
+ }
+
+int CPXMILPSolver::sol_pi( double * pi , int begin , int end ) const
+{
+ if( ! f_kept.valid )
+  return( CPXgetpi( env , lp , pi , begin , end ) );
+ return( kept_range( f_kept.pi , pi , begin , end ) );
+ }
+
+int CPXMILPSolver::sol_dj( double * dj , int begin , int end ) const
+{
+ if( ! f_kept.valid )
+  return( CPXgetdj( env , lp , dj , begin , end ) );
+ return( kept_range( f_kept.dj , dj , begin , end ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -1172,10 +1342,10 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     case( kLowPrecision ): {
      int solnmethod , solntype , pfeasind , dfeasind;
      if( ( probtype == CPXPROB_LP ) &&
-         ( ! CPXsolninfo( env , lp , & solnmethod , & solntype ,
+         ( ! sol_info( & solnmethod , & solntype ,
                           & pfeasind , & dfeasind ) ) &&
          ( solntype == CPX_BASIC_SOLN ) && pfeasind && dfeasind ) {
-      CPXgetobjval( env , lp , & lower_bound );
+      sol_objval( & lower_bound );
       lower_bound += constant_value;
       }
      else
@@ -1193,7 +1363,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       case( CPXPROB_FIXEDMIQP ):
       case( CPXPROB_MIQCP ):
        // a search stopped before it has any bound has CPLEX's infinity
-       if( CPXgetbestobjval( env , lp , & lower_bound ) ||
+       if( sol_bestobjval( & lower_bound ) ||
            ( std::abs( lower_bound ) >= CPX_INFBOUND ) ) {
         lower_bound = -Inf< OFValue >();
         break;
@@ -1208,14 +1378,14 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
        // dual solution
        if( sol_status != kOK ) {
         int solnmethod , solntype , pfeasind , dfeasind;
-        if( CPXsolninfo( env , lp , & solnmethod , & solntype , & pfeasind ,
+        if( sol_info( & solnmethod , & solntype , & pfeasind ,
                          & dfeasind ) || ( solntype != CPX_BASIC_SOLN ) ||
             ( ! dfeasind ) ) {
          lower_bound = -Inf< OFValue >();
          break;
          }
         }
-       CPXgetobjval( env , lp , & lower_bound );
+       sol_objval( & lower_bound );
        lower_bound += constant_value;
       }
      break;
@@ -1273,7 +1443,7 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
       }
 
     case( kOK ):
-     CPXgetobjval( env , lp , & lower_bound );
+     sol_objval( & lower_bound );
      lower_bound += constant_value;
      break;
 
@@ -1344,7 +1514,7 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       }
 
     case( kOK ):
-     CPXgetobjval( env , lp , & upper_bound );
+     sol_objval( & upper_bound );
      upper_bound += constant_value;
      break;
 
@@ -1390,10 +1560,10 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     case( kLowPrecision ): {
      int solnmethod , solntype , pfeasind , dfeasind;
      if( ( probtype == CPXPROB_LP ) &&
-         ( ! CPXsolninfo( env , lp , & solnmethod , & solntype ,
+         ( ! sol_info( & solnmethod , & solntype ,
                           & pfeasind , & dfeasind ) ) &&
          ( solntype == CPX_BASIC_SOLN ) && pfeasind && dfeasind ) {
-      CPXgetobjval( env , lp , & upper_bound );
+      sol_objval( & upper_bound );
       upper_bound += constant_value;
       }
      else
@@ -1411,7 +1581,7 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
       case( CPXPROB_FIXEDMIQP ):
       case( CPXPROB_MIQCP ):
        // a search stopped before it has any bound has CPLEX's infinity
-       if( CPXgetbestobjval( env , lp , & upper_bound ) ||
+       if( sol_bestobjval( & upper_bound ) ||
            ( std::abs( upper_bound ) >= CPX_INFBOUND ) ) {
         upper_bound = Inf< OFValue >();
         break;
@@ -1426,14 +1596,14 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
        // dual solution
        if( sol_status != kOK ) {
         int solnmethod , solntype , pfeasind , dfeasind;
-        if( CPXsolninfo( env , lp , & solnmethod , & solntype , & pfeasind ,
+        if( sol_info( & solnmethod , & solntype , & pfeasind ,
                          & dfeasind ) || ( solntype != CPX_BASIC_SOLN ) ||
             ( ! dfeasind ) ) {
          upper_bound = Inf< OFValue >();
          break;
          }
         }
-       CPXgetobjval( env , lp , & upper_bound );
+       sol_objval( & upper_bound );
        upper_bound += constant_value;
       }
      break;
@@ -1480,7 +1650,7 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
 bool CPXMILPSolver::has_var_solution( void )
 {
  int solnmethod, solntype, pfeasind, dfeasind;
- int status = CPXsolninfo( env , lp , & solnmethod , & solntype ,
+ int status = sol_info( & solnmethod , & solntype ,
                            & pfeasind , & dfeasind );
  if( status )
   throw( std::runtime_error(
@@ -1503,7 +1673,7 @@ bool CPXMILPSolver::has_var_solution( void )
 bool CPXMILPSolver::is_var_feasible( void )
 {
  int solnmethod , solntype , pfeasind , dfeasind;
- if( CPXsolninfo( env , lp , & solnmethod , & solntype ,
+ if( sol_info( & solnmethod , & solntype ,
                   & pfeasind , & dfeasind ) )
   throw( std::runtime_error(
              "CPXMILPSolver::is_var_feasible: "
@@ -1536,7 +1706,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
   // auxiliary variables
   auto naux = int( cpx_idx_aux_qvar.size() );
   std::vector< double > x_q( numcols + naux , 0 );
-  if( CPXgetx( env , lp , x_q.data() , 0 , numcols + naux - 1 ) )
+  if( sol_x( x_q.data() , 0 , numcols + naux - 1 ) )
     throw( std::runtime_error(
                "CPXMILPSolver: unable to get the solution with "
                "CPXgetx() in QCP" ) );
@@ -1554,7 +1724,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
   }
  }
  else {
-  if( CPXgetx( env , lp , x.data() , 0 , numcols - 1 ) )
+  if( sol_x( x.data() , 0 , numcols - 1 ) )
     throw( std::runtime_error(
                "CPXMILPSolver::get_var_solution: "
                "unable to get the solution with CPXgetx()" ) );
@@ -1567,7 +1737,7 @@ void CPXMILPSolver::get_var_solution( Configuration * solc )
 
 bool CPXMILPSolver::has_var_direction( void )
 {
-  int sol_status = CPXgetstat( env , lp );
+  int sol_status = sol_stat();
   
   if( sol_status != CPX_STAT_UNBOUNDED )
     return( false );
@@ -1600,7 +1770,7 @@ void CPXMILPSolver::get_var_direction( Configuration * dirc )
 bool CPXMILPSolver::has_dual_solution( void )
 {
  int solnmethod , solntype , pfeasind , dfeasind;
- if( CPXsolninfo( env , lp , & solnmethod , & solntype ,
+ if( sol_info( & solnmethod , & solntype ,
 		  & pfeasind , & dfeasind ) )
   throw( std::runtime_error(
              "CPXMILPSolver::has_dual_solution: "
@@ -1622,7 +1792,7 @@ bool CPXMILPSolver::has_dual_solution( void )
 bool CPXMILPSolver::is_dual_feasible( void )
 {
  int solnmethod , solntype , pfeasind , dfeasind;
- if( CPXsolninfo( env , lp , & solnmethod , & solntype ,
+ if( sol_info( & solnmethod , & solntype ,
 		  & pfeasind , & dfeasind ) )
   throw( std::runtime_error(
              "CPXMILPSolver::is_dual_feasible: "
@@ -1647,7 +1817,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
 
  /* Dual values for constraints */
  if( numrows > 0 )
-  if( CPXgetpi( env , lp , pi_cpx.data() , 0 , numrows - nq_linnull - 1 ) )
+  if( sol_pi( pi_cpx.data() , 0 , numrows - nq_linnull - 1 ) )
    throw( std::runtime_error(
               "CPXMILPSolver::get_dual_solution: "
               "unable to get dual values with CPXgetpi()" ) );
@@ -1668,7 +1838,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
   // We need to evaluate dual values for quadratic constraint as explained in
   //https://www.ibm.com/docs/en/icos/20.1.0?topic=qcp-accessing-dual-values-reduced-costs-solutions
   std::vector< double > x_q( numcols + cpx_idx_aux_qvar.size() , 0 );
-  if( CPXgetx( env , lp , x_q.data() , 0 , numcols + cpx_idx_aux_qvar.size() - 1 ) )
+  if( sol_x( x_q.data() , 0 , numcols + cpx_idx_aux_qvar.size() - 1 ) )
     throw( std::runtime_error(
                "CPXMILPSolver: unable to get the solution with "
                "CPXgetx() in QCP" ) );
@@ -1694,7 +1864,7 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
  }
  
  /* Dual values for variables */
- if( CPXgetdj( env , lp , dj.data() , 0 , 
+ if( sol_dj( dj.data() , 0 , 
       numcols + cpx_idx_aux_qvar.size() - 1 ) )
   throw( std::runtime_error(
              "CPXMILPSolver::get_dual_solution: "

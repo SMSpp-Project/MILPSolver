@@ -101,10 +101,8 @@ class GRBMILPSolver : public MILPSolver {
  enum int_par_type_GRBS {
   // note: intCutSepPar has moved to MILPSolver base (enum int_par_type_MILP)
   intFirstGUROBIPar = intLastAlgParMILP ,  ///< first Gurobi int/long parameter
-  /// free the workspace of GUROBI after each optimal continuous solve
-  intFreeWorkspace = intFirstGUROBIPar + GRB_NUM_INT_PARS ,
   /// first allowed new int parameter for derived classes
-  intLastAlgParGRBS
+  intLastAlgParGRBS = intFirstGUROBIPar + GRB_NUM_INT_PARS
   };
 
  /// enum for double parameters
@@ -316,16 +314,7 @@ void add_mip_starts(
   *           a feasible solution is generated
   *
   *   See vintCutSepCfgInd for properly setting Configurations for the
-  *   corresponding calls to generate_dynamic_constraint().
-  *
-  * - intFreeWorkspace [0]: if nonzero, after a solve of a continuous model
-  *   ending optimal the solution, the duals, the reduced costs and the basis
-  *   are kept by the Solver, and the model is replaced by a copy of itself,
-  *   which frees the workspace GUROBI keeps after a solve (several times
-  *   the memory of the model itself); the next solve starts from the kept
-  *   basis, hence from the same point. The price is one factorization of
-  *   the basis per solve. It pays when many Solver keep their model between
-  *   solves, as those of the subproblems of a decomposition do. */
+  *   corresponding calls to generate_dynamic_constraint(). */
 
  void set_par( idx_type par , int value ) override;
 
@@ -770,7 +759,7 @@ void add_mip_starts(
  /// an attribute of the solution, from the model or from what was kept
  /** The attributes of the solution of the last solve: those that the model
   * has, or those kept when the workspace was freed, for the copy of the
-  * model has none [see intFreeWorkspace and free_workspace()]. The returned
+  * model has none [see free_workspace()]. The returned
   * value is that of the GUROBI call it stands for. */
 
  int sol_int_attr( const char * name , int * value ) const;
@@ -782,10 +771,12 @@ void add_mip_starts(
 
 /*--------------------------------------------------------------------------*/
  /// keeps the solution and the basis, and replaces the model by a copy
- /** Called after a solve of a continuous model ending optimal when
-  * intFreeWorkspace is nonzero: the attributes of the solution and the basis
-  * are kept, and the model is replaced by a copy of itself, with no
-  * workspace. If GUROBI cannot copy the model, nothing changes. */
+ /** Called after each solve of a continuous model ending optimal: the
+  * attributes of the solution and the basis are kept, and the model is
+  * replaced by a copy of itself, with no workspace, since the one GUROBI
+  * keeps after a solve takes several times the memory of the model and the
+  * next solve, which starts from the kept basis, does not need it. If
+  * GUROBI cannot copy the model, nothing changes. */
 
  void free_workspace( void );
 
@@ -841,7 +832,6 @@ void add_mip_starts(
 
  bool f_callback_set;  // true if the callback has been set
 
- bool f_free_workspace = false;  ///< intFreeWorkspace
  double f_saved_cutoff = 0;        ///< Cutoff before set_lp_cutoff()
  int f_saved_method = -1;          ///< Method before set_lp_cutoff()
  int f_saved_presolve = -1;        ///< Presolve before set_lp_cutoff()
