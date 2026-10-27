@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `dblUpCutOff` and `dblLwCutOff` act on a continuous model too in
+  `CPXMILPSolver`, `GRBMILPSolver` and `HiGHSMILPSolver`: the cutoff on the
+  bound that the dual simplex certifies (the lower one of a minimization,
+  the upper one of a maximization) becomes the objective limit of the dual
+  simplex of the back-end, which stops as soon as its dual objective
+  passes it and returns `kCutOff`, with a certified bound at least as good
+  as the cutoff and a feasible dual solution, i.e., one that gives a valid
+  cut (the presolve is turned off for this solve in `GRBMILPSolver` and
+  `HiGHSMILPSolver`, whose presolved solve gives no such dual solution or
+  ignores the limit, and HiGHS acts on it only when minimizing). The
+  parameters changed for it are given back after the solve.
+  `test_cutoff_status` checks it on an LP with 60 columns and 40 rows, in
+  either sense, with a cutoff that is reached and with one that is not
+
 - `MILPSolver::get_elapsed_iterations()` gives the iterations of the
   back-end in the last `compute()`, all its solves summed: those of DAQP in
   `DAQPMILPSolver` and the working set recalculations of qpOASES in

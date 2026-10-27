@@ -604,6 +604,9 @@ int HiGHSMILPSolver::guts_of_compute( void )
  if( ipx_misplaces_free_rows && ipm_on_lp() )
   bind_free_rows();
 
+ f_lp_cutoff_stop = false;
+ const bool lp_cutoff = set_lp_cutoff();
+
  // Call HiGHS to solve the problem; a QP that fails is dealt with below
  if( ( run_highs() == -1 ) && ( ! qp_help ) ) {
   // An error happened during the call of HiGHS_run. Notice that this is not
@@ -710,10 +713,69 @@ int HiGHSMILPSolver::guts_of_compute( void )
   Highs_setStringOptionValue( highs , "solver" , solver_option.data() );
   }
 
- sol_status = decode_model_status( m_status );
+ if( lp_cutoff )
+  reset_lp_cutoff();
+
+ // the dual simplex stopped by the bound on its objective that
+ // set_lp_cutoff() gives it has stopped at the cutoff of this Solver
+ if( lp_cutoff && ( m_status == kHighsModelStatusObjectiveBound ) ) {
+  f_lp_cutoff_stop = true;
+  sol_status = kCutOff;
+  }
+ else
+  sol_status = decode_model_status( m_status );
  return( sol_status );
 
  }  // end( HiGHSMILPSolver::guts_of_compute )
+
+/*--------------------------------------------------------------------------*/
+
+bool HiGHSMILPSolver::set_lp_cutoff( void )
+{
+ // the cutoff on the lower bound that the dual simplex certifies in a
+ // minimization [see dblUpCutOff in Solver.h]; HiGHS lacks the constant of
+ // the objective
+ if( ( ( int_vars > 0 ) && ( relax_int_vars == 0 ) ) || q_hessian_nnz ||
+     numquadrows )
+  return( false );
+ // HiGHS acts on objective_bound only when minimizing
+ HighsInt sense;
+ Highs_getObjectiveSense( highs , & sense );
+ if( sense != kHighsObjSenseMinimize )
+  return( false );
+ const double cut = UpCutOff;
+ if( ! std::isfinite( cut ) )
+  return( false );
+
+ std::array< char , kHighsMaximumStringLength > solver = {};
+ Highs_getStringOptionValue( highs , "solver" , solver.data() );
+ f_saved_solver = solver.data();
+ Highs_getDoubleOptionValue( highs , "objective_bound" , & f_saved_cutoff );
+ Highs_getIntOptionValue( highs , "simplex_strategy" , & f_saved_strategy );
+ std::array< char , kHighsMaximumStringLength > presolve = {};
+ Highs_getStringOptionValue( highs , "presolve" , presolve.data() );
+ f_saved_presolve = presolve.data();
+ Highs_setDoubleOptionValue( highs , "objective_bound" ,
+                             cut - constant_value );
+ Highs_setStringOptionValue( highs , "solver" , "simplex" );
+ Highs_setIntOptionValue( highs , "simplex_strategy" , 1 );  // dual simplex
+ // the bound is not acted upon in the solve of a presolved model, which
+ // runs to the optimum
+ Highs_setStringOptionValue( highs , "presolve" , "off" );
+ return( true );
+
+ }  // end( HiGHSMILPSolver::set_lp_cutoff )
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::reset_lp_cutoff( void )
+{
+ Highs_setDoubleOptionValue( highs , "objective_bound" , f_saved_cutoff );
+ Highs_setStringOptionValue( highs , "solver" , f_saved_solver.c_str() );
+ Highs_setIntOptionValue( highs , "simplex_strategy" , f_saved_strategy );
+ Highs_setStringOptionValue( highs , "presolve" , f_saved_presolve.c_str() );
+
+ }  // end( HiGHSMILPSolver::reset_lp_cutoff )
 
 /*--------------------------------------------------------------------------*/
 
@@ -789,6 +851,14 @@ int HiGHSMILPSolver::decode_model_status( int status )
 
 Solver::OFValue HiGHSMILPSolver::stopped_dual_bound( OFValue none )
 {
+ // a continuous model stopped at the cutoff of the dual simplex [see
+ // set_lp_cutoff()] is proven to have the optimum on the other side of it
+ if( f_lp_cutoff_stop ) {
+  HighsInt sense;
+  Highs_getObjectiveSense( highs , & sense );
+  return( ( sense == kHighsObjSenseMinimize ) ? UpCutOff : LwCutOff );
+  }
+
  // the integer variables are integer for HiGHS only if they are not relaxed
  if( ( int_vars == 0 ) || ( relax_int_vars != 0 ) )
   return( none );

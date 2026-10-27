@@ -724,6 +724,9 @@ class CPXMILPSolver : public MILPSolver {
  CPXLPptr lp;   ///< CPLEX LP problem
 
  bool f_callback_set;  // true if the callback has been set
+ int f_lp_cutoff_par = 0;      ///< the limit set_lp_cutoff() has set
+ double f_saved_cutoff = 0;    ///< its value before set_lp_cutoff()
+ int f_saved_method = 0;       ///< LPMethod before set_lp_cutoff()
 
  // note: CutSepPar (the bitwise-encoded cut/lazy separation parameter)
  // is now an inherited member of MILPSolver base
@@ -848,6 +851,21 @@ class CPXMILPSolver : public MILPSolver {
  /** Returns the SMS++ status corresponding to the given
   * CPLEX error returned by CPXmipopt(), CPXlpopt() or CPXqpopt(). */
  static int decode_cpx_error( int error );
+
+ /// gives a continuous model the cutoff of this Solver, if any
+ /** The cutoff on the bound that the dual simplex certifies, i.e.,
+  * dblUpCutOff of a minimization and dblLwCutOff of a maximization, becomes
+  * the limit on the objective of the simplex of CPLEX (UpperObj or
+  * LowerObj), and the method the dual simplex: when the dual objective
+  * passes it the solve stops with the dual feasible basis it has, which is
+  * the bound and gives, say, a valid Benders cut. A model with a quadratic
+  * part is left alone. Returns whether it did, in which case
+  * reset_lp_cutoff() gives back the limit and the method there were. */
+
+ bool set_lp_cutoff( void );
+
+ /// gives back the limit and the method set_lp_cutoff() has changed
+ void reset_lp_cutoff( void );
 
  /** Reloads a constraint.
   * To be used as fallback method for constraint FunctionMods. */

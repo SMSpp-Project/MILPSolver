@@ -1033,7 +1033,12 @@ int GRBMILPSolver::guts_of_compute( void )
 
  restore_basis();
 
- if( int status = optimize( updated_model() ) ) {
+ const bool lp_cutoff = set_lp_cutoff();
+ const int status = optimize( updated_model() );
+ if( lp_cutoff )
+  reset_lp_cutoff();
+
+ if( status ) {
   sol_status = decode_grb_error( status );
   return( sol_status );
   }
@@ -1081,6 +1086,48 @@ int GRBMILPSolver::guts_of_compute( void )
  return( sol_status );
 
  }  // end( GRBMILPSolver::guts_of_compute )
+
+/*--------------------------------------------------------------------------*/
+
+bool GRBMILPSolver::set_lp_cutoff( void )
+{
+ // the cutoff on the bound that the dual simplex certifies: the lower one
+ // of a minimization, the upper one of a maximization [see dblUpCutOff and
+ // dblLwCutOff in Solver.h]; GUROBI lacks the constant of the objective
+ int qp = 0 , qcp = 0;
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_QP , & qp );
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_QCP , & qcp );
+ if( qp || qcp )
+  return( false );
+ int sense;
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_MODELSENSE , & sense );
+ const double cut = ( sense == GRB_MINIMIZE ) ? UpCutOff : LwCutOff;
+ if( ! std::isfinite( cut ) )
+  return( false );
+
+ auto menv = GRBgetenv( model );
+ GRBgetdblparam( menv , GRB_DBL_PAR_CUTOFF , & f_saved_cutoff );
+ GRBgetintparam( menv , GRB_INT_PAR_METHOD , & f_saved_method );
+ GRBgetintparam( menv , GRB_INT_PAR_PRESOLVE , & f_saved_presolve );
+ GRBsetdblparam( menv , GRB_DBL_PAR_CUTOFF , cut - constant_value );
+ GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_DUAL );
+ // a solve of a presolved model stopped at the cutoff gives no dual
+ // solution of the original one, which is what a cut needs
+ GRBsetintparam( menv , GRB_INT_PAR_PRESOLVE , 0 );
+ return( true );
+
+ }  // end( GRBMILPSolver::set_lp_cutoff )
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::reset_lp_cutoff( void )
+{
+ auto menv = GRBgetenv( model );
+ GRBsetdblparam( menv , GRB_DBL_PAR_CUTOFF , f_saved_cutoff );
+ GRBsetintparam( menv , GRB_INT_PAR_METHOD , f_saved_method );
+ GRBsetintparam( menv , GRB_INT_PAR_PRESOLVE , f_saved_presolve );
+
+ }  // end( GRBMILPSolver::reset_lp_cutoff )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1155,10 +1202,9 @@ int GRBMILPSolver::decode_model_status( int status )
    //!! you require information on feasibility, you should set the objective to zero and reoptimize
    return( kUnbounded );
   case( GRB_CUTOFF ):
-   // Optimal objective for model was proven to be worse than
-   // the value specified in the Cutoff parameter. No solution
-   // information is available.
-   return( kOK );
+   // the optimal value was proven to be worse than the Cutoff parameter,
+   // which is where the cutoff of this Solver is [see set_lp_cutoff()]
+   return( kCutOff );
   case( GRB_ITERATION_LIMIT ):
    // Optimization terminated because the total number of simplex iterations performed exceeded
    // the value specified in the IterationLimit parameter, or because the total number of barrier
@@ -1299,12 +1345,12 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
     case( kCutOff ):
     case( kStopTime ):
      sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
-     // when a gurobi model stop with cutoff status, 
-     // no solution information is available
-     if( m_status == GRB_CUTOFF )
-      throw( std::runtime_error(
-                 "GRBMILPSolver: no solution information is available "
-                 "with GRB_CUTOFF status" ) );
+     // stopped by the Cutoff of a dual simplex [see set_lp_cutoff()]: the
+     // optimum is proven not to be below it, which is the bound
+     if( m_status == GRB_CUTOFF ) {
+      lower_bound = UpCutOff;
+      break;
+      }
 
       int convexity;
       GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NONCONVEX , &convexity );
@@ -1375,12 +1421,11 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
 
     case( kOK ):
      sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
-     // when a gurobi model stop with cutoff status, 
-     // no solution information is available
-     if( m_status == GRB_CUTOFF )
-      throw( std::runtime_error(
-                 "GRBMILPSolver: no solution information is available "
-                 "with GRB_CUTOFF status" ) );
+     // stopped by the Cutoff of a dual simplex: there is no solution
+     if( m_status == GRB_CUTOFF ) {
+      lower_bound = - Inf< OFValue >();
+      break;
+      }
      sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &lower_bound );
      lower_bound += constant_value;
      break;
@@ -1437,12 +1482,11 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
 
     case( kOK ):
      sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
-     // when a gurobi model stop with cutoff status, 
-     // no solution information is available
-     if( m_status == GRB_CUTOFF )
-      throw( std::runtime_error(
-                 "GRBMILPSolver: no solution information is available "
-                 "with GRB_CUTOFF status" ) );
+     // stopped by the Cutoff of a dual simplex: there is no solution
+     if( m_status == GRB_CUTOFF ) {
+      upper_bound = Inf< OFValue >();
+      break;
+      }
      sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &upper_bound );
      upper_bound += constant_value;
      break;
@@ -1475,12 +1519,12 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
     case( kCutOff ):
     case( kStopTime ):
      sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
-     // when a gurobi model stop with cutoff status, 
-     // no solution information is available
-     if( m_status == GRB_CUTOFF )
-      throw( std::runtime_error(
-                 "GRBMILPSolver: no solution information is available "
-                 "with GRB_CUTOFF status" ) );
+     // stopped by the Cutoff of a dual simplex [see set_lp_cutoff()]: the
+     // optimum is proven not to be above it, which is the bound
+     if( m_status == GRB_CUTOFF ) {
+      upper_bound = LwCutOff;
+      break;
+      }
      
      int convexity;
      GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NONCONVEX , &convexity );

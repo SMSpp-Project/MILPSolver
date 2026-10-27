@@ -842,6 +842,9 @@ void add_mip_starts(
  bool f_callback_set;  // true if the callback has been set
 
  bool f_free_workspace = false;  ///< intFreeWorkspace
+ double f_saved_cutoff = 0;        ///< Cutoff before set_lp_cutoff()
+ int f_saved_method = -1;          ///< Method before set_lp_cutoff()
+ int f_saved_presolve = -1;        ///< Presolve before set_lp_cutoff()
 
  /// the attributes of the solution kept by free_workspace()
  /**< Valid until the model is changed or solved again, which is when GUROBI
@@ -898,6 +901,26 @@ void add_mip_starts(
   * @param m_status the GUROBI status the model has been found to have. */
 
  void compute_certificate( int m_status );
+
+/*--------------------------------------------------------------------------*/
+ /// gives a continuous model the cutoff of this Solver, if any
+ /** The cutoff on the bound that the dual simplex certifies, i.e.,
+  * dblUpCutOff of a minimization and dblLwCutOff of a maximization, becomes
+  * the Cutoff parameter of GUROBI, the method the dual simplex and the
+  * presolve off, since a presolved model stopped at the cutoff gives no
+  * dual solution of the original one: when the
+  * dual objective passes it the solve stops, with status GRB_CUTOFF, with
+  * the cutoff as the bound and the dual solution it has, which is feasible
+  * and gives, say, a valid Benders cut. Returns whether it did, in which
+  * case reset_lp_cutoff() gives back the Cutoff, the method and the
+  * presolve there were.
+  * The other cutoff of each sense asks for a primal solution good enough,
+  * which is not what the dual simplex gives, and it is left alone. */
+
+ bool set_lp_cutoff( void );
+
+ /// gives back the parameters set_lp_cutoff() has changed
+ void reset_lp_cutoff( void );
 
  // note: CutSepPar is now an inherited member of MILPSolver base
 

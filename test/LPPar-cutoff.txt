@@ -1,0 +1,35 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - LPPar-cutoff.txt  - - - - - - - - - - - - - - -
+#
+# A txt description of a BlockSolverConfig for the LP of
+# test_cutoff_status, attaching each :MILPSolver with the cutoffs of
+# LPCfg-cutoff.txt
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+BlockSolverConfig     # exact type of the Configuration object
+
+1  # the BlockSolverConfig is a "differential" one: values are being set
+
+5  # number of (the names of) Solver in this BlockSolverConfig
+
+# now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
+CPXMILPSolver    # name of Solver, if it is in the build
+GRBMILPSolver    # name of Solver, if it is in the build
+MOSEKMILPSolver  # name of Solver, if it is in the build
+HiGHSMILPSolver  # name of Solver, if it is in the build
+SCIPMILPSolver   # name of Solver, if it is in the build
+
+5  # number of ComputeConfig in this BlockSolverConfig
+
+# now all the ComputeConfig
+*LPCfg-cutoff.txt
+*LPCfg-cutoff.txt
+*LPCfg-cutoff.txt
+*LPCfg-cutoff.txt
+*LPCfg-cutoff.txt
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - END LPPar-cutoff.txt  - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

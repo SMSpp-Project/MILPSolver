@@ -1,0 +1,54 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - LPCfg-cutoff.txt  - - - - - - - - - - - - - - -
+#
+# A txt description of a ComputeConfig of each :MILPSolver of the LP of
+# test_cutoff_status, whose optimum is 1138.8188034 when minimizing and
+# -1138.8188034 when maximizing: an upper cutoff of 1069.4 and a lower one
+# of -1069.4, the one the dual simplex certifies first in either sense (the
+# lower bound of the minimization, the upper bound of the maximization)
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ComputeConfig # exact type of the ComputeConfig object
+
+1  # f_diff == 0 ==> all non-provided parameters are set to the default value
+   # f_diff == 1 ==> all non-provided parameters are not changed
+
+1  # number of integer parameters
+
+# now all the integer parameters
+intLogVerb                       0
+
+2  # number of double parameters
+
+# now all the double parameters
+dblUpCutOff                 1069.4  # a lower bound of at least 1069.4
+dblLwCutOff                -1069.4  # an upper bound of at most -1069.4
+
+0  # number of string parameters
+
+# now all the string parameters
+# [none]
+
+0  # number of vector-of-int parameters
+
+# now all the vector-of-int parameters
+# [none]
+
+0  # number of vector-of-double parameters
+
+# now all the vector-of-double parameters
+# [none]
+
+0  # number of vector-of-string parameters
+
+# now all the vector-of-string parameters
+# [none]
+
+# pointer to the "extra" Configuration
+* # [none]
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - END LPCfg-cutoff.txt  - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

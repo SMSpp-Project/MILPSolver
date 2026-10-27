@@ -39,7 +39,27 @@
  * give the optimal value, but it is not to throw or to fail. With kCutOff,
  * the value of the solution, seen as a maximization, has to be at least the
  * upper cutoff that the Solver has and at most the optimal value, and the
- * bound on the other side at least the optimal value. The test is skipped
+ * bound on the other side at least the optimal value.
+ *
+ * Then a continuous problem, the LP
+ *
+ *     min   1000 + sum_j c_j x_j
+ *     s.t.  sum_j a_ij x_j >= b_i , i = 0 , ... , 39 , x >= 0
+ *
+ * with 60 columns, c_j = 5 + ( 7 j mod 11 ), b_i = 10 + ( 3 i mod 13 ) and
+ * a_ij = 1 + ( ( 5 i + 3 j ) mod 9 ) if ( i + 2 j ) mod 5 = 0, else 0, whose
+ * optimum is 1138.8188034, and the same as a maximization, with the
+ * objective and the constant with the opposite sign. Each Solver of
+ * LPPar-cutoff.txt is given the cutoffs of LPCfg-cutoff.txt, 1069.4 and
+ * -1069.4, which the dual simplex passes before the optimum in either
+ * sense: CPXMILPSolver and GRBMILPSolver in either sense, and
+ * HiGHSMILPSolver (whose objective bound only acts when minimizing) in the
+ * minimization, have to stop there (kCutOff) with a certified bound between
+ * the cutoff and the optimal value and a dual solution that is feasible,
+ * i.e., one that gives a valid Benders cut, the others may solve the LP.
+ * Solved again with the cutoffs of LPCfg-cutoff-far.txt, which nothing
+ * reaches, each has to give the optimal value, which tells that the
+ * parameters changed for the cutoff are given back. The test is skipped
  * (exit status 77) if no Solver is in the factory.
  *
  * \author Donato Meoli \n
@@ -59,6 +79,8 @@
 #include "AbstractBlock.h"
 
 #include "BlockSolverConfig.h"
+
+#include "CDASolver.h"
 
 #include "FRealObjective.h"
 
@@ -114,6 +136,80 @@ static AbstractBlock * knapsack( bool max )
  block->set_objective( obj , eNoMod );
 
  return( block );
+ }
+
+/*--------------------------------------------------------------------------*/
+// the LP, minimizing or maximizing, with its rows in rows
+
+static constexpr int LN = 60;              // the columns of the LP
+static constexpr int LM = 40;              // the rows of the LP
+static constexpr double LOpt = 1138.8188034;  // its optimal value, minimizing
+
+static double lp_c( int j ) { return( 5 + ( 7 * j ) % 11 ); }
+static double lp_b( int i ) { return( 10 + ( 3 * i ) % 13 ); }
+static double lp_a( int i , int j ) {
+ return( ( ( i + 2 * j ) % 5 == 0 ) ? 1 + ( 5 * i + 3 * j ) % 9 : 0 ); }
+
+static AbstractBlock * lp( bool max , std::vector< FRowConstraint > * & rows )
+{
+ auto block = new AbstractBlock;
+ auto & x = * new std::vector< ColVariable >( LN );
+ for( auto & xj : x )
+  xj.is_positive( true , eNoMod );
+ block->add_static_variable( x , "x" );
+
+ rows = new std::vector< FRowConstraint >( LM );
+ for( int i = 0 ; i < LM ; ++i ) {
+  LinearFunction::v_coeff_pair ax;
+  for( int j = 0 ; j < LN ; ++j )
+   if( lp_a( i , j ) != 0 )
+    ax.push_back( { & x[ j ] , lp_a( i , j ) } );
+  ( * rows )[ i ].set_function( new LinearFunction( std::move( ax ) ) );
+  ( * rows )[ i ].set_lhs( lp_b( i ) );
+  ( * rows )[ i ].set_rhs( Inf< double >() );
+  }
+ block->add_static_constraint( * rows , "rows" );
+
+ const double s = max ? -1 : 1;
+ LinearFunction::v_coeff_pair cx;
+ for( int j = 0 ; j < LN ; ++j )
+  cx.push_back( { & x[ j ] , s * lp_c( j ) } );
+ auto obj = new FRealObjective( block ,
+                                new LinearFunction( std::move( cx ) ,
+                                                    s * C ) );
+ obj->set_sense( max ? Objective::eMax : Objective::eMin , eNoMod );
+ block->set_objective( obj , eNoMod );
+
+ return( block );
+ }
+
+/*--------------------------------------------------------------------------*/
+// whether the duals of the rows, with one sign or the other, are a feasible
+// dual solution of the minimization whose value is at least least, i.e.,
+// y >= 0 , A^T y <= c and b^T y >= least: one that gives a valid cut
+
+static bool dual_feasible( const std::vector< FRowConstraint > & rows ,
+                           double least )
+{
+ for( const double sgn : { 1.0 , -1.0 } ) {
+  bool ok = true;
+  double by = 0;
+  std::vector< double > ay( LN , 0 );
+  for( int i = 0 ; i < LM ; ++i ) {
+   const double y = sgn * rows[ i ].get_dual();
+   if( y < -1e-9 )
+    ok = false;
+   by += lp_b( i ) * y;
+   for( int j = 0 ; j < LN ; ++j )
+    ay[ j ] += lp_a( i , j ) * y;
+   }
+  for( int j = 0 ; j < LN ; ++j )
+   if( ay[ j ] > lp_c( j ) + 1e-7 )
+    ok = false;
+  if( ok && ( by >= least - 1e-6 ) )
+   return( true );
+  }
+ return( false );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -240,6 +336,90 @@ int main( void )
   }
 
  delete again;
+
+ // the LP - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ const std::string lfn = "LPPar-cutoff.txt";
+ auto far = dynamic_cast< ComputeConfig * >(
+                    Configuration::deserialize( "LPCfg-cutoff-far.txt" ) );
+ if( ! far ) {
+  std::cerr << "Error: LPCfg-cutoff-far.txt is not a ComputeConfig"
+            << std::endl;
+  return( 1 );
+  }
+ const double cut = 1069.4;   // the cutoffs of LPCfg-cutoff.txt, +-cut
+ const double ltol = 1e-6 * LOpt;
+
+ for( const bool max : { false , true } ) {
+  auto bsc = dynamic_cast< BlockSolverConfig * >(
+                                          Configuration::deserialize( lfn ) );
+  if( ! bsc ) {
+   std::cerr << "Error: " << lfn << " is not a BlockSolverConfig"
+             << std::endl;
+   return( 1 );
+   }
+  Block::Index there = 0;
+  for( Block::Index i = 0 ; i < bsc->num_ComputeConfig() ; ++i )
+   if( Solver::has_Solver( bsc->get_SolverName( i ) ) )
+    ++there;
+  keep_available_Solvers( bsc , lfn , std::max( there , Block::Index( 1 ) ) );
+
+  std::vector< FRowConstraint > * rows = nullptr;
+  auto block = lp( max , rows );
+  bsc->apply( block );
+  bsc->clear();
+
+  for( auto s : block->get_registered_solvers() ) {
+   const std::string name = s->classname();
+   const bool must = ( name == "CPXMILPSolver" ) ||
+                     ( name == "GRBMILPSolver" ) ||
+                     ( ( name == "HiGHSMILPSolver" ) && ! max );
+   for( const bool first : { true , false } ) {
+    if( ! first )
+     s->set_ComputeConfig( far );
+    std::cout << name << ", LP" << ( max ? ", max" : ", min" )
+              << ( first ? ", cutoff: " : ", no cutoff reached: " );
+    bool ok;
+    try {
+     const auto st = s->compute();
+     std::cout << "status " << st;
+     // the value and the bound as seen by the minimization
+     if( st == Solver::kOK ) {
+      const double v = max ? - s->get_var_value() : s->get_var_value();
+      std::cout << ", value " << v;
+      ok = ( std::abs( v - LOpt ) <= ltol ) && ! ( first && must );
+      }
+     else
+      if( ( st == Solver::kCutOff ) && first ) {
+       const double bnd = max ? - s->get_ub() : s->get_lb();
+       auto cds = static_cast< CDASolver * >( s );
+       bool duals = cds->has_dual_solution();
+       if( duals ) {
+        cds->get_dual_solution();
+        duals = dual_feasible( * rows , cut - C );
+        }
+       std::cout << ", bound " << bnd
+                 << ( duals ? ", feasible duals" : ", no feasible duals" );
+       ok = ( bnd >= cut - ltol ) && ( bnd <= LOpt + ltol ) && duals;
+       }
+      else
+       ok = false;
+     }
+    catch( const std::exception & e ) {
+     std::cout << "threw \"" << e.what() << "\"";
+     ok = false;
+     }
+    std::cout << ( ok ? " -> OK" : " -> KO" ) << std::endl;
+    if( ! ok )
+     ++failures;
+    }
+   }
+
+  bsc->apply( block );
+  delete bsc;
+  delete block;
+  }
+
+ delete far;
 
  return( failures ? 1 : 0 );
  }

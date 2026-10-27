@@ -561,14 +561,35 @@ void add_mip_starts(
  int guts_of_compute( void ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// the dual bound of a MIP stopped by a limit, \p none if there is none
+ /// the dual bound of a model stopped by a limit, \p none if there is none
  /** Returns the dual bound HiGHS has reached when a limit stopped it on a
   * MIP, i.e., the bound of the search, which is a lower bound for a
-  * minimization and an upper bound for a maximization; \p none (-INF or
-  * +INF) if the problem is not solved as a MIP, i.e., it has no integer
-  * variables or they are relaxed, since an LP stopped has no such bound. */
+  * minimization and an upper bound for a maximization, and the cutoff for
+  * a continuous model that the dual simplex stopped at it [see
+  * set_lp_cutoff()]; \p none (-INF or +INF) for any other continuous model,
+  * i.e., one with no integer variables or with them relaxed, since an LP
+  * stopped by any other limit has no such bound. */
 
  OFValue stopped_dual_bound( OFValue none );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// gives a continuous model the cutoff of this Solver, if any
+ /** The cutoff on the lower bound that the dual simplex certifies in a
+  * minimization, i.e., dblUpCutOff, becomes the option objective_bound of
+  * HiGHS, the solver the dual simplex and the presolve off, since the bound
+  * is not acted upon in the solve of a presolved model (nor in that of a
+  * maximization, which is then solved as it is): when the dual objective
+  * passes it the solve stops, with model status
+  * ObjectiveBound, with the cutoff as the bound and the dual solution it
+  * has, which is feasible and gives, say, a valid Benders cut. A model with
+  * a quadratic part, or with integer variables that are not relaxed, is
+  * left alone. Returns whether it did, in which case reset_lp_cutoff()
+  * gives back the options there were. */
+
+ bool set_lp_cutoff( void );
+
+ /// gives back the options set_lp_cutoff() has changed
+ void reset_lp_cutoff( void );
 
 /*--------------------------------------------------------------------------*/
 
@@ -752,6 +773,11 @@ void add_mip_starts(
  void * highs;  ///< Highs instance
 
  bool f_callback_set;  // true if the callback has been set
+ bool f_lp_cutoff_stop = false;  ///< stopped at set_lp_cutoff()'s bound
+ double f_saved_cutoff = 0;       ///< objective_bound before set_lp_cutoff()
+ HighsInt f_saved_strategy = 0;   ///< simplex_strategy before it
+ std::string f_saved_solver;      ///< solver before it
+ std::string f_saved_presolve;    ///< presolve before it
 
  // note: CutSepPar is now an inherited member of MILPSolver base
 

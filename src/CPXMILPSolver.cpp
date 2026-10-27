@@ -626,17 +626,62 @@ int CPXMILPSolver::guts_of_compute( void )
   current_Cntx_id = 0;
   }
 
- if( int status = is_qp ? CPXqpopt( env , lp ) : CPXlpopt( env , lp ) ) {
+ const bool lp_cutoff = set_lp_cutoff();
+ const int status = is_qp ? CPXqpopt( env , lp ) : CPXlpopt( env , lp );
+ if( lp_cutoff )
+  reset_lp_cutoff();
+
+ if( status ) {
   sol_status = decode_cpx_error( status );  // error
   return( sol_status );
   }
 
  // Respect the selected algorithm and propagate its status directly.
  // An infeasible primal level projection is an ordinary empty-level result.
- sol_status = decode_lqp_status( CPXgetstat( env , lp ) );
+ // The dual simplex stopped by the limit on its objective that
+ // set_lp_cutoff() gives it has stopped at the cutoff of this Solver
+ const int stat = CPXgetstat( env , lp );
+ if( lp_cutoff && ( ( stat == CPX_STAT_ABORT_OBJ_LIM ) ||
+                    ( stat == CPX_STAT_ABORT_DUAL_OBJ_LIM ) ) )
+  sol_status = kCutOff;
+ else
+  sol_status = decode_lqp_status( stat );
  return( sol_status );
 
  }  // end( CPXMILPSolver::guts_of_compute )
+
+/*--------------------------------------------------------------------------*/
+
+bool CPXMILPSolver::set_lp_cutoff( void )
+{
+ // the cutoff on the bound that the dual simplex certifies: the lower one
+ // of a minimization, the upper one of a maximization [see dblUpCutOff and
+ // dblLwCutOff in Solver.h]; CPLEX lacks the constant of the objective
+ if( CPXgetprobtype( env , lp ) != CPXPROB_LP )
+  return( false );
+ const bool min = ( CPXgetobjsen( env , lp ) == CPX_MIN );
+ const double cut = min ? UpCutOff : LwCutOff;
+ if( ! std::isfinite( cut ) )
+  return( false );
+
+ f_lp_cutoff_par = min ? CPXPARAM_Simplex_Limits_UpperObj
+                       : CPXPARAM_Simplex_Limits_LowerObj;
+ CPXgetdblparam( env , f_lp_cutoff_par , & f_saved_cutoff );
+ CPXgetintparam( env , CPXPARAM_LPMethod , & f_saved_method );
+ CPXsetdblparam( env , f_lp_cutoff_par , cut - constant_value );
+ CPXsetintparam( env , CPXPARAM_LPMethod , CPX_ALG_DUAL );
+ return( true );
+
+ }  // end( CPXMILPSolver::set_lp_cutoff )
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::reset_lp_cutoff( void )
+{
+ CPXsetdblparam( env , f_lp_cutoff_par , f_saved_cutoff );
+ CPXsetintparam( env , CPXPARAM_LPMethod , f_saved_method );
+
+ }  // end( CPXMILPSolver::reset_lp_cutoff )
 
 /*--------------------------------------------------------------------------*/
 
