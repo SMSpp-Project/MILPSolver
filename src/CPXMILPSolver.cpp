@@ -1437,7 +1437,10 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
     case( kStopIter ):
     case( kCutOff ):
     case( kStopTime ):
-     if( ! has_var_solution() ) {
+     // a solve stopped with a solution bounds its side only if the solution
+     // is feasible: that of an LP stopped by a limit of the dual simplex, as
+     // the cutoff, is dual feasible and not primal feasible
+     if( ( ! has_var_solution() ) || ( ! is_var_feasible() ) ) {
       lower_bound = -Inf< OFValue >();
       break;
       }
@@ -1508,7 +1511,10 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
     case( kStopIter ):
     case( kCutOff ):
     case( kStopTime ):
-     if( ! has_var_solution() ) {
+     // a solve stopped with a solution bounds its side only if the solution
+     // is feasible: that of an LP stopped by a limit of the dual simplex, as
+     // the cutoff, is dual feasible and not primal feasible
+     if( ( ! has_var_solution() ) || ( ! is_var_feasible() ) ) {
       upper_bound = Inf< OFValue >();
       break;
       }

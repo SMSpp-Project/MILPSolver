@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   simplex of the back-end, which stops as soon as its dual objective
   passes it and returns `kCutOff`, with a certified bound at least as good
   as the cutoff and a feasible dual solution, i.e., one that gives a valid
-  cut (the presolve is turned off for this solve in `GRBMILPSolver` and
+  cut, and no bound on the other side, since the solution it stops at is
+  not primal feasible (the presolve is turned off for this solve in `GRBMILPSolver` and
   `HiGHSMILPSolver`, whose presolved solve gives no such dual solution or
   ignores the limit, and HiGHS acts on it only when minimizing). The
   parameters changed for it are given back after the solve.

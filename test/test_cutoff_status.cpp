@@ -55,8 +55,10 @@
  * sense: CPXMILPSolver and GRBMILPSolver in either sense, and
  * HiGHSMILPSolver (whose objective bound only acts when minimizing) in the
  * minimization, have to stop there (kCutOff) with a certified bound between
- * the cutoff and the optimal value and a dual solution that is feasible,
- * i.e., one that gives a valid Benders cut, the others may solve the LP.
+ * the cutoff and the optimal value, no bound on the other side short of the
+ * optimal value (the solution they stop at is not primal feasible) and a
+ * dual solution that is feasible, i.e., one that gives a valid Benders cut;
+ * the others may solve the LP.
  * Solved again with the cutoffs of LPCfg-cutoff-far.txt, which nothing
  * reaches, each has to give the optimal value, which tells that the
  * parameters changed for the cutoff are given back. The test is skipped
@@ -390,16 +392,20 @@ int main( void )
       }
      else
       if( ( st == Solver::kCutOff ) && first ) {
+       // the bound of the dual simplex, and that on the other side, which
+       // the solution it stopped at, not primal feasible, does not give
        const double bnd = max ? - s->get_ub() : s->get_lb();
+       const double other = max ? - s->get_lb() : s->get_ub();
        auto cds = static_cast< CDASolver * >( s );
        bool duals = cds->has_dual_solution();
        if( duals ) {
         cds->get_dual_solution();
         duals = dual_feasible( * rows , cut - C );
         }
-       std::cout << ", bound " << bnd
+       std::cout << ", bound " << bnd << ", other bound " << other
                  << ( duals ? ", feasible duals" : ", no feasible duals" );
-       ok = ( bnd >= cut - ltol ) && ( bnd <= LOpt + ltol ) && duals;
+       ok = ( bnd >= cut - ltol ) && ( bnd <= LOpt + ltol ) && duals &&
+            ( other >= LOpt - ltol );
        }
       else
        ok = false;
