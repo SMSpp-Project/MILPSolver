@@ -588,31 +588,6 @@ void add_mip_starts(
 
  bool set_lp_cutoff( void );
 
- /// keeps the solution, and replaces HiGHS by a new instance of it
- /** Called after each solve of an LP ending optimal: the solution and the
-  * duals are kept, and the instance of HiGHS is replaced by a new one with
-  * the same options, model and basis, which has none of the memory HiGHS
-  * keeps after a solve (several times that of the model itself) and the
-  * next solve, which starts from that basis, does not need. If HiGHS cannot
-  * take the model, nothing changes. */
-
- void free_workspace( void );
-
- /** @name The solution of the last solve
-  * Each stands for the HiGHS call with the same arguments but the instance,
-  * and returns what that call returns: the value is read from HiGHS, or
-  * from what free_workspace() has kept, for the new instance has none.
-  * @{ */
-
- double sol_objval( void ) const;
-
- HighsInt sol_int_info( const char * name , HighsInt * value ) const;
-
- HighsInt sol_solution( double * col_value , double * col_dual ,
-                        double * row_value , double * row_dual ) const;
-
- /** @} ---------------------------------------------------------------- */
-
  /// gives back the options set_lp_cutoff() has changed
  void reset_lp_cutoff( void );
 
@@ -803,23 +778,6 @@ void add_mip_starts(
  HighsInt f_saved_strategy = 0;   ///< simplex_strategy before it
  std::string f_saved_solver;      ///< solver before it
  std::string f_saved_presolve;    ///< presolve before it
-
- /// the solution of the last solve, kept by free_workspace()
- /**< Valid from the end of the solve that free_workspace() follows to the
-  * start of the next one: the new instance of HiGHS that replaces the one
-  * that solved has no solution, and the model only changes within
-  * compute(), before the solve [see MILPSolver::process_modifications()]. */
- struct KeptSolution {
-  bool valid = false;
-  double objval = 0;              ///< Highs_getObjectiveValue()
-  HighsInt primal_status = 0;     ///< the info primal_solution_status
-  HighsInt dual_status = 0;       ///< the info dual_solution_status
-  std::vector< double > col_value;  ///< the four of Highs_getSolution()
-  std::vector< double > col_dual;
-  std::vector< double > row_value;
-  std::vector< double > row_dual;
-  };
- KeptSolution f_kept;
 
  // note: CutSepPar is now an inherited member of MILPSolver base
 

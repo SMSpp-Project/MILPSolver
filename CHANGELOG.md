@@ -42,23 +42,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is not empty (e.g., `make SMSppMOD=1`), with clang++ 16 or later [see
   `lib/makefile-mod` of SMS++]
 
-- `GRBMILPSolver`, `CPXMILPSolver`, `HiGHSMILPSolver` and
-  `SCIPMILPSolver` free after each solve of an LP ending optimal the
-  memory that the back-end keeps and the next solve does not need: the
-  solution and the duals are kept by the `Solver`, and the problem is
-  replaced by a copy of itself (GUROBI, CPLEX), the instance of HiGHS by a
-  new one with the same options, model and basis, the transformed problem
-  of SCIP is freed. The next solve starts from the same basis (SCIP starts
-  from scratch after any change in any case). On 16 copies of a subproblem
-  of 129676 rows and 124492 columns of a Benders decomposition of a
-  PyPSA-Eur instance the memory after the solves goes from 2.0 to 0.4 GB
-  with GUROBI, from 1.7 to 0.4 GB with CPLEX, from 2.3 to 0.3 GB with
-  HiGHS and from 11.1 to 5.9 GB with SCIP, with the same simplex
-  iterations but for HiGHS (48 instead of 16 in 480 re-solves), and with
-  the 200 subproblems of the instance with 200 scenarios the peak of
-  `GRBMILPSolver` goes from 50 to 30 GB, with the same rounds.
-  `MOSEKMILPSolver` keeps its task, since a copy of it does not lower the
-  memory: what the deleted task had stays with the environment of MOSEK.
+- `GRBMILPSolver`, `CPXMILPSolver` and `SCIPMILPSolver` free after each
+  solve of an LP ending optimal the memory that the back-end keeps and the
+  next solve does not need: the solution and the duals are kept by the
+  `Solver`, and the problem is replaced by a copy of itself (GUROBI,
+  CPLEX), whose next solve starts from the kept basis, or the transformed
+  problem of SCIP is freed (SCIP starts from scratch after any change in
+  any case). On 16 copies of a subproblem of 129676 rows and 124492
+  columns of a Benders decomposition of a PyPSA-Eur instance the memory
+  after the solves goes from 2.0 to 0.4 GB with GUROBI, from 1.7 to 0.4 GB
+  with CPLEX and from 11.1 to 5.9 GB with SCIP, with the same simplex
+  iterations, and with the 200 subproblems of the instance with 200
+  scenarios the peak of `GRBMILPSolver` goes from 50 to 30 GB, with the
+  same rounds. `MOSEKMILPSolver` keeps its task, since a copy of it does
+  not lower the memory (what the deleted task had stays with the
+  environment of MOSEK), and `HiGHSMILPSolver` its instance: a new one with
+  the same options, model and basis frees 2.0 of the 2.3 GB, but its next
+  solve does not start from the state the dual simplex had, and on the
+  badly scaled master of a Benders decomposition HiGHS then ends in
+  `Unknown` and, from scratch, in a wrong `Unbounded`, where the instance
+  that is kept solves it.
   `test_free_workspace` checks every `:MILPSolver` of `LPPar-all.txt`
   against the others across warm re-solves after changes of sides, bounds
   and costs, an infeasible solve and a solve with no change
