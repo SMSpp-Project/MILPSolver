@@ -784,6 +784,49 @@ class MILPSolver : public CDASolver
 
  const FRowConstraint * dynamic_constraint_with_index( int i ) const;
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the index of a column in the problem loaded before this one
+ /** Each load_problem() but the first one finds, for each column of the
+  * problem it loads, the one of the same ColVariable in the problem loaded
+  * before it, so that a back-end that loads the problem again whole at a
+  * Modification [see reload_on_modification()] can start its solve from
+  * the previous one even if columns have been added or removed. The
+  * ColVariable are told apart by their address, hence a Variable created
+  * where a deleted one was is taken for it: what is carried over is only
+  * the start of a solve, which this cannot make wrong.
+  *
+  * @param j a column index of the problem loaded last
+  * @return its index in the problem loaded before, or -1 if it was not
+  *         there (or there was no such problem) */
+
+ [[nodiscard]] int previous_column_index( int j ) const {
+  return( ( j >= 0 ) && ( std::size_t( j ) < v_prev_col.size() ) ?
+          v_prev_col[ j ] : -1 );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the index of a row in the problem loaded before this one
+ /** The same as previous_column_index() for the rows, told apart by the
+  * address of their FRowConstraint.
+  *
+  * @param i a row index of the problem loaded last
+  * @return its index in the problem loaded before, or -1 if it was not
+  *         there (or there was no such problem) */
+
+ [[nodiscard]] int previous_row_index( int i ) const {
+  return( ( i >= 0 ) && ( std::size_t( i ) < v_prev_row.size() ) ?
+          v_prev_row[ i ] : -1 );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the number of columns and rows of the problem loaded before this one
+ /** The sizes of the problem the indices of previous_column_index() and
+  * previous_row_index() refer to, 0 and 0 if there was none. */
+
+ [[nodiscard]] std::pair< int , int > previous_sizes( void ) const {
+  return( std::make_pair( prev_numcols , prev_numrows ) );
+  }
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -1258,6 +1301,11 @@ class MILPSolver : public CDASolver
                                          ///< from static variable to bound
  std::vector< OneVarConstraint * > dvar_to_bound;
                                          ///< from dynamic variable to bound
+
+ std::vector< int > v_prev_col;  ///< previous index of each column, or -1
+ std::vector< int > v_prev_row;  ///< previous index of each row, or -1
+ int prev_numcols = 0;           ///< columns of the previous problem
+ int prev_numrows = 0;           ///< rows of the previous problem
 
  /// the bounds of a variable beyond the one in svar_to_bound/dvar_to_bound
  std::unordered_map< const ColVariable * ,

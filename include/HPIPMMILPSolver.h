@@ -75,8 +75,9 @@ namespace SMSpp_di_unipi_it
  *
  * - whenever a Modification is received the problem is loaded again whole
  *   from the Block [see MILPSolver::reload_on_modification()]; if
- *   intHPIPMWarmStart is set and the sizes have not changed, the solve
- *   starts from the previous solution;
+ *   intHPIPMWarmStart is set, the solve starts from the previous
+ *   solution, on the variables that are still there, and one that does not
+ *   end so is repeated from the initial point of HPIPM;
  *
  * - HPIPM has no time limit, hence dblMaxTime is not handled;
  *
@@ -112,9 +113,10 @@ class HPIPMMILPSolver : public MILPSolver
    * the iteration limit (15, 15, 30 and 100) when intMaxIter is not set. */
   intHPIPMMode = intLastAlgParMILP ,
   /// whether a solve starts from the previous solution
-  /**< If 1, a solve of a problem with the same sizes as the previous one
-   * starts from its solution; if 0 [default], each solve starts from the
-   * initial point of HPIPM. */
+  /**< If 1, a solve after the first starts from the primal solution of the
+   * previous one, on the variables that are still there [see
+   * MILPSolver::previous_column_index()], the new ones at 0; if 0
+   * [default], each solve starts from the initial point of HPIPM. */
   intHPIPMWarmStart ,
   /// first allowed new int parameter for derived classes
   intLastAlgParHPIPM
@@ -280,6 +282,8 @@ class HPIPMMILPSolver : public MILPSolver
 
  int d_mode = 3;                 ///< intHPIPMMode
  bool d_warm = false;            ///< intHPIPMWarmStart
+ std::vector< double > d_guess_x;  ///< start of a warm-started solve
+ bool d_has_guess = false;       ///< true if d_guess_x is a solution
  double d_tol;                   ///< dblFAccSol
  int d_max_iter = Inf< int >();       ///< intMaxIter
  double d_max_time = Inf< double >(); ///< dblMaxTime, not used

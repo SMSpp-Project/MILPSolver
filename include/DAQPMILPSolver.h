@@ -76,11 +76,11 @@ namespace SMSpp_di_unipi_it
  *
  * - DAQP does not support changing the loaded problem in place: whenever a
  *   Modification is received the problem is loaded again whole from the
- *   Block [see MILPSolver::reload_on_modification()], and if its size has
- *   not changed the working set of the previous solution is the start of
- *   the next one, but for the constraints that either problem fixes (a
- *   variable with equal bounds, an equality row), which are active in the
- *   new one if and only if it fixes them;
+ *   Block [see MILPSolver::reload_on_modification()], and the working set
+ *   of the previous solution, on the variables and rows that are still
+ *   there, is the start of the next one, but for the constraints that
+ *   either problem fixes (a variable with equal bounds, an equality row),
+ *   which are active in the new one if and only if it fixes them;
  *
  * - a problem whose H is singular, e.g., a Linear Program, is solved by
  *   proximal-point iterations, whose solution and multipliers are accurate
@@ -115,8 +115,9 @@ class DAQPMILPSolver : public MILPSolver
   /// whether a solve starts from the working set of the previous one
   /**< If 1 [default], each solve after the first starts from the working
    * set, i.e., the set of the constraints active at the solution, of the
-   * previous one, as long as the number of variables and constraints has
-   * not changed; if 0, each solve starts from the empty working set. */
+   * previous one, on the variables and rows that are still there [see
+   * MILPSolver::previous_column_index()], the new ones inactive; if 0,
+   * each solve starts from the empty working set. */
   intDAQPWarmStart = intLastAlgParMILP ,
   /// how the equality constraints are eliminated before the solve
   /**< The value of eq_reduction in DAQPSettings: -1 never, 0 [default]

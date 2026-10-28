@@ -45,6 +45,12 @@
  *   the Solver solves again, and its value is compared with that of a fresh
  *   Solver of the same type loaded with the modified problem.
  *
+ * - indices of the problem loaded before: two inactive rows are added to
+ *   the QP and then the first of them is removed; a Solver that loads the
+ *   problem again whole at a Modification has to find in
+ *   MILPSolver::previous_row_index() the second one where it was, one row
+ *   further down, and each other row and column in its place.
+ *
  * - KKT check: the QP is solved again with dblKKTTol set to the tolerance
  *   on the solution of the Solver, which has to return kOK with the
  *   residuals of MILPSolver::get_kkt_residuals() within it (the dual ones
@@ -736,6 +742,72 @@ static int test_mods( const Ability & ab )
  }
 
 /*--------------------------------------------------------------------------*/
+
+/// the indices of the problem loaded before, after a row has been removed
+
+static int test_previous_indices( const Ability & ab )
+{
+ if( ! ab.qp )
+  return( 0 );
+
+ auto p = make_qp( true , Objective::eMin );
+ auto s = new_solver( ab.name );
+ auto ms = dynamic_cast< MILPSolver * >( s );
+ auto & x = * p.x;
+ double value = 0;
+ std::string why;
+
+ // two inactive rows are added, then the first of them is removed, which
+ // moves the second one up by one
+ bool ok = run( s , p.block , true , value , why );
+ if( ok ) {
+  std::list< FRowConstraint > nr( 2 );
+  const double a[ NV ] = { 0 , 0 , 0 , 0 , 0 , 1 };
+  make_row( x , a , -100 , Inf< double >() , nr.front() );
+  make_row( x , a , - Inf< double >() , 100 , nr.back() );
+  p.sub->add_dynamic_constraints( * p.dyn , nr );
+  ok = run( s , p.block , false , value , why );
+  }
+ if( ok ) {
+  p.sub->remove_dynamic_constraint( * p.dyn , p.dyn->begin() );
+  ok = run( s , p.block , false , value , why );
+  }
+
+ std::cout << ab.name << ", indices of the previous problem: ";
+ int failures = 0;
+ if( ! ok ) {
+  std::cout << why << " -> KO" << std::endl;
+  failures = 1;
+  }
+ else
+  if( ms->previous_sizes().first == 0 )
+   // a Solver that changes its problem in place does not load it again
+   std::cout << "the problem is changed in place -> OK" << std::endl;
+  else {
+   bool good = close( value , ValQ ) &&
+               ( ms->previous_sizes() == std::make_pair( NV , NR + 2 ) );
+   for( int j = 0 ; j < NV ; ++j )
+    good &= ( ms->previous_column_index( j ) == j );
+   for( int i = 0 ; i < NR ; ++i )
+    good &= ( ms->previous_row_index( i ) == i );
+   good &= ( ms->previous_row_index( NR ) == NR + 1 ) &&
+           ( ms->previous_row_index( NR + 1 ) == -1 );
+   std::cout << "value = " << value << ", row " << NR << " was "
+	     << ms->previous_row_index( NR ) << ( good ? " -> OK" : " -> KO" )
+	     << std::endl;
+   failures = ! good;
+   }
+
+ try {
+  p.block->unregister_Solver( s );
+  }
+ catch( ... ) {}
+ delete s;
+ delete p.block;
+ return( failures );
+ }
+
+/*--------------------------------------------------------------------------*/
 /*-------------------------------- main() ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -763,6 +835,8 @@ int main( int argc , char ** argv )
   failures += test_miqp( ab );
 
   failures += test_mods( ab );
+
+  failures += test_previous_indices( ab );
   }
 
  if( ! any ) {

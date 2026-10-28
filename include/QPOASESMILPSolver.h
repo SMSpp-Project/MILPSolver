@@ -40,6 +40,8 @@
 
 namespace qpOASES
 {
+ class Bounds;
+ class Constraints;
  class Options;
  class SQProblem;
  }
@@ -90,12 +92,15 @@ namespace SMSpp_di_unipi_it
  *
  * - qpOASES does not support adding or removing variables or constraints:
  *   whenever a Modification is received the problem is loaded again whole
- *   from the Block [see MILPSolver::reload_on_modification()], and if its
- *   size has not changed the next solve is a hot start from the solution of
- *   the previous one, otherwise it starts from scratch; a hot start that
- *   does not end with an optimal solution, or stopped by the time limit, is
- *   repeated from scratch, so that a declaration of infeasibility or of
- *   unboundedness only comes from a solve from scratch;
+ *   from the Block [see MILPSolver::reload_on_modification()], and if no
+ *   variable or row has been added, removed or moved the next solve is a
+ *   hot start from the solution of the previous one, otherwise it starts
+ *   from the guess that working set, solution and multipliers of the
+ *   previous one give on the variables and rows that are still there; a
+ *   start, hot or guessed, that does not end with an optimal solution, or
+ *   stopped by the time limit, is repeated from scratch, so that a
+ *   declaration of infeasibility or of unboundedness only comes from a
+ *   solve from scratch;
  *
  * - the value of the solution is computed from it rather than taken from
  *   qpOASES, whose value is that of the regularized problem whenever the
@@ -129,8 +134,13 @@ class QPOASESMILPSolver : public MILPSolver
   /// whether a solve is a hot start from the solution of the previous one
   /**< If 1 [default], each solve after the first is a hot start of qpOASES
    * from the solution of the previous one, as long as that has been found
-   * and the number of variables and constraints has not changed; if 0,
-   * each solve starts from scratch. */
+   * and no variable or row has been added, removed or moved; otherwise, a
+   * new problem of qpOASES is initialized from the working set, solution
+   * and multipliers of the previous one on the variables and rows that are
+   * still there [see MILPSolver::previous_column_index()], which is given
+   * up for a solve from scratch if it takes more than half as many working
+   * set recalculations as variables and rows (at least 10); if 0, each
+   * solve starts from scratch. */
   intQPOASESHotStart = intLastAlgParMILP ,
   /// the set of Options of qpOASES the other parameters change
   /**< 0 [default] for the default Options of qpOASES, 1 for those it calls
@@ -327,9 +337,12 @@ class QPOASESMILPSolver : public MILPSolver
 
  private:
 
- /// solves the problem from scratch, in a new problem of qpOASES
+ /// solves the problem in a new problem of qpOASES
+ /** The new problem of qpOASES is initialized from the guess that
+  * load_problem() has made out of the previous one if \p guess, from
+  * scratch otherwise. */
 
- int solve_from_scratch( void );
+ int solve_from_scratch( bool guess = false );
 
  /// solves the problem by a hot start of the current problem of qpOASES
 
@@ -396,6 +409,12 @@ class QPOASESMILPSolver : public MILPSolver
  std::unique_ptr< qpOASES::Options > d_options;  ///< its Options
  bool d_qp_solved = false;       ///< true if d_qp has been solved
  bool d_new_options = false;     ///< true if d_options changed after it
+
+ bool d_guess = false;           ///< true if the guess below is to be used
+ std::vector< double > d_guess_x;  ///< guessed solution, from the previous
+ std::vector< double > d_guess_y;  ///< guessed multipliers, bounds then rows
+ std::unique_ptr< qpOASES::Bounds > d_guess_b;       ///< guessed bounds
+ std::unique_ptr< qpOASES::Constraints > d_guess_c;  ///< guessed rows
 
  std::map< idx_type , int > d_int_set;     ///< int Options explicitly set
  std::map< idx_type , double > d_dbl_set;  ///< double Options explicitly set

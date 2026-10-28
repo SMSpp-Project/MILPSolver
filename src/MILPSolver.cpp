@@ -161,6 +161,22 @@ void MILPSolver::clear_problem( unsigned int what )
 
 void MILPSolver::load_problem( void )
 {
+ // the columns and rows of the problem loaded before, by address, for
+ // previous_column_index() and previous_row_index(); the addresses are only
+ // compared, never followed, since the Block may have deleted them
+ std::unordered_map< const ColVariable * , int > old_col;
+ std::unordered_map< const FRowConstraint * , int > old_row;
+ prev_numcols = numcols;
+ prev_numrows = numrows;
+ old_col.reserve( numcols );
+ for( int j = 0 ; j < numcols ; ++j )
+  if( auto var = variable_with_index( j ) )
+   old_col.emplace( var , j );
+ old_row.reserve( numrows );
+ for( int i = 0 ; i < numrows ; ++i )
+  if( auto con = constraint_with_index( i ) )
+   old_row.emplace( con , i );
+
  // Clean any left-up structures
  clear_problem( 15 );
 
@@ -598,6 +614,22 @@ void MILPSolver::load_problem( void )
 
  if( ! objsense )  // not defined anywhere in the Block
   objsense = 1;    // take one pick (minimization)
+
+ v_prev_col.assign( numcols , -1 );
+ if( ! old_col.empty() )
+  for( int j = 0 ; j < numcols ; ++j ) {
+   auto it = old_col.find( variable_with_index( j ) );
+   if( it != old_col.end() )
+    v_prev_col[ j ] = it->second;
+   }
+
+ v_prev_row.assign( numrows , -1 );
+ if( ! old_row.empty() )
+  for( int i = 0 ; i < numrows ; ++i ) {
+   auto it = old_row.find( constraint_with_index( i ) );
+   if( it != old_row.end() )
+    v_prev_row[ i ] = it->second;
+   }
 
  }  // end( MILPSolver::load_problem )
 

@@ -137,6 +137,12 @@ void OSQPMILPSolver::clear_problem( unsigned int what )
 
 void OSQPMILPSolver::load_problem( void )
 {
+ // the layout of the previous problem, to move its solution to the new one
+ const auto prev_row_pos = d_row_pos;
+ const auto prev_box_pos = d_box_pos;
+ const OSQPInt prev_n = d_n;
+ const OSQPInt prev_m = d_m;
+
  d_reloading = true;
  try {
   MILPSolver::load_problem();
@@ -287,6 +293,35 @@ void OSQPMILPSolver::load_problem( void )
   d_Ap[ j + 1 ] += d_Ap[ j ];
   }
 
+ // the solution of the previous problem, if any, moved to the columns and
+ // rows that are still there [see previous_column_index()], the new ones
+ // at 0, so that it is the warm start of the next solve also if columns or
+ // rows have been added or removed
+ if( ( prev_n > 0 ) && ( d_x.size() == std::size_t( prev_n ) ) &&
+     ( d_y.size() == std::size_t( prev_m ) ) &&
+     ( prev_row_pos.size() == std::size_t( previous_sizes().second ) ) &&
+     ( prev_box_pos.size() == std::size_t( prev_n ) ) ) {
+  std::vector< double > x( n , 0 ) , y( d_m , 0 );
+  for( OSQPInt j = 0 ; j < n ; ++j )
+   if( const int pj = previous_column_index( j ) ; pj >= 0 ) {
+    x[ j ] = d_x[ pj ];
+    if( ( d_box_pos[ j ] >= 0 ) && ( prev_box_pos[ pj ] >= 0 ) )
+     y[ d_box_pos[ j ] ] = d_y[ prev_box_pos[ pj ] ];
+    }
+  for( int i = 0 ; i < numrows ; ++i )
+   if( const int pi = previous_row_index( i ) ; pi >= 0 )
+    if( ( d_row_pos[ i ] >= 0 ) && ( prev_row_pos[ pi ] >= 0 ) )
+     y[ d_row_pos[ i ] ] = d_y[ prev_row_pos[ pi ] ];
+  d_x = std::move( x );
+  d_y = std::move( y );
+  }
+ else
+  if( ( d_x.size() != std::size_t( n ) ) ||
+      ( d_y.size() != std::size_t( d_m ) ) ) {
+   d_x.clear();
+   d_y.clear();
+   }
+
  d_loaded = true;
  d_status = -1;
 
@@ -406,6 +441,7 @@ int OSQPMILPSolver::guts_of_compute( void )
 
  d_status = d_solver->info->status_val;
  d_iter_limit = d_solver->info->iter >= d_settings.max_iter;
+ elapsed_iter += long( d_solver->info->iter );
 
  // the certificate of an infeasibility, a ray of x for the dual one and a
  // combination of the rows for the primal one

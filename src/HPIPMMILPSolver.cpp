@@ -154,6 +154,13 @@ void HPIPMMILPSolver::clear_problem( unsigned int what )
 
 void HPIPMMILPSolver::load_problem( void )
 {
+ // the solution of the previous problem, which clear_problem() does not
+ // keep in the memory of HPIPM, is moved to the columns that are still
+ // there [see previous_column_index()], the new ones at 0, for the warm
+ // start of the next solve
+ auto px = std::move( d_guess_x );
+ const bool had = d_has_guess;
+
  MILPSolver::load_problem();
 
  if( numquadrows > 0 )
@@ -229,6 +236,16 @@ void HPIPMMILPSolver::load_problem( void )
    }
 
  d_x.assign( n , 0 );
+
+ d_has_guess = false;
+ d_guess_x.clear();
+ if( had && ( px.size() == std::size_t( previous_sizes().first ) ) ) {
+  d_guess_x.assign( n , 0 );
+  for( int j = 0 ; j < n ; ++j )
+   if( const int pj = previous_column_index( j ) ; pj >= 0 )
+    d_guess_x[ j ] = px[ pj ];
+  d_has_guess = true;
+  }
  d_y.assign( n + d_nc , 0 );
  d_status = kError;
 
@@ -319,13 +336,14 @@ int HPIPMMILPSolver::guts_of_compute( void )
   side( d_ubA[ i ] , hp.ug , hp.ug_mask );
   }
 
- // a warm start needs the solution of a problem of the same sizes, which
- // create() keeps; the setters of HPIPM do not change their arguments, but
- // take them as non-const
- const bool warm = d_warm && hp.has_sol && ( hp.nv == n ) &&
-                   ( hp.ne == ne ) && ( hp.nb == nb ) && ( hp.ng == ng ) &&
-                   ( hp.mode == d_mode );
+ // a warm start is from the solution of the previous solve, moved to the
+ // current columns by load_problem(); the setters of HPIPM do not change
+ // their arguments, but take them as non-const
+ const bool warm = d_warm && d_has_guess &&
+                   ( d_guess_x.size() == std::size_t( n ) );
  hp.create( n , ne , nb , ng , d_mode );
+ if( warm )
+  d_dense_qp_sol_set_v( d_guess_x.data() , &hp.sol );
 
  d_dense_qp_set_H( d_H.data() , &hp.qp );
  d_dense_qp_set_g( d_h.data() , &hp.qp );
@@ -365,8 +383,22 @@ int HPIPMMILPSolver::guts_of_compute( void )
 
  d_dense_qp_ipm_solve( &hp.qp , &hp.sol , &hp.arg , &hp.ws );
 
- int st;
+ int st , iter;
  d_dense_qp_ipm_get_status( &hp.ws , &st );
+ d_dense_qp_ipm_get_iter( &hp.ws , &iter );
+ elapsed_iter += iter;
+
+ // a start on the boundary leaves the interior point little room, which
+ // may keep it from ending: a warm-started solve that does not is repeated
+ // from the initial point of HPIPM
+ if( warm && ( st != SUCCESS ) ) {
+  ws = 0;
+  d_dense_qp_ipm_arg_set_warm_start( &ws , &hp.arg );
+  d_dense_qp_ipm_solve( &hp.qp , &hp.sol , &hp.arg , &hp.ws );
+  d_dense_qp_ipm_get_status( &hp.ws , &st );
+  d_dense_qp_ipm_get_iter( &hp.ws , &iter );
+  elapsed_iter += iter;
+  }
 
  switch( st ) {
   case( SUCCESS ):   d_status = kOK;         break;
@@ -391,6 +423,8 @@ int HPIPMMILPSolver::guts_of_compute( void )
 			 pi.data() , lam_lb.data() , lam_ub.data() ,
 			 lam_lg.data() , lam_ug.data() , none.data() ,
 			 none.data() );
+ d_guess_x = d_x;
+ d_has_guess = true;
 
  d_y.assign( n + d_nc , 0 );
  for( int k = 0 ; k < ne ; ++k )

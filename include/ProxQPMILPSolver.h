@@ -94,9 +94,10 @@ namespace SMSpp_di_unipi_it
  *
  * - ProxQP is not given the changes of the loaded problem: whenever a
  *   Modification is received the problem is loaded again whole from the
- *   Block [see MILPSolver::reload_on_modification()], and if its size has
- *   not changed the solution of the previous solve is the start of the
- *   next one;
+ *   Block [see MILPSolver::reload_on_modification()], and the solution of
+ *   the previous solve and the multipliers of its equalities, on the
+ *   variables and rows that are still there, are the start of the next
+ *   one;
  *
  * - ProxQP has no time limit, hence dblMaxTime is not handled and
  *   compute() never returns kStopTime;
@@ -142,9 +143,12 @@ class ProxQPMILPSolver : public MILPSolver
  enum int_par_type_ProxQP {
   /// whether a solve starts from the solution of the previous one
   /**< If 1 [default], each solve after the first starts from the primal
-   * and dual solution of the previous one, as long as the number of
-   * variables, of equalities and of inequalities has not changed; if 0,
-   * each solve starts from the initial guess of intProxQPInitialGuess. */
+   * solution and from the multipliers of the equalities of the previous
+   * one, on the variables and rows that are still there [see
+   * MILPSolver::previous_column_index()], the new ones at 0, and from 0
+   * multipliers of the inequalities, since those of a side that has changed
+   * may have ProxQP stop at the previous solution; if 0, each solve starts
+   * from the initial guess of intProxQPInitialGuess. */
   intProxQPWarmStart = intLastAlgParMILP ,
   /// the start of a solve that is not warm-started
   /**< If 0, the primal and dual solutions start from zero; if 1 [default],
@@ -389,6 +393,10 @@ class ProxQPMILPSolver : public MILPSolver
  Eigen::VectorXd d_z;            ///< of the inequalities, then of the box
  Eigen::VectorXd d_cx;           ///< unbounded ray
  int d_ws_backend = -1;          ///< backend that gave d_x, d_y and d_z
+
+ std::vector< int > d_prev_row_pos;  ///< d_row_pos of the previous problem
+ Eigen::Index d_prev_n = 0;      ///< d_n of the previous problem
+ bool d_remap = false;           ///< true if d_x and d_y are to be moved
  double d_fval = 0;              ///< value of the last solution
  int d_status = -1;              ///< the status of the last solve
 

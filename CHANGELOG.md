@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `MILPSolver::previous_column_index()`, `previous_row_index()` and
+  `previous_sizes()`: each `load_problem()` but the first finds, by the
+  address of its `ColVariable` or `FRowConstraint`, where each column and
+  row of the problem it loads was in the one loaded before, so that a
+  back-end that loads the problem again whole at a Modification
+  (`reload_on_modification()`) can start from the previous solve even when
+  columns or rows have been added or removed; `test_qp` checks it after a
+  row has been removed
+
 - `dblUpCutOff` and `dblLwCutOff` act on a continuous model too in
   `CPXMILPSolver`, `GRBMILPSolver` and `HiGHSMILPSolver`: the cutoff on the
   bound that the dual simplex certifies (the lower one of a minimization,
@@ -234,6 +243,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `DAQPMILPSolver`, `QPOASESMILPSolver`, `ProxQPMILPSolver`,
+  `OSQPMILPSolver` and `HPIPMMILPSolver` start a solve from the previous one
+  also after columns or rows have been added or removed, on those that are
+  still there [see `MILPSolver::previous_column_index()`], instead of only
+  when the size of the problem has not changed: DAQP from the working set,
+  ProxQP from the primal solution and the multipliers of the equalities,
+  those of the inequalities at 0, OSQP from the primal and dual solution,
+  HPIPM from the primal solution, repeating from its initial point a solve
+  that does not end, and qpOASES with a hot start if no column or row has
+  moved, otherwise with a new problem initialized from the working set,
+  solution and multipliers, given up for a solve from scratch after half
+  as many working set recalculations as variables and rows (at least 10)
+
+- `MILPSolver::get_elapsed_iterations()` also gives the iterations of
+  ProxQP, OSQP and HPIPM
+
 - `GRBMILPSolver` starts the environment of GUROBI with `OutputFlag` off,
   which it turns on again right after: the license parameters and banner
   are no longer printed, once per process, and the log of the tests on the
@@ -289,6 +314,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than returning a solution that is not there
 
 ### Fixed
+
+- `ProxQPMILPSolver` and `HPIPMMILPSolver` start from the previous solve
+  also after a Modification: the `clear_problem()` that
+  `MILPSolver::load_problem()` calls threw away the solution of ProxQP and
+  the memory of HPIPM, hence every solve after a Modification started from
+  the initial guess
 
 - `SCIPMILPSolver` with `intComputeDuals` gave no duals (all of them
   `SCIP_INVALID`, i.e., 1e+99) after a change of the costs that left the

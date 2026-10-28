@@ -74,8 +74,8 @@ namespace SMSpp_di_unipi_it
  * and the sparsity patterns of \f$ P \f$ and \f$ A \f$ have not changed,
  * the new data are given to the solver of OSQP already set up, which is
  * set up again otherwise. After the first solve, each one starts from the
- * primal and dual solution of the previous one, as long as the size of the
- * problem has not changed (see intOSQPWarmStart). After the ADMM has
+ * primal and dual solution of the previous one, on the variables and rows
+ * that are still there (see intOSQPWarmStart). After the ADMM has
  * converged, the solution is polished (see intOSQPPolishing), i.e., the
  * problem restricted to the active constraints of the ADMM solution is
  * solved, which gives the solution and the multipliers to high accuracy
@@ -138,9 +138,9 @@ class OSQPMILPSolver : public MILPSolver
  enum int_par_type_OSQP {
   /// whether a solve starts from the solution of the previous one
   /**< If 1 [default], each solve after the first starts from the primal
-   * and dual solution of the previous one, as long as the number of
-   * variables and of rows of OSQP has not changed; if 0, each solve
-   * starts from zero. */
+   * and dual solution of the previous one, on the variables and rows that
+   * are still there [see MILPSolver::previous_column_index()], the new ones
+   * at 0; if 0, each solve starts from zero. */
   intOSQPWarmStart = intLastAlgParMILP ,
   /// whether the solution of the ADMM is polished (default 1)
   intOSQPPolishing ,

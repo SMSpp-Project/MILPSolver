@@ -195,6 +195,62 @@ void QPOASESMILPSolver::load_problem( void )
 				  std::string( 1 , sense[ i ] ) ) );
    }
 
+ // a solved problem of another size cannot be hot-started, but its
+ // working set, solution and multipliers, moved to the columns and rows
+ // that are still there [see previous_column_index()], are the guess with
+ // which the next one is initialized, the new ones inactive and at 0; an
+ // active side that is no longer finite is inactive
+ d_guess = false;
+ const auto [ pn , pm ] = previous_sizes();
+ bool same = ( pn == n ) && ( pm == d_nc );
+ for( int j = 0 ; same && ( j < n ) ; ++j )
+  same = ( previous_column_index( j ) == j );
+ for( int i = 0 ; same && ( i < d_nc ) ; ++i )
+  same = ( previous_row_index( i ) == i );
+ if( d_hot_start && d_qp && d_qp_solved && ( ! same ) &&
+     ( d_qp->getNV() == pn ) && ( d_qp->getNC() == pm ) ) {
+  qpOASES::Bounds ob;
+  qpOASES::Constraints oc;
+  d_qp->getBounds( ob );
+  d_qp->getConstraints( oc );
+  std::vector< double > ox( pn ) , oy( pn + pm );
+  d_qp->getPrimalSolution( ox.data() );
+  d_qp->getDualSolution( oy.data() );
+
+  auto status = []( qpOASES::SubjectToStatus st , double l , double u ) {
+   if( ( st == qpOASES::ST_LOWER ) && ( l > - qpOASES::INFTY ) )
+    return( qpOASES::ST_LOWER );
+   if( ( st == qpOASES::ST_UPPER ) && ( u < qpOASES::INFTY ) )
+    return( qpOASES::ST_UPPER );
+   return( qpOASES::ST_INACTIVE );
+   };
+
+  d_guess_x.assign( n , 0 );
+  d_guess_y.assign( n + d_nc , 0 );
+  d_guess_b = std::make_unique< qpOASES::Bounds >();
+  d_guess_c = std::make_unique< qpOASES::Constraints >();
+  d_guess_b->init( n );
+  d_guess_c->init( d_nc );
+  for( int j = 0 ; j < n ; ++j ) {
+   const int pj = previous_column_index( j );
+   d_guess_b->setupBound( j , pj < 0 ? qpOASES::ST_INACTIVE :
+			  status( ob.getStatus( pj ) , d_lb[ j ] , d_ub[ j ] ) );
+   if( pj >= 0 ) {
+    d_guess_x[ j ] = ox[ pj ];
+    d_guess_y[ j ] = oy[ pj ];
+    }
+   }
+  for( int i = 0 ; i < d_nc ; ++i ) {
+   const int pi = previous_row_index( i );
+   d_guess_c->setupConstraint( i , pi < 0 ? qpOASES::ST_INACTIVE :
+			       status( oc.getStatus( pi ) , d_lbA[ i ] ,
+				       d_ubA[ i ] ) );
+   if( pi >= 0 )
+    d_guess_y[ n + i ] = oy[ pn + pi ];
+   }
+  d_guess = true;
+  }
+
  d_x.assign( n , 0 );
  d_y.assign( n + d_nc , 0 );
  d_status = kError;
@@ -221,17 +277,24 @@ int QPOASESMILPSolver::guts_of_compute( void )
   return( sol_status = d_status );
   }
 
- // a hot start needs the problem of qpOASES solved, of the same size and
- // with the same Options; one that does not end with a solution, unless it
- // is stopped by the time limit, is repeated from scratch
+ // a hot start needs the problem of qpOASES solved, with the same columns
+ // and rows in the same places and with the same Options, otherwise the
+ // new problem is initialized from the guess made out of the previous one
+ // by load_problem(), if any; one that does not end with a solution, unless
+ // it is stopped by the time limit, is repeated from scratch
  if( d_hot_start && d_qp && d_qp_solved && ( ! d_new_options ) &&
-     ( d_qp->getNV() == d_n ) && ( d_qp->getNC() == d_nc ) ) {
+     ( ! d_guess ) && ( d_qp->getNV() == d_n ) &&
+     ( d_qp->getNC() == d_nc ) ) {
   d_status = hot_start();
   if( ( d_status != kOK ) && ( d_status != kStopTime ) )
    d_status = solve_from_scratch();
   }
- else
-  d_status = solve_from_scratch();
+ else {
+  d_status = solve_from_scratch( d_guess && ( ! d_new_options ) );
+  if( d_guess && ( d_status != kOK ) && ( d_status != kStopTime ) )
+   d_status = solve_from_scratch( false );
+  }
+ d_guess = false;
 
  d_qp_solved = ( d_status == kOK );
 
@@ -255,7 +318,7 @@ int QPOASESMILPSolver::guts_of_compute( void )
 
 /*--------------------------------------------------------------------------*/
 
-int QPOASESMILPSolver::solve_from_scratch( void )
+int QPOASESMILPSolver::solve_from_scratch( bool guess )
 {
  qpOASES::HessianType ht = qpOASES::HST_UNKNOWN;
  if( d_hessian_type == 1 )
@@ -272,17 +335,32 @@ int QPOASESMILPSolver::solve_from_scratch( void )
  d_qpH[ 0 ] = d_oldH = d_H;
  d_qpA[ 0 ] = d_oldA = d_A;
 
- const int nwsr = max_nwsr();
+ // a guess that is good takes few working set recalculations, and on a
+ // singular H a bad one may take as many as from scratch, or more: a
+ // guessed start is given up after half as many as variables and rows,
+ // and the solve repeated from scratch
+ const int nwsr = guess ? std::min( max_nwsr() ,
+				    std::max( 10 , ( d_n + d_nc ) / 2 ) )
+                        : max_nwsr();
  qpOASES::int_t done = nwsr;
  qpOASES::real_t time = d_max_time;
  const bool timed = d_max_time < Inf< double >();
 
- const auto ret = d_qp->init( d_qpH[ 0 ].data() , d_g.data() ,
-			      d_nc ? d_qpA[ 0 ].data() : nullptr ,
-			      d_lb.data() , d_ub.data() ,
-			      d_nc ? d_lbA.data() : nullptr ,
-			      d_nc ? d_ubA.data() : nullptr ,
-			      done , timed ? & time : nullptr );
+ const auto ret = guess ?
+  d_qp->init( d_qpH[ 0 ].data() , d_g.data() ,
+	      d_nc ? d_qpA[ 0 ].data() : nullptr ,
+	      d_lb.data() , d_ub.data() ,
+	      d_nc ? d_lbA.data() : nullptr ,
+	      d_nc ? d_ubA.data() : nullptr ,
+	      done , timed ? & time : nullptr ,
+	      d_guess_x.data() , d_guess_y.data() ,
+	      d_guess_b.get() , d_guess_c.get() ) :
+  d_qp->init( d_qpH[ 0 ].data() , d_g.data() ,
+	      d_nc ? d_qpA[ 0 ].data() : nullptr ,
+	      d_lb.data() , d_ub.data() ,
+	      d_nc ? d_lbA.data() : nullptr ,
+	      d_nc ? d_ubA.data() : nullptr ,
+	      done , timed ? & time : nullptr );
  elapsed_iter += done;
 
  return( decode( ret , nwsr , done ) );

@@ -129,6 +129,30 @@ void DAQPMILPSolver::load_problem( void )
  d_m = n + numrows;
  d_sign = ( objsense == -1 ) ? -1 : 1;  // DAQP minimizes
 
+ // the working set of the previous problem, moved to the columns and rows
+ // that are still there [see previous_column_index()], the new ones
+ // inactive, so that a solve after columns or rows have been added or
+ // removed starts from the previous one as well
+ if( ( d_ws_n >= 0 ) && ( ( d_ws_n != d_n ) ||
+			  ( d_ws.size() != std::size_t( d_m ) ) ) ) {
+  const auto [ pn , pm ] = previous_sizes();
+  if( ( d_ws_n == pn ) && ( d_ws.size() == std::size_t( pn + pm ) ) ) {
+   std::vector< int > ws( d_m , 0 );
+   for( int j = 0 ; j < n ; ++j )
+    if( const int pj = previous_column_index( j ) ; pj >= 0 )
+     ws[ j ] = d_ws[ pj ];
+   for( int i = 0 ; i < numrows ; ++i )
+    if( const int pi = previous_row_index( i ) ; pi >= 0 )
+     ws[ n + i ] = d_ws[ pn + pi ];
+   d_ws = std::move( ws );
+   d_ws_n = d_n;
+   }
+  else {
+   d_ws.clear();
+   d_ws_n = -1;
+   }
+  }
+
  // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
  // 1/2 x' H x + f' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k
  d_f.assign( n , 0 );

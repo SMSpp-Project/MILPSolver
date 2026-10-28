@@ -118,8 +118,25 @@ void ProxQPMILPSolver::clear_problem( unsigned int what )
 
 void ProxQPMILPSolver::load_problem( void )
 {
+ // the layout of the previous problem, whose solution is moved to the new
+ // one in the next solve [see previous_column_index()]
+ d_prev_row_pos = d_row_pos;
+ d_prev_n = d_n;
+
+ // the solution, which clear_problem() of MILPSolver::load_problem() would
+ // throw away, is kept for the warm start of the next solve
+ auto x = std::move( d_x );
+ auto y = std::move( d_y );
+ auto z = std::move( d_z );
+ const int ws_backend = d_ws_backend;
+
  MILPSolver::load_problem();
  free_solver();
+
+ d_x = std::move( x );
+ d_y = std::move( y );
+ d_z = std::move( z );
+ d_ws_backend = ws_backend;
 
  if( numquadrows > 0 )
   throw( std::invalid_argument( "ProxQPMILPSolver::load_problem: "
@@ -230,6 +247,7 @@ void ProxQPMILPSolver::load_problem( void )
 
  d_loaded = true;
  d_status = -1;
+ d_remap = true;
 
  }  // end( ProxQPMILPSolver::load_problem )
 
@@ -324,6 +342,27 @@ int ProxQPMILPSolver::guts_of_compute( void )
  pqp::Results< double > & res = d_dqp ? d_dqp->results : d_sqp->results;
  set( s );
 
+ // the solution of the previous problem and the multipliers of its
+ // equalities, if any, are moved to the columns and rows that are still
+ // there, the new ones and an inequality that has become an equality at 0
+ if( d_remap && d_warm_start && ( d_ws_backend == d_backend ) &&
+     ( d_x.size() == d_prev_n ) &&
+     ( std::size_t( previous_sizes().second ) == d_prev_row_pos.size() ) ) {
+  Eigen::VectorXd x = Eigen::VectorXd::Zero( res.x.size() );
+  Eigen::VectorXd y = Eigen::VectorXd::Zero( res.y.size() );
+  for( int j = 0 ; j < d_n ; ++j )
+   if( const int pj = previous_column_index( j ) ; pj >= 0 )
+    x[ j ] = d_x[ pj ];
+  for( int i = 0 ; i < int( d_row_pos.size() ) ; ++i )
+   if( const int pi = previous_row_index( i ) ; pi >= 0 )
+    if( ( d_row_pos[ i ] >= 0 ) && ( d_prev_row_pos[ pi ] >= 0 ) )
+     y[ d_row_pos[ i ] ] = d_y[ d_prev_row_pos[ pi ] ];
+  d_x = std::move( x );
+  d_y = std::move( y );
+  d_z = Eigen::VectorXd::Zero( res.z.size() );
+  }
+ d_remap = false;
+
  // the start: the solution of the previous solve, if of the same size and
  // of the same backend, otherwise the initial guess
  if( d_warm_start && ( d_ws_backend == d_backend ) &&
@@ -332,7 +371,10 @@ int ProxQPMILPSolver::guts_of_compute( void )
   s.initial_guess = pqp::InitialGuessStatus::WARM_START;
   res.x = d_x;
   res.y = d_y;
-  res.z = d_z;
+  // the multipliers of the inequalities start from 0: those of a side that
+  // has changed may make the residuals of the previous solution small while
+  // it is no longer optimal, and ProxQP then stops there
+  res.z.setZero();
   }
  else
   s.initial_guess = d_initial_guess ?
@@ -345,6 +387,7 @@ int ProxQPMILPSolver::guts_of_compute( void )
   d_sqp->solve();
 
  d_status = int( res.info.status );
+ elapsed_iter += int( res.info.iter );
 
  // the ray of a dual infeasible problem, which ProxQP leaves in place of
  // the solution
