@@ -315,6 +315,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `HiGHSMILPSolver` returns `kError` on a continuous QP that the active set
+  of HiGHS declares optimal with a primal-dual objective error above
+  `QPObjectiveError` (1e-3): on the unbounded master problems of a bundle
+  with vertical linearizations, whose Hessian is singular, HiGHS 1.15.1
+  ends at a finite point with the status optimal and an error close to 1,
+  and so it did on 16 of 190 QPs (the master problems of `PFB`, MMCF and UC
+  and the QPs of `qpbenchmark`), 11 of them unbounded, all with an error
+  of at least 3.6e-3, while 8 of the 174 it solves right have an error
+  above 1e-3, which are now `kError` as well
+
 - `ProxQPMILPSolver` and `HPIPMMILPSolver` start from the previous solve
   also after a Modification: the `clear_problem()` that
   `MILPSolver::load_problem()` calls threw away the solution of ProxQP and

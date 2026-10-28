@@ -672,6 +672,20 @@ int HiGHSMILPSolver::guts_of_compute( void )
  if( qp_iter_set )
   Highs_setIntOptionValue( highs , "qp_iteration_limit" , qp_iter );
 
+ // an optimal QP whose primal and dual values do not agree has not been
+ // solved, e.g., an unbounded one that the active set has stopped at a
+ // finite point [see QPWorkaround]
+ if( qp_help && ( m_status == kHighsModelStatusOptimal ) ) {
+  double pd_error = 0;
+  if( ( Highs_getDoubleInfoValue( highs , "primal_dual_objective_error" ,
+				  & pd_error ) == kHighsStatusOk ) &&
+      ( pd_error > QPObjectiveError ) ) {
+   if( lp_cutoff )
+    reset_lp_cutoff();
+   return( sol_status = kError );
+   }
+  }
+
  if( qp_help && ( ! definite( m_status ) ) )
   throw( std::runtime_error(
     "HiGHSMILPSolver::guts_of_compute: the active set QP solver of HiGHS "

@@ -108,7 +108,19 @@ namespace SMSpp_di_unipi_it {
  *
  * - a QP that none of these attempts solves throws std::runtime_error,
  *   saying which Solver or stabilization to use instead, rather than
- *   returning a solution that is not there.
+ *   returning a solution that is not there;
+ *
+ * - a QP that the active set declares optimal with a primal-dual objective
+ *   error (the info primal_dual_objective_error of HiGHS) larger than
+ *   QPObjectiveError is not solved, and compute() returns kError: on an
+ *   unbounded QP whose Hessian is singular, e.g., the master problem of a
+ *   bundle with vertical linearizations, the active set of HiGHS (up to
+ *   1.15.1 at least) ends at a finite point with the status optimal and
+ *   an error close to 1, and solving it again with a larger regularization
+ *   would make it bounded, hence give a value just as wrong; the error of
+ *   a right solution of the active set is mostly below 1e-5, but it
+ *   reaches 1e-3 on some, and once in a while it is large on a right one
+ *   too, which this then turns into kError.
  *
  * Both options only act on QPs, and they can be set to any value in the
  * configuration as any other one.
@@ -166,6 +178,9 @@ class HiGHSMILPSolver : public MILPSolver {
 
  /// the regularization of the last attempt at a QP [see the class]
  static constexpr double QPRetryRegularization = 1e-4;
+
+ /// the largest primal-dual objective error of an optimal QP [see the class]
+ static constexpr double QPObjectiveError = 1e-3;
 
  /// enum for string parameters (options in HiGHS)
  enum str_par_type_HiGHS {
