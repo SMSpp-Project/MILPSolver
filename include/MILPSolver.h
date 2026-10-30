@@ -1168,6 +1168,48 @@ class MILPSolver : public CDASolver
                        std::unordered_set< const Block * > & sel ) const;
 
 /*--------------------------------------------------------------------------*/
+ /// the weight of the Objective whose Function is \p f
+ /** Returns the factor by which the coefficients of \p f, the Function of
+  * the FRealObjective of a Block in the tree of the Block of this Solver,
+  * enter the objective of the problem, i.e., the product of the weights of
+  * the Objective of that Block and of its ancestors up to, and excluding,
+  * the Block of this Solver [see Block::get_objective_weight()], 1 for a
+  * Function that is not that of the Objective of such a Block; the
+  * back-ends multiply by it whatever they take out of a Modification of
+  * \p f. */
+
+ double objective_weight( const Function * f ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// the weight of the coefficient of \p var in \p con
+ /** Returns the factor by which the coefficient of the Variable \p var in
+  * the Constraint \p con, both in the tree of the Block of this Solver,
+  * enters the problem, i.e., the product of the weights of the Variable
+  * [see Block::get_variable_weight( const Block * )] from the Block of
+  * \p var up to the closest Block that also contains the Block of \p con,
+  * the latter excluded; it is 1, with no computation, when no Block of the
+  * tree has a weight of the Variable other than 1. The back-ends multiply
+  * by it whatever coefficient of a row they take out of a Modification. */
+
+ double variable_weight( const Variable * var , const Constraint * con ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// MILPSolver handles a change of the weights of a sub-Block
+ /** A BlockWeightMod coming from a sub-Block [see Block::set_weight()] has
+  * the problem loaded again, with the new weights, as a NBModification. */
+
+ [[nodiscard]] bool handles_weight_change( void ) const override {
+  return( true );
+  }
+
+/*--------------------------------------------------------------------------*/
+ /// MILPSolver applies the weights of the Variable [see variable_weight()]
+
+ [[nodiscard]] bool handles_variable_weight( void ) const override {
+  return( true );
+  }
+
+/*--------------------------------------------------------------------------*/
 
  /// derived-class hook performing the actual back-end solve
  /** Virtual method called by MILPSolver::compute() after the locks have
@@ -1200,21 +1242,23 @@ class MILPSolver : public CDASolver
   * called repeatedly to concatenate the rows of a batch into a single
   * pair of buffers (in conjunction with a separate rmatbeg vector).
   *
-  * The helper is inline so that the resulting code is identical to
-  * the hand-rolled loop the derived solvers were carrying around, and
-  * static / template so the LinearFunction-iteration boilerplate is
-  * stated once and the per-back-end idx_fn stays a zero-overhead
-  * abstraction. */
+  * The coefficients of a row are multiplied by their weight [see
+  * variable_weight()], hence the helper is a member. It is inline so that
+  * the resulting code is identical to the hand-rolled loop the derived
+  * solvers were carrying around, and a template so the
+  * LinearFunction-iteration boilerplate is stated once and the per-back-end
+  * idx_fn stays a zero-overhead abstraction. */
 
  template< typename IdxFn >
- static inline void scatter_lf_to_csr(
-                              const LinearFunction * lf , IdxFn && idx_fn ,
-                              std::vector< int > & out_ind ,
-                              std::vector< double > & out_val ) {
+ inline void scatter_lf_to_csr( const LinearFunction * lf , IdxFn && idx_fn ,
+                                std::vector< int > & out_ind ,
+                                std::vector< double > & out_val ) const {
+  const auto con = dynamic_cast< const Constraint * >( lf->get_Observer() );
   for( auto & el : lf->get_v_var() )
    if( auto idx = idx_fn( el.first ) ; idx < Inf< int >() ) {
     out_ind.push_back( idx );
-    out_val.push_back( el.second );
+    out_val.push_back( con ? el.second * variable_weight( el.first , con )
+                           : el.second );
     }
   }
 
@@ -1356,6 +1400,21 @@ class MILPSolver : public CDASolver
  /** The same Block pointers as #v_BFS, stored for constant-time membership
   * queries while constructing and updating the MILP matrix. */
  std::unordered_set< Block * > BFS_set;
+
+ /** The weight with which the Objective of each Block of #v_BFS enters the
+  * problem [see objective_weight()], for those whose weight is not 1: it is
+  * computed going down the tree in load_problem(), each Block having that
+  * of its father times its own, and the Block of this Solver 1. */
+ std::unordered_map< const Block * , double > f_obj_weight;
+
+ /// true if a Block of #v_BFS below the Block of this Solver has a weight
+ /// of the Variable other than 1 [see variable_weight()]
+ bool f_var_weighted = false;
+
+ /// the weight of the Variable of a Block in a Block [see
+ /// variable_weight()], by pair of Block, as it is asked
+ mutable std::map< std::pair< const Block * , const Block * > , double >
+  f_var_weight_cache;
 
  /// buffers of the scan of the columns, kept for the whole load
  /** Each column is scanned with these rather than with containers of its
@@ -2124,10 +2183,13 @@ class MILPSolver : public CDASolver
   * Moreover, since both the CPLEX and SCIP C API does not support the concept
   * of "constant term", all of them, for each Block of the problem, are
   * accumulated in the homonymous variable to provide the updated OF value.
+  * All the coefficients and the constant term are multiplied by \p w, the
+  * weight of the Objective [see objective_weight()].
   *
-  * @param obj a FRealObjective */
+  * @param obj a FRealObjective
+  * @param w the weight of its Block */
 
- void scan_objective( const FRealObjective * obj );
+ void scan_objective( const FRealObjective * obj , double w );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/

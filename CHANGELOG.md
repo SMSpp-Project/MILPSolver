@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- the weight of the `Objective` of the `Block` [see
+  `Block::set_objective_weight()`]: the `Objective` of each `Block` of the
+  tree enters the problem multiplied by the product of the weights along
+  the path up to the `Block` of the `Solver`, the latter excluded, in the
+  loading of the problem and in every `Modification` of the `Objective`
+  (coefficients, constant term, quadratic terms, `Variable` added and
+  removed) of `GRBMILPSolver`, `CPXMILPSolver`, `HiGHSMILPSolver`,
+  `SCIPMILPSolver`, `MOSEKMILPSolver` and of the back-ends that read the
+  objective of `MILPSolver` (`MILPSolver::objective_weight()`)
+
+- the weight of the Variable of a `Block` [see
+  `Block::set_variable_weight()`]: the coefficient of a `Variable` in a
+  linear Constraint outside of its `Block` enters the problem multiplied by
+  the product of the weights from its `Block` up to the closest one that
+  also contains the Constraint (`MILPSolver::variable_weight()`), in the
+  loading of the problem (rows and columns, `PIPSMILPSolver` comprised), in
+  every `Modification` of the coefficients of a row and in the rows and
+  columns added afterwards (`scatter_lf_to_csr()` comprised), in the cuts of
+  the separation and in the check of the optimality conditions; a weight
+  other than 1 in a quadratic Constraint is refused; a change of the weights
+  of a sub-Block (`BlockWeightMod`) loads the problem again, and
+  `MILPSolver_ObjectiveWeight_test` checks both weights, changed with the
+  `Solver` attached too
+
 - `MILPSolver::previous_column_index()`, `previous_row_index()` and
   `previous_sizes()`: each `load_problem()` but the first finds, by the
   address of its `ColVariable` or `FRowConstraint`, where each column and
@@ -26,9 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   passes it and returns `kCutOff`, with a certified bound at least as good
   as the cutoff and a feasible dual solution, i.e., one that gives a valid
   cut, and no bound on the other side, since the solution it stops at is
-  not primal feasible (the presolve is turned off for this solve in `GRBMILPSolver` and
-  `HiGHSMILPSolver`, whose presolved solve gives no such dual solution or
-  ignores the limit, and HiGHS acts on it only when minimizing). The
+  not primal feasible (the presolve is turned off for this solve in
+  `GRBMILPSolver` and `HiGHSMILPSolver`, whose presolved solve gives no such
+  dual solution or ignores the limit, and HiGHS acts on it only when
+  minimizing). The
   parameters changed for it are given back after the solve.
   `test_cutoff_status` checks it on an LP with 60 columns and 40 rows, in
   either sense, with a cutoff that is reached and with one that is not
@@ -337,6 +362,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the QPs of `qpbenchmark`), 11 of them unbounded, all with an error
   of at least 3.6e-3, while 8 of the 174 it solves right have an error
   above 1e-3, which are now `kError` as well
+
+- `CPXMILPSolver`: a change of the coefficients of a `DQuadFunction` in the
+  `Objective` whose `Variable` has left the `Function` before the change is
+  handled (by a `Modification` still in the queue) passed to CPLEX entries
+  that had not been written, and the deltas of the following `Variable`
+  shifted by one; so did `GRBMILPSolver` and `SCIPMILPSolver` with the
+  deltas. The `Variable` added to a `DQuadFunction` that has already left it
+  is now left alone, rather than being given an uninitialized quadratic
+  coefficient
+
+- `SCIPMILPSolver`: a `Variable` taken out of a quadratic `Objective`, or
+  a quadratic coefficient that goes to 0, threw "SCIP does not currently
+  support the removal of quadratic terms", after which the solutions were
+  wrong; the term now stays in the expression with coefficient 0. A
+  `Variable` put back into a `DQuadFunction` or a `QuadFunction` whose term
+  was there changed the coefficient of the next term, with the wrong sign
+
+- `HiGHSMILPSolver`: a continuous QP whose columns are all bounded, that
+  the active set QP solver of HiGHS calls unbounded (which it does, up to
+  1.15.1 at least, of some convex QPs it takes for nonconvex ones), is no
+  longer returned as `kUnbounded`: it goes through the attempts of a QP
+  the active set has not solved, and if none solves it the `Solver` throws
 
 - `ProxQPMILPSolver` and `HPIPMMILPSolver` start from the previous solve
   also after a Modification: the `clear_problem()` that

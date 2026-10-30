@@ -2465,7 +2465,8 @@ bool CPXMILPSolver::change_coefficients(
      auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
      rows.push_back( row );
      cols.push_back( cpx_index_of_variable( var ) );
-     vals.push_back( cp[ idx ].second );
+     vals.push_back( cp[ idx ].second *
+                     variable_weight( cp[ idx ].first , con ) );
      }
 
    continue;
@@ -2734,6 +2735,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
  // MILPSolver::objective_function_modification( mod );
 
  auto f = mod->function();
+ const double w = objective_weight( f );
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2762,7 +2764,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      double oldval;
      CPXgetobj( env , lp , &oldval , vidx , vidx );
      cidx.push_back( vidx );
-     nval.push_back( oldval + modl->delta()[ i ] );
+     nval.push_back( oldval + w * modl->delta()[ i ] );
      }
     }
 
@@ -2807,10 +2809,12 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      CPXgetobj( env , lp , &oldval , vidx , vidx );
 
      // Update new coefficient
-     *(nvit++) = oldval + modl->delta()[ i ];
+     *(nvit++) = oldval + w * modl->delta()[ i ];
      }
    }
 
+   // a Variable no longer in the Function has no entry
+   cidx.resize( std::distance( cidx.begin() , cidxit ) );
    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
    }
@@ -2836,7 +2840,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
                "CPXMILPSolver::objective_function_modification: "
                "unexpected *C05FunctionMod* from Objective Function" ) );
 
-   constant_value += shift;
+   constant_value += w * shift;
    return;
    }
 
@@ -2867,7 +2871,11 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto cidxit = cidx.begin();
    auto dcoeffit = delta_coeff->begin();
 
-   for( auto v : *vars )
+   // the delta of a Variable that is no longer in the Function (removed
+   // after the change, by a Modification still in the queue) is skipped
+   // along with it, so that the next Variable gets its own
+   for( auto v : *vars ) {
+    const auto & dc = *(dcoeffit++);
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      int cidx = cpx_index_of_variable( dynamic_cast< ColVariable * >( v ) );
      *(cidxit++) = cidx;
@@ -2876,7 +2884,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      double oldlinval;
      CPXgetobj( env , lp , &oldlinval , cidx , cidx );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
+     *(nvit++) = oldlinval + w * std::get< 0 >( dc );
 
      // Retrieve old quadratic coefficient
      double oldqval;
@@ -2889,20 +2897,19 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      // convexity. If the sign is ambiguous due to its small value, we 
      // should assign it a value of 0.
      double eps = 1e-12;
-     double newval = oldqval + 2 * std::get< 1 >( *dcoeffit );
-     if( abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
+     double newval = oldqval + 2 * w * std::get< 1 >( dc );
+     if( std::abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
       CPXchgqpcoef( env , lp , cidx , cidx , 0 );
      else
       CPXchgqpcoef( env , lp , cidx , cidx , newval );
-
-     dcoeffit++;
+     }
     }
 
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
    nval.resize( nsz );
 
-   CPXchgobj( env , lp , idxs.size() , cidx.data() , nval.data() );
+   CPXchgobj( env , lp , nsz , cidx.data() , nval.data() );
    return;
    }
   else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
@@ -2922,7 +2929,11 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto cidxit = cidx.begin();
    auto dcoeffit = delta_coeff->begin();
 
-   for( auto v : *vars )
+   // the delta of a Variable that is no longer in the Function (removed
+   // after the change, by a Modification still in the queue) is skipped
+   // along with it, so that the next Variable gets its own
+   for( auto v : *vars ) {
+    const auto & dc = *(dcoeffit++);
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      int cidx = cpx_index_of_variable( dynamic_cast< ColVariable * >( v ) );
      *(cidxit++) = cidx;
@@ -2931,7 +2942,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      double oldlinval;
      CPXgetobj( env , lp , &oldlinval , cidx , cidx );
      // Update new linear coefficient
-     *(nvit++) = oldlinval + std::get< 0 >( *dcoeffit );
+     *(nvit++) = oldlinval + w * std::get< 0 >( dc );
 
      // Retrieve old quadratic coefficient
      double oldqval;
@@ -2944,20 +2955,19 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      // convexity. If the sign is ambiguous due to its small value, we 
      // should assign it a value of 0.
      double eps = 1e-12;
-     double newval = oldqval + 2 * std::get< 1 >( *dcoeffit );
-     if( abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
+     double newval = oldqval + 2 * w * std::get< 1 >( dc );
+     if( std::abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
       CPXchgqpcoef( env , lp , cidx , cidx , 0 );
      else
       CPXchgqpcoef( env , lp , cidx , cidx , newval );
-
-     dcoeffit++;
+     }
     }
 
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
    nval.resize( nsz );
 
-   CPXchgobj( env , lp , idxs.size() , cidx.data() , nval.data() );
+   CPXchgobj( env , lp , nsz , cidx.data() , nval.data() );
    return;
    }
   else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
@@ -2970,7 +2980,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    // coefficient at time for each Modification.
    Subset idxs = fqf->map_index( modlq->vars() , modlq->subset() );
    c_Vec_p_Var vars = modlq->vars();
-   Coefficient delta_coeff = modlq->delta();
+   Coefficient delta_coeff = w * modlq->delta();
 
    if( idxs.size() != 2 )
     throw( std::logic_error(
@@ -2993,7 +3003,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    // should assign it a value of 0.
    double eps = 1e-12;
    double newval = oldqval + delta_coeff;
-   if( abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
+   if( std::abs( newval ) <= eps * std::max( std::abs( newval ) , 1.0 ) )
     CPXchgqpcoef( env , lp , idx1 , idx2 , 0 );
    else
     CPXchgqpcoef( env , lp , idx1 , idx2 , newval );
@@ -3056,7 +3066,7 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
  for( auto v :  modl->vars() )
   if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-   *(nvit++) = cp[ idx ].second;
+   *(nvit++) = cp[ idx ].second * variable_weight( cp[ idx ].first , con );
    *(cidxit++) = cpx_index_of_variable( static_cast< const ColVariable * >( v ) );
    }
 
@@ -3103,6 +3113,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  values.reserve( nv );
 
  auto f = mod->function();
+ const double w = objective_weight( f );
  auto nav = f->get_num_active_var();
 
  // while changing the coefficients, we have to be careful about the fact
@@ -3153,7 +3164,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
 
     double oldval;
     CPXgetobj( env , lp , &oldval , idx , idx );
-    const double change = ( *delta )[ i ];
+    const double change = w * ( *delta )[ i ];
     double newval = oldval + change;
 
     if( ! mod->added() ) {
@@ -3226,7 +3237,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
 
     // quadratic coefficients need be changed one at a time
     CPXchgqpcoef( env , lp , glob_idx1 , glob_idx2 ,
-                  oldqval + std::get< 2 >( t ) );
+                  oldqval + ( w * std::get< 2 >( t ) ) );
   }
   // Here we don't need any return, as we know that any QuadFunction
   // derives from a DQuadFunction
@@ -3279,8 +3290,8 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
       indices.push_back( idx );
       double nqval;
       if( auto cidx = dqf->is_active( var ) ; cidx < nav ) {
-        values.push_back( oldval + modq->coeff()[ i ].first );
-        nqval = oldqval + 2 * modq->coeff()[ i ].second;
+        values.push_back( oldval + w * modq->coeff()[ i ].first );
+        nqval = oldqval + w * 2 * modq->coeff()[ i ].second;
       }
 
     CPXchgqpcoef( env , lp , idx , idx , nqval ); 
@@ -3356,7 +3367,8 @@ void CPXMILPSolver::constraint_fvars_modification(
    indices.push_back( vidx );
    if( mod->added() ) {
     auto idx = lf->is_active( var );
-    values.push_back( idx < nav ? lf->get_coefficient( idx ) : 0 );
+    values.push_back( idx < nav ? lf->get_coefficient( idx ) *
+                      variable_weight( var , con ) : 0 );
     }
    else
     values.push_back( 0 );
@@ -4212,7 +4224,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
    auto vit = rmatval.begin() + sz;
    for( auto & el : lf->get_v_var() ) {
     *(iit++) = cpx_index_of_variable( el.first );
-    *(vit++) = el.second;
+    *(vit++) = el.second * variable_weight( el.first , con );
     }
 
    // get the bounds
@@ -4896,7 +4908,8 @@ void CPXMILPSolver::reload_constraint( const LinearFunction * lf )
  for( auto & var : lf->get_v_var() )
   if( auto idx = index_of_variable( var.first ) ; idx < Inf< int >() ) {
    cols.push_back( idx );
-   vals.push_back( var.second );
+   vals.push_back( var.second * variable_weight( var.first ,
+    static_cast< const FRowConstraint * >( lf->get_Observer() ) ) );
    }
 
  CPXchgcoeflist( env , lp , cols.size() , rows.data() , cols.data() ,
@@ -4924,6 +4937,7 @@ void CPXMILPSolver::reload_objective( Function * f )
  // from the LinearFunction. during the management of that Modification the
  // erroneous nonzero coefficients will be zeroed
 
+ const double w = objective_weight( f );
  auto nv = f->get_num_active_var();
  if( ! nv )  // but this was an empty Objective (?)
   return;    // so nothing changes
@@ -4940,7 +4954,7 @@ void CPXMILPSolver::reload_objective( Function * f )
   for( auto & el : lf->get_v_var() )
    if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
-    values.push_back( el.second );
+    values.push_back( w * el.second );
     }
 
   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
@@ -4955,9 +4969,9 @@ void CPXMILPSolver::reload_objective( Function * f )
        idx < Inf< int >() ) {
     // linear coefficients can be changed all at once with CPXchgobj
     indices.push_back( idx );
-    values.push_back( std::get< 1 >( el ) );
+    values.push_back( w * std::get< 1 >( el ) );
     // quadratic coefficients need be changed one at a time
-    CPXchgqpcoef( env , lp , idx , idx , 2 * std::get< 2 >( el ) );
+    CPXchgqpcoef( env , lp , idx , idx , 2 * w * std::get< 2 >( el ) );
     }
 
   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );

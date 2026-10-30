@@ -1325,7 +1325,8 @@ bool MOSEKMILPSolver::change_coefficients(
      auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
      rows.push_back( row );
      cols.push_back( index_of_variable( var ) );
-     vals.push_back( cp[ idx ].second );
+     vals.push_back( cp[ idx ].second *
+                     variable_weight( cp[ idx ].first , con ) );
      }
 
    continue;
@@ -1500,6 +1501,7 @@ void MOSEKMILPSolver::objective_function_modification(
 						     const FunctionMod * mod )
 {
  auto f = mod->function();
+ const double w = objective_weight( f );
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
@@ -1519,7 +1521,7 @@ void MOSEKMILPSolver::objective_function_modification(
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
     if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
      cidx.push_back( idx );
-     delta.push_back( modl->delta()[ i ] );
+     delta.push_back( w * modl->delta()[ i ] );
      }
     }
 
@@ -1545,7 +1547,7 @@ void MOSEKMILPSolver::objective_function_modification(
     if( *( idxit++ ) < Inf< Index >() ) {
      cidx.push_back( index_of_variable(
                    static_cast< const ColVariable * >( modl->vars()[ i ] ) ) );
-     delta.push_back( modl->delta()[ i ] );
+     delta.push_back( w * modl->delta()[ i ] );
      }
 
    change_obj_costs( cidx , delta , true );
@@ -1568,7 +1570,7 @@ void MOSEKMILPSolver::objective_function_modification(
                "MOSEKMILPSolver::objective_function_modification: "
                "unexpected *C05FunctionMod* from Objective Function" ) );
 
-   constant_value += shift;
+   constant_value += w * shift;
    return;
    }
 
@@ -1610,12 +1612,12 @@ void MOSEKMILPSolver::objective_function_modification(
     if( i < Inf< Index >() ) {
      auto c = index_of_variable( static_cast< const ColVariable * >( v ) );
      cidx.push_back( c );
-     delta.push_back( std::get< 0 >( *dcoeffit ) );
+     delta.push_back( w * std::get< 0 >( *dcoeffit ) );
      // the diagonal takes the value that the Function has, not the delta:
      // a sequence of changes that brings a coefficient back would otherwise
      // leave a rounding error on it, which on a singular Hessian is enough
      // for MOSEK to refuse the objective as not convex
-     set_hessian( c , c , 2 * fqf->get_quadratic_coefficient( i ) );
+     set_hessian( c , c , 2 * w * fqf->get_quadratic_coefficient( i ) );
      }
     ++dcoeffit;
     }
@@ -1635,7 +1637,7 @@ void MOSEKMILPSolver::objective_function_modification(
 
    int idx1 = index_of_variable( static_cast< ColVariable * >( vars[ 0 ] ) );
    int idx2 = index_of_variable( static_cast< ColVariable * >( vars[ 1 ] ) );
-   add_to_hessian( idx1 , idx2 , modlq->delta() );
+   add_to_hessian( idx1 , idx2 , w * modlq->delta() );
    return;
    }
 
@@ -1689,7 +1691,8 @@ void MOSEKMILPSolver::constraint_function_modification(
    rows.push_back( row );
    cols.push_back( index_of_variable(
                                static_cast< const ColVariable * >( v ) ) );
-   vals.push_back( cp[ idx ].second );
+   vals.push_back( cp[ idx ].second *
+                   variable_weight( cp[ idx ].first , con ) );
    }
 
  if( ! rows.empty() )
@@ -1723,6 +1726,7 @@ void MOSEKMILPSolver::objective_fvars_modification(
  std::vector< double > values;
 
  auto f = mod->function();
+ const double w = objective_weight( f );
 
  if( dynamic_cast< const LinearFunction * >( f ) ) {
   // the coefficients of an addition and the deltas of a removal refer to
@@ -1751,7 +1755,7 @@ void MOSEKMILPSolver::objective_fvars_modification(
    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
     // removals without a delta keep zeroing the cost
-    values.push_back( delta ? ( *delta )[ i ] : 0.0 );
+    values.push_back( delta ? w * ( *delta )[ i ] : 0.0 );
     }
    }
 
@@ -1791,7 +1795,7 @@ void MOSEKMILPSolver::objective_fvars_modification(
    int idx1 = index_of_variable( static_cast< const ColVariable * >( var1 ) );
    int idx2 = index_of_variable( static_cast< const ColVariable * >( var2 ) );
    if( ( idx1 < Inf< int >() ) && ( idx2 < Inf< int >() ) )
-    add_to_hessian( idx1 , idx2 , std::get< 2 >( t ) );
+    add_to_hessian( idx1 , idx2 , ( w * std::get< 2 >( t ) ) );
    }
   }
 
@@ -1819,8 +1823,8 @@ void MOSEKMILPSolver::objective_fvars_modification(
    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
-    values.push_back( modq->coeff()[ i ].first );
-    add_to_hessian( idx , idx , 2 * modq->coeff()[ i ].second );
+    values.push_back( w * modq->coeff()[ i ].first );
+    add_to_hessian( idx , idx , 2 * w * modq->coeff()[ i ].second );
     }
    }
 
@@ -1874,7 +1878,8 @@ void MOSEKMILPSolver::constraint_fvars_modification(
    double value = 0;
    if( mod->added() ) {
     auto idx = lf->is_active( var );
-    value = idx < nav ? lf->get_coefficient( idx ) : 0;
+    value = idx < nav ?
+            lf->get_coefficient( idx ) * variable_weight( var , con ) : 0;
     }
    rows.push_back( cidx );
    cols.push_back( vidx );

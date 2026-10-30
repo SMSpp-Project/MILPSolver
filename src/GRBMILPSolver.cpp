@@ -2665,6 +2665,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
  // MILPSolver::objective_function_modification( mod );
 
  auto f = mod->function();
+ const double w = objective_weight( f );
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2695,7 +2696,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
     if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
      cidx.push_back( idx );
-     delta.push_back( modl->delta()[ i ] );
+     delta.push_back( w * modl->delta()[ i ] );
      }
    }
 
@@ -2738,7 +2739,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      cidx.push_back( grb_index_of_variable( var ) );
-     delta.push_back( modl->delta()[ i ] );
+     delta.push_back( w * modl->delta()[ i ] );
      }
    }
 
@@ -2776,7 +2777,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
                "GRBMILPSolver::objective_function_modification: "
                "unexpected *C05FunctionMod* from Objective Function" ) );
 
-   constant_value += shift;
+   constant_value += w * shift;
    return;
    }
 
@@ -2812,14 +2813,15 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto idxit = idxs.begin();
    auto dcoeffit = delta_coeff->begin();
 
-   for( auto v : *vars )
+   for( auto v : *vars ) {
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      cidxs.push_back( grb_index_of_variable(
                                  static_cast< const ColVariable * >( v ) ) );
-     ldelta.push_back( std::get< 0 >( *dcoeffit ) );
-     qdelta.push_back( std::get< 1 >( *dcoeffit ) );
-     dcoeffit++;
+     ldelta.push_back( w * std::get< 0 >( *dcoeffit ) );
+     qdelta.push_back( w * std::get< 1 >( *dcoeffit ) );
      }
+    ++dcoeffit;  // whether or not the Variable is still there
+    }
 
    // the old linear coefficients are read in one call [see
    // get_obj_coefficients()], the quadratic ones are written one at a time,
@@ -2859,14 +2861,15 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto idxit = idxs.begin();
    auto dcoeffit = delta_coeff->begin();
 
-   for( auto v : *vars )
+   for( auto v : *vars ) {
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      cidx.push_back( grb_index_of_variable(
                                      dynamic_cast< ColVariable * >( v ) ) );
-     ldelta.push_back( std::get< 0 >( *dcoeffit ) );
-     qdelta.push_back( std::get< 1 >( *dcoeffit ) );
-     dcoeffit++;
+     ldelta.push_back( w * std::get< 0 >( *dcoeffit ) );
+     qdelta.push_back( w * std::get< 1 >( *dcoeffit ) );
      }
+    ++dcoeffit;  // whether or not the Variable is still there
+    }
 
    // see the case above: the linear coefficients are read in one call, the
    // quadratic ones are written one at a time
@@ -2893,7 +2896,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    // coefficient at time for each Modification.
    Subset idxs = fqf->map_index( modlq->vars() , modlq->subset() );
    c_Vec_p_Var vars = modlq->vars();
-   Coefficient delta_coeff = modlq->delta();
+   Coefficient delta_coeff = w * modlq->delta();
 
    if( idxs.size() != 2 )
     throw( std::logic_error(
@@ -2963,7 +2966,7 @@ void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
  for( auto v :  modl->vars() )
   if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-   *(nvit++) = cp[ idx ].second;
+   *(nvit++) = cp[ idx ].second * variable_weight( cp[ idx ].first , con );
    *(cidxit++) = grb_index_of_variable( static_cast< const ColVariable * >( v ) );
    }
 
@@ -3014,6 +3017,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  values.reserve( nv );
 
  auto f = mod->function();
+ const double w = objective_weight( f );
  auto nav = f->get_num_active_var();
 
  // while changing the coefficients, we have to be careful about the fact
@@ -3062,7 +3066,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
    get_obj_coefficients( indices , values );
    for( std::size_t k = 0 ; k < indices.size() ; ++k ) {
     const double oldval = values[ k ];
-    const double change = ( *delta )[ pos[ k ] ];
+    const double change = w * ( *delta )[ pos[ k ] ];
     double newval = oldval + change;
     if( ! mod->added() ) {
      const double scale = std::max( { 1.0 , std::abs( oldval ) ,
@@ -3166,7 +3170,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     int glob_idx1 = grb_index_of_variable( dynamic_cast< ColVariable * >( var1 ) );
     int glob_idx2 = grb_index_of_variable( dynamic_cast< ColVariable * >( var2 ) );
 
-    double q_diff = std::get<2>( t );
+    double q_diff = ( w * std::get<2>( t ) );
 
     // quadratic coefficients need be changed one at a time
     GRBaddqpterms( model, 1 , & glob_idx1 , & glob_idx2 , & q_diff );
@@ -3265,8 +3269,8 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     // a Variable that the Function does not have changes nothing
     double nqval = 0;
     if( dqf->is_active( var ) < nav ) {
-      values[ k ] += modq->coeff()[ pos[ k ] ].first;
-      nqval = modq->coeff()[ pos[ k ] ].second;
+      values[ k ] += w * modq->coeff()[ pos[ k ] ].first;
+      nqval = w * modq->coeff()[ pos[ k ] ].second;
      }
 
     GRBaddqpterms( model , 1 , & indices[ k ] , & indices[ k ] , & nqval );
@@ -3345,7 +3349,8 @@ void GRBMILPSolver::constraint_fvars_modification(
    indices.push_back( vidx );
    if( mod->added() ) {
     auto idx = lf->is_active( var );
-    values.push_back( idx < nav ? lf->get_coefficient( idx ) : 0 );
+    values.push_back( idx < nav ? lf->get_coefficient( idx ) *
+                      variable_weight( var , con ) : 0 );
     }
    else
     values.push_back( 0 );
@@ -3913,7 +3918,8 @@ bool GRBMILPSolver::change_coefficients(
      auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
      rows.push_back( row );
      cols.push_back( grb_index_of_variable( var ) );
-     vals.push_back( cp[ idx ].second );
+     vals.push_back( cp[ idx ].second *
+                     variable_weight( cp[ idx ].first , con ) );
      }
 
    continue;
@@ -4849,7 +4855,7 @@ void GRBMILPSolver::perform_separation( Configuration * cfg ,
   auto vit = rmatval.begin() + sz;
   for( auto & el : lf->get_v_var() ) {
    *(iit++) = grb_index_of_variable( el.first );
-   *(vit++) = el.second;
+   *(vit++) = el.second * variable_weight( el.first , con );
    }
 
   // get the bounds
@@ -5570,7 +5576,8 @@ void CPXMILPSolver::reload_constraint( const LinearFunction * lf )
  for( auto & var : lf->get_v_var() )
   if( auto idx = grb_index_of_variable( var.first ) ; idx < Inf< int >() ) {
    cols.push_back( idx );
-   vals.push_back( var.second );
+   vals.push_back( var.second * variable_weight( var.first ,
+    static_cast< const FRowConstraint * >( lf->get_Observer() ) ) );
    }
 
  CPXchgcoeflist( env , lp , cols.size() , rows.data() , cols.data() ,

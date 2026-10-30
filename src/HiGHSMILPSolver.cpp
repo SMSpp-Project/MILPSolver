@@ -644,11 +644,31 @@ int HiGHSMILPSolver::guts_of_compute( void )
  // regularization goes back to what it was; a QP that none of these
  // solves stops the Solver, rather than leaving whoever called it with a
  // solution that is not there [see QPWorkaround]
+ //
+ // a QP whose columns are all bounded cannot be unbounded, and this answer
+ // is taken as one of a QP the active set has not solved: it gives it (up
+ // to 1.15.1 at least) for some convex QP, which it takes for a nonconvex
+ // one
+ bool bounded = false;
+ if( qp_help ) {
+  const HighsInt nc = Highs_getNumCol( highs );
+  std::vector< double > cost( nc ) , lower( nc ) , upper( nc );
+  HighsInt num , nz;
+  Highs_getColsByRange( highs , 0 , nc - 1 , & num , cost.data() ,
+                        lower.data() , upper.data() , & nz , nullptr ,
+                        nullptr , nullptr );
+  const double inf = Highs_getInfinity( highs );
+  bounded = std::all_of( lower.begin() , lower.end() ,
+                         [ inf ]( double l ) { return( l > - inf ); } ) &&
+            std::all_of( upper.begin() , upper.end() ,
+                         [ inf ]( double u ) { return( u < inf ); } );
+  }
  const auto definite = [ & ]( int status ) {
   return( ( status == kHighsModelStatusOptimal ) ||
           ( status == kHighsModelStatusInfeasible ) ||
-          ( status == kHighsModelStatusUnbounded ) ||
-          ( status == kHighsModelStatusUnboundedOrInfeasible ) ||
+          ( ( ! bounded ) &&
+            ( ( status == kHighsModelStatusUnbounded ) ||
+              ( status == kHighsModelStatusUnboundedOrInfeasible ) ) ) ||
           ( status == kHighsModelStatusTimeLimit ) );
   };
  if( qp_help && ( ! definite( m_status ) ) ) {
@@ -1612,7 +1632,8 @@ bool HiGHSMILPSolver::change_coefficients(
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
     if( auto idx = idxs[ i ] ; idx < Inf< Index >() ) {
      auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
-     double value = cp[ idx ].second;
+     double value = cp[ idx ].second *
+                    variable_weight( cp[ idx ].first , con );
 
      // HiGHS reads a coefficient in ( 0 , 1e-9 ] as a zero and drops the
      // Variable from the row, so it is given the smallest value it keeps
@@ -1858,6 +1879,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
  // MILPSolver::objective_function_modification( mod );
 
  auto f = mod->function();
+ const double w = objective_weight( f );
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1887,7 +1909,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
     if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
      cidx.push_back( idx );
-     delta.push_back( modl->delta()[ i ] );
+     delta.push_back( w * modl->delta()[ i ] );
      }
     }
 
@@ -1923,7 +1945,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( *( idxit++ ) < Inf< Index >() ) {
      cidx.push_back( index_of_variable(
                    static_cast< const ColVariable * >( modl->vars()[ i ] ) ) );
-     delta.push_back( modl->delta()[ i ] );
+     delta.push_back( w * modl->delta()[ i ] );
      }
 
    change_obj_costs( cidx , delta , true );
@@ -1950,7 +1972,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
                "HiGHSMILPSolver::objective_function_modification: "
                "unexpected *C05FunctionMod* from Objective Function" ) );
 
-   constant_value += shift;
+   constant_value += w * shift;
    return;
    }
 
@@ -1998,8 +2020,8 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
     if( *( idxit++ ) < Inf< Index >() ) {
      auto c = index_of_variable( static_cast< const ColVariable * >( v ) );
      cidx.push_back( c );
-     delta.push_back( std::get< 0 >( *dcoeffit ) );
-     add_to_hessian( c , c , 2 * std::get< 1 >( *dcoeffit ) );
+     delta.push_back( w * std::get< 0 >( *dcoeffit ) );
+     add_to_hessian( c , c , 2 * w * std::get< 1 >( *dcoeffit ) );
      }
     ++dcoeffit;
     }
@@ -2019,7 +2041,7 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    int idx1 = index_of_variable( static_cast< ColVariable * >( vars[ 0 ] ) );
    int idx2 = index_of_variable( static_cast< ColVariable * >( vars[ 1 ] ) );
-   add_to_hessian( idx1 , idx2 , modlq->delta() );
+   add_to_hessian( idx1 , idx2 , w * modlq->delta() );
    return;
    }
   else
@@ -2073,7 +2095,8 @@ void HiGHSMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
  for( auto v :  modl->vars() )
   if( auto idx = *( idxit++ ) ; idx < Inf< Index >() ) {
-   double value = cp[ idx ].second;
+   double value = cp[ idx ].second *
+                  variable_weight( cp[ idx ].first , con );
    int var_idx = index_of_variable( static_cast< const ColVariable * >( v ) );
 
    // HiGHS automatically removes variables from a constraint if their 
@@ -2123,6 +2146,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  values.reserve( nv );
 
  auto f = mod->function();
+ const double w = objective_weight( f );
  auto nav = f->get_num_active_var();
 
  // while changing the coefficients, we have to be careful about the fact
@@ -2160,7 +2184,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
     // Legacy removals without a delta keep the previous zeroing behaviour.
-    values.push_back( delta ? ( *delta )[ i ] : 0.0 );
+    values.push_back( delta ? w * ( *delta )[ i ] : 0.0 );
     }
    }
 
@@ -2204,7 +2228,7 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
    int idx1 = index_of_variable( static_cast< const ColVariable * >( var1 ) );
    int idx2 = index_of_variable( static_cast< const ColVariable * >( var2 ) );
    if( ( idx1 < Inf< int >() ) && ( idx2 < Inf< int >() ) )
-    add_to_hessian( idx1 , idx2 , std::get< 2 >( t ) );
+    add_to_hessian( idx1 , idx2 , ( w * std::get< 2 >( t ) ) );
    }
   // Here we don't need any return, as we know that any QuadFunction
   // derives from a DQuadFunction
@@ -2243,8 +2267,8 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
    if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
-    values.push_back( modq->coeff()[ i ].first );
-    add_to_hessian( idx , idx , 2 * modq->coeff()[ i ].second );
+    values.push_back( w * modq->coeff()[ i ].first );
+    add_to_hessian( idx , idx , w * 2 * modq->coeff()[ i ].second );
     }
    }
 
@@ -2312,7 +2336,8 @@ void HiGHSMILPSolver::constraint_fvars_modification(
 
    if( mod->added() ) {
     auto idx = lf->is_active( var );
-    value = idx < nav ? lf->get_coefficient( idx ) : 0;
+    value = idx < nav ?
+            lf->get_coefficient( idx ) * variable_weight( var , con ) : 0;
     }
     
    // HiGHS automatically removes variables from a constraint if their 
@@ -2749,7 +2774,7 @@ void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
   auto vit = rmatval.begin() + sz;
   for( auto & el : lf->get_v_var() ) {
    *( iit++ ) = index_of_variable( el.first );
-   *( vit++ ) = el.second;
+   *( vit++ ) = el.second * variable_weight( el.first , con );
   }
 
   // get the bounds
@@ -3494,7 +3519,8 @@ void HiGHSMILPSolver::reload_constraint( const LinearFunction * lf )
  for( auto & var : lf->get_v_var() )
   if( auto idx = grb_index_of_variable( var.first ) ; idx < Inf< int >() ) {
    cols.push_back( idx );
-   vals.push_back( var.second );
+   vals.push_back( var.second * variable_weight( var.first ,
+    static_cast< const FRowConstraint * >( lf->get_Observer() ) ) );
    }
 
  CPXchgcoeflist( env , lp , cols.size() , rows.data() , cols.data() ,
@@ -3522,6 +3548,7 @@ void HiGHSMILPSolver::reload_objective( Function * f )
  // from the LinearFunction. during the management of that Modification the
  // erroneous nonzero coefficients will be zeroed
 
+ const double w = objective_weight( f );
  auto nv = f->get_num_active_var();
  if( ! nv )  // but this was an empty Objective (?)
   return;    // so nothing changes
@@ -3538,7 +3565,7 @@ void HiGHSMILPSolver::reload_objective( Function * f )
   for( auto & el : lf->get_v_var() )
    if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
-    values.push_back( el.second );
+    values.push_back( w * el.second );
     }
 
   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
@@ -3553,9 +3580,9 @@ void HiGHSMILPSolver::reload_objective( Function * f )
        idx < Inf< int >() ) {
     // linear coefficients can be changed all at once with CPXchgobj
     indices.push_back( idx );
-    values.push_back( std::get< 1 >( el ) );
+    values.push_back( w * std::get< 1 >( el ) );
     // quadratic coefficients need be changed one at a time
-    CPXchgqpcoef( env , lp , idx , idx , 2 * std::get< 2 >( el ) );
+    CPXchgqpcoef( env , lp , idx , idx , 2 * w * std::get< 2 >( el ) );
     }
 
   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );

@@ -220,12 +220,31 @@ void MILPSolver::load_problem( void )
 
  v_BFS.clear();
  BFS_set.clear();
- if( ignored.count( f_Block ) == 0 )
+ f_obj_weight.clear();
+ std::vector< double > w_BFS;  // the weight of the Objective of each Block
+ if( ignored.count( f_Block ) == 0 ) {
   v_BFS.push_back( f_Block );
+  w_BFS.push_back( 1 );
+  }
  for( Index i = 0 ; i < v_BFS.size() ; ++i )
   for( auto el : v_BFS[ i ]->get_nested_Blocks() )
-   if( ignored.count( el ) == 0 )
+   if( ignored.count( el ) == 0 ) {
     v_BFS.push_back( el );
+    w_BFS.push_back( w_BFS[ i ] * el->get_objective_weight() );
+    }
+
+ for( Index i = 0 ; i < v_BFS.size() ; ++i )
+  if( w_BFS[ i ] != 1 )
+   f_obj_weight[ v_BFS[ i ] ] = w_BFS[ i ];
+
+ // the weight of the Variable of the Block of this Solver concerns the
+ // Constraint outside of it only, which are not in the problem
+ f_var_weight_cache.clear();
+ f_var_weighted = std::any_of( v_BFS.begin() , v_BFS.end() ,
+                               [ this ]( const Block * b ) {
+                                return( ( b != f_Block ) &&
+                                        ( b->get_variable_weight() != 1 ) );
+                                } );
 
  v_BFS.shrink_to_fit();
 
@@ -590,8 +609,10 @@ void MILPSolver::load_problem( void )
      objsense = 1;
    }
 
-  if( auto * obj = dynamic_cast< FRealObjective * >( qb->get_objective() ) )
-   scan_objective( obj );
+  if( auto * obj = dynamic_cast< FRealObjective * >( qb->get_objective() ) ) {
+   auto it = f_obj_weight.find( qb );
+   scan_objective( obj , it == f_obj_weight.end() ? 1 : it->second );
+   }
   }
 
  // unlock the Block- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -866,8 +887,18 @@ double MILPSolver::check_kkt( void )
   auto f = rows[ i ]->get_function();
   if( ! dynamic_cast< LinearFunction * >( f ) )
    linear = false;
-  f->compute();
-  act[ i ] = f->get_value();
+  // the activity of the row in the problem, with the weights of the
+  // Variable [see variable_weight()]
+  if( auto lf = f_var_weighted ? dynamic_cast< LinearFunction * >( f )
+                               : nullptr ) {
+   act[ i ] = lf->get_constant_term();
+   for( const auto & [ var , a ] : lf->get_v_var() )
+    act[ i ] += a * variable_weight( var , rows[ i ] ) * var->get_value();
+   }
+  else {
+   f->compute();
+   act[ i ] = f->get_value();
+   }
   rp = std::max( rp , viol( act[ i ] , rows[ i ]->get_lhs() ,
 			    rows[ i ]->get_rhs() ) );
   }
@@ -933,7 +964,7 @@ double MILPSolver::check_kkt( void )
   for( const auto & [ var , a ] : lf->get_v_var() ) {
    auto j = index_of_variable( var );
    if( ( j >= 0 ) && ( j < numcols ) )
-    z[ j ] -= pi * a;
+    z[ j ] -= pi * a * variable_weight( var , rows[ i ] );
    }
   }
 
@@ -1286,7 +1317,7 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
    bool found = false;
    for( const auto & pr : f->get_v_var() )
     if( pr.first == & var ) {
-     coeff += pr.second;
+     coeff += pr.second * variable_weight( & var , con );
      found = true;
      }
    if( ! found )
@@ -1338,6 +1369,15 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
  if( numquadrows != 0 ) {
   if( auto f = con.get_function() ) {
 
+   // a weight of the Variable [see variable_weight()] is supported in the
+   // linear Constraint only
+   if( f_var_weighted && ( ! dynamic_cast< const LinearFunction * >( f ) ) )
+    for( Index k = 0 ; k < f->get_num_active_var() ; ++k )
+     if( variable_weight( f->get_active_var( k ) , & con ) != 1 )
+      throw( std::invalid_argument( "MILPSolver::scan_constraint: a weight "
+       "of the Variable [see Block::set_variable_weight()] in a quadratic "
+       "Constraint is not supported" ) );
+
    /* If the DEBUG is activated, we can check wether a variable appears 
    * multiple times in a single constraint, which will clearly produce
    * an error in later stage of the process. */
@@ -1359,7 +1399,8 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
         auto idx_v = index_of_variable( v ); 
 
-        matval[ matbeg[ row ] + j ] = std::get< 1 >( el );;
+        matval[ matbeg[ row ] + j ] =
+         std::get< 1 >( el ) * variable_weight( v , & con );
         matind[ matbeg[ row ] + j ] = idx_v;
 
         #ifdef MILPSolver_DEBUG
@@ -1628,11 +1669,47 @@ void MILPSolver::get_column_bounds( int col , const ColVariable & var ,
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::scan_objective( const FRealObjective * obj )
+double MILPSolver::objective_weight( const Function * f ) const
+{
+ if( f_obj_weight.empty() )
+  return( 1 );
+ auto obj = dynamic_cast< const Objective * >( f->get_Observer() );
+ if( ! obj )
+  return( 1 );
+ auto it = f_obj_weight.find( obj->get_Block() );
+ return( it == f_obj_weight.end() ? 1 : it->second );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+double MILPSolver::variable_weight( const Variable * var ,
+                                    const Constraint * con ) const
+{
+ if( ! f_var_weighted )
+  return( 1 );
+
+ const Block * vb = var->get_Block();
+ const Block * cb = con->get_Block();
+ if( vb == cb )
+  return( 1 );
+
+ const auto key = std::make_pair( vb , cb );
+ if( auto it = f_var_weight_cache.find( key ) ; it != f_var_weight_cache.end()
+     )
+  return( it->second );
+
+ const double s = vb->get_variable_weight( cb );
+ f_var_weight_cache.emplace( key , s );
+ return( s );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::scan_objective( const FRealObjective * obj , double w )
 {
  // DEBUG_LOG( "MILPSolver::scan_objective() " << *obj );
 
- constant_value += obj->get_constant_term();
+ constant_value += w * obj->get_constant_term();
 
  // important note: a ColVariable may appear in multiple FRealObjective, this
  // meaning that all the corresponding terms will be present in the final
@@ -1647,7 +1724,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 						 obj->get_function() ) ) {
   /* Linear objective function */
   for( auto el : lf->get_v_var() )
-   objective[ index_of_variable( el.first ) ] += el.second;
+   objective[ index_of_variable( el.first ) ] += w * el.second;
 
   return;
   }
@@ -1660,8 +1737,8 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
   // quadratic function.
   for( auto el : qf->get_v_var() ) {
    auto k = index_of_variable( std::get< 0 >( el ) );
-   objective[ k ] += std::get< 1 >( el );
-   q_objective[ k ] += std::get< 2 >( el );
+   objective[ k ] += w * std::get< 1 >( el );
+   q_objective[ k ] += w * std::get< 2 >( el );
    }
 
   // Now get sparse matrix related to the off diagonal terms
@@ -1687,7 +1764,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
 
    ndq_rowind[ i ] = global_idx1;
    ndq_colind[ i ] = global_idx2;
-   ndq_objective[ i ] = std::get< 2 >( el_nd );
+   ndq_objective[ i ] = w * std::get< 2 >( el_nd );
    }
 
   return;
@@ -1698,8 +1775,8 @@ void MILPSolver::scan_objective( const FRealObjective * obj )
   /* Separable Quadratic objective function */
   for( auto el : qf->get_v_var() ) {
    auto k = index_of_variable( std::get< 0 >( el ) );
-   objective[ k ] += std::get< 1 >( el );
-   q_objective[ k ] += std::get< 2 >( el );
+   objective[ k ] += w * std::get< 1 >( el );
+   q_objective[ k ] += w * std::get< 2 >( el );
    }
 
   return;
@@ -1874,9 +1951,12 @@ void MILPSolver::process_modifications( void )
  for( ; ; )                 // process all the Modification loop
   if( auto mod = pop() ) {  // get next Modification, if any
    auto pmod = mod.get();   // down to regular Modification *
-   if( dynamic_cast< const NBModification * >( pmod ) ) {
+   // an NBModification, or a change of the weights of a sub-Block, which
+   // changes the whole problem: reload everything
+   if( dynamic_cast< const NBModification * >( pmod ) ||
+       dynamic_cast< const BlockWeightMod * >( pmod ) ) {
     f_reset = false;
-    load_problem();         // an NBModification: reload everything
+    load_problem();
     mod_clear();            // all the remaining Modification must be ignored
     break;                  // all done
     }
@@ -2052,7 +2132,9 @@ bool MILPSolver::read_column_group(
    auto k = lf->is_active( var );
    cns.push_back( con );
    pos.push_back( p );
-   val.push_back( k < nav ? lf->get_coefficient( k ) : 0 );
+   val.push_back( k < nav ?
+                  lf->get_coefficient( k ) * variable_weight( var , con ) :
+                  0 );
    }
   }
 
@@ -2329,7 +2411,8 @@ void MILPSolver::separate_in_callback( Configuration * cfg ,
    if( auto lf = dynamic_cast< const LinearFunction * >(
                                                     con->get_function() ) )
     for( const auto & el : lf->get_v_var() ) {
-     const double v = el.second * el.first->get_value();
+     const double v = el.second * variable_weight( el.first , con ) *
+                      el.first->get_value();
      act += v;
      size += std::abs( v );
      }
@@ -2596,6 +2679,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
   return;
 
  auto * f = mod->function();
+ const double w = objective_weight( f );
 
  // important note: a ColVariable may appear in multiple FRealObjective, this
  // meaning that all the corresponding terms will be present in the final
@@ -2614,7 +2698,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
   if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
-    objective[ index_of_variable( var ) ] += modl->delta()[ i ];
+    objective[ index_of_variable( var ) ] += w * modl->delta()[ i ];
     }
    return;
    }
@@ -2646,7 +2730,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
  if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
   // Linear objective function
   for( auto el : lf->get_v_var() )
-   objective[ index_of_variable( el.first ) ] = el.second;
+   objective[ index_of_variable( el.first ) ] = w * el.second;
 
   return;
   }
@@ -2660,8 +2744,8 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
 
   for( auto el : qf->get_v_var() ) {
    int idx = index_of_variable( std::get< 0 >( el ) );
-   objective[ idx ] = std::get< 1 >( el );
-   q_objective[ idx ] = std::get< 2 >( el );
+   objective[ idx ] = w * std::get< 1 >( el );
+   q_objective[ idx ] = w * std::get< 2 >( el );
    }
 
   return;
@@ -2740,6 +2824,7 @@ void MILPSolver::objective_fvars_modification( const FunctionModVars * mod )
   return;
 
  auto * f = mod->function();
+ const double w = objective_weight( f );
 
  // Check the modification type
  if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
@@ -2756,7 +2841,7 @@ void MILPSolver::objective_fvars_modification( const FunctionModVars * mod )
    for( auto it2: lf->get_v_var() )
     if( it1 == it2.first ) {
      if( mod->added() )
-      objective[ index_of_variable( it2.first ) ] = it2.second;
+      objective[ index_of_variable( it2.first ) ] = w * it2.second;
      else
       objective[ index_of_variable( it2.first ) ] = 0;
 
@@ -2774,8 +2859,8 @@ void MILPSolver::objective_fvars_modification( const FunctionModVars * mod )
     if( it1 == std::get< 0 >( it2 ) ) {
      int idx = index_of_variable( std::get< 0 >( it2 ) );
      if( mod->added() ) {
-      objective[ idx ] = std::get< 1 >( it2 );
-      q_objective[ idx ] = std::get< 2 >( it2 );
+      objective[ idx ] = w * std::get< 1 >( it2 );
+      q_objective[ idx ] = w * std::get< 2 >( it2 );
       }
      else {
       objective[ idx ] = 0;

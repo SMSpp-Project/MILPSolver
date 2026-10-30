@@ -1146,7 +1146,8 @@ PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extract_block_matrix(
 
     if( it != local_col.end() ) {
      mat.jcol.push_back( it->second );
-     mat.val.push_back( std::get< 1 >( el ) );
+     mat.val.push_back( std::get< 1 >( el ) *
+                        variable_weight( std::get< 0 >( el ) , con ) );
      }
     }
    }

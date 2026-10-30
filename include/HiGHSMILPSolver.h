@@ -106,6 +106,11 @@ namespace SMSpp_di_unipi_it {
  *   configuration (the 1e-7 of HiGHS by default, which a larger one makes
  *   less precise and slower on many QPs);
  *
+ * - a QP whose columns are all bounded and that the active set calls
+ *   unbounded goes through the same attempts, since it cannot be: the
+ *   active set (up to 1.15.1 at least) says so of some convex QP, which it
+ *   takes for a nonconvex one;
+ *
  * - a QP that none of these attempts solves throws std::runtime_error,
  *   saying which Solver or stabilization to use instead, rather than
  *   returning a solution that is not there;
@@ -162,9 +167,18 @@ class HiGHSMILPSolver : public MILPSolver {
 
  /// true if the active set QP solver of HiGHS needs help [see the class]
  /** Whether the next release of HiGHS will contain ERGO-Code/HiGHS#3325 is
-  * not known, hence this is true whatever the version of HiGHS, and it is
-  * to be made false from the first release in which #3325 has been checked
-  * to be. */
+  * not known, hence this is true whatever the version of HiGHS.
+  *
+  * TODO: at the first release of HiGHS with #3325, check that it solves
+  * (i) the QPs of tests/MILPSolver/ObjectiveWeight with HiGHSMILPSolver
+  * back in its BSPar.txt (-k 15 and 31, which 1.15.1 fails and the branch
+  * latest of HiGHS at 5692aaf passes), and (ii) the master problems of
+  * ~/GDrive/smspp-archive/hard-masters/lp, which have to give unbounded on
+  * the 5 unbounded ones and the values of the README there on bounded27
+  * and master3 (ERGO-Code/HiGHS#3393 and #3396, which #3325 does not fix);
+  * only when both pass, make that release the minimum version of HiGHS in
+  * the CMake files and this false, which also drops the check of
+  * QPObjectiveError and the attempts on a bounded QP called unbounded. */
  static constexpr bool QPWorkaround = true;
 
  /// the regularization of the second attempt at a QP [see the class]
