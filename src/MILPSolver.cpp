@@ -677,6 +677,11 @@ template< typename T >
   group.for_each_as< ColVariable >( [ this ]( const ColVariable & var ) {
    scan_static_variable_bound( var ); } );
 
+ // the names are only given to the back-end with intUseCustomNames, and
+ // are not made otherwise [see intUseCustomNames]
+ if( ! use_custom_names )
+  return;
+
  // write the names: a group of rank 0 or 1 numbers its elements in one
  // sequence, while from rank 2 on the name carries the indices of the cell,
  // followed by the position in the cell when the cell holds more than one
@@ -762,6 +767,9 @@ template< typename T >
  if( ! is_constraint )
   group.for_each_as< ColVariable >( [ this ]( const ColVariable & var ) {
    scan_dynamic_variable_bound( var ); } );
+
+ if( ! use_custom_names )  // the names are only made for the back-end
+  return;
 
  const auto & base = group.get_name();
 

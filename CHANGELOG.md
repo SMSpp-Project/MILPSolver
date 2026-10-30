@@ -268,6 +268,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- the names of the rows and of the columns are not made when
+  `intUseCustomNames` is 0, the back-ends not being given them: a large
+  problem loaded without names takes less time and less memory
+
 - a change of the weights of a `Block` [see `BlockWeightMod`] is made in
   place rather than by loading the problem again: the linear part of the
   Objective and its constant are built again when the weight of the
