@@ -72,11 +72,15 @@
 
 #include <cmath>
 
+#include <cstddef>
+
 #include <functional>
 
 #include <limits>
 
 #include <map>
+
+#include <typeinfo>
 
 #include <unordered_map>
 
@@ -1725,6 +1729,33 @@ class MILPSolver : public CDASolver
   * first, so that a caller scanning many variables keeps one buffer. */
  void get_active_constraints( const ColVariable & var ,
                std::vector< FRowConstraint * > & active_constraints ) const;
+
+ /// the dynamic_cast of \p i to T *, made once per dynamic type
+ /** Gives what dynamic_cast< T * >( \p i ) gives. The active stuff of a
+  * ColVariable is taken to an FRowConstraint or to a OneVarConstraint for
+  * each ColVariable that is loaded, and a dynamic_cast in a hierarchy with
+  * multiple inheritance spread over shared libraries compares the names of
+  * the types, which a large problem pays tens of millions of times; what
+  * the cast gives only depends on the dynamic type of the object, so it is
+  * made the first time a type is seen, and the offset from the active
+  * stuff to the object of the cast (the same for all the objects of a
+  * type, which have the same layout) is kept in a table of the thread,
+  * keyed by the std::type_info of the type. */
+ template< class T >
+ static T * cast_active( ThinVarDepInterface * i ) {
+  // PTRDIFF_MIN if the cast fails
+  static thread_local std::unordered_map< const std::type_info * ,
+					  std::ptrdiff_t > cache;
+  auto [ it , fresh ] = cache.try_emplace( & typeid( * i ) , PTRDIFF_MIN );
+  if( fresh )
+   if( auto * t = dynamic_cast< T * >( i ) )
+    it->second = reinterpret_cast< char * >( t ) -
+                 reinterpret_cast< char * >( i );
+  if( it->second == PTRDIFF_MIN )
+   return( nullptr );
+  return( reinterpret_cast< T * >( reinterpret_cast< char * >( i ) +
+				   it->second ) );
+  }
 
  /// gets the active bounds for the specified variable
  /** As get_active_constraints(), the bounds go in \p active_bounds. They are

@@ -804,7 +804,7 @@ double MILPSolver::get_problem_lb( const ColVariable & var ) const
  double b = var.get_lb();
 
  for( auto * i : var.active_stuff() )
-  if( auto box = dynamic_cast< OneVarConstraint * >( i ) )
+  if( auto box = cast_active< OneVarConstraint >( i ) )
    b = std::max( b , box->get_lhs() );
 
  return( b );
@@ -817,7 +817,7 @@ double MILPSolver::get_problem_ub( const ColVariable & var ) const
  double b = var.get_ub();
 
  for( auto * i : var.active_stuff() )
-  if( auto box = dynamic_cast< OneVarConstraint * >( i ) )
+  if( auto box = cast_active< OneVarConstraint >( i ) )
    b = std::min( b , box->get_rhs() );
 
  return( b );
@@ -997,7 +997,7 @@ std::array< double , 2 > MILPSolver::get_problem_bounds(
  ret[ 1 ] = var.get_ub();
 
  for( auto * i : var.active_stuff() )
-  if( auto box = dynamic_cast< OneVarConstraint * >( i ) ) {
+  if( auto box = cast_active< OneVarConstraint >( i ) ) {
    ret[ 0 ] = std::max( ret[ 0 ] , box->get_lhs() );
    ret[ 1 ] = std::min( ret[ 1 ] , box->get_rhs() );
    }
@@ -1014,7 +1014,7 @@ void MILPSolver::get_active_constraints(
 {
  active_constraints.clear();
  for( auto * i : var.active_stuff() )
-  if( auto * row = dynamic_cast< FRowConstraint * >( i ) )
+  if( auto * row = cast_active< FRowConstraint >( i ) )
     if( is_mine( row->get_Block() ) )
      active_constraints.push_back( row );
  }
@@ -1026,7 +1026,7 @@ void MILPSolver::get_active_bounds( const ColVariable & var ,
 {
  active_bounds.clear();
  for( auto * i : var.active_stuff() )
-  if( auto row = dynamic_cast< OneVarConstraint * >( i ) )
+  if( auto row = cast_active< OneVarConstraint >( i ) )
    active_bounds.push_back( row );
  }
 

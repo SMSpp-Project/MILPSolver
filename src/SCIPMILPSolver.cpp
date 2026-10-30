@@ -2699,7 +2699,7 @@ double SCIPMILPSolver::get_dbl_par( idx_type par ) const
 
 const std::string & SCIPMILPSolver::get_str_par( idx_type par ) const
 {
- static std::string value;
+ static thread_local std::string value;
  char * str_val;
 
  // SCIP parameters
@@ -2847,7 +2847,7 @@ double SCIPMILPSolver::get_dflt_dbl_par( idx_type par ) const
 
 const std::string & SCIPMILPSolver::get_dflt_str_par( idx_type par ) const
 {
- static std::string value;
+ static thread_local std::string value;
  char * str_val;
 
  // SCIP parameters

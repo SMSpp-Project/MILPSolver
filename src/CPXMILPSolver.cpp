@@ -56,6 +56,7 @@
 #include <cstring>
 #include <cmath>
 #include <map>
+#include <mutex>
 #include <algorithm>
 #include <queue>
 
@@ -4519,10 +4520,10 @@ double CPXMILPSolver::get_dflt_dbl_par( idx_type par ) const
 
 const std::string & CPXMILPSolver::get_dflt_str_par( idx_type par ) const
 {
- // note: this implementation is not thread safe and it may lead to elements
- //       of value[] to be allocated more than once with some memory being
- //       lost, but the chances are too slim and the potential drawback too
- //       limted to warrant even a humble std::atomic_flag
+ // the defaults are read the first time they are asked for, under a lock
+ // so that Solver in different threads can ask for them together
+ static std::mutex mutex;
+ std::lock_guard< std::mutex > lock( mutex );
  static std::vector< std::string > value( strLastAlgParCPXS -
 					  strFirstCPLEXPar );
 
@@ -4608,7 +4609,7 @@ double CPXMILPSolver::get_dbl_par( idx_type par ) const
 
 const std::string & CPXMILPSolver::get_str_par( idx_type par ) const
 {
- static std::string value;
+ static thread_local std::string value;
 
  if( ( par >= strFirstCPLEXPar ) && ( par < strLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ par - strFirstCPLEXPar ];
@@ -4676,10 +4677,10 @@ const std::string & CPXMILPSolver::int_par_idx2str( idx_type idx ) const
  // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
  // fall-through at the end of this method)
 
- // note: this implementation is not thread safe and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ // note: the string is one per thread, and the result has to be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
 
  if( ( idx >= intFirstCPLEXPar ) && ( idx < intLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_int_pars[ idx - intFirstCPLEXPar ];
@@ -4725,10 +4726,10 @@ Solver::idx_type CPXMILPSolver::dbl_par_str2idx( const std::string & name )
 
 const std::string & CPXMILPSolver::dbl_par_idx2str( idx_type idx ) const
 {
- // note: this implementation is not thread safe and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ // note: the string is one per thread, and the result has to be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
 
  if( ( idx >= dblFirstCPLEXPar ) && ( idx < dblLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_dbl_pars[ idx - dblFirstCPLEXPar ];
@@ -4774,10 +4775,10 @@ Solver::idx_type CPXMILPSolver::str_par_str2idx( const std::string & name )
 
 const std::string & CPXMILPSolver::str_par_idx2str( idx_type idx ) const
 {
- // note: this implementation is not thread safe and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ // note: the string is one per thread, and the result has to be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
 
  if( ( idx >= strFirstCPLEXPar ) && ( idx < strLastAlgParCPXS ) ) {
   int cplex_par = SMSpp_to_CPLEX_str_pars[ idx - strFirstCPLEXPar ];

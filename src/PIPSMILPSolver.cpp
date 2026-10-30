@@ -940,8 +940,8 @@ double PIPSMILPSolver::get_dflt_dbl_par( idx_type par ) const
 
 const std::string & PIPSMILPSolver::get_dflt_str_par( idx_type par ) const
 {
- // see the comment in get_dflt_int_par(); note that this is not thread safe
- static std::string value;
+ // see the comment in get_dflt_int_par(); the string is one per thread
+ static thread_local std::string value;
 
  if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
   value = pipsipmpp::options::get_string_parameter(
@@ -986,8 +986,8 @@ double PIPSMILPSolver::get_dbl_par( idx_type par ) const
 
 const std::string & PIPSMILPSolver::get_str_par( idx_type par ) const
 {
- // note: static buffer, not thread safe
- static std::string value;
+ // note: the string is one per thread
+ static thread_local std::string value;
 
  if( ( par >= strFirstPIPSPar ) && ( par < strLastAlgParPIPS ) ) {
   value = pipsipmpp::options::get_string_parameter(
@@ -1024,10 +1024,10 @@ Solver::idx_type PIPSMILPSolver::int_par_str2idx(
 
 const std::string & PIPSMILPSolver::int_par_idx2str( idx_type idx ) const
 {
- // note: static buffer, not thread safe; the result must be used
+ // note: the string is one per thread, and the result has to be used
  //       immediately after the call (prior to any other call to
- //       int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
 
  if( ( idx >= intFirstPIPSPar ) && ( idx < intLastAlgParPIPS ) ) {
   par_name = SMSpp_to_PIPS_int_pars[ idx - intFirstPIPSPar ];
@@ -1063,10 +1063,10 @@ Solver::idx_type PIPSMILPSolver::dbl_par_str2idx( const std::string & name )
 
 const std::string & PIPSMILPSolver::dbl_par_idx2str( idx_type idx ) const
 {
- // note: static buffer, not thread safe; the result must be used
+ // note: the string is one per thread, and the result has to be used
  //       immediately after the call (prior to any other call to
- //       dbl_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ //       dbl_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
 
  if( ( idx >= dblFirstPIPSPar ) && ( idx < dblLastAlgParPIPS ) ) {
   par_name = SMSpp_to_PIPS_dbl_pars[ idx - dblFirstPIPSPar ];
@@ -1102,10 +1102,10 @@ Solver::idx_type PIPSMILPSolver::str_par_str2idx( const std::string & name )
 
 const std::string & PIPSMILPSolver::str_par_idx2str( idx_type idx ) const
 {
- // note: static buffer, not thread safe; the result must be used
+ // note: the string is one per thread, and the result has to be used
  //       immediately after the call (prior to any other call to
- //       str_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ //       str_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
 
  if( ( idx >= strFirstPIPSPar ) && ( idx < strLastAlgParPIPS ) ) {
   par_name = SMSpp_to_PIPS_str_pars[ idx - strFirstPIPSPar ];

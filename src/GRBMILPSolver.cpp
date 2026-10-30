@@ -531,15 +531,16 @@ void GRBMILPSolver::load_problem( void )
    free_rows.push_back( i );
    }
 
- // creating model with only variables inside
- if( use_custom_names )
-  status = GRBnewmodel( env , & model , prob_name.c_str() ,
-  						numcols ,  objective.data() , grb_lb.data() , 
-						grb_ub.data() , xctype.data() , colname.data() );
- else
-  status = GRBnewmodel( env , & model , prob_name.c_str() ,
-  						numcols ,  objective.data() , grb_lb.data() , 
-						grb_ub.data() , xctype.data() , NULL );
+ // creating model with only variables inside; the model copies the
+ // environment, which is shared with the Solver of the other threads, and
+ // an environment is not to be used by two threads together
+ {
+  std::lock_guard< std::mutex > lock( f_env_mutex );
+  status = GRBnewmodel( env , & model , prob_name.c_str() , numcols ,
+			objective.data() , grb_lb.data() , grb_ub.data() ,
+			xctype.data() ,
+			use_custom_names ? colname.data() : nullptr );
+  }
 
  // the environment being shared, what this Solver was told is given to the
  // environment of its own model [see apply_env_parameters()]
@@ -5158,18 +5159,20 @@ double GRBMILPSolver::get_dflt_dbl_par( idx_type par ) const
 
 const std::string & GRBMILPSolver::get_dflt_str_par( idx_type par ) const
 {
- // note: this implementation is not thread safe, and it may lead to elements
- //       of value[] to be allocated more than once with some memory being
- //       lost, but the chances are too slim and the potential drawback too
- //       limited to warrant even a humble std::atomic_flag
+ // the defaults are read the first time they are asked for, under a lock
+ // so that Solver in different threads can ask for them together
+ static std::mutex mutex;
+ std::lock_guard< std::mutex > lock( mutex );
  static std::vector< std::string > value( strLastAlgParGRBS -
 					  strFirstGUROBIPar );
 
  if( ( par >= strFirstGUROBIPar ) && ( par < strLastAlgParGRBS ) ) {
   auto i = par - strFirstGUROBIPar;
   if( value[ i ].empty() ) {
-   value[ i ].reserve( 512 );
-   GRBgetstrparam( env , SMSpp_to_GUROBI_str_pars[ i ].data() , value[ i ].data() );
+   value[ i ].assign( GRB_MAX_STRLEN , '\0' );
+   GRBgetstrparam( env , SMSpp_to_GUROBI_str_pars[ i ].data() ,
+		   value[ i ].data() );
+   value[ i ].resize( std::strlen( value[ i ].c_str() ) );
    }
 
   return( value[ i ] );
@@ -5259,7 +5262,7 @@ double GRBMILPSolver::get_dbl_par( idx_type par ) const
 
 const std::string & GRBMILPSolver::get_str_par( idx_type par ) const
 {
- static std::string value;
+ static thread_local std::string value;
 
  if( ( par >= strFirstGUROBIPar ) && ( par < strLastAlgParGRBS ) ) {
   std::string gurobi_par = SMSpp_to_GUROBI_str_pars[ par - strFirstGUROBIPar ];
@@ -5338,10 +5341,10 @@ const std::string & GRBMILPSolver::int_par_idx2str( idx_type idx ) const
  // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
  // fall-through at the end of this method)
 
- // note: this implementation is not thread safe, and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ // note: the string is one per thread, and the result has to be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
  par_name.reserve( 512 );
 
  if( ( idx >= intFirstGUROBIPar ) && ( idx < intLastAlgParGRBS ) ) {
@@ -5382,10 +5385,10 @@ Solver::idx_type GRBMILPSolver::dbl_par_str2idx( const std::string & name )
 
 const std::string & GRBMILPSolver::dbl_par_idx2str( idx_type idx ) const
 {
- // note: this implementation is not thread safe, and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ // note: the string is one per thread, and the result has to be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
  par_name.reserve( 512 );
 
  if( ( idx >= dblFirstGUROBIPar ) && ( idx < dblLastAlgParGRBS ) ) {
@@ -5426,10 +5429,10 @@ Solver::idx_type GRBMILPSolver::str_par_str2idx( const std::string & name )
 
 const std::string & GRBMILPSolver::str_par_idx2str( idx_type idx ) const
 {
- // note: this implementation is not thread safe, and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ // note: the string is one per thread, and the result has to be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
  par_name.reserve( 512 );
 
  if( ( idx >= strFirstGUROBIPar ) && ( idx < strLastAlgParGRBS ) ) {

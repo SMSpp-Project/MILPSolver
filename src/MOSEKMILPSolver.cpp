@@ -2258,7 +2258,7 @@ double MOSEKMILPSolver::get_dflt_dbl_par( idx_type par ) const
 
 const std::string & MOSEKMILPSolver::get_dflt_str_par( idx_type par ) const
 {
- static std::string value;
+ static thread_local std::string value;
 
  if( ( par >= strFirstMOSEKPar ) && ( par < strLastAlgParMOSEKS ) ) {
   value.clear();
@@ -2320,7 +2320,7 @@ double MOSEKMILPSolver::get_dbl_par( idx_type par ) const
 
 const std::string & MOSEKMILPSolver::get_str_par( idx_type par ) const
 {
- static std::string value;
+ static thread_local std::string value;
 
  if( par == strLogFileName )
   return( f_log_file );

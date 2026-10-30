@@ -3105,10 +3105,10 @@ double HiGHSMILPSolver::get_dflt_dbl_par( idx_type par ) const
 
 const std::string & HiGHSMILPSolver::get_dflt_str_par( idx_type par ) const
 {
- // note: this implementation is not thread safe, and it may lead to elements
- //       of value[] to be allocated more than once with some memory being
- //       lost, but the chances are too slim and the potential drawback too
- //       limited to warrant even a humble std::atomic_flag
+ // the defaults are read the first time they are asked for, under a lock
+ // so that Solver in different threads can ask for them together
+ static std::mutex mutex;
+ std::lock_guard< std::mutex > lock( mutex );
  std::string value;
  static std::vector< std::string > default_value( strLastAlgParHiGHS -
 					  strFirstHiGHSPar );
@@ -3225,7 +3225,7 @@ double HiGHSMILPSolver::get_dbl_par( idx_type par ) const
 
 const std::string & HiGHSMILPSolver::get_str_par( idx_type par ) const
 {
- static std::string value;
+ static thread_local std::string value;
 
  if( ( par >= strFirstHiGHSPar ) && ( par < strLastAlgParHiGHS ) ) {
   std::string highs_opt = SMSpp_to_HiGHS_str_pars[ par - strFirstHiGHSPar ];
@@ -3294,10 +3294,10 @@ const std::string & HiGHSMILPSolver::int_par_idx2str( idx_type idx ) const
  // intCutSepPar is now handled by MILPSolver::int_par_idx2str() (via the
  // fall-through at the end of this method)
 
- // note: this implementation is not thread safe, and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ // note: the string is one per thread, and the result has to be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
  par_name.reserve( 512 );
 
  if( ( idx >= intFirstHiGHSPar ) && ( idx < intLastAlgParHiGHS ) ) {
@@ -3338,10 +3338,10 @@ Solver::idx_type HiGHSMILPSolver::dbl_par_str2idx( const std::string & name )
 
 const std::string & HiGHSMILPSolver::dbl_par_idx2str( idx_type idx ) const
 {
- // note: this implementation is not thread safe, and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ // note: the string is one per thread, and the result has to be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
  par_name.reserve( 512 );
 
  if( ( idx >= dblFirstHiGHSPar ) && ( idx < dblLastAlgParHiGHS ) ) {
@@ -3382,10 +3382,10 @@ Solver::idx_type HiGHSMILPSolver::str_par_str2idx( const std::string & name )
 
 const std::string & HiGHSMILPSolver::str_par_idx2str( idx_type idx ) const
 {
- // note: this implementation is not thread safe, and it requires that the
- //       result is used immediately after the call (prior to any other call
- //       to int_par_idx2str()), this may have to be improved upon
- static std::string par_name;
+ // note: the string is one per thread, and the result has to be used
+ //       immediately after the call (prior to any other call to
+ //       int_par_idx2str() in the same thread)
+ static thread_local std::string par_name;
  par_name.reserve( 512 );
 
  if( ( idx >= strFirstHiGHSPar ) && ( idx < strLastAlgParHiGHS ) ) {

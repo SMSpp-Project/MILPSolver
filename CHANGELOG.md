@@ -268,6 +268,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- the active stuff of a `ColVariable` is taken to an `FRowConstraint` or to
+  a `OneVarConstraint` with a `dynamic_cast` made once per dynamic type and
+  per thread [see `MILPSolver::cast_active()`], rather than once per
+  `ColVariable` and per active stuff, which compared the names of the types
+  tens of millions of times while loading a large problem
+
 - `DAQPMILPSolver`, `QPOASESMILPSolver`, `ProxQPMILPSolver`,
   `OSQPMILPSolver` and `HPIPMMILPSolver` start a solve from the previous one
   also after columns or rows have been added or removed, on those that are
@@ -339,6 +345,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than returning a solution that is not there
 
 ### Fixed
+
+- `GRBMILPSolver::get_dflt_str_par()` gave an empty string: the value of
+  Gurobi was written in a string of length 0
+
+- the strings returned by `get_str_par()`, `get_dflt_str_par()` and
+  `*_par_idx2str()` of the `:MILPSolver` are one per thread, and the defaults
+  are read under a lock, so that `Solver` in different threads can be
+  configured together
+
+- `GRBMILPSolver` creates its model under the lock of the environment it
+  shares with the other ones, which a Gurobi environment needs when it is
+  used by more than one thread
 
 - `GRBMILPSolver::get_lb()` (`get_ub()` when maximizing) never exceeds the
   value of the solution: on a continuous QP solved with `NonConvex` left at
