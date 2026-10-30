@@ -183,7 +183,7 @@ void MILPSolver::load_problem( void )
  // all the dynamic Constraint of the Block are read as rows, those of the
  // pool as well
  clear_cut_pool();
- 
+
  numrows = 0;
  numcols = 0;
  static_vars = 0;
@@ -445,10 +445,10 @@ void MILPSolver::load_problem( void )
  svar_to_bound.reserve( static_vars );
  dvar_to_bound.reserve( numcols - static_vars );
 
- /* Now we have to check wheter there are any quadratic constraints. 
-  * If this is the case, then matbeg, matcnt, ... will represent the 
+ /* Now we have to check wheter there are any quadratic constraints.
+  * If this is the case, then matbeg, matcnt, ... will represent the
   * coefficient matrix by rows. Thus, we will firstly scan the variables
-  * and after the constraints. Otherwise, if no quadratic costraints 
+  * and after the constraints. Otherwise, if no quadratic costraints
   * are in the model, the coefficient matrix will be grouped by column,
   * and so we will firstly scan the constraint and after the variables. */
 
@@ -1363,14 +1363,14 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
        "of the Variable [see Block::set_variable_weight()] in a quadratic "
        "Constraint is not supported" ) );
 
-   /* If the DEBUG is activated, we can check wether a variable appears 
+   /* If the DEBUG is activated, we can check wether a variable appears
    * multiple times in a single constraint, which will clearly produce
    * an error in later stage of the process. */
    #ifdef MILPSolver_DEBUG
     // Initialize vector to store active variables indices
     std::vector< int > idxs_av;
    #endif
-    
+
     if( row == 0 )
       matbeg[ row ] = 0;
     else
@@ -1382,7 +1382,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
       for( auto el : lf->get_v_var() ) {
         auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
-        auto idx_v = index_of_variable( v ); 
+        auto idx_v = index_of_variable( v );
 
         matval[ matbeg[ row ] + j ] =
          std::get< 1 >( el ) * variable_weight( v , & con );
@@ -1409,7 +1409,6 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
       std::map< mat_indices , double > global_qmatrix;
       //Qmat global_qmatrix;
       //global_qmatrix.reserve(5);
-      //std::vector<Eigen::Triplet<Coefficient>> vv_nd( local_qmatrix.nonZeros() );
 
       // Create map from local indices to global ones
       std::vector< int > map_local_to_global( qf->get_num_active_var() );
@@ -1439,7 +1438,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         if( q_coeff != 0 ) {
           global_qmatrix[ { idx_v , idx_v } ] = q_coeff;
           //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
-          //vv_nd.push_back( term ); 
+          //vv_nd.push_back( term );
         }
         ++num_var;
       }
@@ -1452,8 +1451,6 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
           int glob_idx1 = map_local_to_global[ it.row() ];
           int glob_idx2 = map_local_to_global[ it.col() ];
           global_qmatrix[ { glob_idx1 , glob_idx2 } ] = it.value();
-          //Eigen::Triplet< Coefficient > term( glob_idx1 , glob_idx2 , it.value() );
-          //vv_nd[ k_term ] = term;
           ++k_term;
         }
       }
@@ -1498,7 +1495,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         if( q_coeff != 0 ) {
           global_qmatrix[ { idx_v , idx_v } ] = q_coeff;
           //Eigen::Triplet< Coefficient > term( idx_v , idx_v , q_coeff );
-          //vv_nd.push_back( term ); 
+          //vv_nd.push_back( term );
         }
       }
       matcnt[ row ] = nnz;
@@ -1526,10 +1523,10 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
           if( idxs_av[ j ] == idxs_av[ j + 1 ] ){
             // Error message
             std::string msg = std::string("MILPSolver Error [")
-              + __func__ + "]: Variable with index " + 
-              std::to_string( idxs_av[ j ] ) + 
+              + __func__ + "]: Variable with index " +
+              std::to_string( idxs_av[ j ] ) +
               + " repeated multiple times in constraint with index " +
-              std::to_string( row ) + ".\n"; 
+              std::to_string( row ) + ".\n";
 
             // Print warning message in MILPSolver DEBUG
             DEBUG_LOG( msg.c_str() );
@@ -2684,13 +2681,13 @@ void MILPSolver::var_modification( const VariableMod * mod )
      ColVariable::is_integer( mod->new_state() ) ) {
   if( ColVariable::is_integer( mod->new_state() ) )
    ++int_vars;
-  else    
+  else
    --int_vars;
   }
 
  if( lb.empty() && xctype.empty() )
   return;
- 
+
  int idx = index_of_variable( var );
 
  // update bounds (if any)
@@ -2863,7 +2860,8 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
   //  }
   //
   //  for( auto i : sbst->subset() ) {
-  //   auto var = static_cast< const ColVariable * >( qf->get_active_var( i ) );
+  //   auto var = static_cast< const ColVariable * >(
+  //                                    qf->get_active_var( i ) );
   //   auto idx = index_of_variable( var );
   //   objective[ idx ] = qf->get_linear_coefficient( i );
   //   q_objective[ idx ] = qf->get_quadratic_coefficient( i );
@@ -3484,7 +3482,7 @@ void MILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
  int idx = index_of_variable( var );
  if( idx == Inf< int >() )  // the ColVariable has been removed
   return;                   // is strange, but there is nothing to do
- 
+
  auto bd = get_problem_bounds( * var );
  lb[ idx ] = bd[ 0 ];
  ub[ idx ] = bd[ 1 ];
@@ -3625,7 +3623,8 @@ ThinComputeInterface::idx_type MILPSolver::get_num_str_par( void ) const {
  }
 
 ThinComputeInterface::idx_type MILPSolver::get_num_vstr_par( void ) const {
- return( CDASolver::get_num_vstr_par() + vstrLastAlgParMILP - vstrLastParCDAS );
+ return( CDASolver::get_num_vstr_par() + vstrLastAlgParMILP -
+	 vstrLastParCDAS );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -3808,14 +3807,15 @@ Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
 
 const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
 {
- static const std::vector< std::string > pars = { "intThrowReducedCostException",
-                                                  "intUseCustomNames",
-                                                  "intRelaxIntVars" ,
-                                                  "intSingleBound" ,
-                                                  "intConsModification" ,
-                                                  "intCutSepPar" ,
-                                                  "intMaxCutPasses" ,
-                                                  "intHomogeneousDirection" };
+ static const std::vector< std::string > pars = {
+  "intThrowReducedCostException" ,
+  "intUseCustomNames" ,
+  "intRelaxIntVars" ,
+  "intSingleBound" ,
+  "intConsModification" ,
+  "intCutSepPar" ,
+  "intMaxCutPasses" ,
+  "intHomogeneousDirection" };
  if( idx == intThrowReducedCostException )
   return( pars[ 0 ] );
 
@@ -4430,7 +4430,7 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
   else {  // a non-fixed Variable
    for( auto b: active_bounds ) {
     b->set_dual( 0 );
- 
+
     if( b->get_lhs() >= var_lb ) {
      var_lb = b->get_lhs();
      lhs_con = b;
@@ -4511,4 +4511,4 @@ void MILPSolver::write_dual_solution( const std::vector< double > & pi ,
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- End File MILPSolver.cpp --------------------------*/
-/*--------------------------------------------------------------------------*/ 
+/*--------------------------------------------------------------------------*/
