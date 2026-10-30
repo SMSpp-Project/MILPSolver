@@ -321,6 +321,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   1.2e-2 against an optimum of 7.1e-4 on the master problem of a Benders
   decomposition), which was returned as the lower bound
 
+- the section of `cmake/FindPIPS.cmake` that keeps the MPI libraries in the
+  link restores the `--as-needed` state it found (`--push-state` /
+  `--pop-state`) instead of turning `--as-needed` on: it dropped from the
+  link of a consumer the libraries of the modules that follow and that it
+  does not call directly, such as BranchAndXSolver in the testers of UCBlock,
+  so that their classes were not in the factories
+
 - `HiGHSMILPSolver` returns `kError` on a continuous QP that the active set
   of HiGHS declares optimal with a primal-dual objective error above
   `QPObjectiveError` (1e-3): on the unbounded master problems of a bundle

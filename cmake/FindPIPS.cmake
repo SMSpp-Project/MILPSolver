@@ -275,12 +275,16 @@ if (PIPS_FOUND)
 
     if (PIPS_MPI_MPIFH_LIBRARY AND UNIX AND NOT APPLE)
         # This is the CMake equivalent of the --no-as-needed section in
-        # makefile-libPIPS, needed by some shared MUMPS/OpenMPI combinations.
+        # makefile-libPIPS, needed by some shared MUMPS/OpenMPI combinations;
+        # the section restores the state it found rather than turning
+        # --as-needed on, which would drop from the link the libraries that
+        # follow and that a module keeps with --no-as-needed so that its
+        # classes register themselves in the factories
         list(APPEND _PIPS_LINK_LIBRARIES
-                -Wl,--no-as-needed
+                -Wl,--push-state,--no-as-needed
                 "${PIPS_MPI_MPIFH_LIBRARY}"
                 MPI::MPI_CXX
-                -Wl,--as-needed)
+                -Wl,--pop-state)
     else ()
         if (PIPS_MPI_MPIFH_LIBRARY)
             list(APPEND _PIPS_LINK_LIBRARIES "${PIPS_MPI_MPIFH_LIBRARY}")
