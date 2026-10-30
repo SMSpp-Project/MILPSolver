@@ -2057,6 +2057,37 @@ void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
 
 /*--------------------------------------------------------------------------*/
 
+void HiGHSMILPSolver::set_linear_objective(
+					   const std::vector< double > & obj )
+{
+ if( obj.empty() )
+  return;
+ if( Highs_changeColsCostByRange( highs , 0 , HighsInt( obj.size() ) - 1 ,
+				  obj.data() ) == kHighsStatusError )
+  throw( std::runtime_error( "HiGHSMILPSolver::set_linear_objective: "
+			     "Highs_changeColsCostByRange failed" ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::set_matrix_coefficients(
+		       const std::vector< const FRowConstraint * > & rows ,
+		       const std::vector< int > & cols ,
+		       const std::vector< double > & vals )
+{
+ for( std::size_t i = 0 ; i < rows.size() ; ++i ) {
+  const auto row = index_of_constraint( rows[ i ] );
+  if( row == Inf< int >() )  // the Constraint is not (yet?) there
+   continue;
+  if( Highs_changeCoeff( highs , row , cols[ i ] , vals[ i ] ) ==
+      kHighsStatusError )
+   throw( std::runtime_error( "HiGHSMILPSolver::set_matrix_coefficients: "
+			      "Highs_changeCoeff failed" ) );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void HiGHSMILPSolver::constraint_function_modification( const FunctionMod *mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing

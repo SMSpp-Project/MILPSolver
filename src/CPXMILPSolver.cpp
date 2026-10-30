@@ -57,6 +57,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <numeric>
 #include <algorithm>
 #include <queue>
 
@@ -3021,6 +3022,47 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
  // reload_objective( f );
 
  }  // end( CPXMILPSolver::objective_function_modification )
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::set_linear_objective( const std::vector< double > & obj )
+{
+ if( obj.empty() )
+  return;
+ std::vector< int > idx( obj.size() );
+ std::iota( idx.begin() , idx.end() , 0 );
+ if( int status = CPXchgobj( env , lp , int( obj.size() ) , idx.data() ,
+			     obj.data() ) )
+  throw( std::runtime_error( "CPXMILPSolver::set_linear_objective: "
+			     "CPXchgobj returned with status " +
+			     std::to_string( status ) ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::set_matrix_coefficients(
+		       const std::vector< const FRowConstraint * > & rows ,
+		       const std::vector< int > & cols ,
+		       const std::vector< double > & vals )
+{
+ std::vector< int > r , c;
+ std::vector< double > v;
+ for( std::size_t i = 0 ; i < rows.size() ; ++i ) {
+  const auto row = cpx_index_of_linear_constraint( rows[ i ] );
+  if( row == Inf< int >() )  // the Constraint is not (yet?) there
+   continue;
+  r.push_back( row );
+  c.push_back( cols[ i ] );
+  v.push_back( vals[ i ] );
+  }
+ if( r.empty() )
+  return;
+ if( int status = CPXchgcoeflist( env , lp , int( r.size() ) , r.data() ,
+				  c.data() , v.data() ) )
+  throw( std::runtime_error( "CPXMILPSolver::set_matrix_coefficients: "
+			     "CPXchgcoeflist returned with status " +
+			     std::to_string( status ) ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 

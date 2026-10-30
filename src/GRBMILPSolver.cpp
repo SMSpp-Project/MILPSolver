@@ -2925,6 +2925,48 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
 /*--------------------------------------------------------------------------*/
 
+void GRBMILPSolver::set_linear_objective( const std::vector< double > & obj )
+{
+ if( obj.empty() )
+  return;
+ if( int status = GRBsetdblattrarray( model , GRB_DBL_ATTR_OBJ , 0 ,
+				      int( obj.size() ) ,
+				      const_cast< double * >( obj.data() ) ) )
+  throw( std::runtime_error( "GRBMILPSolver::set_linear_objective: "
+			     "GRBsetdblattrarray returned with status " +
+			     std::to_string( status ) ) );
+ f_model_dirty = true;
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::set_matrix_coefficients(
+		       const std::vector< const FRowConstraint * > & rows ,
+		       const std::vector< int > & cols ,
+		       const std::vector< double > & vals )
+{
+ std::vector< int > r , c;
+ std::vector< double > v;
+ for( std::size_t i = 0 ; i < rows.size() ; ++i ) {
+  const auto row = grb_index_of_linear_constraint( rows[ i ] );
+  if( row == Inf< int >() )  // the Constraint is not (yet?) there
+   continue;
+  r.push_back( row );
+  c.push_back( cols[ i ] );
+  v.push_back( vals[ i ] );
+  }
+ if( r.empty() )
+  return;
+ if( int status = GRBchgcoeffs( model , int( r.size() ) , r.data() ,
+				c.data() , v.data() ) )
+  throw( std::runtime_error( "GRBMILPSolver::set_matrix_coefficients: "
+			     "GRBchgcoeffs returned with status " +
+			     std::to_string( status ) ) );
+ f_model_dirty = true;
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing

@@ -1649,6 +1649,39 @@ void MOSEKMILPSolver::objective_function_modification(
 
 /*--------------------------------------------------------------------------*/
 
+void MOSEKMILPSolver::set_linear_objective(
+					   const std::vector< double > & obj )
+{
+ if( obj.empty() )
+  return;
+ check( MSK_putcslice( task , 0 , MSKint32t( obj.size() ) , obj.data() ) ,
+	"set_linear_objective" );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MOSEKMILPSolver::set_matrix_coefficients(
+		       const std::vector< const FRowConstraint * > & rows ,
+		       const std::vector< int > & cols ,
+		       const std::vector< double > & vals )
+{
+ std::vector< MSKint32t > r , c;
+ std::vector< double > v;
+ for( std::size_t i = 0 ; i < rows.size() ; ++i ) {
+  const auto row = index_of_constraint( rows[ i ] );
+  if( row == Inf< int >() )  // the Constraint is not (yet?) there
+   continue;
+  r.push_back( row );
+  c.push_back( cols[ i ] );
+  v.push_back( vals[ i ] );
+  }
+ if( ! r.empty() )
+  check( MSK_putaijlist( task , MSKint32t( r.size() ) , r.data() , c.data() ,
+			 v.data() ) , "set_matrix_coefficients" );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void MOSEKMILPSolver::constraint_function_modification(
 						     const FunctionMod * mod )
 {

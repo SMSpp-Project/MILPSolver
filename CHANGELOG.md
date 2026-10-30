@@ -268,6 +268,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- a change of the weights of a `Block` [see `BlockWeightMod`] is made in
+  place rather than by loading the problem again: the linear part of the
+  Objective and its constant are built again when the weight of the
+  Objective changes, and the coefficients of the Variable below the `Block`
+  in the rows outside of it when the weight of the Variable does, which the
+  back-ends take with `set_linear_objective()` and
+  `set_matrix_coefficients()` (Gurobi, CPLEX, HiGHS and MOSEK; the other
+  ones, a quadratic Objective below the `Block` and a quadratic row with a
+  weight still load the problem again)
+
 - the active stuff of a `ColVariable` is taken to an `FRowConstraint` or to
   a `OneVarConstraint` with a `dynamic_cast` made once per dynamic type and
   per thread [see `MILPSolver::cast_active()`], rather than once per

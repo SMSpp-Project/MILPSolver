@@ -2022,6 +2022,43 @@ class MILPSolver : public CDASolver
  /// handles a dynamic modification
  virtual void dynamic_modification( const BlockModAD * mod );
 
+ /// handles a change of the weights of a Block [see BlockWeightMod]
+ /** The Objective of the problem, and its constant, are built again when
+  * the weight of the Objective has changed [see set_linear_objective()], and
+  * the coefficients of the Variable of the Block and of those below it in
+  * the rows outside of it when the weight of the Variable has [see
+  * set_matrix_coefficients()]; f_reset is set, so that the problem is loaded
+  * again whole, if a Block below the changed one has a quadratic Objective,
+  * if a row whose coefficients change is not linear, or if the back-end
+  * does not change them in place. */
+ void weight_modification( const BlockWeightMod * mod );
+
+ /// gives the back-end the linear coefficients \p obj of the Objective
+ /** \p obj has one coefficient per column, in the order of the columns,
+  * the weights comprised. The method of the base class sets f_reset, so
+  * that the problem is loaded again: a back-end that can change the
+  * coefficients of its Objective in place redefines it. */
+ virtual void set_linear_objective( const std::vector< double > & obj ) {
+  f_reset = true;
+  }
+
+ /// gives the back-end new coefficients of the matrix
+ /** The coefficient of the column cols[ i ] in the linear row rows[ i ]
+  * becomes vals[ i ], the weights comprised. The method of the base class
+  * sets f_reset, so that the problem is loaded again: a back-end that can
+  * change the coefficients in place redefines it. */
+ virtual void set_matrix_coefficients(
+	    const std::vector< const FRowConstraint * > & rows ,
+	    const std::vector< int > & cols ,
+	    const std::vector< double > & vals ) {
+  f_reset = true;
+  }
+
+ /// computes the weights of the Block of v_BFS
+ /** Fills f_obj_weight and f_var_weighted out of the weights of the Block
+  * of v_BFS [see objective_weight() and variable_weight()]. */
+ void refresh_weights( void );
+
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// calls \p f on every addition of FRowConstraint inside \p mod
  /** The rows that a Block generates may well arrive inside a

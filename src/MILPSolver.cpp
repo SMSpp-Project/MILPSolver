@@ -220,31 +220,14 @@ void MILPSolver::load_problem( void )
 
  v_BFS.clear();
  BFS_set.clear();
- f_obj_weight.clear();
- std::vector< double > w_BFS;  // the weight of the Objective of each Block
- if( ignored.count( f_Block ) == 0 ) {
+ if( ignored.count( f_Block ) == 0 )
   v_BFS.push_back( f_Block );
-  w_BFS.push_back( 1 );
-  }
  for( Index i = 0 ; i < v_BFS.size() ; ++i )
   for( auto el : v_BFS[ i ]->get_nested_Blocks() )
-   if( ignored.count( el ) == 0 ) {
+   if( ignored.count( el ) == 0 )
     v_BFS.push_back( el );
-    w_BFS.push_back( w_BFS[ i ] * el->get_objective_weight() );
-    }
 
- for( Index i = 0 ; i < v_BFS.size() ; ++i )
-  if( w_BFS[ i ] != 1 )
-   f_obj_weight[ v_BFS[ i ] ] = w_BFS[ i ];
-
- // the weight of the Variable of the Block of this Solver concerns the
- // Constraint outside of it only, which are not in the problem
- f_var_weight_cache.clear();
- f_var_weighted = std::any_of( v_BFS.begin() , v_BFS.end() ,
-                               [ this ]( const Block * b ) {
-                                return( ( b != f_Block ) &&
-                                        ( b->get_variable_weight() != 1 ) );
-                                } );
+ refresh_weights();
 
  v_BFS.shrink_to_fit();
 
@@ -499,7 +482,8 @@ void MILPSolver::load_problem( void )
 
   for( const auto & group : qb->get_dynamic_constraint_groups() ) {
    if( group )
-    scan_dynamic_group< FRowConstraint >( *group , qb , num_block , set , row  );
+    scan_dynamic_group< FRowConstraint >( *group , qb , num_block , set ,
+                                        row );
 
    set++;
    }
@@ -575,7 +559,8 @@ void MILPSolver::load_problem( void )
 
    for( const auto & group : qb->get_dynamic_constraint_groups() ) {
     if( group )
-     scan_dynamic_group< FRowConstraint >( *group , qb , num_block , set , row  );
+     scan_dynamic_group< FRowConstraint >( *group , qb , num_block , set ,
+                                         row );
 
     set++;
     }
@@ -928,7 +913,7 @@ double MILPSolver::check_kkt( void )
   f->get_linearization_coefficients( g.data() );
   for( Index k = 0 ; k < g.size() ; ++k ) {
    auto j = index_of_variable(
-		     static_cast< const ColVariable * >( f->get_active_var( k ) ) );
+		static_cast< const ColVariable * >( f->get_active_var( k ) ) );
    if( ( j >= 0 ) && ( j < numcols ) )
     z[ j ] += sgn * g[ k ];
    }
@@ -1682,6 +1667,149 @@ double MILPSolver::objective_weight( const Function * f ) const
 
 /*--------------------------------------------------------------------------*/
 
+void MILPSolver::refresh_weights( void )
+{
+ // the weight of the Objective of each Block of v_BFS, the product along
+ // the path from f_Block, whose own weight is excluded: the father of a
+ // Block comes before it in v_BFS
+ f_obj_weight.clear();
+ std::unordered_map< const Block * , double > w;
+ for( auto b : v_BFS ) {
+  double wb = 1;
+  if( b != f_Block ) {
+   auto it = w.find( b->get_f_Block() );
+   wb = ( it == w.end() ? 1 : it->second ) * b->get_objective_weight();
+   }
+  w[ b ] = wb;
+  if( wb != 1 )
+   f_obj_weight[ b ] = wb;
+  }
+
+ // the weight of the Variable of the Block of this Solver concerns the
+ // Constraint outside of it only, which are not in the problem
+ f_var_weight_cache.clear();
+ f_var_weighted = std::any_of( v_BFS.begin() , v_BFS.end() ,
+                               [ this ]( const Block * b ) {
+                                return( ( b != f_Block ) &&
+                                        ( b->get_variable_weight() != 1 ) );
+                                } );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::weight_modification( const BlockWeightMod * mod )
+{
+ const Block * changed = mod->get_Block();
+ refresh_weights();
+
+ // whether b is the Block whose weights have changed or is below it
+ auto below = [ changed ]( const Block * b ) {
+  for( ; b ; b = b->get_f_Block() )
+   if( b == changed )
+    return( true );
+  return( false );
+  };
+
+ /* The weight of the Objective: the linear part of the Objective of the
+  * problem is built again out of all the Block, with their weights, and the
+  * constant with it; the quadratic part would change as well for a Block
+  * below the changed one with a quadratic Objective, and the problem is
+  * then loaded again whole. */
+
+ if( mod->which() & BlockWeightMod::eObjective ) {
+  std::vector< double > obj( numcols , 0 );
+  double cst = 0;
+  for( auto qb : v_BFS ) {
+   if( is_objective_excluded( qb ) )
+    continue;
+   auto o = dynamic_cast< const FRealObjective * >( qb->get_objective() );
+   if( ! o )
+    continue;
+   const auto it = f_obj_weight.find( qb );
+   const double w = ( it == f_obj_weight.end() ? 1 : it->second );
+   cst += w * o->get_constant_term();
+   auto f = o->get_function();
+   if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+    for( const auto & el : lf->get_v_var() )
+     obj[ index_of_variable( el.first ) ] += w * el.second;
+    continue;
+    }
+   if( below( qb ) ) {
+    f_reset = true;
+    return;
+    }
+   if( auto qf = dynamic_cast< const QuadFunction * >( f ) )
+    for( const auto & el : qf->get_v_var() )
+     obj[ index_of_variable( std::get< 0 >( el ) ) ] +=
+      w * std::get< 1 >( el );
+   else
+    if( auto df = dynamic_cast< const DQuadFunction * >( f ) )
+     for( const auto & el : df->get_v_var() )
+      obj[ index_of_variable( std::get< 0 >( el ) ) ] +=
+       w * std::get< 1 >( el );
+    else {
+     f_reset = true;
+     return;
+     }
+   }
+  constant_value = cst;
+  set_linear_objective( obj );
+  if( f_reset )
+   return;
+  }
+
+ /* The weight of the Variable: the coefficient of each Variable of a Block
+  * below the changed one in each row outside of it, which is the only one
+  * whose weight changes, is computed again; a quadratic row is not
+  * supported with a weight of the Variable [see scan_constraint()], and the
+  * problem is then loaded again whole. */
+
+ if( mod->which() & BlockWeightMod::eVariable ) {
+  std::vector< const FRowConstraint * > rows;
+  std::vector< int > cols;
+  std::vector< double > vals;
+  bool reload = false;
+  for( auto vb : v_BFS ) {
+   if( ( ! below( vb ) ) || reload )
+    continue;
+   vb->for_each_variable_group( [ & ]( const BaseGroup & group ) {
+     group.for_each_as< ColVariable >( [ & ]( const ColVariable & var ) {
+       const int col = index_of_variable( & var );
+       if( col == Inf< int >() )
+        return;
+       for( auto * i : var.active_stuff() ) {
+        auto row = cast_active< FRowConstraint >( i );
+        if( ( ! row ) || ( ! is_mine( row->get_Block() ) ) ||
+            below( row->get_Block() ) )
+         continue;
+        auto lf = dynamic_cast< const LinearFunction * >(
+						      row->get_function() );
+        if( ! lf ) {
+         reload = true;
+         return;
+         }
+        double c = 0;
+        for( const auto & pr : lf->get_v_var() )
+         if( pr.first == & var )
+          c += pr.second;
+        rows.push_back( row );
+        cols.push_back( col );
+        vals.push_back( c * variable_weight( & var , row ) );
+        }
+       } );
+     } );
+   }
+  if( reload ) {
+   f_reset = true;
+   return;
+   }
+  if( ! rows.empty() )
+   set_matrix_coefficients( rows , cols , vals );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
 double MILPSolver::variable_weight( const Variable * var ,
                                     const Constraint * con ) const
 {
@@ -1948,13 +2076,27 @@ void MILPSolver::process_modifications( void )
   return;
   }
 
+ /* A change of the weights of a sub-Block is made in place, out of the
+  * current state of the Block [see weight_modification()], which the
+  * Modification still in the queue have changed already: it is made after
+  * all of them, which are processed with the weights the back-end has. The
+  * Objective is then built again whole, and the coefficients that the
+  * weights of the Variable change are written again, whatever the
+  * Modification before have written in them. */
+
+ std::vector< sp_Mod > weights;
+
  for( ; ; )                 // process all the Modification loop
   if( auto mod = pop() ) {  // get next Modification, if any
    auto pmod = mod.get();   // down to regular Modification *
-   // an NBModification, or a change of the weights of a sub-Block, which
-   // changes the whole problem: reload everything
-   if( dynamic_cast< const NBModification * >( pmod ) ||
-       dynamic_cast< const BlockWeightMod * >( pmod ) ) {
+   if( auto wmod = dynamic_cast< const BlockWeightMod * >( pmod ) ) {
+    if( ! is_excluded( const_cast< Block * >( wmod->get_Block() ) ) )
+     weights.push_back( mod );
+    continue;
+    }
+
+   // an NBModification, which changes the whole problem: reload everything
+   if( dynamic_cast< const NBModification * >( pmod ) ) {
     f_reset = false;
     load_problem();
     mod_clear();            // all the remaining Modification must be ignored
@@ -1970,8 +2112,18 @@ void MILPSolver::process_modifications( void )
     break;                  // all done
     }
    }
-  else                      // no more Modification to process
+  else {                    // no more Modification to process
+   for( const auto & mod : weights ) {
+    weight_modification( static_cast< const BlockWeightMod * >( mod.get() ) );
+    if( f_reset ) {
+     f_reset = false;
+     load_problem();        // reload everything
+     mod_clear();
+     break;
+     }
+    }
    break;                   // all done
+   }
 
  #ifdef MILPSolver_DEBUG
   check_status();

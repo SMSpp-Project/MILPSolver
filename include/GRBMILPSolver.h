@@ -605,6 +605,15 @@ void add_mip_starts(
  /// handles a Function Modification applied to a Constraint
  void constraint_function_modification( const FunctionMod * mod ) override;
 
+ /// the linear coefficients of the Objective changed in place
+ void set_linear_objective( const std::vector< double > & obj ) override;
+
+ /// coefficients of the matrix changed in place
+ void set_matrix_coefficients(
+	    const std::vector< const FRowConstraint * > & rows ,
+	    const std::vector< int > & cols ,
+	    const std::vector< double > & vals ) override;
+
  /// handles a Function Variable Modification applied to the Objective
  void objective_fvars_modification( const FunctionModVars * mod )
   override;
