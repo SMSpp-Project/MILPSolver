@@ -1388,6 +1388,15 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
           }
          sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &lower_bound );
          }
+        else {
+         // on a continuous QP solved with NonConvex left at -1 GUROBI may
+         // publish an OBJBOUND above the value of its own solution, which
+         // no lower bound can be: the value of the solution is used then
+         double sol_val;
+         if( ( ! sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &sol_val ) ) &&
+             ( sol_val < lower_bound ) )
+          lower_bound = sol_val;
+         }
         }
 
       lower_bound += constant_value;
@@ -1555,6 +1564,14 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
           break;
           }
          sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &upper_bound );
+         }
+        else {
+         // as in get_lb(): an OBJBOUND below the value of the solution is
+         // no upper bound, and the value of the solution is used then
+         double sol_val;
+         if( ( ! sol_dbl_attr( GRB_DBL_ATTR_OBJVAL , &sol_val ) ) &&
+             ( sol_val > upper_bound ) )
+          upper_bound = sol_val;
          }
      upper_bound += constant_value;
      break;

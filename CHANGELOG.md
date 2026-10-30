@@ -315,6 +315,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver::get_lb()` (`get_ub()` when maximizing) never exceeds the
+  value of the solution: on a continuous QP solved with `NonConvex` left at
+  its default Gurobi may publish an `ObjBound` above `ObjVal` (e.g.,
+  1.2e-2 against an optimum of 7.1e-4 on the master problem of a Benders
+  decomposition), which was returned as the lower bound
+
 - `HiGHSMILPSolver` returns `kError` on a continuous QP that the active set
   of HiGHS declares optimal with a primal-dual objective error above
   `QPObjectiveError` (1e-3): on the unbounded master problems of a bundle
