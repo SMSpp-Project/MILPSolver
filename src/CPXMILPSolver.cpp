@@ -3040,6 +3040,35 @@ void CPXMILPSolver::set_linear_objective( const std::vector< double > & obj )
 
 /*--------------------------------------------------------------------------*/
 
+void CPXMILPSolver::set_quadratic_objective( const std::vector< int > & cols ,
+                                    const std::vector< double > & vals )
+{
+ // CPLEX has a factor 1/2 in front of the quadratic part, and changes it
+ // only in a quadratic problem: a linear one that gets a quadratic term is
+ // loaded again; so is one whose quadratic part is not separable, where the
+ // diagonal coefficient that CPXchgqpcoef() leaves is not the one it is
+ // given
+ const int type = CPXgetprobtype( env , lp );
+ if( ( type != CPXPROB_QP ) && ( type != CPXPROB_MIQP ) ) {
+  if( std::any_of( vals.begin() , vals.end() ,
+                   []( double v ) { return( v != 0 ); } ) )
+   f_reset = true;
+  return;
+  }
+ if( CPXgetnumqpnz( env , lp ) > CPXgetnumquad( env , lp ) ) {
+  f_reset = true;
+  return;
+  }
+ for( std::size_t i = 0 ; i < cols.size() ; ++i )
+  if( int status = CPXchgqpcoef( env , lp , cols[ i ] , cols[ i ] ,
+                                 2 * vals[ i ] ) )
+   throw( std::runtime_error( "CPXMILPSolver::set_quadratic_objective: "
+                              "CPXchgqpcoef returned with status " +
+                              std::to_string( status ) ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void CPXMILPSolver::set_matrix_coefficients(
 		       const std::vector< const FRowConstraint * > & rows ,
 		       const std::vector< int > & cols ,

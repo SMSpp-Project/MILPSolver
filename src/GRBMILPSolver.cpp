@@ -2940,6 +2940,43 @@ void GRBMILPSolver::set_linear_objective( const std::vector< double > & obj )
 
 /*--------------------------------------------------------------------------*/
 
+void GRBMILPSolver::set_quadratic_objective( const std::vector< int > & cols ,
+                                    const std::vector< double > & vals )
+{
+ // GUROBI adds to the quadratic terms: the change of each one is the new
+ // value minus the one in the model, read with GRBgetq()
+ int nqz = 0;
+ GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMQNZS , & nqz );
+ std::vector< int > qr( nqz ) , qc( nqz );
+ std::vector< double > qv( nqz );
+ if( nqz && GRBgetq( updated_model() , & nqz , qr.data() , qc.data() ,
+                     qv.data() ) )
+  throw( std::runtime_error( "GRBMILPSolver::set_quadratic_objective: "
+                             "GRBgetq failed" ) );
+ std::vector< double > old( numcols , 0 );
+ for( int k = 0 ; k < nqz ; ++k )
+  if( qr[ k ] == qc[ k ] )
+   old[ qr[ k ] ] += qv[ k ];
+
+ std::vector< int > c;
+ std::vector< double > d;
+ for( std::size_t i = 0 ; i < cols.size() ; ++i )
+  if( vals[ i ] != old[ cols[ i ] ] ) {
+   c.push_back( cols[ i ] );
+   d.push_back( vals[ i ] - old[ cols[ i ] ] );
+   }
+ if( c.empty() )
+  return;
+ if( int status = GRBaddqpterms( model , int( c.size() ) , c.data() ,
+                                 c.data() , d.data() ) )
+  throw( std::runtime_error( "GRBMILPSolver::set_quadratic_objective: "
+                             "GRBaddqpterms returned with status " +
+                             std::to_string( status ) ) );
+ f_model_dirty = true;
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void GRBMILPSolver::set_matrix_coefficients(
 		       const std::vector< const FRowConstraint * > & rows ,
 		       const std::vector< int > & cols ,

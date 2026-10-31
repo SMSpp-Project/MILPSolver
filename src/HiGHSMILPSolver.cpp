@@ -2070,6 +2070,35 @@ void HiGHSMILPSolver::set_linear_objective(
 
 /*--------------------------------------------------------------------------*/
 
+void HiGHSMILPSolver::set_quadratic_objective(
+				      const std::vector< int > & cols ,
+				      const std::vector< double > & vals )
+{
+ // a problem born linear has no Hessian: it is loaded again if it gets a
+ // quadratic term
+ if( q_hessian.size() < std::size_t( numcols ) ) {
+  if( std::any_of( vals.begin() , vals.end() ,
+                   []( double v ) { return( v != 0 ); } ) )
+   f_reset = true;
+  return;
+  }
+
+ // the Hessian holds 2 q on its diagonal: what changes is added to it
+ for( std::size_t i = 0 ; i < cols.size() ; ++i ) {
+  const int j = cols[ i ];
+  double old = 0;
+  const auto & col = q_hessian[ j ];
+  auto it = std::lower_bound( col.begin() , col.end() , j ,
+                              []( const auto & e , int r ) {
+                               return( e.first < r ); } );
+  if( ( it != col.end() ) && ( it->first == j ) )
+   old = it->second;
+  add_to_hessian( j , j , 2 * vals[ i ] - old );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void HiGHSMILPSolver::set_matrix_coefficients(
 		       const std::vector< const FRowConstraint * > & rows ,
 		       const std::vector< int > & cols ,

@@ -2030,10 +2030,13 @@ class MILPSolver : public CDASolver
   * the weight of the Objective has changed [see set_linear_objective()], and
   * the coefficients of the Variable of the Block and of those below it in
   * the rows outside of it when the weight of the Variable has [see
-  * set_matrix_coefficients()]; f_reset is set, so that the problem is loaded
-  * again whole, if a Block below the changed one has a quadratic Objective,
-  * if a row whose coefficients change is not linear, or if the back-end
-  * does not change them in place. */
+  * set_matrix_coefficients()]; the diagonal of the quadratic part of the
+  * Objective changes only in the columns of a Block below the changed one
+  * whose quadratic coefficient is not 0 [see set_quadratic_objective()].
+  * f_reset is set, so that the problem is loaded again whole, if a Block
+  * below the changed one has off-diagonal quadratic terms, if a row whose
+  * coefficients change is not linear, or if the back-end does not change
+  * them in place. */
  void weight_modification( const BlockWeightMod * mod );
 
  /// gives the back-end the linear coefficients \p obj of the Objective
@@ -2045,6 +2048,17 @@ class MILPSolver : public CDASolver
   f_reset = true;
   }
 
+ /// gives the back-end new diagonal coefficients of the quadratic Objective
+ /** The coefficient of x_j^2, for j = cols[ i ], becomes vals[ i ], the
+  * weights comprised, as in q_objective (with no factor 1/2). The method of
+  * the base class sets f_reset, so that the problem is loaded again: a
+  * back-end that can change them in place redefines it. */
+ virtual void set_quadratic_objective( const std::vector< int > & cols ,
+                                       const std::vector< double > & vals ) {
+  f_reset = true;
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// gives the back-end new coefficients of the matrix
  /** The coefficient of the column cols[ i ] in the linear row rows[ i ]
   * becomes vals[ i ], the weights comprised. The method of the base class

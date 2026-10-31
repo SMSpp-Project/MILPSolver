@@ -722,6 +722,9 @@ void add_mip_starts(
  void set_linear_objective( const std::vector< double > & obj ) override;
 
  /// coefficients of the matrix changed in place
+ void set_quadratic_objective( const std::vector< int > & cols ,
+                               const std::vector< double > & vals ) override;
+
  void set_matrix_coefficients(
 	    const std::vector< const FRowConstraint * > & rows ,
 	    const std::vector< int > & cols ,

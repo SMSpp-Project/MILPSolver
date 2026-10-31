@@ -1717,13 +1717,28 @@ void MILPSolver::weight_modification( const BlockWeightMod * mod )
 
  /* The weight of the Objective: the linear part of the Objective of the
   * problem is built again out of all the Block, with their weights, and the
-  * constant with it; the quadratic part would change as well for a Block
-  * below the changed one with a quadratic Objective, and the problem is
-  * then loaded again whole. */
+  * constant with it; so is the diagonal of the quadratic part, which changes
+  * only in the columns of a Block below the changed one with a quadratic
+  * coefficient that is not 0, the only ones given to the back-end [see
+  * set_quadratic_objective()]. The off-diagonal terms of such a Block, or an
+  * Objective of another kind, have the problem loaded again whole. */
 
  if( mod->which() & BlockWeightMod::eObjective ) {
   std::vector< double > obj( numcols , 0 );
+  std::vector< double > qobj( numcols , 0 );
+  std::vector< bool > qchanged( numcols , false );
   double cst = 0;
+  const auto quadratic = [ & ]( const Block * qb , const auto * f ,
+                                double w ) {
+   const bool in = below( qb );
+   for( const auto & el : f->get_v_var() ) {
+    const auto k = index_of_variable( std::get< 0 >( el ) );
+    obj[ k ] += w * std::get< 1 >( el );
+    qobj[ k ] += w * std::get< 2 >( el );
+    if( in && ( std::get< 2 >( el ) != 0 ) )
+     qchanged[ k ] = true;
+    }
+   };
   for( auto qb : v_BFS ) {
    if( is_objective_excluded( qb ) )
     continue;
@@ -1739,26 +1754,39 @@ void MILPSolver::weight_modification( const BlockWeightMod * mod )
      obj[ index_of_variable( el.first ) ] += w * el.second;
     continue;
     }
-   if( below( qb ) ) {
-    f_reset = true;
-    return;
-    }
-   if( auto qf = dynamic_cast< const QuadFunction * >( f ) )
-    for( const auto & el : qf->get_v_var() )
-     obj[ index_of_variable( std::get< 0 >( el ) ) ] +=
-      w * std::get< 1 >( el );
-   else
-    if( auto df = dynamic_cast< const DQuadFunction * >( f ) )
-     for( const auto & el : df->get_v_var() )
-      obj[ index_of_variable( std::get< 0 >( el ) ) ] +=
-       w * std::get< 1 >( el );
-    else {
-     f_reset = true;
-     return;
+   if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
+    if( below( qb ) ) {
+     v_off_diag_term nd;
+     qf->get_v_nd_var( nd );
+     if( ! nd.empty() ) {
+      f_reset = true;
+      return;
+      }
      }
+    quadratic( qb , qf , w );
+    continue;
+    }
+   if( auto df = dynamic_cast< const DQuadFunction * >( f ) ) {
+    quadratic( qb , df , w );
+    continue;
+    }
+   f_reset = true;
+   return;
    }
   constant_value = cst;
   set_linear_objective( obj );
+  if( f_reset )
+   return;
+
+  std::vector< int > qcols;
+  std::vector< double > qvals;
+  for( int k = 0 ; k < numcols ; ++k )
+   if( qchanged[ k ] ) {
+    qcols.push_back( k );
+    qvals.push_back( qobj[ k ] );
+    }
+  if( ! qcols.empty() )
+   set_quadratic_objective( qcols , qvals );
   if( f_reset )
    return;
   }

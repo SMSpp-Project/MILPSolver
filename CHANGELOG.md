@@ -360,6 +360,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- a change of the weight of the Objective of a Block below which an
+  Objective is quadratic (say, the copies of a `ThermalUnitBlock`, whose
+  Objective is a `DQuadFunction` also with no quadratic coefficient) no
+  longer has the problem loaded again: the diagonal of the quadratic part
+  changes only in the columns whose quadratic coefficient is not 0, and is
+  written in place by `set_quadratic_objective()` in Gurobi, HiGHS and
+  MOSEK, and in CPLEX while its quadratic part is separable; off-diagonal
+  terms below the changed Block still have it loaded again
+
 - `GRBMILPSolver::get_dflt_str_par()` gave an empty string: the value of
   Gurobi was written in a string of length 0
 
