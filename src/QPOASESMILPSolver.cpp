@@ -234,7 +234,8 @@ void QPOASESMILPSolver::load_problem( void )
   for( int j = 0 ; j < n ; ++j ) {
    const int pj = previous_column_index( j );
    d_guess_b->setupBound( j , pj < 0 ? qpOASES::ST_INACTIVE :
-			  status( ob.getStatus( pj ) , d_lb[ j ] , d_ub[ j ] ) );
+                          status( ob.getStatus( pj ) , d_lb[ j ] ,
+                                  d_ub[ j ] ) );
    if( pj >= 0 ) {
     d_guess_x[ j ] = ox[ pj ];
     d_guess_y[ j ] = oy[ pj ];

@@ -870,9 +870,12 @@ void add_mip_starts(
   *       bool HiGHS options are handled as SMS++ int parameters.
   * @{ */
 
- const static std::array< std::string , HiGHS_NUM_INT_PARS > SMSpp_to_HiGHS_int_pars;
- const static std::array< std::string , HiGHS_NUM_DBL_PARS > SMSpp_to_HiGHS_dbl_pars;
- const static std::array< std::string , HiGHS_NUM_STR_PARS > SMSpp_to_HiGHS_str_pars;
+ const static std::array< std::string , HiGHS_NUM_INT_PARS >
+  SMSpp_to_HiGHS_int_pars;
+ const static std::array< std::string , HiGHS_NUM_DBL_PARS >
+  SMSpp_to_HiGHS_dbl_pars;
+ const static std::array< std::string , HiGHS_NUM_STR_PARS >
+  SMSpp_to_HiGHS_str_pars;
 
  const static std::array< std::pair< std::string , int > , HiGHS_NUM_INT_PARS >
   HiGHS_to_SMSpp_int_pars;
@@ -969,7 +972,8 @@ void add_mip_starts(
   * last one otherwise. If add and removal are both true, round a finite
   * result to zero when its magnitude is at most
   * dblObjRemovalTol * max( 1 , abs( old cost ) , abs( summed delta ) ). */
- void change_obj_costs( std::vector< int > & idx , std::vector< double > & val ,
+ void change_obj_costs( std::vector< int > & idx ,
+                        std::vector< double > & val ,
                         bool add , bool removal = false );
 
 /*--------------------------------------------------------------------------*/

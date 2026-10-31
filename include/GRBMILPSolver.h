@@ -245,13 +245,13 @@ class GRBMILPSolver : public MILPSolver {
  //  in the branch-and-bound algorithm for a MIP problem.  
  //  
  /// NOTE: This method should only be called during the callback process  
- //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and in specific situations (e.g., when a new incumbent solution is found,
  //  and you need to identify the node from which it originates).  
  [[nodiscard]] long get_id_node( void ) const override;
 
 /** 
  * Adds multiple MIP starts to a MIP problem. This function allows the solver 
- * to receive multiple sets of starting values by providing vectors of variable 
+ * to receive multiple sets of starting values by providing vectors of variable
  * indices and corresponding values for each start.
  * 
  * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
@@ -536,7 +536,8 @@ void add_mip_starts(
 
  int callback( GRBmodel *model , void *cbdata , int where );
 
- /// returns the current best solution for the problem when the callback is set.
+ /// returns the current best solution for the problem when the callback is
+ /// set.
  OFValue get_bestsol_callback( void );
 
  /// returns the current best bound for the problem when the callback is set
@@ -937,7 +938,8 @@ void add_mip_starts(
  /// the "Configuration DB" istself
  std::vector< Configuration * > v_ConfigDB;
 
-  /** pointer used to keep track of the current data and status of the callback */
+  /** pointer used to keep track of the current data and status of the
+   * callback */
  void * current_cbdata;
  int current_cbwhere;
 
@@ -952,28 +954,30 @@ void add_mip_starts(
   * of the GUROBI threads for the critical sections of the callback(). */
  std::mutex f_callback_mutex;
 
- /* Unlike SMS++, Gurobi handles ranged constraints adding an auxiliary variable 
-  * to the model. Thus, it is important to map exactly the indices of the ranged
-  * constraints of the model with the indices of those corresponding variables.
-  * To do so, we will use a vector of pair ( idx_rng_con , idx_aux_var ) which 
-  * will be constantly updated if the model changes. It is important to note that
-  * indices corresponding to static constraints cannot change. Thus, due to the 
-  * fact that in SMS++ static constraints are added before dynamic ones, an int 
-  * element will point to the last static ranged constraint added (default -1 
-  * if no static ranged constraint are used in the model) for computational
+ /* Unlike SMS++, Gurobi handles ranged constraints adding an auxiliary
+  * variable to the model. Thus, it is important to map exactly the indices
+  * of the ranged constraints of the model with the indices of those
+  * corresponding variables. To do so, we will use a vector of pair
+  * ( idx_rng_con , idx_aux_var ) which will be constantly updated if the
+  * model changes. It is important to note that indices corresponding to
+  * static constraints cannot change. Thus, due to the fact that in SMS++
+  * static constraints are added before dynamic ones, an int element will
+  * point to the last static ranged constraint added (default -1 if no
+  * static ranged constraint are used in the model) for computational
   * reasons.
   * 
-  *   IMPORTANT NOTE: this vector will be automatically sorted in ascending order
-  *                   both by idx_rng_con and by idx_aux_var. In fact, when adding
-  *                   a new ranged constraint, Gurobi add both constraint and auxiliary 
-  *                   variable at the end of the model. Thus, the new couple
-  *                   ( idx_rng_con , idx_aux_var ) will have values greater than the
-  *                   previously added ones. 
+  *   IMPORTANT NOTE: this vector will be automatically sorted in ascending
+  *                   order both by idx_rng_con and by idx_aux_var. In fact,
+  *                   when adding a new ranged constraint, Gurobi add both
+  *                   constraint and auxiliary variable at the end of the
+  *                   model. Thus, the new couple ( idx_rng_con , idx_aux_var )
+  *                   will have values greater than the previously added ones. 
   * 
-  *   IMPORTANT NOTE2: Gurobi does not add auxiliary variables until GRBupdatemodel() 
-  *                   is called. Since we only call it at the end of the loading phase,
-  *                   we assume that all auxiliary ranged variables are located in
-  *                   the last columns of the Gurobi matrix.
+  *   IMPORTANT NOTE2: Gurobi does not add auxiliary variables until
+  *                   GRBupdatemodel() is called. Since we only call it at
+  *                   the end of the loading phase, we assume that all
+  *                   auxiliary ranged variables are located in the last
+  *                   columns of the Gurobi matrix.
   */
  // the vector of pair ( ranged constraint - axiliary variable )
  std::vector<std::pair < int , int >> map_rng_con_aux_var;
@@ -1018,12 +1022,13 @@ void add_mip_starts(
 
  int grb_index_of_variable( const int old_idx ) const;
 
- // function to retrieve actual idx of dynamic variable considering auxiliary ones
+ // function to retrieve actual idx of dynamic variable considering
+ // auxiliary ones
  int grb_index_of_dynamic_variable( const ColVariable * var ) const; 
 
- // function to retrieve actual idx of constraint. In GUROBI indices of linear and
- // quadratic constraint are disjoint, so we need to retrieve the actual index 
- // based on the type of constraint.
+ // function to retrieve actual idx of constraint. In GUROBI indices of
+ // linear and quadratic constraint are disjoint, so we need to retrieve
+ // the actual index based on the type of constraint.
  int grb_index_of_linear_constraint( const FRowConstraint * con ) const;
 
  /// tells whether a row of MILPSolver, given its sense and rhs, is free
@@ -1056,9 +1061,12 @@ void add_mip_starts(
   *       long Gurobi parameters are handled as SMS++ int parameters.
   * @{ */
 
- const static std::array< std::string , GRB_NUM_INT_PARS > SMSpp_to_GUROBI_int_pars;
- const static std::array< std::string , GRB_NUM_DBL_PARS > SMSpp_to_GUROBI_dbl_pars;
- const static std::array< std::string , GRB_NUM_STR_PARS > SMSpp_to_GUROBI_str_pars;
+ const static std::array< std::string , GRB_NUM_INT_PARS >
+  SMSpp_to_GUROBI_int_pars;
+ const static std::array< std::string , GRB_NUM_DBL_PARS >
+  SMSpp_to_GUROBI_dbl_pars;
+ const static std::array< std::string , GRB_NUM_STR_PARS >
+  SMSpp_to_GUROBI_str_pars;
 
  const static std::array< std::pair< std::string , int > , GRB_NUM_INT_PARS >
   GUROBI_to_SMSpp_int_pars;

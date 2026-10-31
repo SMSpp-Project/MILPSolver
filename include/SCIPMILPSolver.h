@@ -251,8 +251,8 @@ class SCIPMILPSolver : public MILPSolver
 			  std::vector< double > & lhs );
 
  /* From within the class SCIPMILPSolver_Conhdlr it is not possible to set
-  * some protected field of the class useful to avoid collision between threads 
-  * when performing separation. Thus, the two following public functions allows 
+  * some protected field of the class useful to avoid collision between threads
+  * when performing separation. Thus, the two following public functions allows
   * us to obtain this results from external class. */
   
  void set_f_cb_mutex( void );
@@ -264,7 +264,7 @@ class SCIPMILPSolver : public MILPSolver
 
   /** 
  * Adds multiple MIP starts to a MIP problem. This function allows the solver 
- * to receive multiple sets of starting values by providing vectors of variable 
+ * to receive multiple sets of starting values by providing vectors of variable
  * indices and corresponding values for each start.
  * 
  * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
@@ -552,8 +552,8 @@ class SCIPMILPSolver : public MILPSolver
  std::vector< SCIP_CONS * > cons;  ///< SCIP constraints
 
  /* Nonlinear objective functions are not supported by SCIP and must be 
-  * modeled as constraint function. Thus, a problem like min xQx is reformulated
-  * into min z  s.t. z >= xQx.
+  * modeled as constraint function. Thus, a problem like min xQx is
+  * reformulated into min z  s.t. z >= xQx.
   * To map these new structures with the original model, we keep track 
   * of the generated auxiliary constraint and variable. 
   *
@@ -766,7 +766,8 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
                                          to column generation)? */
    SCIP_Bool    dynamic,            /**< is constraint dynamic? */
    SCIP_Bool    removable           /**< should the constraint be removed 
-                                         from the LP due to aging or cleanup? */
+                                         from the LP due to aging or
+                                         cleanup? */
    );
 
 /** Creates and captures a constraint which will be used as a separator. This
@@ -779,7 +780,8 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
  */
  SCIP_RETCODE SCIPcreateSCIPMILPSolver_basiccb(
    SCIP*        scip,               /**< SCIP data structure */
-   SCIP_CONS**  cons,               /**< pointer to hold the created constraint */
+   SCIP_CONS**  cons,               /**< pointer to hold the created
+                                         constraint */
    const char*  name,               /**< name of constraint */
    const char*  Conhdlr_name,       /**< name of constraint handler */
    std::vector< SCIP_VAR * > vars,  /**< SCIP vars */
@@ -873,7 +875,7 @@ class SCIPMILPSolver_CBK : public scip::ObjConshdlr
 
 /** separation method of constraint handler for LP solution
 *
-*  Separates all constraints of the constraint handler. The method is called in 
+*  Separates all constraints of the constraint handler. The method is called in
 *  the LP solution loop, which means that a valid LP candidate exists.
 *
 *  Possible return values for *result (if more than one applies, the first in 
@@ -938,14 +940,14 @@ class SCIPMILPSolver_CBK : public scip::ObjConshdlr
 *    nlocksneg, nlockspos), saying that rounding up is potentially rendering 
 *    the constraint's negation infeasible and rounding up is potentially 
 *    rendering the constraint itself infeasible.
-*  - If the constraint may get violated by changing the variable in any direction,
-*    it should call SCIPaddVarLocksType(scip, var, SCIP_LOCKTYPE_MODEL, 
-*    nlockspos + nlocksneg, nlockspos + nlocksneg).
+*  - If the constraint may get violated by changing the variable in any
+*    direction, it should call SCIPaddVarLocksType(scip, var,
+*    SCIP_LOCKTYPE_MODEL, nlockspos + nlocksneg, nlockspos + nlocksneg).
 *
 *    NOTE: when creating the caallback method, we don't know which variables 
-*    may get involved in future cuts or lazy constraints and in which direction.
-*    Thus, the last method will be always called on all the problem variables,
-*    in order to avoid SCIP from fixing them. 
+*    may get involved in future cuts or lazy constraints and in which
+*    direction. Thus, the last method will be always called on all the
+*    problem variables, in order to avoid SCIP from fixing them. 
 */
  virtual SCIP_DECL_CONSLOCK(scip_lock) override;
 
@@ -955,7 +957,8 @@ class SCIPMILPSolver_CBK : public scip::ObjConshdlr
 /** @name Additional Callback Methods
  *  @{ */
 
-/** transforms constraint data into data belonging to the transformed problem */
+/** transforms constraint data into data belonging to the transformed
+ *  problem */
    virtual SCIP_DECL_CONSTRANS(scip_trans) override;
 
 /** frees specific constraint data */

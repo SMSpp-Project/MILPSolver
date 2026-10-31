@@ -264,8 +264,9 @@ class PIPSMILPSolver : public MILPSolver
   * the PIPS model and before each solve. The default, 0, and positive
   * budgets smaller than the process count leave the current environment
   * and runtime settings unchanged (they do not undo an earlier positive
-  * setting). Negative values are rejected. All ranks must use the same budget. This sets the
-  * requested OpenMP team size; runtime limits can reduce the actual size.
+  * setting). Negative values are rejected. All ranks must use the same
+  * budget. This sets the requested OpenMP team size; runtime limits can
+  * reduce the actual size.
   * It does not change the number of MPI processes or control non-OpenMP
   * thread pools. The environment is process-global and must not be changed
   * concurrently by different Solver instances.

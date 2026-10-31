@@ -225,7 +225,7 @@ bool QuadProgMILPSolver::factorize( void )
 
  // G = R' R with R upper triangular, and quadprog wants R^{-1}
  const Eigen::MatrixXd Rinv = llt.matrixU().solve(
-				       Eigen::MatrixXd::Identity( d_n , d_n ) );
+                                    Eigen::MatrixXd::Identity( d_n , d_n ) );
  d_Rinv.assign( Rinv.data() , Rinv.data() + std::size_t( d_n ) * d_n );
  return( d_factored = true );
  }

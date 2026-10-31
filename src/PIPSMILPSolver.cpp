@@ -454,7 +454,8 @@ void PIPSMILPSolver::apply_thread_budget( void ) const
 
  int n_proc = 0;
  if( MPI_Comm_size( MPI_COMM_WORLD , & n_proc ) != MPI_SUCCESS || n_proc < 1 )
-  throw( std::runtime_error( "PIPSMILPSolver: cannot get MPI process count" ) );
+  throw( std::runtime_error(
+                       "PIPSMILPSolver: cannot get MPI process count" ) );
  // A smaller budget would give zero threads per rank: leave both the
  // environment and the OpenMP runtime unchanged instead.
  if( max_threads < n_proc )
@@ -496,7 +497,8 @@ int PIPSMILPSolver::guts_of_compute( void )
   * (OUTER_SOLVE "none" would do the same but crashes), and both options,
   * which are process-global, are then put back as they were. */
  const bool qp = std::any_of( hess_val.begin() , hess_val.end() ,
-			      []( const auto & v ) { return( ! v.empty() ); } );
+                              []( const auto & v ) {
+                               return( ! v.empty() ); } );
  bool presolve = false;
  int bicg_max_iter = 0;
  if( qp ) {
@@ -1325,8 +1327,8 @@ std::vector< int > PIPSMILPSolver::compute_vars_global_idxs(
 /*--------------------------------------------------------------------------*/
 
 Block::Index PIPSMILPSolver::collect_subtree( Block * block ,
-					      std::vector< Block * > & subtree ,
-					      Index parent_leaf )
+                                         std::vector< Block * > & subtree ,
+                                         Index parent_leaf )
 {
  // map the Block to its father leaf
  block_to_leaf[ block ] = parent_leaf;
@@ -2086,7 +2088,8 @@ int PIPSMILPSolver::mat_eq_cons_vert( void * user_data , int id , int * krowM ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::mat_ineq_cons_diag( void * user_data , int id ,
-					int * krowM , int * jcolM , double * M )
+                                        int * krowM , int * jcolM ,
+                                        double * M )
 {
  // use the current class in the callback
  auto * solver = static_cast< PIPSMILPSolver * >( user_data );
@@ -2101,7 +2104,8 @@ int PIPSMILPSolver::mat_ineq_cons_diag( void * user_data , int id ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::mat_ineq_cons_vert( void * user_data , int id ,
-					int * krowM , int * jcolM , double * M )
+                                        int * krowM , int * jcolM ,
+                                        double * M )
 {
  // extract the sub-matrix for a particular node, but considering the root
  // variables (i.e. T_1, T_2, ..., T_n)
@@ -2136,7 +2140,8 @@ int PIPSMILPSolver::mat_link_eq_cons( void * user_data , int id , int * krowM ,
 /*--------------------------------------------------------------------------*/
 
 int PIPSMILPSolver::mat_link_ineq_cons( void * user_data , int id ,
-					int * krowM , int * jcolM , double * M )
+                                        int * krowM , int * jcolM ,
+                                        double * M )
 {
  // use the current class in the callback
  auto * solver = static_cast< PIPSMILPSolver * >( user_data );

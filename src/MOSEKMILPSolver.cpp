@@ -258,9 +258,10 @@ void MOSEKMILPSolver::load_problem( void )
    }
   }
 
- check( MSK_putobjsense( task , objsense == -1 ? MSK_OBJECTIVE_SENSE_MAXIMIZE
-				               : MSK_OBJECTIVE_SENSE_MINIMIZE ) ,
-	"load_problem" );
+ check( MSK_putobjsense( task , objsense == -1
+                                ? MSK_OBJECTIVE_SENSE_MAXIMIZE
+                                : MSK_OBJECTIVE_SENSE_MINIMIZE ) ,
+        "load_problem" );
 
  if( numrows > 0 )
   check( MSK_appendcons( task , numrows ) , "load_problem" );
@@ -1042,8 +1043,8 @@ double MOSEKMILPSolver::get_runtime( void ) const
 /*--------------------------------------------------------------------------*/
 
 void MOSEKMILPSolver::add_mip_starts(
-				std::vector< std::vector< int > > varidxs ,
-				std::vector< std::vector< double > > varvalues )
+                              std::vector< std::vector< int > > varidxs ,
+                              std::vector< std::vector< double > > varvalues )
 {
  if( varidxs.empty() || ( numcols == 0 ) )
   return;

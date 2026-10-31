@@ -256,9 +256,11 @@ void HiGHSMILPSolver::load_problem( void )
   }
  else{ // MIP problem
   status = Highs_passMip( highs , numcols , numrows ,
-                          matval.size() , kHighsMatrixFormatColwise , objsense ,
+                          matval.size() , kHighsMatrixFormatColwise ,
+                          objsense ,
                           0.0 , objective.data() , highs_lb.data() , 
-                          highs_ub.data() , highs_lhs.data() , highs_rhs.data() ,
+                          highs_ub.data() , highs_lhs.data() ,
+                          highs_rhs.data() ,
                           matbeg.data() , matind.data() , matval.data() , 
                           highs_xctype.data() 
                           );
@@ -611,8 +613,9 @@ int HiGHSMILPSolver::guts_of_compute( void )
  if( ( run_highs() == -1 ) && ( ! qp_help ) ) {
   // An error happened during the call of HiGHS_run. Notice that this is not
   // an error related to the model and so the model status could be incorrect.
-  std::cerr << "WARNING: An unmanaged error occurred during the execution of  " <<
-  "HiGHS_run" << std::endl;
+  std::cerr
+   << "WARNING: An unmanaged error occurred during the execution of  "
+   << "HiGHS_run" << std::endl;
  }
 
  int m_status;
@@ -630,8 +633,9 @@ int HiGHSMILPSolver::guts_of_compute( void )
   if( run_highs() == -1 ) {
    // An error happened during the call of HiGHS_run. Notice that this is not
    // an error related to the model and so the model status could be incorrect.
-   std::cerr << "WARNING: An unmanaged error occurred during the execution of  " <<
-    "HiGHS_run" << std::endl;
+   std::cerr
+    << "WARNING: An unmanaged error occurred during the execution of  "
+    << "HiGHS_run" << std::endl;
    }
 
   m_status = Highs_getModelStatus( highs );
@@ -1531,7 +1535,8 @@ bool HiGHSMILPSolver::add_columns( const std::vector< Variable * > & vars ,
  // if a later queued Modification has removed a Variable from its Function.
  std::fill( cost.begin() , cost.end() , 0.0 );
  for( const auto & submod : gmod->sub_Modifications() ) {
-  auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
+  auto modl =
+   dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
   if( ( ! modl ) ||
       ( ! dynamic_cast< const Objective * >(
                                       modl->function()->get_Observer() ) ) )
@@ -1887,7 +1892,8 @@ bool HiGHSMILPSolver::change_sides(
 
 /*--------------------------------------------------------------------------*/
 
-void HiGHSMILPSolver::objective_function_modification( const FunctionMod * mod )
+void HiGHSMILPSolver::objective_function_modification(
+                                                     const FunctionMod * mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::objective_function_modification( mod );
@@ -2131,7 +2137,8 @@ void HiGHSMILPSolver::set_matrix_coefficients(
 
 /*--------------------------------------------------------------------------*/
 
-void HiGHSMILPSolver::constraint_function_modification( const FunctionMod *mod )
+void HiGHSMILPSolver::constraint_function_modification(
+                                                      const FunctionMod *mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_function_modification( mod );
@@ -2191,7 +2198,8 @@ void HiGHSMILPSolver::constraint_function_modification( const FunctionMod *mod )
 
 /*--------------------------------------------------------------------------*/
 
-void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
+void HiGHSMILPSolver::objective_fvars_modification(
+                                                  const FunctionModVars *mod )
 {
  // this is called in response to Variable being added to / removed from the
  // Objective; however, note that all Variable are supposed to exist at the
@@ -2244,11 +2252,13 @@ void HiGHSMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
                "HiGHSMILPSolver: invalid LinearFunction addition" ) );
    delta = & modl->coeff();
    }
-  else if( auto modr = dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+  else if( auto modr =
+            dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
    if( modr->has_linear_delta() )
     delta = & modr->linear_delta();
    }
-  else if( auto mods = dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+  else if( auto mods =
+            dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
    if( mods->has_linear_delta() )
     delta = & mods->linear_delta();
    }
@@ -3185,8 +3195,8 @@ const std::string & HiGHSMILPSolver::get_dflt_str_par( idx_type par ) const
     default_value[ i ].assign( 512 , '\0' );
 
     // List some of the default value for HiGHS options. 
-    // NOTE: this should not be necessary, but currently Highs_getStringOptionValues
-    // is not properly working.
+    // NOTE: this should not be necessary, but currently
+    // Highs_getStringOptionValues is not properly working.
     if( str_option == "presolve" )
       default_value[ i ] = "choose";
     else if( str_option == "solver" )
@@ -3198,8 +3208,9 @@ const std::string & HiGHSMILPSolver::get_dflt_str_par( idx_type par ) const
     else if( str_option == "ranging" )
       default_value[ i ] = "off";
     else
-      Highs_getStringOptionValues( highs ,  SMSpp_to_HiGHS_str_pars[ i ].data() ,
-                                      value.data() , default_value[ i ].data() );
+      Highs_getStringOptionValues( highs ,
+                                   SMSpp_to_HiGHS_str_pars[ i ].data() ,
+                                   value.data() , default_value[ i ].data() );
     default_value[ i ].resize( std::strlen( default_value[ i ].c_str() ) );
    }
 
@@ -3312,7 +3323,8 @@ const std::vector< int > & HiGHSMILPSolver::get_vint_par( idx_type par ) const
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-const std::vector< std::string > & HiGHSMILPSolver::get_vstr_par( idx_type par )
+const std::vector< std::string > & HiGHSMILPSolver::get_vstr_par(
+                                                           idx_type par )
  const
 {
  if( par == vstrConfigDBFName )
@@ -3328,7 +3340,8 @@ Solver::idx_type HiGHSMILPSolver::int_par_str2idx(
 {
  // intCutSepPar is now handled by MILPSolver::int_par_str2idx()
 
- /* In HiGHSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
+ /* In HiGHSMILPSolver::*_par_str2idx() methods we check with MILPSolver
+    first */
 
  idx_type idx = MILPSolver::int_par_str2idx( name );
  if( idx < Inf< idx_type >() )
@@ -3375,7 +3388,8 @@ const std::string & HiGHSMILPSolver::int_par_idx2str( idx_type idx ) const
 Solver::idx_type HiGHSMILPSolver::dbl_par_str2idx( const std::string & name )
  const
 {
- /* In HiGHSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
+ /* In HiGHSMILPSolver::*_par_str2idx() methods we check with MILPSolver
+    first */
 
  idx_type idx = MILPSolver::dbl_par_str2idx( name );
  if( idx < Inf< idx_type >() )
@@ -3419,7 +3433,8 @@ const std::string & HiGHSMILPSolver::dbl_par_idx2str( idx_type idx ) const
 Solver::idx_type HiGHSMILPSolver::str_par_str2idx( const std::string & name )
  const
 {
- /* In HiGHSMILPSolver::*_par_str2idx() methods we check with MILPSolver first */
+ /* In HiGHSMILPSolver::*_par_str2idx() methods we check with MILPSolver
+    first */
 
  idx_type idx = MILPSolver::str_par_str2idx( name );
  if( idx < Inf< idx_type >() )

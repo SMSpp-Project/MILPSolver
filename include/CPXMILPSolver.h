@@ -246,13 +246,13 @@ class CPXMILPSolver : public MILPSolver {
  //  in the branch-and-bound algorithm for a MIP problem.  
  //  
  /// NOTE: This method should only be called during the callback process  
- //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and in specific situations (e.g., when a new incumbent solution is found,
  //  and you need to identify the node from which it originates).  
  [[nodiscard]] long get_id_node( void ) const override;
 
 /** 
  * Adds multiple MIP starts to a MIP problem. This function allows the solver 
- * to receive multiple sets of starting values by providing vectors of variable 
+ * to receive multiple sets of starting values by providing vectors of variable
  * indices and corresponding values for each start.
  * 
  * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
@@ -782,7 +782,8 @@ class CPXMILPSolver : public MILPSolver {
  /** pointer used to keep track of the current context of the callback */
  CPXCALLBACKCONTEXTptr current_Cntx;
 
- /** an integer value specifying the context in which the callback is invoked. */
+ /** an integer value specifying the context in which the callback is
+  * invoked. */
  CPXLONG current_Cntx_id;
 
  /** double storing the timestamp when optimization begins. */
@@ -834,12 +835,13 @@ class CPXMILPSolver : public MILPSolver {
  // function to retrieve actual idx of variable considering auxiliary ones
  int cpx_index_of_variable( const ColVariable * var ) const;
 
- // function to retrieve actual idx of dynamic variable considering auxiliary ones
+ // function to retrieve actual idx of dynamic variable considering
+ // auxiliary ones
  int cpx_index_of_dynamic_variable( const ColVariable * var ) const;
 
- // function to retrieve actual idx of constraint. In CPLEX indices of linear and
- // quadratic constraint are disjoint, so we need to retrieve the actual index 
- // based on the type of constraint.
+ // function to retrieve actual idx of constraint. In CPLEX indices of
+ // linear and quadratic constraint are disjoint, so we need to retrieve
+ // the actual index based on the type of constraint.
  int cpx_index_of_linear_constraint( const FRowConstraint * con ) const;
  
  /** @name Handling of CPLEX parameters

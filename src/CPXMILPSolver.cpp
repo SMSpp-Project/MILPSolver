@@ -229,7 +229,8 @@ void CPXMILPSolver::load_problem( void )
  bool is_qcp = ( numquadrows > 0 );
 
  if( ! is_qcp ) {
-  // In the LP configuration we can simply add all the linear constraints together.
+  // In the LP configuration we can simply add all the linear constraints
+  // together.
   #if CPXMILPSOLVER_CHECK
     status = CPXcheckcopylp( env , lp , numcols , numrows , objsense ,
 			   objective.data() , cpx_rhs.data() , sense.data() ,
@@ -261,8 +262,9 @@ void CPXMILPSolver::load_problem( void )
  else {
   // In QCP models we add one constraint at time.
 
-  // Initialize vector mapping quadratic rows into auxiliary variables and constraints 
-  // with length equal to the number of rows (used when cons_modification = true).
+  // Initialize vector mapping quadratic rows into auxiliary variables and
+  // constraints with length equal to the number of rows (used when
+  // cons_modification = true).
   cpx_quad_var_aux.resize( numrows , -1 );
   cpx_quad_con_aux.resize( numrows , -1 );
 
@@ -295,7 +297,8 @@ void CPXMILPSolver::load_problem( void )
   int count_quad = 0; // Counter of already inserted quadratic constraint
   int num_qauxvar = 0; // Counter of already inserted auxiliary variables
   for( int i = 0 ; i < numrows ; i++ ) {
-    char * name = use_custom_names ? rowname[ i ] : NULL; // retrieve constraint name
+    // retrieve constraint name
+    char * name = use_custom_names ? rowname[ i ] : NULL;
     
     //if( q_part[ i ].nonZeros() == 0 ) {
     if( q_part[ i ].empty() ) {
@@ -462,7 +465,8 @@ void CPXMILPSolver::load_problem( void )
     * order. For each k, qmatind[ k ] specifies the row number of the
     * corresponding coefficient, qmatval[ k ]. 
     * NOTE: Q must be symmetric when copied to CPLEX. */
-    std::vector< int > qmatbeg;     ///< Beginnings of q objective matrix columns
+    std::vector< int > qmatbeg;     ///< Beginnings of q objective matrix
+                                    ///< columns
     std::vector< int > qmatcnt;     ///< Sizes of q objective matrix columns
     std::vector< int > qmatind;     ///< Indices of rows for each coefficient
     std::vector< double > qmatval;  ///< All nonzero coefficients
@@ -1398,7 +1402,8 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
      if( f_callback_set ) {
       // The callback is set
       if( current_Cntx != nullptr ) {
-        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & lower_bound );
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND ,
+                               & lower_bound );
 
         lower_bound += constant_value;
         break;
@@ -1458,7 +1463,8 @@ Solver::OFValue CPXMILPSolver::get_lb( void )
      if( f_callback_set ) {
       // The callback is set
       if( current_Cntx != nullptr ) {
-        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & lower_bound );
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL ,
+                               & lower_bound );
 
         lower_bound += constant_value;
         break;
@@ -1532,7 +1538,8 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
      if( f_callback_set ) {
       // The callback is set
       if( current_Cntx != nullptr ) {
-        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL , & upper_bound );
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_SOL ,
+                               & upper_bound );
 
         upper_bound += constant_value;
         break;
@@ -1622,7 +1629,8 @@ Solver::OFValue CPXMILPSolver::get_ub( void )
      if( f_callback_set ) {
       // The callback is set
       if( current_Cntx != nullptr ) {
-        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND , & upper_bound );
+        CPXcallbackgetinfodbl( current_Cntx , CPXCALLBACKINFO_BEST_BND ,
+                               & upper_bound );
 
         upper_bound += constant_value;
         break;
@@ -1835,8 +1843,9 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
  // Note that for a quadratic constraint we expect to don't have a dual value
  // with CPXgetpi(). However, this is true only for a quadratic constraint
  // with linear part empty. Otherwise (see CPXMILPSolver.h:631) we also
- // build a linear constraint (for which a dual value is available). In the same
- // case we also create an auxiliary variable that has to be removed from dj.
+ // build a linear constraint (for which a dual value is available). In the
+ // same case we also create an auxiliary variable that has to be removed
+ // from dj.
  int count_pi = 0;
  if( numquadrows == 0 ) {
   // Simple linear model
@@ -1998,7 +2007,8 @@ int CPXMILPSolver::cpx_index_of_variable( const ColVariable * var ) const
 
  /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::cpx_index_of_dynamic_variable( const ColVariable * var ) const
+int CPXMILPSolver::cpx_index_of_dynamic_variable( const ColVariable * var )
+ const
 {
  auto idx = index_of_dynamic_variable( var );
  if( idx == Inf< int >() )
@@ -2025,7 +2035,8 @@ int CPXMILPSolver::cpx_index_of_dynamic_variable( const ColVariable * var ) cons
 
 /*--------------------------------------------------------------------------*/
 
-int CPXMILPSolver::cpx_index_of_linear_constraint( const FRowConstraint * con ) const
+int CPXMILPSolver::cpx_index_of_linear_constraint(
+                                         const FRowConstraint * con ) const
 {
  auto idx = index_of_constraint( con );
  if( idx == Inf< int >() )
@@ -2046,10 +2057,10 @@ int CPXMILPSolver::cpx_index_of_linear_constraint( const FRowConstraint * con ) 
       "with cpx_index_of_linear_constraint() method." ) );
 
   // Simply "jump" quadratic constraints 
-  // NOTE: if the quadratic constraint has a linear part (see CPXMILPSolver.h:631)
-  // we are building also linear constraint. Thus, we will need to "jump"
-  // only quadratic constraint without a linear part, i.e. for which an 
-  // auxiliary variable has not been built.
+  // NOTE: if the quadratic constraint has a linear part (see
+  // CPXMILPSolver.h:631) we are building also linear constraint. Thus, we
+  // will need to "jump" only quadratic constraint without a linear part,
+  // i.e. for which an auxiliary variable has not been built.
   auto new_idx = idx;
   for( int j = 0 ; j < idx ; j++ ) {
     if( is_quad_row( j ) && ( cpx_quad_var_aux[ j ] == -1 ) ) {
@@ -2351,9 +2362,11 @@ bool CPXMILPSolver::add_columns( const std::vector< Variable * > & vars ,
  // not suppress an earlier objective contribution in this CPLEX batch.
  std::fill( cost.begin() , cost.end() , 0.0 );
  for( const auto & submod : gmod->sub_Modifications() ) {
-  auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
+  auto modl =
+   dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
   if( ( ! modl ) ||
-      ( ! dynamic_cast< const Objective * >( modl->function()->get_Observer() ) ) )
+      ( ! dynamic_cast< const Objective * >(
+                                      modl->function()->get_Observer() ) ) )
    continue;
 
   for( Index i = 0 ; i < modl->vars().size() ; ++i ) {
@@ -2857,11 +2870,12 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   auto fqf = ( qf ) ? qf : dqf;
 
   if( auto modlr = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ) {
-   // we exploit the delta() vector of DQuadFunctionModRngd, giving the difference
-   // between the new and the old value of both linear and quadratic coefficient,
-   // to update the objective values without having to recompute them: since they are
-   // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum
+   // we exploit the delta() vector of DQuadFunctionModRngd, giving the
+   // difference between the new and the old value of both linear and
+   // quadratic coefficient, to update the objective values without having
+   // to recompute them: since they are (potentially) a sum of terms,
+   // recomputing them would require fetching back all the terms, while the
+   // delta() can just be applied to the sum
    Subset idxs = fqf->map_index( modlr->vars() , modlr->range() );
    c_Vec_p_Var * vars = & modlr->vars();
    c_v_coeff_pair * delta_coeff = & modlr->delta();
@@ -2914,12 +2928,14 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    CPXchgobj( env , lp , nsz , cidx.data() , nval.data() );
    return;
    }
-  else if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
-   // we exploit the delta() vector of DQuadFunctionModSbst, giving the difference
-   // between the new and the old value of both linear and quadratic coefficient,
-   // to update the objective values without having to recompute them: since they are
-   // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum
+  else if( auto modls =
+            dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
+   // we exploit the delta() vector of DQuadFunctionModSbst, giving the
+   // difference between the new and the old value of both linear and
+   // quadratic coefficient, to update the objective values without having
+   // to recompute them: since they are (potentially) a sum of terms,
+   // recomputing them would require fetching back all the terms, while the
+   // delta() can just be applied to the sum
    Subset idxs = fqf->map_index( modls->vars() , modls->subset() );
    c_Vec_p_Var * vars = & modls->vars();
    c_v_coeff_pair * delta_coeff = & modls->delta();
@@ -2973,11 +2989,12 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
   else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
-   // we exploit the delta() vector of QuadFunctionModSbst, giving the difference
-   // between the new and the old value of both linear and quadratic coefficient,
-   // to update the objective values without having to recompute them: since they are
-   // (potentially) a sum of terms, recomputing them would require fetching
-   // back all the terms, while the delta() can just be applied to the sum.
+   // we exploit the delta() vector of QuadFunctionModSbst, giving the
+   // difference between the new and the old value of both linear and
+   // quadratic coefficient, to update the objective values without having
+   // to recompute them: since they are (potentially) a sum of terms,
+   // recomputing them would require fetching back all the terms, while the
+   // delta() can just be applied to the sum.
    // NOTE: in the actual version of QuadFunction, we expect to recieve one 
    // coefficient at time for each Modification.
    Subset idxs = fqf->map_index( modlq->vars() , modlq->subset() );
@@ -2990,8 +3007,10 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
                "expected single coefficient Modification in "
                "QuadFunctionModSbst" ) );
 
-   int idx1 = cpx_index_of_variable( dynamic_cast< ColVariable * >( vars[ 0 ] ) );
-   int idx2 = cpx_index_of_variable( dynamic_cast< ColVariable * >( vars[ 1 ] ) );
+   int idx1 =
+    cpx_index_of_variable( dynamic_cast< ColVariable * >( vars[ 0 ] ) );
+   int idx2 =
+    cpx_index_of_variable( dynamic_cast< ColVariable * >( vars[ 1 ] ) );
 
    // Retrieve old quadratic coefficient
    double oldqval;
@@ -3139,7 +3158,8 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
  for( auto v :  modl->vars() )
   if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
    *(nvit++) = cp[ idx ].second * variable_weight( cp[ idx ].first , con );
-   *(cidxit++) = cpx_index_of_variable( static_cast< const ColVariable * >( v ) );
+   *(cidxit++) =
+    cpx_index_of_variable( static_cast< const ColVariable * >( v ) );
    }
 
  auto nsz = std::distance( nval.begin() , nvit );
@@ -3209,11 +3229,13 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
                "CPXMILPSolver: unexpected linear objective addition" ) );
    delta = & modl->coeff();
    }
-  else if( auto modr = dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+  else if( auto modr =
+            dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
    if( modr->has_linear_delta() )
     delta = & modr->linear_delta();
    }
-  else if( auto mods = dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+  else if( auto mods =
+            dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
    if( mods->has_linear_delta() )
     delta = & mods->linear_delta();
    }
@@ -3280,18 +3302,20 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     return;
   }
 
-  auto modq = dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+  auto modq =
+   dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
     throw( std::invalid_argument(
                "CPXMILPSolver: unexpected type of Objective Function "
                "Modification" ) );
 
-  // we exploit the od_terms() vector of QuadFunctionModVarsAddd, giving the sum
-  // between the new and the old value of the quadratic coefficient, to update 
-  // the objective values without having to recompute them: since they are 
-  // (potentially) a sum of terms, recomputing them would require fetching back 
-  // all the terms, while the coeff() can just be applied to the sum.
+  // we exploit the od_terms() vector of QuadFunctionModVarsAddd, giving the
+  // sum between the new and the old value of the quadratic coefficient, to
+  // update the objective values without having to recompute them: since
+  // they are (potentially) a sum of terms, recomputing them would require
+  // fetching back all the terms, while the coeff() can just be applied to
+  // the sum.
   
   for( auto t : modq->od_terms() ) {
     int loc_idx1 = std::get<0>( t );
@@ -3300,8 +3324,10 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     auto var1 = qf->get_active_var( loc_idx1 );
     auto var2 = qf->get_active_var( loc_idx2 );
 
-    int glob_idx1 = cpx_index_of_variable( dynamic_cast< ColVariable * >( var1 ) );
-    int glob_idx2 = cpx_index_of_variable( dynamic_cast< ColVariable * >( var2 ) );
+    int glob_idx1 =
+     cpx_index_of_variable( dynamic_cast< ColVariable * >( var1 ) );
+    int glob_idx2 =
+     cpx_index_of_variable( dynamic_cast< ColVariable * >( var2 ) );
 
     // Retrieve old quadratic coefficient
     double oldqval;
@@ -3335,7 +3361,8 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     return;
   }
 
-  auto modq = dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+  auto modq =
+   dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
     throw( std::invalid_argument(
@@ -4029,7 +4056,8 @@ int CPXMILPSolver::get_explored_nodes( void ) const
     if( f_callback_set ) {
     // The callback is set
       if( current_Cntx != nullptr ) {
-        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_NODECOUNT , & n_nodes );
+        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_NODECOUNT ,
+                               & n_nodes );
         break;
       }
       else
@@ -4073,7 +4101,8 @@ long CPXMILPSolver::get_left_nodes( void ) const
     if( f_callback_set ) {
     // The callback is set
       if( current_Cntx != nullptr ) {
-        CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODESLEFT , & n_nodes );
+        CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODESLEFT ,
+                                & n_nodes );
         break;
       }
       else
@@ -4117,7 +4146,8 @@ bool CPXMILPSolver::has_feasible_sol( void )
     // The callback is set
       if( current_Cntx != nullptr ) {
         int feasible;
-        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_FEASIBLE , & feasible );
+        CPXcallbackgetinfoint( current_Cntx , CPXCALLBACKINFO_FEASIBLE ,
+                               & feasible );
         feasible_sol = bool( feasible );
         break;
       }
@@ -4170,7 +4200,8 @@ long CPXMILPSolver::get_id_node( void ) const
        case( CPX_CALLBACKCONTEXT_BRANCHING ) :
        case( CPX_CALLBACKCONTEXT_CANDIDATE ) :
         if( current_Cntx != nullptr ) {
-         CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODEUID , & id_node );
+         CPXcallbackgetinfolong( current_Cntx , CPXCALLBACKINFO_NODEUID ,
+                                 & id_node );
          break;
          }
         else
@@ -4179,8 +4210,8 @@ long CPXMILPSolver::get_id_node( void ) const
                     "of callback function" ) );
        
        default:
-        // If the callback is invoked in a situation where there is no current node, 
-        // then the query produces an error.
+        // If the callback is invoked in a situation where there is no
+        // current node, then the query produces an error.
         throw( std::runtime_error(
                    "CPXMILPSolver: could not query current node from "
                    "CPX_CONTEXT "
