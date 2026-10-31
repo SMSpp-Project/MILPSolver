@@ -364,6 +364,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- on Windows, the executables that copy their DLLs next to themselves
+  are linked one at a time (a job pool of Ninja), since two copies of the
+  same DLL into one directory collided (e.g., with the clang++ of MSYS2)
+
 - with the compilers of MinGW (MSYS2) the target asks whoever links it
   for the symbol that forces the module in, as with MSVC and on macOS:
   the linker imports a DLL only for the symbols asked for, so that a
