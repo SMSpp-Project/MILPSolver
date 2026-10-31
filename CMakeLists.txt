@@ -300,12 +300,18 @@ if (BUILD_SHARED_LIBS)
         # for by -u included, even under -dead_strip_dylibs
         target_link_options(${modName} INTERFACE
                 "LINKER:-u,_SMSpp_force_load_${modName}")
+    elseif (MINGW)
+        # the PE linker imports a DLL for the symbols asked for, -u
+        # included
+        target_link_options(${modName} INTERFACE
+                "LINKER:-u,SMSpp_force_load_${modName}")
     endif ()
 endif ()
 
 # Ensure that the executables from /tools are run before adding the /include
-# directory to generate the necessary *_defs.h and *_maps.h files of the correct
-# solver version installed on the system, if they are not already present
+# directory to generate the necessary *_defs.h and *_maps.h files of the
+# correct solver version installed on the system, if they are not already
+# present
 add_dependencies(${modName} generate_headers)
 
 # When adding source files with target_sources(), PRIVATE means that the files
