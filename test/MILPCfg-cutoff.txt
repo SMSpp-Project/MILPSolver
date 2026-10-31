@@ -44,7 +44,7 @@ dblUpCutOff                   1000  # stop at a solution worth at least 1000
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - -  END MILPCfg-cutoff.txt - - - - - - - - - - - - - -

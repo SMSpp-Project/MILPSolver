@@ -47,7 +47,7 @@ dblLwCutOff                -1069.4  # an upper bound of at most -1069.4
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - END LPCfg-cutoff.txt  - - - - - - - - - - - - - -

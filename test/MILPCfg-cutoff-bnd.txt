@@ -47,7 +47,7 @@ dblLwCutOff                   1100  # stop at an upper bound of at most 1100
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - -  END MILPCfg-cutoff-bnd.txt - - - - - - - - - - - - -

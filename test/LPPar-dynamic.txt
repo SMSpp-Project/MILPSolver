@@ -44,7 +44,7 @@ dblRelAcc     1e-08
 
 0  # number of string parameters
 
-# now all the double parameters
+# now all the string parameters
 #strOutputFile bk.lp
 
 0  # number of vector-of-int parameters
@@ -63,9 +63,9 @@ dblRelAcc     1e-08
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
-# end of 1st ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
+# end of 1st ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # 2nd ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -108,11 +108,11 @@ dblRelAcc     1e-08
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
-# end of 2nd ComputeConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
+# end of 2nd ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# end of BlockSolverConfig- - - - - - - - - - - - - - - - - - - - - - - - - -
+# end of BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -157,7 +157,7 @@ dblRelAcc     1e-08
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
 # the ComputeConfig of HiGHSMILPSolver
 
@@ -200,7 +200,8 @@ dblRelAcc     1e-08
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - END LPPar-dynamic.txt - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

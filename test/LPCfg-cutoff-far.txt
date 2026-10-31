@@ -44,7 +44,7 @@ dblLwCutOff                 -1e+30  # never reached
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - END LPCfg-cutoff-far.txt  - - - - - - - - - - - - -

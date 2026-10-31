@@ -23,7 +23,7 @@ HiGHSMILPSolver  # name of Solver, if it is in the build
 4  # number of ComputeConfig in this BlockSolverConfig
 
 # now all the ComputeConfig
-# the ComputeConfig of CPXMILPSolver - - - - - - - - - - - - - - - - - - - - -
+# the ComputeConfig of CPXMILPSolver - - - - - - - - - - - - - - - - - - - -
 
 ComputeConfig # exact type of the ComputeConfig object
 
@@ -63,9 +63,9 @@ CPXPARAM_Preprocessing_Presolve  0  # no presolve
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
-# the ComputeConfig of GRBMILPSolver - - - - - - - - - - - - - - - - - - - - -
+# the ComputeConfig of GRBMILPSolver - - - - - - - - - - - - - - - - - - - -
 
 ComputeConfig # exact type of the ComputeConfig object
 
@@ -105,7 +105,7 @@ Presolve                         0  # no presolve
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
 # the ComputeConfig of MOSEKMILPSolver - - - - - - - - - - - - - - - - - - -
 
@@ -148,7 +148,7 @@ MSK_IPAR_PRESOLVE_USE            0  # no presolve
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
 # the ComputeConfig of HiGHSMILPSolver - - - - - - - - - - - - - - - - - - -
 
@@ -189,7 +189,8 @@ presolve                         off  # no presolve
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - -  END LPPar-ipm.txt  - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

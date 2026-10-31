@@ -44,7 +44,7 @@ dblLwCutOff                  -1000  # stop at a solution worth at most -1000
 # [none]
 
 # pointer to the "extra" Configuration
-* # [none]
+*  # [none]
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - -  END MILPCfg-cutoff-lw.txt  - - - - - - - - - - - - -
