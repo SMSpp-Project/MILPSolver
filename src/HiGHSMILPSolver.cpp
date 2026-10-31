@@ -1214,8 +1214,21 @@ void HiGHSMILPSolver::get_dual_solution( Configuration * solc )
 
 bool HiGHSMILPSolver::has_dual_direction( void )
 {
- int has_dual_ray;
+ HighsInt has_dual_ray;
  Highs_getDualRay( highs , & has_dual_ray , nullptr );
+ // after the interior point method HiGHS proves the infeasibility with no
+ // ray at hand, and computes one only when it is given where to write it,
+ // by solving an LP with the current options: the simplex method is asked
+ // for that solve, the interior point method giving no ray
+ if( ( ! has_dual_ray ) &&
+     ( Highs_getModelStatus( highs ) == kHighsModelStatusInfeasible ) ) {
+  std::vector< double > y( Highs_getNumRow( highs ) , 0 );
+  char solver[ 512 ] = "";
+  Highs_getStringOptionValue( highs , "solver" , solver );
+  Highs_setStringOptionValue( highs , "solver" , "simplex" );
+  Highs_getDualRay( highs , & has_dual_ray , y.data() );
+  Highs_setStringOptionValue( highs , "solver" , solver );
+  }
  return( bool( has_dual_ray ) );
 }
 
@@ -1236,7 +1249,8 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
  //   If it is a <= constraint then y[ i ] <= 0 holds;
  //   If it is a >= constraint then y[ i ] >= 0 holds.
 
- if( Highs_getDualRay( highs , & has_dual_ray , y.data() ) == kHighsStatusError )
+ if( Highs_getDualRay( highs , & has_dual_ray , y.data() ) ==
+     kHighsStatusError )
   throw( std::runtime_error(
              "HiGHSMILPSolver::get_dual_direction: "
              "an error occurred in getting Farkas certificate" ) );
@@ -2924,18 +2938,6 @@ std::string HiGHSMILPSolver::highs_dbl_par_map( idx_type par ) const
 void HiGHSMILPSolver::set_par( idx_type par , int value )
 {
  // intCutSepPar is now handled by MILPSolver base
-
- /* The homogeneous multipliers of a dual direction are not available here:
-  * what this back-end hands out for the columns are the reduced costs of the
-  * iterate it stopped at, which carry the Objective, and there is no way to
-  * ask it for - A' y instead. Silently taking the parameter and going on
-  * would leave a consumer building its cut out of the wrong multipliers with
-  * nothing to tell it so, which is worse than not offering the choice. */
- if( ( par == intHomogeneousDirection ) && value )
-  throw( std::invalid_argument(
-	     "HiGHSMILPSolver::set_par: intHomogeneousDirection is not "
-	     "available, the columns of a dual direction carry the Objective "
-	     "here" ) );
 
  // mirror intLogVerb into MILPSolver::log_verbosity (for the LP cut
  // separation loop logging) before letting HiGHS consume it through the

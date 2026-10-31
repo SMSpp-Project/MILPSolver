@@ -269,11 +269,9 @@ class MILPSolver : public CDASolver
    *
    * get_dual_solution() is not affected either way. The derived classes that
    * compute the multipliers themselves out of the duals honour the parameter
-   * [CPXMILPSolver and GRBMILPSolver]; SCIPMILPSolver asks its back-end for
-   * the Farkas coefficients, which are homogeneous to begin with, so there is
-   * nothing for it to do; HiGHSMILPSolver, whose back-end only hands out the
-   * reduced costs of the iterate it stopped at, refuses the value 1 rather
-   * than take it and go on writing multipliers that carry the Objective. */
+   * [CPXMILPSolver, GRBMILPSolver and HiGHSMILPSolver]; SCIPMILPSolver asks
+   * its back-end for the Farkas coefficients, which are homogeneous to begin
+   * with, so there is nothing for it to do. */
   intHomogeneousDirection ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };

@@ -360,6 +360,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `HiGHSMILPSolver::has_dual_direction()` has HiGHS compute the ray, by the
+  simplex method, when it proved the infeasibility with none at hand (e.g.,
+  after the interior point method), and `HiGHSMILPSolver` accepts
+  `intHomogeneousDirection` 1, whose multipliers `get_dual_direction()`
+  already computed out of the matrix: an infeasible inner problem solved by
+  the interior point method gave no feasibility cut
+
 - `cmake/FindSCIP.cmake` no longer wants in the cache, on Windows, a
   `TBB_DLL` that nothing sets, so that a configure there takes SCIP from the
   cache
