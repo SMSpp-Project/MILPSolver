@@ -154,7 +154,7 @@ find_package(Threads QUIET)
 # Drop the cached paths if one of them does not exist any more, so that
 # they are all searched again from the same place
 set(_cplex_cached CPLEX_INCLUDE_DIR CPLEX_LIBRARY CPLEX_LIBRARY_DEBUG
-        CPLEX_DLL)
+        CPLEX_DLL CPLEX_VERSION)
 foreach (_var ${_cplex_cached})
     foreach (_path ${${_var}})
         if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
@@ -172,6 +172,12 @@ unset(_cplex_cached)
 unset(_cplex_stale)
 unset(_var)
 unset(_path)
+
+# The cached version is the one of the include directory it was read from
+if (NOT "${CPLEX_INCLUDE_DIR}" STREQUAL
+        "${_CPLEX_VERSION_INCLUDE_DIR}")
+    unset(CPLEX_VERSION CACHE)
+endif ()
 
 # Check if already in cache
 if (WIN32)
@@ -287,6 +293,15 @@ if (NOT CPLEX_FOUND)
                 REQUIRED_VARS CPLEX_LIBRARY CPLEX_LIBRARY_DEBUG CPLEX_INCLUDE_DIR
                 VERSION_VAR CPLEX_VERSION)
     endif ()
+endif ()
+
+# A found package keeps its version in the cache, with the include
+# directory it was read from
+if (CPLEX_FOUND)
+    set(CPLEX_VERSION "${CPLEX_VERSION}" CACHE INTERNAL
+            "CPLEX version.")
+    set(_CPLEX_VERSION_INCLUDE_DIR "${CPLEX_INCLUDE_DIR}"
+            CACHE INTERNAL "Include directory of the CPLEX version.")
 endif ()
 
 # ----- Export the target --------------------------------------------------- #

@@ -79,7 +79,7 @@ find_package(Threads QUIET)
 
 # Drop the cached paths if one of them does not exist any more, so that
 # they are all searched again from the same place
-set(_gurobi_cached GUROBI_INCLUDE_DIR GUROBI_LIBRARY GUROBI_DLL)
+set(_gurobi_cached GUROBI_INCLUDE_DIR GUROBI_LIBRARY GUROBI_DLL GUROBI_VERSION)
 foreach (_var ${_gurobi_cached})
     foreach (_path ${${_var}})
         if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
@@ -97,6 +97,12 @@ unset(_gurobi_cached)
 unset(_gurobi_stale)
 unset(_var)
 unset(_path)
+
+# The cached version is the one of the include directory it was read from
+if (NOT "${GUROBI_INCLUDE_DIR}" STREQUAL
+        "${_GUROBI_VERSION_INCLUDE_DIR}")
+    unset(GUROBI_VERSION CACHE)
+endif ()
 
 # Check if already in cache
 if (WIN32)
@@ -240,6 +246,15 @@ if (NOT GUROBI_FOUND)
                          define it specifying your custom location of the `gurobi.lic` file, or move it\
                          to one of the default locations to definitively suppress this warning, i.e.: ${LICENSE_PATHS}")
     endif ()
+endif ()
+
+# A found package keeps its version in the cache, with the include
+# directory it was read from
+if (GUROBI_FOUND)
+    set(GUROBI_VERSION "${GUROBI_VERSION}" CACHE INTERNAL
+            "GUROBI version.")
+    set(_GUROBI_VERSION_INCLUDE_DIR "${GUROBI_INCLUDE_DIR}"
+            CACHE INTERNAL "Include directory of the GUROBI version.")
 endif ()
 
 # ----- Export the target --------------------------------------------------- #

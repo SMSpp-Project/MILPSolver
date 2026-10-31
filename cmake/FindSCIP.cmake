@@ -85,7 +85,7 @@ endif ()
 
 # Drop the cached paths if one of them does not exist any more, so that
 # they are all searched again from the same place
-set(_SCIP_cached SCIP_INCLUDE_DIR SCIP_LIBRARY SCIP_DLL)
+set(_SCIP_cached SCIP_INCLUDE_DIR SCIP_LIBRARY SCIP_DLL SCIP_VERSION)
 foreach (_var ${_SCIP_cached})
     foreach (_path ${${_var}})
         if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
@@ -104,9 +104,15 @@ unset(_SCIP_stale)
 unset(_var)
 unset(_path)
 
+# The cached version is the one of the include directory it was read from
+if (NOT "${SCIP_INCLUDE_DIR}" STREQUAL
+        "${_SCIP_VERSION_INCLUDE_DIR}")
+    unset(SCIP_VERSION CACHE)
+endif ()
+
 # Check if already in cache
 if (WIN32)
-    if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_DLL AND TBB_DLL AND SCIP_VERSION)
+    if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_DLL AND SCIP_VERSION)
         set(SCIP_FOUND TRUE)
     endif ()
 else ()
@@ -173,6 +179,15 @@ if (NOT SCIP_FOUND)
                 REQUIRED_VARS SCIP_LIBRARY SCIP_INCLUDE_DIR
                 VERSION_VAR SCIP_VERSION)
     endif ()
+endif ()
+
+# A found package keeps its version in the cache, with the include
+# directory it was read from
+if (SCIP_FOUND)
+    set(SCIP_VERSION "${SCIP_VERSION}" CACHE INTERNAL
+            "SCIP version.")
+    set(_SCIP_VERSION_INCLUDE_DIR "${SCIP_INCLUDE_DIR}"
+            CACHE INTERNAL "Include directory of the SCIP version.")
 endif ()
 
 # ----- Export the target --------------------------------------------------- #

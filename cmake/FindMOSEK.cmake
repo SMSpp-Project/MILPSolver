@@ -116,7 +116,7 @@ find_package(Threads QUIET)
 
 # Drop the cached paths if one of them does not exist any more, so that
 # they are all searched again from the same place
-set(_mosek_cached MOSEK_INCLUDE_DIR MOSEK_LIBRARY MOSEK_DLL)
+set(_mosek_cached MOSEK_INCLUDE_DIR MOSEK_LIBRARY MOSEK_DLL MOSEK_VERSION)
 foreach (_var ${_mosek_cached})
     foreach (_path ${${_var}})
         if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
@@ -134,6 +134,12 @@ unset(_mosek_cached)
 unset(_mosek_stale)
 unset(_var)
 unset(_path)
+
+# The cached version is the one of the include directory it was read from
+if (NOT "${MOSEK_INCLUDE_DIR}" STREQUAL
+        "${_MOSEK_VERSION_INCLUDE_DIR}")
+    unset(MOSEK_VERSION CACHE)
+endif ()
 
 # Check if already in cache
 if (WIN32)
@@ -259,6 +265,15 @@ if (NOT MOSEK_FOUND)
                          mosek.lic is put in the mosek directory of your home\
                          or MOSEKLM_LICENSE_FILE points to it.")
     endif ()
+endif ()
+
+# A found package keeps its version in the cache, with the include
+# directory it was read from
+if (MOSEK_FOUND)
+    set(MOSEK_VERSION "${MOSEK_VERSION}" CACHE INTERNAL
+            "MOSEK version.")
+    set(_MOSEK_VERSION_INCLUDE_DIR "${MOSEK_INCLUDE_DIR}"
+            CACHE INTERNAL "Include directory of the MOSEK version.")
 endif ()
 
 # ----- Export the target --------------------------------------------------- #

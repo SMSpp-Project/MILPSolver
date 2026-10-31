@@ -41,7 +41,7 @@ find_package(ZLIB REQUIRED QUIET)
 # Drop the cached paths if one of them does not exist any more, so that
 # they are all searched again from the same place
 set(_HiGHS_cached HiGHS_INCLUDE_DIR HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG
-        HiGHS_DLL HiGHS_DLL_DEBUG HiGHS_EXTRAS_LIBRARY)
+        HiGHS_DLL HiGHS_DLL_DEBUG HiGHS_EXTRAS_LIBRARY HiGHS_VERSION)
 foreach (_var ${_HiGHS_cached})
     foreach (_path ${${_var}})
         if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
@@ -59,6 +59,12 @@ unset(_HiGHS_cached)
 unset(_HiGHS_stale)
 unset(_var)
 unset(_path)
+
+# The cached version is the one of the include directory it was read from
+if (NOT "${HiGHS_INCLUDE_DIR}" STREQUAL
+        "${_HiGHS_VERSION_INCLUDE_DIR}")
+    unset(HiGHS_VERSION CACHE)
+endif ()
 
 # Check if already in cache
 if (WIN32)
@@ -179,6 +185,15 @@ if (NOT HiGHS_FOUND)
                 REQUIRED_VARS HiGHS_LIBRARY HiGHS_INCLUDE_DIR
                 VERSION_VAR HiGHS_VERSION)
     endif ()
+endif ()
+
+# A found package keeps its version in the cache, with the include
+# directory it was read from
+if (HiGHS_FOUND)
+    set(HiGHS_VERSION "${HiGHS_VERSION}" CACHE INTERNAL
+            "HiGHS version.")
+    set(_HiGHS_VERSION_INCLUDE_DIR "${HiGHS_INCLUDE_DIR}"
+            CACHE INTERNAL "Include directory of the HiGHS version.")
 endif ()
 
 # ----- Export the target --------------------------------------------------- #

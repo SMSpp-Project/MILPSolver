@@ -360,6 +360,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `cmake/FindSCIP.cmake` no longer wants in the cache, on Windows, a
+  `TBB_DLL` that nothing sets, so that a configure there takes SCIP from the
+  cache
+
+- `cmake/FindCPLEX.cmake`, `cmake/FindGUROBI.cmake`, `cmake/FindMOSEK.cmake`,
+  `cmake/FindHiGHS.cmake` and `cmake/FindSCIP.cmake` keep the version of a
+  found library in the cache, with the include directory it is read from, and
+  read it again when that directory changes: the check of the cache wanted
+  the version, which was not cached, so that every configure searched the
+  library again
+
 - the find modules drop the cached paths of a library when one of them does
   not exist any more (e.g., in a build directory configured once outside and
   once inside a container, or after an upgrade), so that all of them are
