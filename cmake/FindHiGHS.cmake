@@ -38,6 +38,28 @@ find_package(Threads QUIET)
 
 find_package(ZLIB REQUIRED QUIET)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_HiGHS_cached HiGHS_INCLUDE_DIR HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG
+        HiGHS_DLL HiGHS_DLL_DEBUG HiGHS_EXTRAS_LIBRARY)
+foreach (_var ${_HiGHS_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_HiGHS_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_HiGHS_stale)
+    message(STATUS "Cached HiGHS paths not found, searching again")
+    foreach (_var ${_HiGHS_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_HiGHS_cached)
+unset(_HiGHS_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (WIN32)
     if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG

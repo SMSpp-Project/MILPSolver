@@ -32,6 +32,27 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_DAQP_cached DAQP_INCLUDE_DIR DAQP_LIBRARY DAQP_DLL)
+foreach (_var ${_DAQP_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_DAQP_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_DAQP_stale)
+    message(STATUS "Cached DAQP paths not found, searching again")
+    foreach (_var ${_DAQP_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_DAQP_cached)
+unset(_DAQP_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (DAQP_INCLUDE_DIR AND DAQP_LIBRARY)
     set(DAQP_FOUND TRUE)

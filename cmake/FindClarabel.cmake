@@ -37,6 +37,27 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_Clarabel_cached Clarabel_INCLUDE_DIR Clarabel_LIBRARY Clarabel_DLL)
+foreach (_var ${_Clarabel_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_Clarabel_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_Clarabel_stale)
+    message(STATUS "Cached Clarabel paths not found, searching again")
+    foreach (_var ${_Clarabel_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_Clarabel_cached)
+unset(_Clarabel_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (Clarabel_INCLUDE_DIR AND Clarabel_LIBRARY)
     set(Clarabel_FOUND TRUE)

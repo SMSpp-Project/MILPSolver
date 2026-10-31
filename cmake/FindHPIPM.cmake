@@ -34,6 +34,28 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_HPIPM_cached HPIPM_INCLUDE_DIR HPIPM_LIBRARY BLASFEO_INCLUDE_DIR
+        BLASFEO_LIBRARY)
+foreach (_var ${_HPIPM_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_HPIPM_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_HPIPM_stale)
+    message(STATUS "Cached HPIPM paths not found, searching again")
+    foreach (_var ${_HPIPM_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_HPIPM_cached)
+unset(_HPIPM_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (HPIPM_INCLUDE_DIR AND HPIPM_LIBRARY AND BLASFEO_INCLUDE_DIR AND
     BLASFEO_LIBRARY)

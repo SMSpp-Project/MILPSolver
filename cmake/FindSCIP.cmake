@@ -83,6 +83,27 @@ if (UNIX)
     find_package(TBB QUIET)
 endif ()
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_SCIP_cached SCIP_INCLUDE_DIR SCIP_LIBRARY SCIP_DLL)
+foreach (_var ${_SCIP_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_SCIP_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_SCIP_stale)
+    message(STATUS "Cached SCIP paths not found, searching again")
+    foreach (_var ${_SCIP_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_SCIP_cached)
+unset(_SCIP_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (WIN32)
     if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_DLL AND TBB_DLL AND SCIP_VERSION)

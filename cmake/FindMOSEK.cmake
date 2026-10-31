@@ -114,6 +114,27 @@ endif ()
 # https://cmake.org/cmake/help/latest/module/FindThreads.html
 find_package(Threads QUIET)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_mosek_cached MOSEK_INCLUDE_DIR MOSEK_LIBRARY MOSEK_DLL)
+foreach (_var ${_mosek_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_mosek_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_mosek_stale)
+    message(STATUS "Cached MOSEK paths not found, searching again")
+    foreach (_var ${_mosek_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_mosek_cached)
+unset(_mosek_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (WIN32)
     if (MOSEK_INCLUDE_DIR AND MOSEK_LIBRARY AND MOSEK_DLL AND MOSEK_VERSION)
@@ -130,6 +151,8 @@ if (NOT MOSEK_FOUND)
     set(MOSEK_DIR ${MOSEK_VERSION_DIR}/tools/platform/${MOSEK_PLATFORM})
 
     # ----- Find the MOSEK include directory -------------------------------- #
+    # The library is taken from MOSEK_DIR, hence so is the include directory
+    unset(MOSEK_INCLUDE_DIR CACHE)
     find_path(MOSEK_INCLUDE_DIR
             NAMES mosek.h
             PATHS ${MOSEK_DIR}/h

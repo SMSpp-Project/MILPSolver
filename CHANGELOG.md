@@ -360,6 +360,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the find modules drop the cached paths of a library when one of them does
+  not exist any more (e.g., in a build directory configured once outside and
+  once inside a container, or after an upgrade), so that all of them are
+  searched again; the stale include directory was kept, since `find_path()`
+  does not search a cached one again, and the configuration stopped on
+  reading the version from a header that is not there (`FindMOSEK.cmake`,
+  `FindCPLEX.cmake`) or went on with a library that is not there [see
+  `cmake/Find*.cmake`]
+
+- `FindMOSEK.cmake` and `FindGUROBI.cmake` (`FindCPLEX.cmake` on Windows)
+  search the include directory again whenever they take the library from the
+  directory of the version they find, so that include directory and library
+  come from the same version (a build directory with `MOSEK_INCLUDE_DIR` in
+  `/opt/mosek/11.0` got the library of `/opt/mosek/12.0`)
+
 - a change of the weight of the Objective of a Block below which an
   Objective is quadratic (say, the copies of a `ThermalUnitBlock`, whose
   Objective is a `DQuadFunction` also with no quadratic coefficient) no

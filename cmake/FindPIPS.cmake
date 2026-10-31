@@ -51,6 +51,38 @@ find_package(BLAS QUIET)
 find_package(LAPACK QUIET)
 find_package(Threads QUIET)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again, together with the cached directories that do
+# not exist any more, so that they are derived again from the source tree
+set(_PIPS_cached PIPS_SOURCE_ROOT PIPS_LIBRARY PIPS_MUMPS_SOLVER_LIBRARY
+        PIPS_PARDISO_SOLVER_LIBRARY PIPS_PARDISO_ABSTRACT_LIBRARY
+        PIPS_MA57_LIBRARY PIPS_METIS_ADAPTER_LIBRARY PIPS_MUMPS_D_LIBRARY
+        PIPS_MUMPS_COMMON_LIBRARY PIPS_PORD_LIBRARY PIPS_PARDISO_LIBRARY
+        PIPS_METIS_LIBRARY PIPS_MPI_MPIFH_LIBRARY PIPS_GFORTRAN_LIBRARY)
+foreach (_var ${_PIPS_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_PIPS_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_PIPS_stale)
+    message(STATUS "Cached PIPS-IPM++ paths not found, searching again")
+    foreach (_var ${_PIPS_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+    foreach (_var PIPS_BUILD_DIR PIPS_CORE_LIB_DIR
+            PIPS_LINEAR_SOLVERS_LIB_DIR PIPS_PARDISO_DIR)
+        if (IS_ABSOLUTE "${${_var}}" AND NOT EXISTS "${${_var}}")
+            unset(${_var} CACHE)
+        endif ()
+    endforeach ()
+endif ()
+unset(_PIPS_cached)
+unset(_PIPS_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (PIPS_SOURCE_ROOT AND PIPS_LIBRARY)
     set(PIPS_FOUND TRUE)

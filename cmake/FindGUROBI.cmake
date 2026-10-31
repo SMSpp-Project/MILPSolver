@@ -77,6 +77,27 @@ endforeach ()
 # https://cmake.org/cmake/help/latest/module/FindThreads.html
 find_package(Threads QUIET)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_gurobi_cached GUROBI_INCLUDE_DIR GUROBI_LIBRARY GUROBI_DLL)
+foreach (_var ${_gurobi_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_gurobi_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_gurobi_stale)
+    message(STATUS "Cached GUROBI paths not found, searching again")
+    foreach (_var ${_gurobi_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_gurobi_cached)
+unset(_gurobi_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (WIN32)
     if (GUROBI_INCLUDE_DIR AND GUROBI_LIBRARY AND GUROBI_DLL AND GUROBI_VERSION)
@@ -105,6 +126,8 @@ if (NOT GUROBI_FOUND)
     endif ()
 
     # ----- Find the GUROBI include directory ------------------------------- #
+    # The library is taken from GUROBI_DIR, hence so is the include directory
+    unset(GUROBI_INCLUDE_DIR CACHE)
     find_path(GUROBI_INCLUDE_DIR
             NAMES gurobi_c.h
             PATHS ${GUROBI_DIR}/include

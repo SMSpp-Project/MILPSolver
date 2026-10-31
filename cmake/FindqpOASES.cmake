@@ -33,6 +33,27 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_qpOASES_cached qpOASES_INCLUDE_DIR qpOASES_LIBRARY)
+foreach (_var ${_qpOASES_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_qpOASES_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_qpOASES_stale)
+    message(STATUS "Cached qpOASES paths not found, searching again")
+    foreach (_var ${_qpOASES_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_qpOASES_cached)
+unset(_qpOASES_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (qpOASES_INCLUDE_DIR AND qpOASES_LIBRARY)
     set(qpOASES_FOUND TRUE)

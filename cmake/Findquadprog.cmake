@@ -30,6 +30,27 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_quadprog_cached quadprog_LIBRARY)
+foreach (_var ${_quadprog_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_quadprog_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_quadprog_stale)
+    message(STATUS "Cached quadprog paths not found, searching again")
+    foreach (_var ${_quadprog_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_quadprog_cached)
+unset(_quadprog_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (quadprog_LIBRARY)
     set(quadprog_FOUND TRUE)
