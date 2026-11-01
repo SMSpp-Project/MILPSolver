@@ -370,6 +370,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- with MOSEK, CMake no longer warns, for every target that links MILPSolver,
+  that the libtbb that MOSEK keeps next to its library hides the one of the
+  system (e.g., of SCIP): MOSEK is linked from a directory of the build tree
+  that holds only links to libmosek64, which finds a libtbb by itself, and
+  the installed library finds MOSEK in its directory
+
 - `FindHiGHS.cmake` finds HiGHS with the compilers of MinGW (MSYS2) as on
   Unix, by its import library, instead of asking for the DLL as for MSVC:
   HiGHS was not found there, and MILPSolver was built without it

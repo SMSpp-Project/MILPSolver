@@ -398,6 +398,12 @@ if (MILPSolver_USE_MOSEK)
     message(STATUS "MILPSolver: MOSEK found, configuring MOSEKMILPSolver")
     target_sources(${modName} PRIVATE src/MOSEKMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC MOSEK::MOSEK)
+    # the installed library finds libmosek64 in the directory of MOSEK, which
+    # is not in the link path of the build [see FindMOSEK.cmake]
+    if (MOSEK_RUNTIME_DIR)
+        set_property(TARGET ${modName} APPEND PROPERTY
+                INSTALL_RPATH "${MOSEK_RUNTIME_DIR}")
+    endif ()
 endif ()
 
 if (MILPSolver_USE_ProxQP)

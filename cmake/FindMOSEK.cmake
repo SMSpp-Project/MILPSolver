@@ -13,6 +13,8 @@
 #        MOSEK_INCLUDE_DIRS  - Include directories                            #
 #        MOSEK_LIBRARIES     - Libraries to be linked                         #
 #        MOSEK_DLL           - The found runtime DLL (Windows only)           #
+#        MOSEK_RUNTIME_DIR   - The directory of the library (not Windows),    #
+#                              for the run path of an installed target        #
 #        MOSEK_VERSION       - Version number                                 #
 #                                                                             #
 #    This module reads hints about search locations from variables:           #
@@ -291,12 +293,37 @@ if (MOSEK_FOUND)
                     INTERFACE_INCLUDE_DIRECTORIES "${MOSEK_INCLUDE_DIRS}"
                     INTERFACE_LINK_LIBRARIES "${MOSEK_LIBRARIES}")
         else ()
+            # MOSEK keeps next to its library its own libtbb, older than the
+            # one of the system that other packages (e.g., SCIP) link: with
+            # the directory of MOSEK in the run path of a program, its libtbb
+            # would be the one loaded for all of them, which CMake warns of
+            # for every target. The library is taken from a directory of the
+            # build tree that holds only links to it, and libmosek64 finds a
+            # libtbb by itself, through its own RPATH ($ORIGIN), if none is
+            # loaded already [see MOSEK_RUNTIME_DIR for the installation]
+            get_filename_component(_mosek_real "${MOSEK_LIBRARY}" REALPATH)
+            get_filename_component(MOSEK_RUNTIME_DIR "${_mosek_real}"
+                    DIRECTORY)
+            set(_mosek_links "${CMAKE_BINARY_DIR}/mosek-lib")
+            file(MAKE_DIRECTORY "${_mosek_links}")
+            file(GLOB _mosek_libs "${MOSEK_RUNTIME_DIR}/libmosek64*")
+            foreach (_mosek_lib ${_mosek_libs})
+                get_filename_component(_mosek_name "${_mosek_lib}" NAME)
+                file(CREATE_LINK "${_mosek_lib}"
+                        "${_mosek_links}/${_mosek_name}" SYMBOLIC)
+            endforeach ()
+            get_filename_component(_mosek_name "${MOSEK_LIBRARY}" NAME)
             add_library(MOSEK::MOSEK UNKNOWN IMPORTED)
             set_target_properties(
                     MOSEK::MOSEK PROPERTIES
-                    IMPORTED_LOCATION "${MOSEK_LIBRARY}"
+                    IMPORTED_LOCATION "${_mosek_links}/${_mosek_name}"
                     INTERFACE_INCLUDE_DIRECTORIES "${MOSEK_INCLUDE_DIRS}"
                     INTERFACE_LINK_LIBRARIES "${MOSEK_LIBRARIES}")
+            unset(_mosek_real)
+            unset(_mosek_links)
+            unset(_mosek_libs)
+            unset(_mosek_lib)
+            unset(_mosek_name)
         endif ()
     endif ()
 endif ()
