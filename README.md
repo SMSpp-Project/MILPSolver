@@ -213,8 +213,8 @@ SMS++ lists. What follows is about building it yourself.
   [quadprog](https://github.com/quadprog/quadprog), which has no library of
   its own: its three C sources (`solve.QP.c`, `linear-algebra.c`,
   `qr-update.c`) are compiled into `libquadprog` in `quadprog_ROOT/lib`,
-  exporting only `qpgen2_`, as `INSTALL.sh --with-quadprog` of the umbrella
-  does
+  exporting only `qpgen2_`, as `INSTALL.sh` of the umbrella does (unless
+  `--without-quadprog`)
 
 - for `HPIPMMILPSolver` you will need [HPIPM](https://github.com/giaf/hpipm)
   0.1.2 or later and [BLASFEO](https://github.com/giaf/blasfeo), installed
