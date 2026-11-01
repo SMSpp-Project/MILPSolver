@@ -1090,6 +1090,19 @@ int GRBMILPSolver::guts_of_compute( void )
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
   }
 
+ // a simplex started from the basis of the previous solve may stop on
+ // numerical troubles that a solve from scratch does not meet, e.g., on a
+ // master of a cutting-plane method with a few hundred cuts: one more try
+ // with no basis
+ if( m_status == GRB_NUMERIC ) {
+  GRBreset( model , 0 );
+  if( int status = optimize( updated_model() ) ) {
+   sol_status = decode_grb_error( status );
+   return( sol_status );
+   }
+  sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+  }
+
  sol_status = decode_model_status( m_status );
 
  // the status is decided by a solve that leaves INFUNBDINFO alone, since

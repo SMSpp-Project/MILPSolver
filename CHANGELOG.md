@@ -370,6 +370,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` solves a continuous model once more from scratch, with no
+  basis, when Gurobi stops on numerical troubles (status `NUMERIC`), which
+  the simplex warm-started from the basis of the previous solve can meet
+  where a solve from scratch does not, e.g., on the master of the
+  `BendersDecompositionSolver` of a hierarchy with stages of `HQPBlock`
+
 - with MOSEK, CMake no longer warns, for every target that links MILPSolver,
   that the libtbb that MOSEK keeps next to its library hides the one of the
   system (e.g., of SCIP): MOSEK is linked from a directory of the build tree
