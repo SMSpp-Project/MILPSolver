@@ -370,6 +370,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `FindHiGHS.cmake` finds HiGHS with the compilers of MinGW (MSYS2) as on
+  Unix, by its import library, instead of asking for the DLL as for MSVC:
+  HiGHS was not found there, and MILPSolver was built without it
+
 - `test_farkas` reads its :MILPSolver and their parameters from
   `LPPar-farkas.txt` and `QPPar-farkas.txt` instead of setting them in its
   code, HiGHS being there with the simplex method and with the interior point
