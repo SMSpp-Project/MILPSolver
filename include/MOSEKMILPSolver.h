@@ -108,8 +108,12 @@ namespace SMSpp_di_unipi_it {
  * MSK_IPAR_OPTIMIZER or MSK_DPAR_INTPNT_TOL_REL_GAP) as the names of the
  * int, double and string parameters of SMS++: they are listed by a tool
  * of MILPSolver/tools out of the version of MOSEK being compiled against
- * [see set_par( idx_type , int )]. The parameters of Solver that MOSEK
- * has a counterpart of are mapped onto it:
+ * [see set_par( idx_type , int )]. Each int parameter of MOSEK is also a
+ * string parameter of the same name, whose value is the symbolic one of
+ * MOSEK (say, MSK_OPTIMIZER_DUAL_SIMPLEX for MSK_IPAR_OPTIMIZER), so that a
+ * configuration need not know the numbers, which change from a version of
+ * MOSEK to the next. The parameters of Solver that MOSEK has a counterpart
+ * of are mapped onto it:
  *
  * - intMaxIter    = MSK_IPAR_MIO_MAX_NUM_BRANCHES
  * - intMaxSol     = MSK_IPAR_MIO_MAX_NUM_SOLUTIONS
@@ -165,8 +169,10 @@ class MOSEKMILPSolver : public MILPSolver {
  enum str_par_type_MOSEKS {
   /// first MOSEK string parameter
   strFirstMOSEKPar = strLastAlgParMILP ,
+  /// the symbolic value of the first MOSEK int parameter, by its name
+  strFirstMOSEKSymPar = strFirstMOSEKPar + MOSEK_NUM_STR_PARS ,
   /// first allowed new string parameter for derived classes
-  strLastAlgParMOSEKS = strFirstMOSEKPar + MOSEK_NUM_STR_PARS
+  strLastAlgParMOSEKS = strFirstMOSEKSymPar + MOSEK_NUM_INT_PARS
   };
 
 /*--------------------------------------------------------------------------*/

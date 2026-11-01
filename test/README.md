@@ -20,6 +20,15 @@ Three testers for the `MILPSolver` module, each registered as a separate
   respects the convention established by `RowConstraint`. The solver is
   configured by `LPPar-dual.txt`.
 
+- `test_farkas` verifies that the certificate of infeasibility of each
+  `:MILPSolver` of `LPPar-farkas.txt` that the build has, with the
+  parameters given there (HiGHS with the simplex method and with the
+  interior point method, both of which have to give one), has on each row
+  the sign of the optimal dual of the same row, has a positive value on a
+  program with two-sided rows and bounds, and, with the homogeneous
+  multipliers, does not depend on the Objective; and that the ray of an
+  unbounded convex QP is a ray, with the parameters of `QPPar-farkas.txt`.
+
 - `test_dynamic` provides comprehensive tests for any `CDASolver` able to
   handle Linear Programs: it builds a random LP in an `AbstractBlock`, solves
   it with two attached solvers, then repeatedly modifies the LP (rows,

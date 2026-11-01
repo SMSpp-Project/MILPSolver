@@ -2228,7 +2228,17 @@ void MOSEKMILPSolver::set_par( idx_type par , std::string && value )
   return;
   }
 
- if( ( par >= strFirstMOSEKPar ) && ( par < strLastAlgParMOSEKS ) ) {
+ if( ( par >= strFirstMOSEKSymPar ) && ( par < strLastAlgParMOSEKS ) ) {
+  const auto & name = SMSpp_to_MOSEK_int_pars[ par - strFirstMOSEKSymPar ];
+  auto r = MSK_putparam( task , name.c_str() , value.c_str() );
+  if( r != MSK_RES_OK )
+   throw( std::invalid_argument( "MOSEKMILPSolver::set_par: " + name +
+				 " = " + value + " refused with " +
+				 code_text( r ) ) );
+  return;
+  }
+
+ if( ( par >= strFirstMOSEKPar ) && ( par < strFirstMOSEKSymPar ) ) {
   const auto & name = SMSpp_to_MOSEK_str_pars[ par - strFirstMOSEKPar ];
   auto r = MSK_putnastrparam( task , name.c_str() , value.c_str() );
   if( r != MSK_RES_OK )
@@ -2280,6 +2290,29 @@ static MSKtask_t default_task( MSKenv_t env )
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
+// the value of the MOSEK int parameter name in the task t, as its symbolic
+// name if it has one, or else as the number; empty if it cannot be read
+
+static std::string int_par_symbol( MSKenv_t env , MSKtask_t t ,
+                                   const std::string & name )
+{
+ MSKint32t value = 0;
+ if( ( ! t ) ||
+     ( MSK_getnaintparam( t , name.c_str() , & value ) != MSK_RES_OK ) )
+  return( "" );
+ MSKparametertypee type;
+ MSKint32t which = 0;
+ std::array< char , MSK_MAX_STR_LEN > buf = {};
+ if( ( MSK_whichparam( t , name.c_str() , & type , & which ) ==
+       MSK_RES_OK ) && ( type == MSK_PAR_INT_TYPE ) &&
+     ( MSK_iparvaltosymnam( env , MSKiparame( which ) , value ,
+                            buf.data() ) == MSK_RES_OK ) && buf[ 0 ] )
+  return( buf.data() );
+ return( std::to_string( value ) );
+ }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
 int MOSEKMILPSolver::get_dflt_int_par( idx_type par ) const
 {
  if( par == intLogVerb )
@@ -2323,7 +2356,13 @@ const std::string & MOSEKMILPSolver::get_dflt_str_par( idx_type par ) const
 {
  static thread_local std::string value;
 
- if( ( par >= strFirstMOSEKPar ) && ( par < strLastAlgParMOSEKS ) ) {
+ if( ( par >= strFirstMOSEKSymPar ) && ( par < strLastAlgParMOSEKS ) ) {
+  value = int_par_symbol( env , default_task( env ) , SMSpp_to_MOSEK_int_pars[
+                                            par - strFirstMOSEKSymPar ] );
+  return( value );
+  }
+
+ if( ( par >= strFirstMOSEKPar ) && ( par < strFirstMOSEKSymPar ) ) {
   value.clear();
   if( auto dt = default_task( env ) ) {
    std::array< char , MSK_MAX_STR_LEN > buf = {};
@@ -2388,7 +2427,13 @@ const std::string & MOSEKMILPSolver::get_str_par( idx_type par ) const
  if( par == strLogFileName )
   return( f_log_file );
 
- if( ( par >= strFirstMOSEKPar ) && ( par < strLastAlgParMOSEKS ) ) {
+ if( ( par >= strFirstMOSEKSymPar ) && ( par < strLastAlgParMOSEKS ) ) {
+  value = int_par_symbol( env , task , SMSpp_to_MOSEK_int_pars[
+                                            par - strFirstMOSEKSymPar ] );
+  return( value );
+  }
+
+ if( ( par >= strFirstMOSEKPar ) && ( par < strFirstMOSEKSymPar ) ) {
   std::array< char , MSK_MAX_STR_LEN > buf = {};
   MSKint32t len = 0;
   value.clear();
@@ -2473,6 +2518,13 @@ Solver::idx_type MOSEKMILPSolver::str_par_str2idx(
   return( MOSEK_to_SMSpp_str_pars[ std::distance(
                              SMSpp_to_MOSEK_str_pars.begin() , it ) ].second );
 
+ // an int parameter of MOSEK by its name, given its symbolic value
+ auto iit = std::find( SMSpp_to_MOSEK_int_pars.begin() ,
+		       SMSpp_to_MOSEK_int_pars.end() , name );
+ if( iit != SMSpp_to_MOSEK_int_pars.end() )
+  return( strFirstMOSEKSymPar + idx_type( std::distance(
+                                   SMSpp_to_MOSEK_int_pars.begin() , iit ) ) );
+
  return( Inf< idx_type >() );
  }
 
@@ -2480,7 +2532,10 @@ Solver::idx_type MOSEKMILPSolver::str_par_str2idx(
 
 const std::string & MOSEKMILPSolver::str_par_idx2str( idx_type idx ) const
 {
- if( ( idx >= strFirstMOSEKPar ) && ( idx < strLastAlgParMOSEKS ) )
+ if( ( idx >= strFirstMOSEKSymPar ) && ( idx < strLastAlgParMOSEKS ) )
+  return( SMSpp_to_MOSEK_int_pars[ idx - strFirstMOSEKSymPar ] );
+
+ if( ( idx >= strFirstMOSEKPar ) && ( idx < strFirstMOSEKSymPar ) )
   return( SMSpp_to_MOSEK_str_pars[ idx - strFirstMOSEKPar ] );
 
  return( MILPSolver::str_par_idx2str( idx ) );

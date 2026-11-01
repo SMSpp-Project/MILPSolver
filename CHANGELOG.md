@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- each int parameter of MOSEK is also a string parameter of
+  `MOSEKMILPSolver` of the same name, whose value is the symbolic one of
+  MOSEK (e.g., `MSK_IPAR_OPTIMIZER` `MSK_OPTIMIZER_DUAL_SIMPLEX`), so that a
+  configuration need not know the numbers, which change from a version of
+  MOSEK to the next
+
 - the weight of the `Objective` of the `Block` [see
   `Block::set_objective_weight()`]: the `Objective` of each `Block` of the
   tree enters the problem multiplied by the product of the weights along
@@ -363,6 +369,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than returning a solution that is not there
 
 ### Fixed
+
+- `test_farkas` reads its :MILPSolver and their parameters from
+  `LPPar-farkas.txt` and `QPPar-farkas.txt` instead of setting them in its
+  code, HiGHS being there with the simplex method and with the interior point
+  method, with both of which it has to give a certificate; `LPPar-ipm.txt`
+  gives the interior point of MOSEK by its name, its number in MOSEK 12 being
+  the new dual simplex in MOSEK 11
 
 - on Windows, the executables that copy their DLLs next to themselves
   are linked one at a time (a job pool of Ninja), since two copies of the

@@ -114,12 +114,10 @@ ComputeConfig # exact type of the ComputeConfig object
 1  # f_diff == 0 ==> all non-provided parameters are set to the default value
    # f_diff == 1 ==> all non-provided parameters are not changed
 
-3  # number of integer parameters
+2  # number of integer parameters
 
 # now all the integer parameters
 intLogVerb                       0
-MSK_IPAR_OPTIMIZER               6  # the interior point of MOSEK 12 (4
-                                    # in MOSEK 10 and 11)
 MSK_IPAR_PRESOLVE_USE            0  # no presolve
 
 0  # number of double parameters
@@ -127,10 +125,10 @@ MSK_IPAR_PRESOLVE_USE            0  # no presolve
 # now all the double parameters
 # [none]
 
-0  # number of string parameters
+1  # number of string parameters
 
 # now all the string parameters
-# [none]
+MSK_IPAR_OPTIMIZER  MSK_OPTIMIZER_INTPNT  # the interior point, by its name
 
 0  # number of vector-of-int parameters
 

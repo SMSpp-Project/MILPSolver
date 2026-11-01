@@ -18,14 +18,15 @@
  * This is what is checked here, on a linear program small enough that its
  * certificate is unique up to a positive factor. The same rows are given
  * twice, once with a right-hand side that makes the program feasible and once
- * with one that makes it infeasible; every registered :MILPSolver is asked
- * for the optimal duals of the former and for the certificate of the latter,
- * and the two must have the same sign on the same row. The check thus needs
- * to know no solver's convention, only that a solver keeps one.
+ * with one that makes it infeasible; every :MILPSolver of LPPar-farkas.txt
+ * that is in the build is asked, with the parameters given there, for the
+ * optimal duals of the former and for the certificate of the latter, and the
+ * two must have the same sign on the same row. The check thus needs to know
+ * no solver's convention, only that a solver keeps one.
  *
  * The program is
  *
- *     min  x + y  s.t.  2x +  y >= 3 ,  x + 2y >= 3 ,  x + y <= u ,  x , y >= 0
+ *     min  x + y  s.t.  2x + y >= 3 ,  x + 2y >= 3 ,  x + y <= u ,  x , y >= 0
  *
  * with u = 3 in the feasible instance, whose optimum is x = y = 1, and u = 7/5
  * in the infeasible one. It is written this way on purpose: a certificate is
@@ -40,7 +41,10 @@
  *
  * The solvers that state they have no certificate to give are reported and
  * skipped, that being a legitimate answer: the infeasibility may have been
- * proved by the presolve, with no dual basis to build a ray from.
+ * proved by the presolve, with no dual basis to build a ray from. HiGHS is
+ * the exception, as it computes a certificate whenever it has none at hand:
+ * it is in LPPar-farkas.txt with the simplex method and with the interior
+ * point method, and has to give one with both.
  *
  * Two more properties are checked on a second program, the same one with the
  * third row made two-sided and the two variables given an explicit box, so
@@ -72,9 +76,11 @@
  * one, i.e. H d = 0, c' d < 0 and d in the recession cone of the
  * constraints; a Solver that gives no ray, or that does not tell this QP
  * from a bounded one, is reported and not failed, this being a check of the
- * rays and not of the QP solvers. The :MILPSolver that do not detect the
- * infeasibility of the linear programs above (ProxQPMILPSolver, whose
- * dense backend stops at its iteration limit on them) are only checked on
+ * rays and not of the QP solvers. The parameters for this QP are those of
+ * QPPar-farkas.txt where they differ from those of LPPar-farkas.txt, and the
+ * :MILPSolver there that LPPar-farkas.txt does not have, which do not detect
+ * the infeasibility of the linear programs above (ProxQPMILPSolver, whose
+ * dense backend stops at its iteration limit on them), are only checked on
  * this QP.
  *
  * \author Donato Meoli \n
@@ -90,6 +96,9 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <map>
+#include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include "AbstractBlock.h"
@@ -104,19 +113,9 @@
 
 #include "QuadFunction.h"
 
-#include "MILPSolver.h"
+#include "BlockSolverConfig.h"
 
-// the values of the enumerated parameters of MOSEK change from a version to
-// the other (those of MSK_IPAR_OPTIMIZER did in MOSEK 12), so they are taken
-// from the mosek.h of the build when MOSEK is there
-#if __has_include( <mosek.h> )
- #include <mosek.h>
- static constexpr int msk_dual_simplex = MSK_OPTIMIZER_DUAL_SIMPLEX;
- static constexpr int msk_free = MSK_OPTIMIZER_FREE;
-#else
- static constexpr int msk_dual_simplex = 0;  // no MOSEK, never used
- static constexpr int msk_free = 0;
-#endif
+#include "MILPSolver.h"
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- USING -----------------------------------*/
@@ -128,16 +127,20 @@ using namespace SMSpp_di_unipi_it;
 /*----------------------------- CONSTANTS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/// the :MILPSolver to try, each skipped if it is not in the Solver factory
+/// the :MILPSolver of the linear programs, with their parameters, each
+/// skipped if it is not in the Solver factory
 
-static const std::vector< std::string > SolverNames =
- { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" , "SCIPMILPSolver" ,
-   "HiGHSMILPSolver" , "ClarabelMILPSolver" , "OSQPMILPSolver" };
+static const std::string LPConfig = "LPPar-farkas.txt";
 
-/// the :MILPSolver whose ray only is checked, as they do not tell the
-/// infeasible program of the certificates from one they cannot solve
+/// the parameters of the :MILPSolver for the QP where they differ from those
+/// of LPConfig, and the :MILPSolver whose ray only is checked, as they do not
+/// tell the infeasible program of the certificates from one they cannot solve
 
-static const std::vector< std::string > RayNames = { "ProxQPMILPSolver" };
+static const std::string QPConfig = "QPPar-farkas.txt";
+
+/// the :MILPSolver that has to give a certificate with all its parameters
+
+static const std::string Certifying = "HiGHSMILPSolver";
 
 /// a dual value below this in absolute terms is taken to be zero
 
@@ -310,7 +313,7 @@ static AbstractBlock * build_unbounded( std::vector< ColVariable > * & x )
 				       { &(*x)[ 1 ] , -1 , 1 } };
  QuadFunction::v_off_diag_term offdiag = { { 1 , 0 , -2 } };
  auto obj = new FRealObjective( ab , new QuadFunction( std::move( diag ) ,
-						       std::move( offdiag ) ) );
+						     std::move( offdiag ) ) );
  obj->set_sense( Objective::eMin );
  ab->set_objective( obj );
 
@@ -444,6 +447,21 @@ static int sgn( double v )
  }
 
 /*--------------------------------------------------------------------------*/
+/// the BlockSolverConfig in the file fn
+
+static BlockSolverConfig * read_bsc( const std::string & fn )
+{
+ auto c = Configuration::deserialize( fn );
+ auto bsc = dynamic_cast< BlockSolverConfig * >( c );
+ if( ! bsc ) {
+  delete c;
+  throw( std::runtime_error( "test_farkas: " + fn +
+                             " is not a BlockSolverConfig" ) );
+  }
+ return( bsc );
+ }
+
+/*--------------------------------------------------------------------------*/
 /*-------------------------------- MAIN ------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -457,42 +475,33 @@ int main( void )
  int agreed_sign = 0;
  std::string agreed_by;
 
- for( const auto & name : SolverNames ) {
+ std::unique_ptr< BlockSolverConfig > lp( read_bsc( LPConfig ) );
+ std::unique_ptr< BlockSolverConfig > qp( read_bsc( QPConfig ) );
 
-  if( ! Solver::has_Solver( name ) )
+ // the ComputeConfig of the :MILPSolver sname for the QP, if any
+ const auto qp_cfg = [ & ]( const std::string & sname ) -> ComputeConfig * {
+  for( Block::Index j = 0 ; j < qp->num_ComputeConfig() ; ++j )
+   if( qp->get_SolverName( j ) == sname )
+    return( qp->get_SolverConfig( j ) );
+  return( nullptr );
+  };
+
+ std::map< std::string , int > seen;  // how many times each one is there
+
+ for( Block::Index i = 0 ; i < lp->num_ComputeConfig() ; ++i ) {
+  const auto sname = lp->get_SolverName( i );
+  if( ! Solver::has_Solver( sname ) )
    continue;                 // this one is not in the build, nothing to say
-  auto solver = Solver::new_Solver( name );
+  auto solver = Solver::new_Solver( sname );
   any_solver = true;
+  if( auto cfg = lp->get_SolverConfig( i ) )
+   solver->set_ComputeConfig( cfg );
 
-  // silence the solver's own log, and ask for the duals: SCIP does not
-  // compute them unless told to, and refuses to hand them out otherwise
-  solver->set_par( MILPSolver::intLogVerb , 0 );
-
-  // a certificate is a ray of the dual simplex, so it exists only if the
-  // infeasibility is proved by the simplex: on a program this small every
-  // presolve gets there first, and then there is no dual basis to build it
-  // from. Each solver spells the switch its own way, and the ones it does
-  // not know are skipped
-  auto try_int = [ &solver ]( const char * name , int value ) {
-   const auto par = solver->int_par_str2idx( name );
-   if( par < Inf< Solver::idx_type >() )
-    solver->set_par( par , value );
-   };
-  auto try_str = [ &solver ]( const char * name , const char * value ) {
-   const auto par = solver->str_par_str2idx( name );
-   if( par < Inf< Solver::idx_type >() )
-    solver->set_par( par , std::string( value ) );
-   };
-
-  try_int( "intComputeDuals" , 1 );                     // SCIP
-  try_int( "Presolve" , 0 );                            // Gurobi
-  try_int( "InfUnbdInfo" , 1 );                         // Gurobi
-  try_int( "CPXPARAM_Preprocessing_Presolve" , 0 );     // CPLEX
-  try_int( "presolving/maxrounds" , 0 );                // SCIP
-  try_str( "presolve" , "off" );                        // HiGHS
-  try_str( "solver" , "simplex" );                      // HiGHS
-  try_int( "MSK_IPAR_OPTIMIZER" , msk_dual_simplex );   // MOSEK
-  try_int( "MSK_IPAR_PRESOLVE_USE" , 0 );               // MOSEK
+  // a :MILPSolver there twice is told apart by its number
+  const auto k = seen[ sname ]++;
+  const std::string name = k ? sname + "#" + std::to_string( k + 1 )
+                             : sname;
+  const bool must = ( sname == Certifying );
 
   std::cout << std::left << std::setw( 16 ) << name;
 
@@ -555,7 +564,11 @@ int main( void )
     all_passed = false;
     }
 
-   if( ! has )
+   if( ! has && must ) {
+    std::cout << " has no certificate to give -> KO" << std::endl;
+    all_passed = false;
+    }
+   else if( ! has )
     // a legitimate answer: without a dual basis there is no ray to give
     std::cout << " has no certificate to give" << std::endl;
    else {
@@ -637,8 +650,12 @@ int main( void )
   std::vector< double > ray;
   double value = 0;
 
-  if( ! ray_of( 1.0 , ray , value ) )
-   std::cout << " no certificate to give" << std::endl;
+  if( ! ray_of( 1.0 , ray , value ) ) {
+   std::cout << " no certificate to give" << ( must ? " -> KO" : "" )
+             << std::endl;
+   if( must )
+    all_passed = false;
+   }
   else {
    std::cout << " value " << value;
 
@@ -709,20 +726,24 @@ int main( void )
 
   // the unbounded QP: is the ray a ray? - - - - - - - - - - - - - - - - - -
 
-  // the simplex asked for above for the certificates does not solve a QP
-  try_int( "MSK_IPAR_OPTIMIZER" , msk_free );           // MOSEK
+  // the parameters for the certificates may not solve a QP
+  if( auto cfg = qp_cfg( sname ) )
+   solver->set_ComputeConfig( cfg );
 
   all_passed &= check_ray( solver , name );
 
   delete solver;
   }
 
- for( const auto & name : RayNames ) {
-  if( ! Solver::has_Solver( name ) )
+ // the :MILPSolver of the QP alone, whose ray only is checked
+ for( Block::Index j = 0 ; j < qp->num_ComputeConfig() ; ++j ) {
+  const auto & name = qp->get_SolverName( j );
+  if( seen.count( name ) || ( ! Solver::has_Solver( name ) ) )
    continue;
   auto solver = Solver::new_Solver( name );
   any_solver = true;
-  solver->set_par( MILPSolver::intLogVerb , 0 );
+  if( auto cfg = qp->get_SolverConfig( j ) )
+   solver->set_ComputeConfig( cfg );
   all_passed &= check_ray( solver , name );
   delete solver;
   }
