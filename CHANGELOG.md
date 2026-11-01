@@ -370,6 +370,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` no longer passes to GUROBI a null change of a quadratic
+  coefficient of the objective, which came with every change of the linear
+  coefficient of a term of a `DQuadFunction` alone: GUROBI drops the simplex
+  basis whenever the quadratic part is touched, even by a null change, so
+  that the next solve started from scratch instead of re-optimizing from
+  the previous basis
+
 - `GRBMILPSolver` solves a continuous model once more from scratch, with no
   basis, when Gurobi stops on numerical troubles (status `NUMERIC`), which
   the simplex warm-started from the basis of the previous solve can meet

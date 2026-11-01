@@ -113,6 +113,18 @@ int optimize( GRBmodel * model )
   }
  }
 
+/// GRBaddqpterms() on one term, skipped when the change is null
+/** GUROBI drops the simplex basis whenever the quadratic part of the
+ * objective is touched, even by a null change, and the next solve starts
+ * from scratch; a change of the linear coefficients alone keeps it, hence
+ * a null change of a quadratic coefficient is not passed on. */
+
+void add_qp_term( GRBmodel * model , int i , int j , double delta )
+{
+ if( delta != 0 )
+  GRBaddqpterms( model , 1 , & i , & j , & delta );
+ }
+
 }  // end( anonymous namespace )
 
 /*--------------------------------------------------------------------------*/
@@ -2881,7 +2893,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    for( std::size_t i = 0 ; i < nval.size() ; ++i ) {
     nval[ i ] += ldelta[ i ];
-    GRBaddqpterms( model , 1 , & cidxs[ i ] , & cidxs[ i ] , & qdelta[ i ] );
+    add_qp_term( model , cidxs[ i ] , cidxs[ i ] , qdelta[ i ] );
     }
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidxs.size() ,
@@ -2931,7 +2943,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
    for( std::size_t i = 0 ; i < nval.size() ; ++i ) {
     nval[ i ] += ldelta[ i ];
-    GRBaddqpterms( model , 1 , & cidx[ i ] , & cidx[ i ] , & qdelta[ i ] );
+    add_qp_term( model , cidx[ i ] , cidx[ i ] , qdelta[ i ] );
     }
 
    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() ,
@@ -2965,7 +2977,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     grb_index_of_variable( dynamic_cast< ColVariable * >( vars[ 1 ] ) );
 
    // Update quadratic coefficient
-   GRBaddqpterms( model, 1 , & idx1 , & idx2 , & delta_coeff );
+   add_qp_term( model , idx1 , idx2 , delta_coeff );
    return;
    }
   else
@@ -3274,7 +3286,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
           else
             idxit_row = std::find( idxit_row + 1 , oldind_row.end() , idx );
         }
-        GRBaddqpterms( model, 1 , & idx , & idx , & oldqval );
+        add_qp_term( model , idx , idx , oldqval );
 
         indices.push_back( idx );
         values.push_back( 0 );
@@ -3319,7 +3331,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     double q_diff = ( w * std::get<2>( t ) );
 
     // quadratic coefficients need be changed one at a time
-    GRBaddqpterms( model, 1 , & glob_idx1 , & glob_idx2 , & q_diff );
+    add_qp_term( model , glob_idx1 , glob_idx2 , q_diff );
   }
   // Here we don't need any return, as we know that any QuadFunction
   // derives from a DQuadFunction
@@ -3370,7 +3382,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
           else
             idxit_row = std::find( idxit_row + 1 , oldind_row.end() , idx );
         }
-        GRBaddqpterms( model, 1 , & idx , & idx , & oldqval );
+        add_qp_term( model , idx , idx , oldqval );
 
         indices.push_back( idx );
         values.push_back( 0 );
@@ -3423,7 +3435,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
       nqval = w * modq->coeff()[ pos[ k ] ].second;
      }
 
-    GRBaddqpterms( model , 1 , & indices[ k ] , & indices[ k ] , & nqval );
+    add_qp_term( model , indices[ k ] , indices[ k ] , nqval );
    }
 
   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
@@ -4100,7 +4112,7 @@ bool GRBMILPSolver::change_coefficients(
                 vals.data() );
 
  for( std::size_t i = 0 ; i < qcols.size() ; ++i )
-  GRBaddqpterms( model , 1 , & qcols[ i ] , & qcols[ i ] , & qdeltas[ i ] );
+  add_qp_term( model , qcols[ i ] , qcols[ i ] , qdeltas[ i ] );
 
  if( ! ocols.empty() ) {
   // the old value of a column is read once for the whole group, and the
