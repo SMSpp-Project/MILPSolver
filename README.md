@@ -178,9 +178,9 @@ SMS++ lists. What follows is about building it yourself.
 - for `ClarabelMILPSolver` you will need the C interface of Clarabel,
   [Clarabel.cpp](https://github.com/oxfordcontrol/Clarabel.cpp) 0.11.1 or
   later, whose build needs a Rust toolchain (`cargo`): since its CMake
-  installs nothing, copy its `include` directory and the `libclarabel_c`
-  built by `cargo build --release` in `rust_wrapper` to the `include` and
-  `lib` directories of `Clarabel_ROOT`
+  installs nothing, its `include` directory and the `libclarabel_c` built by
+  `cargo build --release` in `rust_wrapper` go to the `include` and `lib`
+  directories of `Clarabel_ROOT`, as `INSTALL.sh` of the umbrella does
 
 - for `ProxQPMILPSolver` you will need
   [ProxSuite](https://github.com/Simple-Robotics/proxsuite) 0.4 or later,
