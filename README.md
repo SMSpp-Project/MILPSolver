@@ -58,6 +58,13 @@ Currently available derived classes are:
   only, Linux only; see also its
   [website](https://pips-ipmpp.gitlab.io/index.html))
 
+- `FASTQPAMILPSolver`, a native branch-and-bound for strictly convex
+  Mixed-Integer Quadratic Programs with linear constraints, i.e., whose
+  quadratic objective is positive definite on all the variables, which
+  bounds each node by the dual of its continuous relaxation solved by a
+  feasible active-set method; it needs no external library, and it is meant
+  for problems with few rows
+
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
 found on the system, both with CMake and with the makefiles (see below
@@ -108,12 +115,13 @@ the whole framework. What follows is about building it yourself.
   route is MUMPS, while other backends, e.g. PARDISO or MA57, are
   subject to licensing)
 
-All actual `:MILPSolver` are optional but you will need at least one of them to
-actually solve MILP/LP problems. Without any of them, you can still build a
-`MILPSolver` that loads the problem from the SMS++ `Block` and makes it
-available as a (sparse) coefficient matrix + accompanying vectors (objective,
-LHS, RHS, LB, UB) + other data structures for representing quadratic
-`Objective` / `Constraint`.
+All the `:MILPSolver` interfacing an external solver are optional, but you will
+need at least one of them to actually solve MILP/LP problems
+(`FASTQPAMILPSolver`, which is always built, only solves strictly convex
+MIQPs). Without any of them, you can still build a `MILPSolver` that loads the
+problem from the SMS++ `Block` and makes it available as a (sparse) coefficient
+matrix + accompanying vectors (objective, LHS, RHS, LB, UB) + other data
+structures for representing quadratic `Objective` / `Constraint`.
 
 ### Build and install with CMake
 

@@ -186,6 +186,9 @@ add_dependencies(${modName} generate_headers)
 # Note: do not GLOB files here.
 target_sources(${modName} PRIVATE src/MILPSolver.cpp)
 
+# FASTQPAMILPSolver needs no external solver, hence it is always built
+target_sources(${modName} PRIVATE src/FASTQPAMILPSolver.cpp)
+
 # When using target_include_directories(), PUBLIC means that any targets
 # that link to this target also need that include directory.
 # Other options are PRIVATE (only affect the current target, not dependencies),
@@ -265,6 +268,7 @@ install(TARGETS ${modName}
 # Install the headers
 install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/include/MILPSolver.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/FASTQPAMILPSolver.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace})
 
 if (MILPSolver_USE_CPLEX)

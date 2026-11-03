@@ -157,6 +157,7 @@ endif
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
+	$(MILPSSDR)/obj/FASTQPAMILPSolver.o \
 	$(MILPSSDR)/obj/CPXMILPSolver.o \
 	$(MILPSSDR)/obj/GRBMILPSolver.o \
 	$(MILPSSDR)/obj/SCIPMILPSolver.o \
@@ -165,6 +166,7 @@ MILPSOBJ = $(MILPSSDR)/obj/MILPSolver.o \
 MILPSINC = -I$(MILPSSDR)/include
 
 MILPSH = $(MILPSSDR)/include/MILPSolver.h \
+	$(MILPSSDR)/include/FASTQPAMILPSolver.h \
 	$(MILPSSDR)/include/CPXMILPSolver.h \
 	$(MILPSSDR)/include/GRBMILPSolver.h \
 	$(MILPSSDR)/include/SCIPMILPSolver.h \
@@ -212,6 +214,12 @@ endif
 $(MILPSSDR)/obj/MILPSolver.o: $(MILPSSDR)/src/MILPSolver.cpp \
 	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
 	$(CC) -c $(MILPSSDR)/src/MILPSolver.cpp -o $@ \
+	-I$(MILPSSDR)/include $(SMS++INC) $(SW)
+
+$(MILPSSDR)/obj/FASTQPAMILPSolver.o: $(MILPSSDR)/src/FASTQPAMILPSolver.cpp \
+	$(MILPSSDR)/include/FASTQPAMILPSolver.h \
+	$(MILPSSDR)/include/MILPSolver.h $(SMS++OBJ)
+	$(CC) -c $(MILPSSDR)/src/FASTQPAMILPSolver.cpp -o $@ \
 	-I$(MILPSSDR)/include $(SMS++INC) $(SW)
 
 $(MILPSSDR)/obj/CPXMILPSolver.o: $(MILPSSDR)/src/CPXMILPSolver.cpp \

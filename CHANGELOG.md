@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `FASTQPAMILPSolver`, a `:MILPSolver` for strictly convex MIQPs with linear
+  constraints that needs no external solver: a depth-first branch-and-bound
+  that fixes the integer variables one at a time in a fixed order, the
+  children of a node by increasing distance from the value of the relaxation
+  and each side of them closed at the first child pruned, so that integer
+  variables need no bounds; the data that depend on the depth alone (the
+  inverses of the Hessian, by Schur complements, the direction of the
+  continuous minimum, the Hessian of the dual) are computed once before the
+  search, and each node is bounded by the dual of its relaxation, a QP in as
+  many nonnegative variables as rows, solved by the active-set method
+  FAST-QPA from the multipliers of the father and pruned as soon as an
+  iterate reaches the incumbent. The bounds of the continuous variables are
+  rows, those of the integer ones restrict the children (or are rows with
+  `intFQIntBoundsAsRows`); a Hessian that is not positive definite makes
+  `compute()` return `kError`
+
 ### Changed
 
 - `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,
