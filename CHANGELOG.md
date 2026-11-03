@@ -370,6 +370,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` solves a continuous model again from scratch with the
+  primal simplex when Gurobi calls it optimal with a solution that violates
+  it far beyond the feasibility tolerance (more than 1000 times it, and
+  1e-6), as the dual simplex of Gurobi 13.0 does on a QP that is infeasible,
+  which the primal simplex and the barrier tell infeasible
+
 - `GRBMILPSolver` no longer passes to GUROBI a null change of a quadratic
   coefficient of the objective, which came with every change of the linear
   coefficient of a term of a `DQuadFunction` alone: GUROBI drops the simplex

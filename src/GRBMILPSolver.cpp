@@ -1080,6 +1080,32 @@ int GRBMILPSolver::guts_of_compute( void )
  int m_status;
  sol_int_attr( GRB_INT_ATTR_STATUS , &m_status );
 
+ // the dual simplex may call optimal a QP whose solution violates the
+ // bounds of the variables far beyond the tolerance (seen on an infeasible
+ // one, which the primal simplex and the barrier tell infeasible): such an
+ // answer is no solution, and the model is solved again from scratch with
+ // the primal simplex
+ if( m_status == GRB_OPTIMAL ) {
+  auto menv = GRBgetenv( model );
+  double vio = 0;
+  double ftol = 1e-6;
+  GRBgetdblattr( model , GRB_DBL_ATTR_MAX_VIO , & vio );
+  GRBgetdblparam( menv , GRB_DBL_PAR_FEASIBILITYTOL , & ftol );
+  if( vio > std::max( 1e-6 , 1e3 * ftol ) ) {
+   int method;
+   GRBgetintparam( menv , GRB_INT_PAR_METHOD , & method );
+   GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_PRIMAL );
+   GRBreset( model , 0 );
+   const int st = optimize( updated_model() );
+   GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
+   if( st ) {
+    sol_status = decode_grb_error( st );
+    return( sol_status );
+    }
+   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+   }
+  }
+
  // If Gurobi's presolve returned INF_OR_UNBD it can't tell whether the
  // model is infeasible or unbounded. Per Gurobi documentation, the way
  // to obtain a definitive answer is to set DualReductions = 0 and
