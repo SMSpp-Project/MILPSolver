@@ -69,6 +69,9 @@ module;
 #if defined( MILPSolver_MODULE_OSQP )
  #include "OSQPMILPSolver.h"
 #endif
+#if defined( MILPSolver_MODULE_PERMON )
+ #include "PERMONMILPSolver.h"
+#endif
 #if defined( MILPSolver_MODULE_PIPS )
  #include "PIPSMILPSolver.h"
 #endif
@@ -142,6 +145,11 @@ export namespace SMSpp_di_unipi_it {
  // OSQPMILPSolver.h
 #if defined( MILPSolver_MODULE_OSQP )
  using SMSpp_di_unipi_it::OSQPMILPSolver;
+#endif
+
+ // PERMONMILPSolver.h
+#if defined( MILPSolver_MODULE_PERMON )
+ using SMSpp_di_unipi_it::PERMONMILPSolver;
 #endif
 
  // PIPSMILPSolver.h

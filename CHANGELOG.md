@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `PERMONMILPSolver`, the interface with PermonQP, the solvers of the
+  PERMON library (on PETSc) for large sparse convex QPs: the rows with two
+  different sides get a slack, the fixed variables an equality, and
+  PermonQP solves the problem with equalities and bounds by SMALXE (or by
+  MPGP when there are no rows); the multipliers of the rows are computed
+  from the stationarity condition, `dblFAccSol` and `dblPERMONRelTol` are
+  the absolute and relative tolerances and `intPERMONWarmStart` starts a
+  solve from the previous solution; it is built when
+  `MILPSolver_USE_PERMON` is ON and `FindPERMON` finds PERMON in
+  `PERMON_ROOT` and PETSc 3.22 or later in `PETSC_DIR` (makefiles:
+  `extlib/makefile-libPERMON`), and `test_qp`, `test_quad_modify` and
+  `test_stopped_bounds` run it with the other back-ends for convex QPs
+
 - each int parameter of MOSEK is also a string parameter of
   `MOSEKMILPSolver` of the same name, whose value is the symbolic one of
   MOSEK (e.g., `MSK_IPAR_OPTIMIZER` `MSK_OPTIMIZER_DUAL_SIMPLEX`), so that a

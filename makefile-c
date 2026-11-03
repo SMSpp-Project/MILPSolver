@@ -82,6 +82,9 @@ include $(MILPSSDR)/../extlib/makefile-libquadprog
 # include makefile for libHPIPM
 include $(MILPSSDR)/../extlib/makefile-libHPIPM
 
+# include makefile for libPERMON
+include $(MILPSSDR)/../extlib/makefile-libPERMON
+
 # include the makefile requiring all external modules in input
 include $(MILPSSDR)/makefile
 
@@ -172,6 +175,12 @@ endif
 ifneq ($(HPIPM_PRESENT),)
     MILPSINC := $(MILPSINC) $(libHPIPMINC)
     MILPSLIB := $(MILPSLIB) $(libHPIPMLIB)
+endif
+
+# append the PERMON (and PETSc) flags only when it is installed
+ifneq ($(PERMON_PRESENT),)
+    MILPSINC := $(MILPSINC) $(libPERMONINC)
+    MILPSLIB := $(MILPSLIB) $(libPERMONLIB)
 endif
 
 ############################ End of makefile #################################
