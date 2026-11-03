@@ -370,6 +370,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `DAQPMILPSolver` answers `kUnbounded` rather than `kInfeasible` on a
+  problem that DAQP calls infeasible but whose rows and bounds admit a point
+  (the same problem with no linear term has a solution): with a singular H,
+  i.e., with the proximal-point iterations, DAQP takes a convex QP unbounded
+  below for an infeasible one, as the dual master problem of a bundle
+  method whose primal one is empty, on which `BundleSolver` stopped with an
+  error in the master problem
+
 - `GRBMILPSolver` solves a continuous model again from scratch with the
   primal simplex when Gurobi calls it optimal with a solution that violates
   it far beyond the feasibility tolerance (more than 1000 times it, and
