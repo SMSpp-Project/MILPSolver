@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-04
+
 ### Added
 
 - each int parameter of MOSEK is also a string parameter of
@@ -1368,7 +1370,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.10.0...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.11.0...develop
+[0.11.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.10.0...0.11.0
 [0.10.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.1...0.10.0
 [0.9.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...0.9.1
 [0.9.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.8.0...0.9.0
