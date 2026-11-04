@@ -879,6 +879,18 @@ class MILPSolver : public CDASolver
  void set_Block( Block * block ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the kinds of Modification the MILPSolver reads: the abstract ones
+ /** The MILPSolver works on the abstract representation of the Block, and
+  * therefore it reads all the abstract kinds [see Solver::concerned_by()],
+  * the integrality of the Variable included (which is kept even when it is
+  * relaxed, since intRelaxIntVars may change): the physical Modification,
+  * which it has no use for, do not reach it. */
+
+ [[nodiscard]] Modification::ModConcern concerned_by( void ) const override {
+  return( Modification::eModAbst );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// compute() entry point shared by all the *MILPSolver derived classes
  /** The base compute() takes care of:
   *
