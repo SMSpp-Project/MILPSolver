@@ -80,8 +80,8 @@
  * QPPar-farkas.txt where they differ from those of LPPar-farkas.txt, and the
  * :MILPSolver there that LPPar-farkas.txt does not have, which do not detect
  * the infeasibility of the linear programs above (ProxQPMILPSolver, whose
- * dense backend stops at its iteration limit on them), are only checked on
- * this QP.
+ * dense backend stops at its iteration limit on them, and PIQPMILPSolver,
+ * which does the same up to PIQP 0.6.4), are only checked on this QP.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n

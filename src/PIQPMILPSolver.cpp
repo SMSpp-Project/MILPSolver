@@ -45,9 +45,10 @@ static const std::array< std::string , 5 > PIQP_int_pars_str = {
  "intPIQPBackend" , "intPIQPCheckDualityGap" , "intPIQPPrecondIter" ,
  "intPIQPPrecondScaleCost" , "intPIQPIterRefinement" };
 
-static const std::array< std::string , 6 > PIQP_dbl_pars_str = {
+static const std::array< std::string , 8 > PIQP_dbl_pars_str = {
  "dblPIQPEpsRel" , "dblPIQPEpsGapAbs" , "dblPIQPEpsGapRel" ,
- "dblPIQPInfeasThreshold" , "dblPIQPRhoInit" , "dblPIQPDeltaInit" };
+ "dblPIQPInfeasThreshold" , "dblPIQPRhoInit" , "dblPIQPDeltaInit" ,
+ "dblPIQPEpsPrimalInf" , "dblPIQPEpsDualInf" };
 
 // the settings of PIQP, which give the defaults of the parameters
 
@@ -57,6 +58,33 @@ static const piqp::Settings< double > PIQP_dflt;
 // of PIQP, which leaves errors of that order in the solution and its value
 
 static constexpr double PIQP_dflt_eps_abs = 1e-9;
+
+// the versions of PIQP after 0.6.4 test certificates of infeasibility,
+// whose tolerances are in the settings, and give them in the result; the
+// earlier ones have neither, and their default is that of the later ones
+
+template< class S >
+static constexpr bool PIQP_has_cert = requires( S s ) { s.eps_dual_inf; };
+
+static constexpr bool PIQP_cert = PIQP_has_cert< piqp::Settings< double > >;
+
+template< class S >
+static double PIQP_dflt_eps_inf( const S & s , bool primal )
+{
+ if constexpr( PIQP_has_cert< S > )
+  return( primal ? s.eps_primal_inf : s.eps_dual_inf );
+ else
+  return( 1e-4 );
+ }
+
+template< class S >
+static void PIQP_set_eps_inf( S & s , double primal , double dual )
+{
+ if constexpr( PIQP_has_cert< S > ) {
+  s.eps_primal_inf = primal;
+  s.eps_dual_inf = dual;
+  }
+ }
 
 // the position of a row with no finite side, which is left out of PIQP
 
@@ -94,6 +122,8 @@ PIQPMILPSolver::PIQPMILPSolver( void ) : MILPSolver()
  d_infeas_thr = PIQP_dflt.infeasibility_threshold;
  d_rho_init = PIQP_dflt.rho_init;
  d_delta_init = PIQP_dflt.delta_init;
+ d_eps_pinf = PIQP_dflt_eps_inf( PIQP_dflt , true );
+ d_eps_dinf = PIQP_dflt_eps_inf( PIQP_dflt , false );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -115,6 +145,7 @@ void PIQPMILPSolver::clear_problem( unsigned int what )
  d_row_pos.clear();
  d_loaded = false;
  d_status = 0;
+ d_cert = false;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -266,6 +297,7 @@ int PIQPMILPSolver::guts_of_compute( void )
   s.infeasibility_threshold = d_infeas_thr;
   s.rho_init = d_rho_init;
   s.delta_init = d_delta_init;
+  PIQP_set_eps_inf( s , d_eps_pinf , d_eps_dinf );
   s.iterative_refinement_always_enabled = d_iter_ref;
   s.max_iter = ( d_max_iter < Inf< int >() ) ? d_max_iter
                                              : PIQP_dflt.max_iter;
@@ -279,6 +311,7 @@ int PIQPMILPSolver::guts_of_compute( void )
   for( int i = 0 ; i < d_nin ; ++i )
    feas &= ( d_hl[ i ] <= 0 ) && ( d_hu[ i ] >= 0 );
   d_status = feas ? piqp::PIQP_SOLVED : piqp::PIQP_PRIMAL_INFEASIBLE;
+  d_cert = false;
   d_x.resize( 0 );
   d_y.setZero( d_neq );
   d_z.setZero( d_nin );
@@ -328,8 +361,16 @@ int PIQPMILPSolver::guts_of_compute( void )
  d_status = int( st );
 
  // the value is computed here, from the solution, rather than taken from
- // PIQP
+ // PIQP; the certificates are in the same vectors as the solution
  d_fval = 0;
+ d_cert = PIQP_cert && ( ( st == piqp::PIQP_PRIMAL_INFEASIBLE ) ||
+			 ( st == piqp::PIQP_DUAL_INFEASIBLE ) );
+ if( d_cert ) {
+  d_x = res->x;
+  d_y = res->y;
+  d_z = res->z_u - res->z_l;
+  d_zb = res->z_bu - res->z_bl;
+  }
  if( solved() ) {
   d_x = res->x;
   d_y = res->y;
@@ -471,6 +512,80 @@ void PIQPMILPSolver::get_dual_solution( Configuration * solc )
  }
 
 /*--------------------------------------------------------------------------*/
+
+bool PIQPMILPSolver::has_var_direction( void )
+{
+ return( d_cert && ( d_status == piqp::PIQP_DUAL_INFEASIBLE ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void PIQPMILPSolver::get_var_direction( Configuration * dirc )
+{
+ if( ! has_var_direction() )
+  throw( std::logic_error( "PIQPMILPSolver::get_var_direction: "
+			   "no unbounded direction available" ) );
+
+ // P x = 0 and c' x < 0 for the problem PIQP minimizes, whose c is that of
+ // the Block negated for a maximization: x is a ray of the Block
+ MILPSolver::write_var_solution(
+  std::vector< double >( d_x.data() , d_x.data() + d_x.size() ) , dirc );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool PIQPMILPSolver::has_dual_direction( void )
+{
+ return( d_cert && ( d_status == piqp::PIQP_PRIMAL_INFEASIBLE ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void PIQPMILPSolver::get_dual_direction( Configuration * dirc )
+{
+ if( ! has_dual_direction() )
+  throw( std::logic_error( "PIQPMILPSolver::get_dual_direction: "
+			   "no dual unbounded direction available" ) );
+
+ // A' y + G' z + z_b = 0, with z > 0 on the upper side of a row and z < 0
+ // on the lower one, and so for z_b and the bounds: the certificates of
+ // the other :MILPSolver are nonnegative where the lower side is used,
+ // hence the multiplier of a row is - y or - z, that of a row left out is
+ // zero, and the value of the certificate is - b' y minus the sides that
+ // z and z_b use (PIQP gives zero on an infinite one)
+ auto side = []( double w , double lo , double hi ) {
+  return( w > 0 ? hi * w : ( w < 0 ? lo * w : 0.0 ) );
+  };
+ double value = - d_b.dot( d_y );
+ for( int i = 0 ; i < d_nin ; ++i )
+  value -= side( d_z[ i ] , d_hl[ i ] , d_hu[ i ] );
+ for( int j = 0 ; j < d_n ; ++j )
+  value -= side( d_zb[ j ] , d_xl[ j ] , d_xu[ j ] );
+
+ std::vector< double > pi( d_row_pos.size() , 0 );
+ for( std::size_t i = 0 ; i < d_row_pos.size() ; ++i ) {
+  const int p = d_row_pos[ i ];
+  if( p != PIQP_free_row )
+   pi[ i ] = - ( p >= 0 ? d_y[ p ] : d_z[ - p - 1 ] );
+  }
+
+ // the multipliers of the columns, c - A' y, or - A' y with
+ // intHomogeneousDirection, computed out of the matrix so that they are
+ // those of y exactly
+ std::vector< double > dj( d_n , 0 );
+ for( int j = 0 ; j < d_n ; ++j ) {
+  if( ! homogeneous_direction )
+   dj[ j ] = objective[ j ];
+  for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
+   dj[ j ] -= matval[ k ] * pi[ matind[ k ] ];
+  }
+
+ f_dual_direction_value = value;
+
+ MILPSolver::write_dual_solution( pi , dj , dirc );
+ }
+
+/*--------------------------------------------------------------------------*/
 /*------------------ METHODS FOR HANDLING THE PARAMETERS -------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -513,6 +628,8 @@ void PIQPMILPSolver::set_par( idx_type par , double value )
   case( dblPIQPInfeasThreshold ): d_infeas_thr = value;  return;
   case( dblPIQPRhoInit ):         d_rho_init = value;    return;
   case( dblPIQPDeltaInit ):       d_delta_init = value;  return;
+  case( dblPIQPEpsPrimalInf ):    d_eps_pinf = value;    return;
+  case( dblPIQPEpsDualInf ):      d_eps_dinf = value;    return;
   }
 
  MILPSolver::set_par( par , value );
@@ -549,6 +666,10 @@ double PIQPMILPSolver::get_dflt_dbl_par( idx_type par ) const
    return( PIQP_dflt.infeasibility_threshold );
   case( dblPIQPRhoInit ):         return( PIQP_dflt.rho_init );
   case( dblPIQPDeltaInit ):       return( PIQP_dflt.delta_init );
+  case( dblPIQPEpsPrimalInf ):
+   return( PIQP_dflt_eps_inf( PIQP_dflt , true ) );
+  case( dblPIQPEpsDualInf ):
+   return( PIQP_dflt_eps_inf( PIQP_dflt , false ) );
   }
 
  return( MILPSolver::get_dflt_dbl_par( par ) );
@@ -582,6 +703,8 @@ double PIQPMILPSolver::get_dbl_par( idx_type par ) const
   case( dblPIQPInfeasThreshold ): return( d_infeas_thr );
   case( dblPIQPRhoInit ):         return( d_rho_init );
   case( dblPIQPDeltaInit ):       return( d_delta_init );
+  case( dblPIQPEpsPrimalInf ):    return( d_eps_pinf );
+  case( dblPIQPEpsDualInf ):      return( d_eps_dinf );
   }
 
  return( MILPSolver::get_dbl_par( par ) );

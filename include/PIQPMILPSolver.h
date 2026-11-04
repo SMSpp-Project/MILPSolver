@@ -88,19 +88,28 @@ namespace SMSpp_di_unipi_it
  * - PIQP has no time limit, hence dblMaxTime is not handled and compute()
  *   never returns kStopTime;
  *
- * - the infeasibility criterion of PIQP does not always succeed: an
- *   infeasible problem may end with kStopIter at the iteration limit
- *   rather than with kInfeasible, e.g., when the conflict is between rows
- *   and bounds; a lower dblPIQPInfeasThreshold catches some of these, but
- *   has unbounded problems declared infeasible;
+ * - up to PIQP 0.6.4 the infeasibility criterion is heuristic and does
+ *   not always succeed: an infeasible problem may end with kStopIter at the
+ *   iteration limit rather than with kInfeasible, e.g., when the conflict
+ *   is between rows and bounds, and an unbounded one may be declared
+ *   infeasible; the later versions test certificates instead, whose
+ *   relative tolerances are dblPIQPEpsPrimalInf and dblPIQPEpsDualInf (a
+ *   tighter one rejects some false certificates of a badly scaled problem,
+ *   but needs more iterations to accept the true ones);
  *
  * - the solution and the multipliers are accurate to the tolerances of
  *   PIQP (dblFAccSol and dblPIQPEpsRel), e.g., a multiplier of 1 may come
  *   out as 0.999999999, and the value of the solution is computed from it;
  *
- * - no unbounded ray or infeasibility certificate is provided, i.e., the
- *   has_var_direction() / has_dual_direction() interface of CDASolver is
- *   not implemented. */
+ * - with a PIQP that tests certificates, when it says that the problem is
+ *   dual infeasible its certificate is a ray x with P x = 0, c' x < 0, A x
+ *   = 0 and G x and x in the recession cone of the sides, which
+ *   get_var_direction() writes in the Variable, and when it says that it
+ *   is primal infeasible its certificate is a ( y , z , z_b ) with A' y +
+ *   G' z + z_b = 0 and a negative value of the sides, which
+ *   get_dual_direction() writes in the Constraint with the sign of the
+ *   certificates of the other :MILPSolver; up to PIQP 0.6.4 neither is
+ *   given. */
 
 class PIQPMILPSolver : public MILPSolver
 {
@@ -159,6 +168,12 @@ class PIQPMILPSolver : public MILPSolver
   dblPIQPRhoInit ,
   /// initial augmented Lagrangian penalty (delta_init)
   dblPIQPDeltaInit ,
+  /// tolerance of the primal infeasibility certificate (eps_primal_inf),
+  /// not used up to PIQP 0.6.4
+  dblPIQPEpsPrimalInf ,
+  /// tolerance of the dual infeasibility certificate (eps_dual_inf), not
+  /// used up to PIQP 0.6.4
+  dblPIQPEpsDualInf ,
   /// first allowed new double parameter for derived classes
   dblLastAlgParPIQP
   };
@@ -229,6 +244,22 @@ class PIQPMILPSolver : public MILPSolver
  /// writes the dual solution in the Constraint of the Block
 
  void get_dual_solution( Configuration * solc = nullptr ) override;
+
+ /// returns true if PIQP has given a certificate of dual infeasibility
+
+ bool has_var_direction( void ) override;
+
+ /// writes the unbounded ray in the Variable of the Block
+
+ void get_var_direction( Configuration * dirc = nullptr ) override;
+
+ /// returns true if PIQP has given a certificate of primal infeasibility
+
+ bool has_dual_direction( void ) override;
+
+ /// writes the Farkas certificate in the Constraint of the Block
+
+ void get_dual_direction( Configuration * dirc = nullptr ) override;
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------ METHODS FOR HANDLING THE PARAMETERS -------------------*/
@@ -344,10 +375,13 @@ class PIQPMILPSolver : public MILPSolver
  bool d_loaded = false;          ///< true if the problem has changed
  int d_backend = 0;              ///< backend of the loaded problem
 
+ // the solution, or the certificate: the ray in d_x, the Farkas one in
+ // d_y, d_z and d_zb
  Eigen::VectorXd d_x;            ///< primal solution
  Eigen::VectorXd d_y;            ///< multipliers of the equalities
  Eigen::VectorXd d_z;            ///< of the inequalities, upper - lower
  Eigen::VectorXd d_zb;           ///< of the bounds, upper - lower
+ bool d_cert = false;            ///< true if they are a certificate
  double d_fval = 0;              ///< value of the last solution
  int d_status = 0;               ///< the status of the last solve, 0 none
 
@@ -364,6 +398,8 @@ class PIQPMILPSolver : public MILPSolver
  double d_infeas_thr;                ///< dblPIQPInfeasThreshold
  double d_rho_init;                  ///< dblPIQPRhoInit
  double d_delta_init;                ///< dblPIQPDeltaInit
+ double d_eps_pinf;                  ///< dblPIQPEpsPrimalInf
+ double d_eps_dinf;                  ///< dblPIQPEpsDualInf
 
 /*--------------------------------------------------------------------------*/
 

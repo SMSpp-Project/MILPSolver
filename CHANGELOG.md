@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `PIQPMILPSolver` gives the certificates of the versions of PIQP after
+  0.6.4, which test them instead of the heuristic criterion: the ray of an
+  unbounded problem in `get_var_direction()` and the Farkas certificate of
+  an infeasible one in `get_dual_direction()`, with the sign of the other
+  `:MILPSolver`; their tolerances are the new `dblPIQPEpsPrimalInf` and
+  `dblPIQPEpsDualInf`, which are not used with PIQP 0.6.4
+
+### Changed
+
+- `test_farkas` also checks the ray of `PIQPMILPSolver` on the unbounded QP
+
 ## [0.11.0] - 2026-11-04
 
 ### Added
