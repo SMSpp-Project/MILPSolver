@@ -91,10 +91,11 @@ namespace SMSpp_di_unipi_it
  *   problem ends with kStopIter at the iteration limit, or with kError,
  *   and never with kInfeasible or kUnbounded;
  *
- * - with its default expansion step, MPGP may stop as converged at a point
- *   out of the bounds, hence the expansion step is projcg unless the
- *   options of PETSc say otherwise (-qps_mpgp_expansion_type, and
- *   -smalxe_qps_mpgp_expansion_type for the inner solver of SMALXE); also,
+ * - up to PERMON 3.26, with its default expansion step MPGP may stop as
+ *   converged at a point out of the bounds, hence there the expansion step
+ *   is projcg unless the options of PETSc say otherwise
+ *   (-qps_mpgp_expansion_type, and -smalxe_qps_mpgp_expansion_type for the
+ *   inner solver of SMALXE); also,
  *   on a problem whose Hessian is singular along a direction of free
  *   variables MPGP may drift along it and stop there as converged, with a
  *   value that is only rounding noise, hence dblKKTTol is 1e-6 by default

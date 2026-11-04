@@ -144,9 +144,11 @@ PetscErrorCode permon_error_handler( MPI_Comm , int line , const char * fun ,
 
 // starts PETSc and PERMON the first time, unless the program has done it;
 // the errors of PETSc then go to permon_error_handler(), PETSc does not
-// catch the signals, and the expansion step of MPGP (also the inner solver
-// of SMALXE) is projcg unless the options of PETSc say otherwise: with the
-// default one, MPGP may stop as converged at a point out of the bounds
+// catch the signals, and up to PERMON 3.26 (whose version is that of
+// PETSc) the expansion step of MPGP (also the inner solver of SMALXE) is
+// projcg unless the options of PETSc say otherwise: there, a proportioning
+// step of the default one may leave the bounds, and MPGP may stop as
+// converged at a point out of them
 
 void permon_initialize( void )
 {
@@ -158,6 +160,7 @@ void permon_initialize( void )
   throw( std::runtime_error( "PERMONMILPSolver: PERMON cannot be started" ) );
  PetscPushErrorHandler( permon_error_handler , nullptr );
  PetscPopSignalHandler();
+#if PETSC_VERSION_LT( 3 , 27 , 0 )
  for( const char * opt :
       { "-qps_mpgp_expansion_type" , "-smalxe_qps_mpgp_expansion_type" } ) {
   PetscBool set = PETSC_FALSE;
@@ -165,6 +168,7 @@ void permon_initialize( void )
   if( ! set )
    PetscOptionsSetValue( nullptr , opt , "projcg" );
   }
+#endif
  done = true;
  }
 
