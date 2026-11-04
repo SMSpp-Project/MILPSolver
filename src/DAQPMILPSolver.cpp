@@ -291,6 +291,13 @@ int DAQPMILPSolver::guts_of_compute( void )
  d_exitflag = d_res.exitflag;
  elapsed_iter += d_res.iter;
 
+ // with a singular H (the proximal-point iterations) DAQP may take a problem
+ // unbounded below for an infeasible one: the rows are feasible if the same
+ // problem with no linear term has a solution, and a convex QP with a
+ // feasible point and no optimum is unbounded below
+ if( ( d_exitflag == DAQP_EXIT_INFEASIBLE ) && rows_feasible() )
+  d_exitflag = DAQP_EXIT_UNBOUNDED;
+
  // the value is computed here rather than taken from DAQP, whose value of a
  // problem solved by proximal-point iterations (e.g., a Linear Program) is
  // not that of the problem
@@ -324,6 +331,35 @@ int DAQPMILPSolver::decode_exitflag( int exitflag )
   case( DAQP_EXIT_TIMELIMIT ):  return( kStopTime );
   default:                      return( kError );
   }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool DAQPMILPSolver::rows_feasible( void )
+{
+ // copies of all that DAQP is given, which its setup may change in place
+ std::vector< double > f0( d_n , 0 );
+ std::vector< double > H( d_H ) , A( d_A ) , bu( d_bu ) , bl( d_bl );
+ std::vector< int > sense( d_fixed );
+ DAQPProblem qp = d_qp;
+ qp.H = H.data();
+ qp.f = f0.data();
+ qp.A = A.empty() ? nullptr : A.data();
+ qp.bupper = bu.data();
+ qp.blower = bl.data();
+ qp.sense = sense.data();
+ DAQPSettings settings = d_settings;
+
+ // daqp_quadprog() sets the problem up, solves it and frees what it made
+ std::vector< double > x( d_n , 0 );
+ std::vector< double > lam( d_m , 0 );
+ DAQPResult res{};
+ res.x = x.data();
+ res.lam = lam.data();
+ daqp_quadprog( &res , &qp , &settings );
+ elapsed_iter += res.iter;
+ const bool feasible = ( decode_exitflag( res.exitflag ) == kOK );
+ return( feasible );
  }
 
 /*--------------------------------------------------------------------------*/

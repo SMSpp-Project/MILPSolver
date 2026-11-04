@@ -39,6 +39,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   relaxations of a MIP), `PIQPMILPSolver` and `QPMADMILPSolver`, which gave
   0
 
+### Fixed
+
+- `DAQPMILPSolver` answers `kUnbounded` rather than `kInfeasible` on a
+  problem that DAQP calls infeasible but whose rows and bounds admit a point
+  (the same problem with no linear term has a solution): with a singular H,
+  i.e., with the proximal-point iterations, DAQP takes a convex QP unbounded
+  below for an infeasible one, as the dual master problem of a bundle
+  method whose primal one is empty, on which `BundleSolver` stopped with an
+  error in the master problem
+
 ## [0.11.0] - 2026-11-04
 
 ### Added

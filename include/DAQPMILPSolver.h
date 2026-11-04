@@ -299,6 +299,13 @@ class DAQPMILPSolver : public MILPSolver
 
  void free_workspace( void );
 
+ /// true if the rows and the bounds of the problem admit a point
+ /** Solves the problem with no linear term, which has a solution if and
+  * only if the rows and the bounds are feasible, H being positive
+  * semidefinite, on a workspace of its own. */
+
+ bool rows_feasible( void );
+
  /// true if the last solve has given a primal solution
 
  [[nodiscard]] bool solved( void ) const;
