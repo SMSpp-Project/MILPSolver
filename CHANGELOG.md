@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `test_farkas` also checks the ray of `PIQPMILPSolver` on the unbounded QP
 
+- `get_elapsed_iterations()` also counts the iterations of
+  `MOSEKMILPSolver`, `GRBMILPSolver`, `HiGHSMILPSolver` and
+  `SCIPMILPSolver` (the simplex and interior point ones, those of the LP
+  relaxations of a MIP), `PIQPMILPSolver` and `QPMADMILPSolver`, which gave
+  0
+
 ## [0.11.0] - 2026-11-04
 
 ### Added

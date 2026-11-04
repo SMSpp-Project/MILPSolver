@@ -359,6 +359,7 @@ int PIQPMILPSolver::guts_of_compute( void )
   }
 
  d_status = int( st );
+ elapsed_iter += long( res->info.iter );
 
  // the value is computed here, from the solution, rather than taken from
  // PIQP; the certificates are in the same vectors as the solution

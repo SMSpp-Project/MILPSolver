@@ -537,6 +537,11 @@ int SCIPMILPSolver::guts_of_compute( void )
 
  auto st =  SCIPsolve( scip ) ;
 
+ // the LP iterations of the solve, if it got as far as solving LPs
+ if( ( SCIPgetStage( scip ) >= SCIP_STAGE_PRESOLVED ) &&
+     ( SCIPgetStage( scip ) <= SCIP_STAGE_SOLVED ) )
+  elapsed_iter += long( SCIPgetNLPIterations( scip ) );
+
  // decode SCIP exit status - - - - - - - - - - - - - - - - - - - - - - - - -
  switch( SCIPgetStatus( scip ) ) {
   case( SCIP_STATUS_OPTIMAL ):

@@ -94,14 +94,22 @@ bool is_license_refusal( int status )
  * sessions open elsewhere as it allows. Nothing is wrong with the model, and
  * a single refusal would otherwise make the Solver fail, and with it a
  * computation that may have been running for hours, so the call is repeated
- * [see GRBoptTrials]; the returned value is that of the last attempt. */
+ * [see GRBoptTrials]; the returned value is that of the last attempt. The
+ * simplex and barrier iterations of the solve are added to iter. */
 
-int optimize( GRBmodel * model )
+int optimize( GRBmodel * model , long & iter )
 {
  for( unsigned int trial = 0 ; ; ) {
   int status = GRBoptimize( model );
-  if( ( ! is_license_refusal( status ) ) || ( ++trial >= GRBoptTrials ) )
+  if( ( ! is_license_refusal( status ) ) || ( ++trial >= GRBoptTrials ) ) {
+   double simplex = 0;
+   int barrier = 0;
+   if( ! GRBgetdblattr( model , GRB_DBL_ATTR_ITERCOUNT , & simplex ) )
+    iter += long( simplex );
+   if( ! GRBgetintattr( model , GRB_INT_ATTR_BARITERCOUNT , & barrier ) )
+    iter += barrier;
    return( status );
+   }
 
   if( trial == 1 )
    std::cerr << "GRBMILPSolver::compute: warning: the license service "
@@ -1037,7 +1045,7 @@ int GRBMILPSolver::guts_of_compute( void )
     }
   }
 
-  if( int status = optimize( updated_model() ) ) { //error
+  if( int status = optimize( updated_model() , elapsed_iter ) ) { //error
 
    sol_status = decode_grb_error( status );
    return( sol_status );
@@ -1068,7 +1076,7 @@ int GRBMILPSolver::guts_of_compute( void )
  restore_basis();
 
  const bool lp_cutoff = set_lp_cutoff();
- const int status = optimize( updated_model() );
+ const int status = optimize( updated_model() , elapsed_iter );
  if( lp_cutoff )
   reset_lp_cutoff();
 
@@ -1096,7 +1104,7 @@ int GRBMILPSolver::guts_of_compute( void )
    GRBgetintparam( menv , GRB_INT_PAR_METHOD , & method );
    GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_PRIMAL );
    GRBreset( model , 0 );
-   const int st = optimize( updated_model() );
+   const int st = optimize( updated_model() , elapsed_iter );
    GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
    if( st ) {
     sol_status = decode_grb_error( st );
@@ -1119,7 +1127,7 @@ int GRBMILPSolver::guts_of_compute( void )
   int saved;
   GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , & saved );
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , 0 );
-  if( int status = optimize( updated_model() ) ) {
+  if( int status = optimize( updated_model() , elapsed_iter ) ) {
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
    sol_status = decode_grb_error( status );
    return( sol_status );
@@ -1134,7 +1142,7 @@ int GRBMILPSolver::guts_of_compute( void )
  // with no basis
  if( m_status == GRB_NUMERIC ) {
   GRBreset( model , 0 );
-  if( int status = optimize( updated_model() ) ) {
+  if( int status = optimize( updated_model() , elapsed_iter ) ) {
    sol_status = decode_grb_error( status );
    return( sol_status );
    }
@@ -1222,7 +1230,9 @@ void GRBMILPSolver::compute_certificate( int m_status )
  if( m_status == GRB_UNBOUNDED )
   GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_PRIMAL );
 
- optimize( updated_model() );
+ // a solve for the ray alone, not one of compute()
+ long ray_iter = 0;
+ optimize( updated_model() , ray_iter );
 
  GRBsetintparam( menv , GRB_INT_PAR_INFUNBDINFO , infunbd );
  GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );

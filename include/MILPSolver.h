@@ -1012,7 +1012,9 @@ class MILPSolver : public CDASolver
  /** The iterations that the back-end has made in the last compute(), all
   * its solves summed [see elapsed_iter], what an iteration is being the
   * back-end's own (e.g., a change of the working set for an active-set
-  * method); 0 for a back-end that does not count them. */
+  * method, the simplex and interior point iterations of an LP solver, those
+  * of the LP relaxations of a MIP); 0 for a back-end that does not count
+  * them. */
 
  [[nodiscard]] long get_elapsed_iterations( void ) const override {
   return( elapsed_iter );

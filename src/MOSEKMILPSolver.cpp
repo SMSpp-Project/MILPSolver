@@ -404,6 +404,22 @@ int MOSEKMILPSolver::guts_of_compute( void )
  MSKrescodee trm = MSK_RES_OK;
  const MSKrescodee r = MSK_optimizetrm( task , & trm );
 
+ // the iterations of the solve: simplex and interior point ones, those of
+ // the relaxations for a MIP
+ if( mip ) {
+  MSKint64t sim = 0 , ipm = 0;
+  MSK_getlintinf( task , MSK_LIINF_MIO_SIMPLEX_ITER , & sim );
+  MSK_getlintinf( task , MSK_LIINF_MIO_INTPNT_ITER , & ipm );
+  elapsed_iter += long( sim + ipm );
+  }
+ else {
+  MSKint32t prim = 0 , dual = 0 , ipm = 0;
+  MSK_getintinf( task , MSK_IINF_SIM_PRIMAL_ITER , & prim );
+  MSK_getintinf( task , MSK_IINF_SIM_DUAL_ITER , & dual );
+  MSK_getintinf( task , MSK_IINF_INTPNT_ITER , & ipm );
+  elapsed_iter += long( prim ) + dual + ipm;
+  }
+
  // the solution to read: the integer one of a MIP, the basic one if the
  // solve has produced one, which the simplex algorithms and the basis
  // identification after the interior point do, the interior point one

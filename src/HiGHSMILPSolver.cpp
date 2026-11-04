@@ -357,7 +357,20 @@ int HiGHSMILPSolver::run_highs( void )
   highs_scheduler_threads = threads;
   }
 
- return( Highs_run( highs ) );
+ const HighsInt status = Highs_run( highs );
+
+ // the iterations of the run, of every algorithm it has used
+ for( const char * info : { "simplex_iteration_count" ,
+			    "ipm_iteration_count" ,
+			    "crossover_iteration_count" ,
+			    "qp_iteration_count" } ) {
+  HighsInt it = 0;
+  if( ( Highs_getIntInfoValue( highs , info , & it ) == kHighsStatusOk ) &&
+      ( it > 0 ) )
+   elapsed_iter += it;
+  }
+
+ return( status );
 
  }  // end( HiGHSMILPSolver::run_highs )
 
