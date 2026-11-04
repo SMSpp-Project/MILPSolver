@@ -68,6 +68,7 @@ option(MILPSolver_USE_qpmad "Whether MILPSolver will use qpmad or not." ON)
 option(MILPSolver_USE_quadprog
         "Whether MILPSolver will use quadprog or not." ON)
 option(MILPSolver_USE_HPIPM "Whether MILPSolver will use HPIPM or not." ON)
+option(MILPSolver_USE_PERMON "Whether MILPSolver will use PERMON or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -237,6 +238,17 @@ if (MILPSolver_USE_HPIPM)
     find_package(HPIPM)
     if (NOT HPIPM_FOUND)
         set(MILPSolver_USE_HPIPM OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_PERMON)
+    # Needed for PERMONMILPSolver
+    # PERMON installs no CMake or pkg-config file: FindPERMON finds it in
+    # PERMON_ROOT, and PETSc (3.22 or later) by its pkg-config file in
+    # PETSC_DIR [see FindPERMON.cmake]
+    find_package(PERMON)
+    if (NOT PERMON_FOUND)
+        set(MILPSolver_USE_PERMON OFF)
     endif ()
 endif ()
 
@@ -459,6 +471,12 @@ if (MILPSolver_USE_HPIPM)
     target_link_libraries(${modName} PUBLIC HPIPM::HPIPM)
 endif ()
 
+if (MILPSolver_USE_PERMON)
+    message(STATUS "MILPSolver: PERMON found, configuring PERMONMILPSolver")
+    target_sources(${modName} PRIVATE src/PERMONMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC PERMON::PERMON)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -496,7 +514,7 @@ if (SMSpp_BUILD_MODULE)
     # the interface takes the header and the names of a backend only if it
     # is there [see the #if in src/MILPSolver.cppm]
     foreach (backend CPLEX SCIP GUROBI HiGHS PIPS DAQP qpOASES Clarabel MOSEK
-             ProxQP PIQP OSQP qpmad quadprog HPIPM)
+             ProxQP PIQP OSQP qpmad quadprog HPIPM PERMON)
         if (MILPSolver_USE_${backend})
             target_compile_definitions(${modName}_module PRIVATE
                     MILPSolver_MODULE_${backend})
@@ -628,6 +646,12 @@ if (MILPSolver_USE_HPIPM)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "HPIPM*")
+endif ()
+
+if (MILPSolver_USE_PERMON)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "PERMON*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

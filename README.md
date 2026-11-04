@@ -115,6 +115,13 @@ Currently available derived classes are:
   and dense problems of Model Predictive Control (convex QP and LP problems
   with linear constraints, dense, no integer variables)
 
+- `PERMONMILPSolver`, providing the interface with
+  [PermonQP](https://github.com/permon/permon), the solvers of PERMON on
+  [PETSc](https://petsc.org) for large sparse convex QPs, e.g., the duals of
+  Support Vector Machines (convex QP problems with linear constraints whose
+  Hessian is positive definite on the equalities, sparse, no integer
+  variables)
+
 Whatever the back-end, the solution of a continuous problem can be checked
 by `MILPSolver` itself against the optimality conditions: with the parameter
 `dblKKTTol` positive, the primal residual, the dual residual and the gap of
@@ -224,6 +231,12 @@ SMS++ lists. What follows is about building it yourself.
   HPIPM being built with `-DCMAKE_INSTALL_RPATH='$ORIGIN'`, as `INSTALL.sh`
   of the umbrella does
 
+- for `PERMONMILPSolver` you will need [PETSc](https://petsc.org) 3.22 or
+  later, with real double scalars and its pkg-config file in
+  `PETSC_DIR/lib/pkgconfig`, and [PERMON](https://github.com/permon/permon)
+  of the same version, built by its makefile in `PERMON_ROOT` (whose
+  `include` and `lib` are searched)
+
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
 `MILPSolver` that loads the problem from the SMS++ `Block` and makes it
@@ -263,6 +276,7 @@ Moreover, you can use the following configuration options:
 | `MILPSolver_USE_qpmad`    | Use qpmad      | ON            |
 | `MILPSolver_USE_quadprog` | Use quadprog   | ON            |
 | `MILPSolver_USE_HPIPM`    | Use HPIPM      | ON            |
+| `MILPSolver_USE_PERMON`   | Use PERMON     | ON            |
 
 At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.
