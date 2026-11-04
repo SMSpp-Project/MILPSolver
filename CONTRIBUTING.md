@@ -14,12 +14,26 @@ with the project.
 2. Update the [CHANGELOG.md](CHANGELOG.md) accordingly.
    The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-3. The version is derived automatically from the most recent git tag (see
+3. Write the code and the configurations in the style of SMS++, which the
+   pipeline of a merge request checks, failing until they are in it. From
+   the [umbrella](https://gitlab.com/smspp/smspp-project),
+
+       scripts/smspp-format --since origin/develop <files>
+
+   puts them there: in a C++ source it formats only the lines changed, so
+   that the code around them stays as it was written, and a `.txt`
+   configuration whole. The style, the scripts and how to bind them to the
+   IDE are described in the page
+   [Code style](https://gitlab.com/smspp/smspp-project/-/wikis/Code-style) of
+   the wiki of the umbrella. A merge request that has to keep a layout of its
+   own says so with `[skip style]` in its title.
+
+4. The version is derived automatically from the most recent git tag (see
    `cmake/DeriveVersion.cmake`), so there is no version number to bump by hand:
    cutting a release is just tagging the release commit, e.g. `git tag x.y.z`.
    This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-4. You may merge the Merge Request in once you have the sign-off of one 
+5. You may merge the Merge Request in once you have the sign-off of one 
    of the project maintainers, or if you do not have permission to do that,
    you may request the maintainer to merge it for you.
 

@@ -1,0 +1,47 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - LPPar-all.txt - - - - - - - - - - - - - - - -
+#
+# A txt description of a BlockSolverConfig attaching every :MILPSolver to a
+# Block, for the tests that check each one of the build in turn and keep
+# those it has (see test_partial_solution.cpp)
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+BlockSolverConfig     # exact type of the Configuration object
+
+1  # the BlockSolverConfig is a "differential" one: values are being set
+
+11  # number of (the names of) Solver in this BlockSolverConfig
+# now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
+CPXMILPSolver        # name of Solver, if it is in the build
+GRBMILPSolver        # name of Solver, if it is in the build
+MOSEKMILPSolver      # name of Solver, if it is in the build
+HiGHSMILPSolver      # name of Solver, if it is in the build
+SCIPMILPSolver       # name of Solver, if it is in the build
+DAQPMILPSolver       # name of Solver, if it is in the build
+QPOASESMILPSolver    # name of Solver, if it is in the build
+ClarabelMILPSolver   # name of Solver, if it is in the build
+ProxQPMILPSolver     # name of Solver, if it is in the build
+PIQPMILPSolver       # name of Solver, if it is in the build
+OSQPMILPSolver       # name of Solver, if it is in the build
+
+11  # number of ComputeConfig in this BlockSolverConfig
+
+# now all the ComputeConfig, one per Solver in the same order
+*LPCfg-all.txt       # CPXMILPSolver
+*LPCfg-all.txt       # GRBMILPSolver
+*LPCfg-all.txt       # MOSEKMILPSolver
+*LPCfg-all.txt       # HiGHSMILPSolver
+*LPCfg-all-SCIP.txt  # SCIPMILPSolver
+*LPCfg-all.txt       # DAQPMILPSolver
+*LPCfg-all.txt       # QPOASESMILPSolver
+*LPCfg-all.txt       # ClarabelMILPSolver
+*LPCfg-all.txt       # ProxQPMILPSolver
+*LPCfg-all.txt       # PIQPMILPSolver
+*LPCfg-all.txt       # OSQPMILPSolver
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - END LPPar-all.txt - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

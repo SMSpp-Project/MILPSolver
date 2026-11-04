@@ -42,6 +42,14 @@ function(add_milp_test target_name source)
                 $<TARGET_FILE_DIR:${target_name}>
                 COMMAND_EXPAND_LISTS
                 COMMENT "Copying runtime DLLs next to ${target_name}.exe")
+        # one link at a time, since two copies of the same DLL into a
+        # directory collide, and Ninja links in parallel
+        get_property(_pools GLOBAL PROPERTY JOB_POOLS)
+        if (NOT _pools MATCHES "smspp_runtime_dlls=")
+            set_property(GLOBAL APPEND PROPERTY JOB_POOLS smspp_runtime_dlls=1)
+        endif ()
+        set_property(TARGET ${target_name}
+                     PROPERTY JOB_POOL_LINK smspp_runtime_dlls)
     endif ()
 endfunction()
 
@@ -88,6 +96,13 @@ add_test(NAME test_quad_modify
          COMMAND test_quad_modify
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_qp ------------------------------------------------------------- #
+
+add_milp_test(test_qp test_qp.cpp)
+add_test(NAME test_qp
+         COMMAND test_qp
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_farkas --------------------------------------------------------- #
 
 add_milp_test(test_farkas test_farkas.cpp)
@@ -107,6 +122,55 @@ add_test(NAME test_groups
 add_milp_test(test_reduced_costs test_reduced_costs.cpp)
 add_test(NAME test_reduced_costs
          COMMAND test_reduced_costs
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_stopped_bounds ------------------------------------------------- #
+
+add_milp_test(test_stopped_bounds test_stopped_bounds.cpp)
+add_test(NAME test_stopped_bounds
+         COMMAND test_stopped_bounds
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_free_rows ------------------------------------------------------ #
+
+add_milp_test(test_free_rows test_free_rows.cpp)
+add_test(NAME test_free_rows
+         COMMAND test_free_rows
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_ipm_free_rows -------------------------------------------------- #
+
+add_milp_test(test_ipm_free_rows test_ipm_free_rows.cpp)
+add_test(NAME test_ipm_free_rows
+         COMMAND test_ipm_free_rows
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_cutoff_status -------------------------------------------------- #
+
+add_milp_test(test_cutoff_status test_cutoff_status.cpp)
+add_test(NAME test_cutoff_status
+         COMMAND test_cutoff_status
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_free_workspace ------------------------------------------------- #
+
+add_milp_test(test_free_workspace test_free_workspace.cpp)
+add_test(NAME test_free_workspace
+         COMMAND test_free_workspace
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_partial_solution ----------------------------------------------- #
+
+add_milp_test(test_partial_solution test_partial_solution.cpp)
+add_test(NAME test_partial_solution
+         COMMAND test_partial_solution
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_qcp_dual ------------------------------------------------------- #
+
+add_milp_test(test_qcp_dual test_qcp_dual.cpp)
+add_test(NAME test_qcp_dual
+         COMMAND test_qcp_dual
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 # ----- test_dynamic -------------------------------------------------------- #

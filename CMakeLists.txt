@@ -56,6 +56,18 @@ option(MILPSolver_USE_SCIP "Whether MILPSolver will use SCIP or not." ON)
 option(MILPSolver_USE_GUROBI "Whether MILPSolver will use GUROBI or not." ON)
 option(MILPSolver_USE_HiGHS "Whether MILPSolver will use HiGHS or not." ON)
 option(MILPSolver_USE_PIPS "Whether MILPSolver will use PIPS-IPM++ or not." ON)
+option(MILPSolver_USE_DAQP "Whether MILPSolver will use DAQP or not." ON)
+option(MILPSolver_USE_qpOASES "Whether MILPSolver will use qpOASES or not." ON)
+option(MILPSolver_USE_Clarabel
+        "Whether MILPSolver will use Clarabel or not." ON)
+option(MILPSolver_USE_MOSEK "Whether MILPSolver will use MOSEK or not." ON)
+option(MILPSolver_USE_ProxQP "Whether MILPSolver will use ProxQP or not." ON)
+option(MILPSolver_USE_PIQP "Whether MILPSolver will use PIQP or not." ON)
+option(MILPSolver_USE_OSQP "Whether MILPSolver will use OSQP or not." ON)
+option(MILPSolver_USE_qpmad "Whether MILPSolver will use qpmad or not." ON)
+option(MILPSolver_USE_quadprog
+        "Whether MILPSolver will use quadprog or not." ON)
+option(MILPSolver_USE_HPIPM "Whether MILPSolver will use HPIPM or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -95,7 +107,10 @@ endif ()
 
 if (MILPSolver_USE_HiGHS)
     # Needed for HiGHSMILPSolver
-    find_package(HiGHS 1.5.3)
+    # 1.8.0 is the first HiGHS whose C API has all that HiGHSMILPSolver
+    # calls: the callbacks are there since 1.6.0, Highs_setSparseSolution
+    # since 1.8.0
+    find_package(HiGHS 1.8.0)
     if (NOT HiGHS_FOUND)
         set(MILPSolver_USE_HiGHS OFF)
     endif ()
@@ -107,6 +122,121 @@ if (MILPSolver_USE_PIPS)
     find_package(PIPS)
     if (NOT PIPS_FOUND)
         set(MILPSolver_USE_PIPS OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_DAQP)
+    # Needed for DAQPMILPSolver
+    # DAQP exposes no version number: FindDAQP accepts 0.8.2 or later only,
+    # by a macro of its headers [see FindDAQP.cmake]
+    find_package(DAQP)
+    if (NOT DAQP_FOUND)
+        set(MILPSolver_USE_DAQP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_qpOASES)
+    # Needed for QPOASESMILPSolver
+    find_package(qpOASES 3.2)
+    if (NOT qpOASES_FOUND)
+        set(MILPSolver_USE_qpOASES OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_Clarabel)
+    # Needed for ClarabelMILPSolver
+    # Clarabel exposes no version number: FindClarabel looks for clarabel.h,
+    # which Clarabel.cpp has from 0.11.1 [see FindClarabel.cmake]
+    find_package(Clarabel)
+    if (NOT Clarabel_FOUND)
+        set(MILPSolver_USE_Clarabel OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_MOSEK)
+    # Needed for MOSEKMILPSolver
+    # 11.0.1 is the first with the error codes of writing an LP file
+    find_package(MOSEK 11.0.1)
+    if (NOT MOSEK_FOUND)
+        set(MILPSolver_USE_MOSEK OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_ProxQP)
+    # Needed for ProxQPMILPSolver
+    # ProxSuite installs its CMake configuration, which finds Eigen (and
+    # Simde, if it has been built with vectorization); proxsuite_ROOT is a
+    # hint to its location. 0.4 is the first with the HessianType of dense
+    # ProxQP, and its version file accepts any later 0.x
+    find_package(proxsuite 0.4 CONFIG)
+    if (NOT proxsuite_FOUND)
+        set(MILPSolver_USE_ProxQP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_PIQP)
+    # Needed for PIQPMILPSolver
+    # PIQP installs its CMake configuration, which finds Eigen; piqp_ROOT is
+    # a hint to its location. Its version file only accepts the exact
+    # version, hence 0.6 (the two-sided inequalities) is checked here
+    find_package(piqp CONFIG)
+    if (NOT piqp_FOUND OR piqp_VERSION VERSION_LESS 0.6)
+        set(MILPSolver_USE_PIQP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_OSQP)
+    # Needed for OSQPMILPSolver
+    # OSQP installs its CMake configuration; osqp_ROOT is a hint to its
+    # location. Its version file says 0.0.0 unless OSQP_VERSION is given at
+    # its build, hence the API of OSQP 1.0 is checked by its header
+    # osqp_api_functions.h, which OSQP 0.6 does not have
+    find_package(osqp CONFIG)
+    if (osqp_FOUND AND TARGET osqp::osqpstatic)
+        set(OSQP_TARGET osqp::osqpstatic)
+    elseif (osqp_FOUND AND TARGET osqp::osqp)
+        set(OSQP_TARGET osqp::osqp)
+    endif ()
+    if (OSQP_TARGET)
+        get_target_property(OSQP_INCLUDE_DIRS ${OSQP_TARGET}
+                            INTERFACE_INCLUDE_DIRECTORIES)
+        find_file(OSQP_API_FUNCTIONS osqp_api_functions.h
+                  PATHS ${OSQP_INCLUDE_DIRS} NO_DEFAULT_PATH)
+    endif ()
+    if (NOT OSQP_TARGET OR NOT OSQP_API_FUNCTIONS)
+        set(MILPSolver_USE_OSQP OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_qpmad)
+    # Needed for QPMADMILPSolver
+    # qpmad is header-only and installs its CMake configuration, which finds
+    # Eigen; qpmad_ROOT is a hint to its location. 1.5 is the first that
+    # exports the target qpmad::qpmad, and its version file accepts any 1.x
+    find_package(qpmad 1.5 CONFIG)
+    if (NOT qpmad_FOUND)
+        set(MILPSolver_USE_qpmad OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_quadprog)
+    # Needed for QuadProgMILPSolver
+    # quadprog is under the GPL, hence a MILPSolver built with it is too; it
+    # has no version number, and its qpgen2_ has not changed for decades
+    find_package(quadprog)
+    if (NOT quadprog_FOUND)
+        set(MILPSolver_USE_quadprog OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_HPIPM)
+    # Needed for HPIPMMILPSolver
+    # HPIPM exposes no version number: FindHPIPM accepts 0.1.2 or later
+    # only, by the masks of the bounds in its headers, and finds BLASFEO too
+    # [see FindHPIPM.cmake]
+    find_package(HPIPM)
+    if (NOT HPIPM_FOUND)
+        set(MILPSolver_USE_HPIPM OFF)
     endif ()
 endif ()
 
@@ -170,12 +300,18 @@ if (BUILD_SHARED_LIBS)
         # for by -u included, even under -dead_strip_dylibs
         target_link_options(${modName} INTERFACE
                 "LINKER:-u,_SMSpp_force_load_${modName}")
+    elseif (MINGW)
+        # the PE linker imports a DLL for the symbols asked for, -u
+        # included
+        target_link_options(${modName} INTERFACE
+                "LINKER:-u,SMSpp_force_load_${modName}")
     endif ()
 endif ()
 
 # Ensure that the executables from /tools are run before adding the /include
-# directory to generate the necessary *_defs.h and *_maps.h files of the correct
-# solver version installed on the system, if they are not already present
+# directory to generate the necessary *_defs.h and *_maps.h files of the
+# correct solver version installed on the system, if they are not already
+# present
 add_dependencies(${modName} generate_headers)
 
 # When adding source files with target_sources(), PRIVATE means that the files
@@ -239,9 +375,135 @@ if (MILPSolver_USE_PIPS)
     target_link_libraries(${modName} PUBLIC PIPS::PIPS)
 endif ()
 
+if (MILPSolver_USE_DAQP)
+    message(STATUS "MILPSolver: DAQP found, configuring DAQPMILPSolver")
+    target_sources(${modName} PRIVATE src/DAQPMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC DAQP::DAQP)
+endif ()
+
+if (MILPSolver_USE_qpOASES)
+    message(STATUS "MILPSolver: qpOASES found, configuring QPOASESMILPSolver")
+    target_sources(${modName} PRIVATE src/QPOASESMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC qpOASES::qpOASES)
+endif ()
+
+if (MILPSolver_USE_Clarabel)
+    message(STATUS
+            "MILPSolver: Clarabel found, configuring ClarabelMILPSolver")
+    target_sources(${modName} PRIVATE src/ClarabelMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC Clarabel::Clarabel)
+endif ()
+
+if (MILPSolver_USE_MOSEK)
+    message(STATUS "MILPSolver: MOSEK found, configuring MOSEKMILPSolver")
+    target_sources(${modName} PRIVATE src/MOSEKMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC MOSEK::MOSEK)
+    # the installed library finds libmosek64 in the directory of MOSEK, which
+    # is not in the link path of the build [see FindMOSEK.cmake]
+    if (MOSEK_RUNTIME_DIR)
+        set_property(TARGET ${modName} APPEND PROPERTY
+                INSTALL_RPATH "${MOSEK_RUNTIME_DIR}")
+    endif ()
+endif ()
+
+if (MILPSolver_USE_ProxQP)
+    message(STATUS "MILPSolver: ProxQP found, configuring ProxQPMILPSolver")
+    target_sources(${modName} PRIVATE src/ProxQPMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC proxsuite::proxsuite)
+endif ()
+
+if (MILPSolver_USE_PIQP)
+    message(STATUS "MILPSolver: PIQP found, configuring PIQPMILPSolver")
+    target_sources(${modName} PRIVATE src/PIQPMILPSolver.cpp)
+    # the compiled library of PIQP, if it has been built, otherwise its
+    # header-only target
+    if (TARGET piqp::piqp)
+        target_link_libraries(${modName} PUBLIC piqp::piqp)
+    else ()
+        target_link_libraries(${modName} PUBLIC piqp::piqp_header_only)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_OSQP)
+    message(STATUS "MILPSolver: OSQP found, configuring OSQPMILPSolver")
+    target_sources(${modName} PRIVATE src/OSQPMILPSolver.cpp)
+    # the static library of OSQP, if it has been built, otherwise its shared
+    # one. OSQP exports its internal functions, some of which have the name
+    # of functions of other libraries (e.g., csc_copy, also in HiGHS), and
+    # on Linux the first library loaded gives the function to both; hence
+    # the symbols of the static library are kept local to the binary
+    target_link_libraries(${modName} PUBLIC ${OSQP_TARGET})
+    if (OSQP_TARGET STREQUAL "osqp::osqpstatic" AND
+        CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_options(${modName} PUBLIC
+                            "LINKER:--exclude-libs,libosqpstatic.a")
+    endif ()
+endif ()
+
+if (MILPSolver_USE_qpmad)
+    message(STATUS "MILPSolver: qpmad found, configuring QPMADMILPSolver")
+    target_sources(${modName} PRIVATE src/QPMADMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC qpmad::qpmad)
+endif ()
+
+if (MILPSolver_USE_quadprog)
+    message(STATUS
+            "MILPSolver: quadprog found, configuring QuadProgMILPSolver")
+    target_sources(${modName} PRIVATE src/QuadProgMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC quadprog::quadprog)
+endif ()
+
+if (MILPSolver_USE_HPIPM)
+    message(STATUS "MILPSolver: HPIPM found, configuring HPIPMMILPSolver")
+    target_sources(${modName} PRIVATE src/HPIPMMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC HPIPM::HPIPM)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
+
+# ----- C++20 module -------------------------------------------------------- #
+# The module smspp.milpsolver (src/MILPSolver.cppm) exports the names of the
+# headers and re-exports smspp; like the module smspp of the core, it is built
+# when SMSpp_BUILD_MODULE is ON, which needs CMake 3.28 or later, the Ninja or
+# Visual Studio generator and a compiler that scans the dependencies of the
+# modules.
+# Where these are missing, or a module it imports is not there, the option
+# is turned off with a warning [see CheckModule.cmake of SMS++].
+smspp_check_module(${modNamespace}::SMS++_module)
+if (SMSpp_BUILD_MODULE)
+    # the scan of the module dependencies, and $<LINK_ONLY> honoured also for
+    # the target itself, which cmake_policy(VERSION 3.15) above leaves off
+    cmake_policy(SET CMP0155 NEW)
+    cmake_policy(SET CMP0131 NEW)
+
+    add_library(${modName}_module)
+    target_sources(${modName}_module PUBLIC
+            FILE_SET CXX_MODULES
+            BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src
+            FILES src/${modName}.cppm)
+    target_compile_features(${modName}_module PUBLIC cxx_std_20)
+    # the interface takes the include paths and the definitions of the
+    # library, but not its compile options (e.g., the -fopenmp of a source,
+    # which no header needs), so that it agrees with the module it imports
+    target_include_directories(${modName}_module PRIVATE
+            $<TARGET_PROPERTY:${modName},INTERFACE_INCLUDE_DIRECTORIES>)
+    target_compile_definitions(${modName}_module PRIVATE
+            $<TARGET_PROPERTY:${modName},INTERFACE_COMPILE_DEFINITIONS>)
+    target_link_libraries(${modName}_module PUBLIC $<LINK_ONLY:${modName}>
+            ${modNamespace}::SMS++_module)
+    # the interface takes the header and the names of a backend only if it
+    # is there [see the #if in src/MILPSolver.cppm]
+    foreach (backend CPLEX SCIP GUROBI HiGHS PIPS DAQP qpOASES Clarabel MOSEK
+             ProxQP PIQP OSQP qpmad quadprog HPIPM)
+        if (MILPSolver_USE_${backend})
+            target_compile_definitions(${modName}_module PRIVATE
+                    MILPSolver_MODULE_${backend})
+        endif ()
+    endforeach ()
+    add_library(${modNamespace}::${modName}_module ALIAS ${modName}_module)
+endif ()
 
 # ----- Subdirectories ------------------------------------------------------ #
 if (BUILD_TESTING)
@@ -261,6 +523,17 @@ install(TARGETS ${modName}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} # .dll
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} # .so .dylib
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}) # .lib
+
+# Install the module, whose interface is compiled again by each importer
+if (SMSpp_BUILD_MODULE)
+    install(TARGETS ${modName}_module
+            EXPORT ${modName}Targets
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            FILE_SET CXX_MODULES
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}/modules)
+endif ()
 
 # Install the headers
 install(FILES
@@ -295,6 +568,66 @@ if (MILPSolver_USE_PIPS)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "PIPS*")
+endif ()
+
+if (MILPSolver_USE_DAQP)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "DAQP*")
+endif ()
+
+if (MILPSolver_USE_qpOASES)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "QPOASES*")
+endif ()
+
+if (MILPSolver_USE_Clarabel)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "Clarabel*")
+endif ()
+
+if (MILPSolver_USE_MOSEK)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "MOSEK*")
+endif ()
+
+if (MILPSolver_USE_ProxQP)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "ProxQP*")
+endif ()
+
+if (MILPSolver_USE_PIQP)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "PIQP*")
+endif ()
+
+if (MILPSolver_USE_OSQP)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "OSQP*")
+endif ()
+
+if (MILPSolver_USE_qpmad)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "QPMAD*")
+endif ()
+
+if (MILPSolver_USE_quadprog)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "QuadProg*")
+endif ()
+
+if (MILPSolver_USE_HPIPM)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "HPIPM*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

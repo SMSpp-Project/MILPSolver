@@ -1,5 +1,11 @@
 # MILPSolver
 
+[![Pipeline](https://gitlab.com/smspp/milpsolver/badges/develop/pipeline.svg)](https://gitlab.com/smspp/milpsolver/-/pipelines?ref=develop)
+[![Release](https://gitlab.com/smspp/milpsolver/-/badges/release.svg)](https://gitlab.com/smspp/milpsolver/-/releases)
+[![Documentation](https://img.shields.io/badge/docs-Doxygen-blue)](https://smspp.gitlab.io/smspp-project/)
+[![C++ Standard](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
+
 A generic MILP Solver meta-interface for SMS++, with modules for interfacing
 with some actual solvers. Supports `LinearFunction`, `DQuadFunction` (diagonal
 quadratic) and `QuadFunction` (general quadratic, the last two cases not
@@ -52,11 +58,69 @@ Currently available derived classes are:
 - `HiGHSMILPSolver`, providing the interface with the open-source
   [HiGHS](https://highs.dev)
 
+- `MOSEKMILPSolver`, providing the interface with the commercial
+  [MOSEK](https://www.mosek.com) (LP, MILP, convex QP and MIQP problems
+  with linear constraints)
+
 - `PIPSMILPSolver`, providing the interface with the open-source parallel
   interior-point solver
   [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp) (LP problems
   only, Linux only; see also its
   [website](https://pips-ipmpp.gitlab.io/index.html))
+
+- `DAQPMILPSolver`, providing the interface with the open-source dual
+  active-set solver [DAQP](https://github.com/darnstrom/daqp) (convex QP
+  and LP problems with linear constraints, dense, no integer variables)
+
+- `QPOASESMILPSolver`, providing the interface with the open-source online
+  active-set solver [qpOASES](https://github.com/coin-or/qpOASES) (convex QP
+  and LP problems with linear constraints, dense, no integer variables, the
+  Hessian possibly singular, hot starts between similar problems)
+
+- `ClarabelMILPSolver`, providing the interface with the open-source
+  interior-point solver [Clarabel](https://clarabel.org) (convex QP and LP
+  problems with linear constraints, sparse, no integer variables, with the
+  unbounded rays and the Farkas certificates of infeasible problems)
+
+- `ProxQPMILPSolver`, providing the interface with the open-source proximal
+  augmented Lagrangian solver ProxQP of
+  [ProxSuite](https://github.com/Simple-Robotics/proxsuite) (convex QP and
+  LP problems with linear constraints, dense or sparse, no integer
+  variables, with the unbounded rays)
+
+- `PIQPMILPSolver`, providing the interface with the open-source proximal
+  interior point solver [PIQP](https://github.com/PREDICT-EPFL/piqp)
+  (convex QP and LP problems with linear constraints, dense or sparse, no
+  integer variables)
+
+- `OSQPMILPSolver`, providing the interface with the open-source operator
+  splitting solver [OSQP](https://osqp.org) (convex QP and LP problems with
+  linear constraints, sparse, no integer variables, with the unbounded rays
+  and the Farkas certificates of infeasible problems)
+
+- `QPMADMILPSolver`, providing the interface with the open-source dual
+  active-set solver [qpmad](https://github.com/asherikov/qpmad), of
+  Goldfarb and Idnani (strictly convex QP problems with linear constraints,
+  dense, the Hessian positive definite, no integer variables)
+
+- `QuadProgMILPSolver`, providing the interface with the open-source dual
+  active-set solver [quadprog](https://github.com/quadprog/quadprog), the
+  original implementation of the method of Goldfarb and Idnani (same class
+  of problems as `QPMADMILPSolver`); quadprog is under the GPL, hence a
+  library built with it is too
+
+- `HPIPMMILPSolver`, providing the interface with the open-source
+  interior-point solver [HPIPM](https://github.com/giaf/hpipm), built on the
+  linear algebra of [BLASFEO](https://github.com/giaf/blasfeo) for the small
+  and dense problems of Model Predictive Control (convex QP and LP problems
+  with linear constraints, dense, no integer variables)
+
+Whatever the back-end, the solution of a continuous problem can be checked
+by `MILPSolver` itself against the optimality conditions: with the parameter
+`dblKKTTol` positive, the primal residual, the dual residual and the gap of
+the solution are measured on the `Block` after each solve, and a solution
+that exceeds the tolerance is reported as `kError` (only the primal residual
+is measured on a MIP, or when the back-end gives no duals).
 
 Recent versions of every underlying solver are supported via a mechanism
 that auto-generates the `*_defs.h` and `*_maps.h` files for the version
@@ -69,22 +133,10 @@ that happen, please upgrade.
 
 These instructions will let you build MILPSolver on your system.
 
-The module also comes ready-made, in any of
-
-```sh
-sudo add-apt-repository ppa:smspp-project/smspp   # Ubuntu
-sudo apt install libsmspp-milp-dev
-
-conda install -c conda-forge smspp-project        # Linux, macOS, Windows
-
-brew tap SMSpp-Project/smspp                      # macOS, Linux
-brew install smspp
-
-vcpkg install "smspp[core,milp]"                  # from the sources
-```
-
-where apt and the port give the module alone, while conda and the tap carry
-the whole framework. What follows is about building it yourself.
+The module also comes ready-made: on Ubuntu as `libsmspp-milp-dev`, in vcpkg as
+`smspp[core,milp]`, and in the other channels that the [installation
+guide](https://gitlab.com/smspp/smspp-project/-/wikis/Installing-SMS++) of
+SMS++ lists. What follows is about building it yourself.
 
 ### Requirements
 
@@ -99,7 +151,14 @@ the whole framework. What follows is about building it yourself.
 - for `GRBMILPSolver` you will need
   [GUROBI Optimizer](https://www.gurobi.com/solutions/gurobi-optimizer)
 
-- for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev)
+- for `HiGHSMILPSolver` you will need [HiGHS](https://highs.dev) 1.8.0 or
+  later
+
+- for `MOSEKMILPSolver` you will need [MOSEK](https://www.mosek.com) 11.0.1
+  or later, in `MOSEK_ROOT` (the directory of a version, e.g.
+  `/opt/mosek/11.0`, or the one above it), and a license of it in
+  `~/mosek/mosek.lic` or wherever `MOSEKLM_LICENSE_FILE` says (MOSEK gives
+  [free academic licenses](https://www.mosek.com/products/academic-licenses/))
 
 - for `PIPSMILPSolver` you will need
   [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp), which is only
@@ -107,6 +166,63 @@ the whole framework. What follows is about building it yourself.
   PIPS-IPM++ also needs a sparse linear solver: the fully open-source
   route is MUMPS, while other backends, e.g. PARDISO or MA57, are
   subject to licensing)
+
+- for `DAQPMILPSolver` you will need [DAQP](https://github.com/darnstrom/daqp)
+  0.8.2 or later, installed with its CMake (`cmake --install`), in
+  `DAQP_ROOT`
+
+- for `QPOASESMILPSolver` you will need
+  [qpOASES](https://github.com/coin-or/qpOASES) 3.2 or later, installed
+  with its CMake (`cmake --install`), in `qpOASES_ROOT`
+
+- for `ClarabelMILPSolver` you will need the C interface of Clarabel,
+  [Clarabel.cpp](https://github.com/oxfordcontrol/Clarabel.cpp) 0.11.1 or
+  later, whose build needs a Rust toolchain (`cargo`): since its CMake
+  installs nothing, its `include` directory and the `libclarabel_c` built by
+  `cargo build --release` in `rust_wrapper` go to the `include` and `lib`
+  directories of `Clarabel_ROOT`, as `INSTALL.sh` of the umbrella does
+
+- for `ProxQPMILPSolver` you will need
+  [ProxSuite](https://github.com/Simple-Robotics/proxsuite) 0.4 or later,
+  which is header-only and needs Eigen (and Simde, unless it is configured
+  with `BUILD_WITH_VECTORIZATION_SUPPORT=OFF`), installed with its CMake
+  (`cmake --install`) in `proxsuite_ROOT`
+
+- for `PIQPMILPSolver` you will need
+  [PIQP](https://github.com/PREDICT-EPFL/piqp) 0.6 or later, which needs
+  Eigen, installed with its CMake (`cmake --install`) in `piqp_ROOT`; its
+  C++ interface is enough (`BUILD_C_INTERFACE=OFF`), and its compiled
+  library (the default `BUILD_WITH_TEMPLATE_INSTANTIATION=ON`) is used if
+  it has been built, its headers alone otherwise
+
+- for `OSQPMILPSolver` you will need [OSQP](https://github.com/osqp/osqp)
+  1.0 or later, installed with its CMake (`cmake --install`) in
+  `osqp_ROOT`, with its builtin linear algebra and in double precision (the
+  defaults); its static library is used if it has been built (the
+  default), its shared one otherwise. OSQP exports its internal functions,
+  and one of them (`csc_copy`) is also in HiGHS: on Linux, its static
+  library is linked with its symbols kept local, while with its shared one
+  alone `OSQPMILPSolver` crashes in a program that also loads HiGHS
+
+- for `QPMADMILPSolver` you will need
+  [qpmad](https://github.com/asherikov/qpmad) 1.5 or later, which is
+  header-only and needs Eigen, installed with its CMake (`cmake --install`)
+  in `qpmad_ROOT`
+
+- for `QuadProgMILPSolver` you will need
+  [quadprog](https://github.com/quadprog/quadprog), which has no library of
+  its own: its three C sources (`solve.QP.c`, `linear-algebra.c`,
+  `qr-update.c`) are compiled into `libquadprog` in `quadprog_ROOT/lib`,
+  exporting only `qpgen2_`, as `INSTALL.sh` of the umbrella does (unless
+  `--without-quadprog`)
+
+- for `HPIPMMILPSolver` you will need [HPIPM](https://github.com/giaf/hpipm)
+  0.1.2 or later and [BLASFEO](https://github.com/giaf/blasfeo), installed
+  with their CMake (`cmake --install`) in `HPIPM_ROOT` and `BLASFEO_ROOT`
+  (the latter defaults to the former); the library of HPIPM has to find
+  that of BLASFEO at run time, e.g., by both being in the same directory and
+  HPIPM being built with `-DCMAKE_INSTALL_RPATH='$ORIGIN'`, as `INSTALL.sh`
+  of the umbrella does
 
 All actual `:MILPSolver` are optional but you will need at least one of them to
 actually solve MILP/LP problems. Without any of them, you can still build a
@@ -130,15 +246,25 @@ The library has the same configuration options of
 [SMS++](https://gitlab.com/smspp/smspp-project/-/wikis/Customize-the-configuration).
 Moreover, you can use the following configuration options:
 
-| Variable                 | Description    | Default value |
-| ------------------------ | -------------- | ------------- |
-| `MILPSolver_USE_CPLEX`   | Use CPLEX      | ON            |
-| `MILPSolver_USE_SCIP`    | Use SCIP       | ON            |
-| `MILPSolver_USE_GUROBI`  | Use GUROBI     | ON            |
-| `MILPSolver_USE_HiGHS`   | Use HiGHS      | ON            |
-| `MILPSolver_USE_PIPS`    | Use PIPS-IPM++ | ON            |
+| Variable                  | Description    | Default value |
+| ------------------------- | -------------- | ------------- |
+| `MILPSolver_USE_CPLEX`    | Use CPLEX      | ON            |
+| `MILPSolver_USE_SCIP`     | Use SCIP       | ON            |
+| `MILPSolver_USE_GUROBI`   | Use GUROBI     | ON            |
+| `MILPSolver_USE_HiGHS`    | Use HiGHS      | ON            |
+| `MILPSolver_USE_PIPS`     | Use PIPS-IPM++ | ON            |
+| `MILPSolver_USE_DAQP`     | Use DAQP       | ON            |
+| `MILPSolver_USE_qpOASES`  | Use qpOASES    | ON            |
+| `MILPSolver_USE_Clarabel` | Use Clarabel   | ON            |
+| `MILPSolver_USE_MOSEK`    | Use MOSEK      | ON            |
+| `MILPSolver_USE_ProxQP`   | Use ProxQP     | ON            |
+| `MILPSolver_USE_PIQP`     | Use PIQP       | ON            |
+| `MILPSolver_USE_OSQP`     | Use OSQP       | ON            |
+| `MILPSolver_USE_qpmad`    | Use qpmad      | ON            |
+| `MILPSolver_USE_quadprog` | Use quadprog   | ON            |
+| `MILPSolver_USE_HPIPM`    | Use HPIPM      | ON            |
 
-At least one of the four backends must be enabled at build time for the
+At least one of the backends must be enabled at build time for the
 library to be able to actually solve problems.
 
 Optionally, install the library in the system with:
@@ -297,10 +423,10 @@ details about the non-warranty attached to this code are available in the
 license description file.
 
 The authors are not affiliated, associated, authorized, endorsed by, or in
-any way officially connected with IBM or Gurobi, or any of their subsidiaries
-or affiliates. The names IBM, ILOG, CPLEX and Gurobi as well as related
-names, marks, emblems and images are registered trademarks of their
-respective owners. The authors also do not claim any affiliation with the
+any way officially connected with IBM, Gurobi or MOSEK, or any of their
+subsidiaries or affiliates. The names IBM, ILOG, CPLEX, Gurobi and MOSEK as
+well as related names, marks, emblems and images are registered trademarks
+of their respective owners. The authors also do not claim any affiliation with the
 open-source projects developing SCIP and HiGHS: any fault in the code
 interfacing SMS++ with those is all and entirely ours.
 

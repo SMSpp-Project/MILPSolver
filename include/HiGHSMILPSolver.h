@@ -7,7 +7,7 @@
  * HiGHSMILPSolver implements a general purpose solver that is able to
  * tackle a MILP problem expressed by a Block using HiGHS Optimizer. At
  * the moment, HiGHS is not able to solve MIQP problem. Supports HiGHS
- * versions >= 1.5.3.
+ * versions >= 1.8.0.
  *
  * \author Enrico Calandrini \n
  *         Dipartimento di Informatica \n
@@ -92,23 +92,48 @@ namespace SMSpp_di_unipi_it {
  * no release of HiGHS has yet). Hence, while QPWorkaround is true, and for
  * continuous QPs only:
  *
- * - the default of qp_regularization_value is QPRegularization instead of
- *   the 1e-7 of HiGHS;
- *
  * - unless qp_iteration_limit is set in the configuration, the active set
  *   is stopped after the largest of QPIterationLimit and QPIterationFactor
  *   times the number of rows and columns of the QP;
  *
  * - a QP whose outcome is neither optimal nor a definite answer (infeasible,
  *   unbounded, time limit) is solved again from scratch, which is what gets
- *   the active set out of a stall, and if it is still not solved once more
- *   with the larger regularization QPRetryRegularization, after which
- *   qp_regularization_value goes back to what it was; the QPs that HiGHS
- *   solves at the first attempt are thus solved exactly as they would be
- *   anyway.
+ *   the active set out of a stall, and if it is still not solved with the
+ *   larger regularizations QPRegularization and QPRetryRegularization of
+ *   the Hessian in turn, after which qp_regularization_value goes back to
+ *   what it was; the QPs that HiGHS solves at the first attempt are thus
+ *   solved exactly as they would be anyway, with the regularization of the
+ *   configuration (the 1e-7 of HiGHS by default, which a larger one makes
+ *   less precise and slower on many QPs);
+ *
+ * - a QP whose columns are all bounded and that the active set calls
+ *   unbounded goes through the same attempts, since it cannot be: the
+ *   active set (up to 1.15.1 at least) says so of some convex QP, which it
+ *   takes for a nonconvex one;
+ *
+ * - a QP that none of these attempts solves throws std::runtime_error,
+ *   saying which Solver or stabilization to use instead, rather than
+ *   returning a solution that is not there;
+ *
+ * - a QP that the active set declares optimal with a primal-dual objective
+ *   error (the info primal_dual_objective_error of HiGHS) larger than
+ *   QPObjectiveError is not solved, and compute() returns kError: on an
+ *   unbounded QP whose Hessian is singular, e.g., the master problem of a
+ *   bundle with vertical linearizations, the active set of HiGHS (up to
+ *   1.15.1 at least) ends at a finite point with the status optimal and
+ *   an error close to 1, and solving it again with a larger regularization
+ *   would make it bounded, hence give a value just as wrong; the error of
+ *   a right solution of the active set is mostly below 1e-5, but it
+ *   reaches 1e-3 on some, and once in a while it is large on a right one
+ *   too, which this then turns into kError.
  *
  * Both options only act on QPs, and they can be set to any value in the
- * configuration as any other one. */
+ * configuration as any other one.
+ *
+ * A continuous LP on which HiGHS ends with model status Unknown or Solve
+ * error is solved once more with the other algorithm, the simplex if the
+ * "solver" option asks for an interior point and the interior point
+ * otherwise, after which "solver" goes back to what it was. */
 
 class HiGHSMILPSolver : public MILPSolver {
 
@@ -142,12 +167,21 @@ class HiGHSMILPSolver : public MILPSolver {
 
  /// true if the active set QP solver of HiGHS needs help [see the class]
  /** Whether the next release of HiGHS will contain ERGO-Code/HiGHS#3325 is
-  * not known, hence this is true whatever the version of HiGHS, and it is
-  * to be made false from the first release in which #3325 has been checked
-  * to be. */
+  * not known, hence this is true whatever the version of HiGHS.
+  *
+  * TODO: at the first release of HiGHS with #3325, check that it solves
+  * (i) the QPs of tests/MILPSolver/ObjectiveWeight with HiGHSMILPSolver
+  * back in its BSPar.txt (-k 15 and 31, which 1.15.1 fails and the branch
+  * latest of HiGHS at 5692aaf passes), and (ii) the master problems of
+  * ~/GDrive/smspp-archive/hard-masters/lp, which have to give unbounded on
+  * the 5 unbounded ones and the values of the README there on bounded27
+  * and master3 (ERGO-Code/HiGHS#3393 and #3396, which #3325 does not fix);
+  * only when both pass, make that release the minimum version of HiGHS in
+  * the CMake files and this false, which also drops the check of
+  * QPObjectiveError and the attempts on a bounded QP called unbounded. */
  static constexpr bool QPWorkaround = true;
 
- /// default of the HiGHS option qp_regularization_value [see the class]
+ /// the regularization of the second attempt at a QP [see the class]
  static constexpr double QPRegularization = 1e-5;
 
  /// least iteration limit of the active set QP solver [see the class]
@@ -158,6 +192,9 @@ class HiGHSMILPSolver : public MILPSolver {
 
  /// the regularization of the last attempt at a QP [see the class]
  static constexpr double QPRetryRegularization = 1e-4;
+
+ /// the largest primal-dual objective error of an optimal QP [see the class]
+ static constexpr double QPObjectiveError = 1e-3;
 
  /// enum for string parameters (options in HiGHS)
  enum str_par_type_HiGHS {
@@ -207,9 +244,6 @@ class HiGHSMILPSolver : public MILPSolver {
 /*--------------------------------------------------------------------------*/
 /** @name Public Methods derived from base classes
  * @{ */
-
- /// sets the Block that the Solver has to solve and initializes HiGHS
- void set_Block( Block * block ) override;
 
  // note: the public compute() entry point is inherited from MILPSolver;
  // HiGHSMILPSolver implements only the HiGHS-specific solve in
@@ -273,7 +307,9 @@ class HiGHSMILPSolver : public MILPSolver {
  /** With solver = ipm, HiGHS may fail on a problem changed in place when
   * the crossover is imprecise and the simplex cleans the solution up, which
   * it does not on the same problem loaded whole: with that algorithm the
-  * problem is loaded again as soon as a Modification is pending. */
+  * problem is loaded again as soon as a Modification is pending. The same
+  * holds while the model of HiGHS has the slack columns of the free rows
+  * [see bind_free_rows()], which no Modification knows of. */
 
  bool reload_on_modification( void ) override;
 
@@ -554,14 +590,35 @@ void add_mip_starts(
  int guts_of_compute( void ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// the dual bound of a MIP stopped by a limit, \p none if there is none
+ /// the dual bound of a model stopped by a limit, \p none if there is none
  /** Returns the dual bound HiGHS has reached when a limit stopped it on a
   * MIP, i.e., the bound of the search, which is a lower bound for a
-  * minimization and an upper bound for a maximization; \p none (-INF or
-  * +INF) if the problem is not solved as a MIP, i.e., it has no integer
-  * variables or they are relaxed, since an LP stopped has no such bound. */
+  * minimization and an upper bound for a maximization, and the cutoff for
+  * a continuous model that the dual simplex stopped at it [see
+  * set_lp_cutoff()]; \p none (-INF or +INF) for any other continuous model,
+  * i.e., one with no integer variables or with them relaxed, since an LP
+  * stopped by any other limit has no such bound. */
 
  OFValue stopped_dual_bound( OFValue none );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// gives a continuous model the cutoff of this Solver, if any
+ /** The cutoff on the lower bound that the dual simplex certifies in a
+  * minimization, i.e., dblUpCutOff, becomes the option objective_bound of
+  * HiGHS, the solver the dual simplex and the presolve off, since the bound
+  * is not acted upon in the solve of a presolved model (nor in that of a
+  * maximization, which is then solved as it is): when the dual objective
+  * passes it the solve stops, with model status
+  * ObjectiveBound, with the cutoff as the bound and the dual solution it
+  * has, which is feasible and gives, say, a valid Benders cut. A model with
+  * a quadratic part, or with integer variables that are not relaxed, is
+  * left alone. Returns whether it did, in which case reset_lp_cutoff()
+  * gives back the options there were. */
+
+ bool set_lp_cutoff( void );
+
+ /// gives back the options set_lp_cutoff() has changed
+ void reset_lp_cutoff( void );
 
 /*--------------------------------------------------------------------------*/
 
@@ -569,7 +626,8 @@ void add_mip_starts(
   *
   * The following two methods retrieve the upper and lower bound for the
   * given variable considering both the Variable bounds and all the active
-  * OneVarConstraints active for that Variable. */
+  * OneVarConstraints active for that Variable.
+  *  @{ */
 
  /// gets the LB for the given variable in the problem
  double get_problem_lb( const ColVariable & var ) const override;
@@ -660,6 +718,18 @@ void add_mip_starts(
  /// handles a Function Modification applied to a Constraint
  void constraint_function_modification( const FunctionMod * mod ) override;
 
+ /// the linear coefficients of the Objective changed in place
+ void set_linear_objective( const std::vector< double > & obj ) override;
+
+ /// coefficients of the matrix changed in place
+ void set_quadratic_objective( const std::vector< int > & cols ,
+                               const std::vector< double > & vals ) override;
+
+ void set_matrix_coefficients(
+	    const std::vector< const FRowConstraint * > & rows ,
+	    const std::vector< int > & cols ,
+	    const std::vector< double > & vals ) override;
+
  /// handles a Function Variable Modification applied to the Objective
  void objective_fvars_modification( const FunctionModVars * mod )
   override;
@@ -705,11 +775,11 @@ void add_mip_starts(
 /** @name Methods for separating user cuts / lazy constraints
  *  @{ */
 
- /** From within the callback, run the cut separation invoking
-  * generate_dynamic_constraints() with the given Configuration and then
-  * examining the list of Modification to see if some dynamic Constraint have
-  * been added; if so they are reported back under the form needed to be
-  * added as user cuts or lazy constraints (which is the same).
+ /** From within the callback, writes the rows that separate_in_callback()
+  * gives with the given Configuration (the dynamic Constraint just added by
+  * generate_dynamic_constraints() and the violated ones of the pool) under
+  * the form needed to be added as user cuts or lazy constraints (which is
+  * the same).
   *
   * Note that all vectors are supposed to be empty at the beginning of the
   * call, and they will still be empty if no cuts are found. */
@@ -720,6 +790,12 @@ void add_mip_starts(
 			  std::vector< double > & rmatval ,
 			  std::vector< double > & rhs , 
 			  std::vector< char > & sense );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// the callback cannot give lazy constraints, hence it never gives back
+ /// the pool, whose rows are added to the model before each solve
+
+ bool cut_pool_enforced( void ) const override { return( false ); }
 
 /** @} ---------------------------------------------------------------------*/
  /// maps a Solver integer parameter into a HiGHS one
@@ -738,6 +814,11 @@ void add_mip_starts(
  void * highs;  ///< Highs instance
 
  bool f_callback_set;  // true if the callback has been set
+ bool f_lp_cutoff_stop = false;  ///< stopped at set_lp_cutoff()'s bound
+ double f_saved_cutoff = 0;       ///< objective_bound before set_lp_cutoff()
+ HighsInt f_saved_strategy = 0;   ///< simplex_strategy before it
+ std::string f_saved_solver;      ///< solver before it
+ std::string f_saved_presolve;    ///< presolve before it
 
  // note: CutSepPar is now an inherited member of MILPSolver base
 
@@ -789,9 +870,12 @@ void add_mip_starts(
   *       bool HiGHS options are handled as SMS++ int parameters.
   * @{ */
 
- const static std::array< std::string , HiGHS_NUM_INT_PARS > SMSpp_to_HiGHS_int_pars;
- const static std::array< std::string , HiGHS_NUM_DBL_PARS > SMSpp_to_HiGHS_dbl_pars;
- const static std::array< std::string , HiGHS_NUM_STR_PARS > SMSpp_to_HiGHS_str_pars;
+ const static std::array< std::string , HiGHS_NUM_INT_PARS >
+  SMSpp_to_HiGHS_int_pars;
+ const static std::array< std::string , HiGHS_NUM_DBL_PARS >
+  SMSpp_to_HiGHS_dbl_pars;
+ const static std::array< std::string , HiGHS_NUM_STR_PARS >
+  SMSpp_to_HiGHS_str_pars;
 
  const static std::array< std::pair< std::string , int > , HiGHS_NUM_INT_PARS >
   HiGHS_to_SMSpp_int_pars;
@@ -805,6 +889,8 @@ void add_mip_starts(
 
  double UpCutOff;  ///< externally set upper cutoff to terminate
  double LwCutOff;  ///< externally set lower cutoff to terminate
+
+ int n_free_slacks;  ///< slack columns of the free rows in HiGHS
  
 /*--------------------------------------------------------------------------*/
 /*---------------------- PRIVATE PART OF THE CLASS -------------------------*/
@@ -846,6 +932,36 @@ void add_mip_starts(
  /// calls Highs_run(), sizing again the scheduler of HiGHS if needed
  int run_highs( void );
 
+ /// whether HiGHS solves the current model with its interior point
+ /** True on an LP (no integer columns, no Hessian) when solver is ipm, ipx
+  * or hipo or run_centring is set, i.e., when HiGHS hands the LP to IPX
+  * (or to HiPO, which builds it the same way). */
+ bool ipm_on_lp( void );
+
+ /// gives each row of HiGHS with no finite side a free slack column
+ /** Up to HiGHS 1.15.1, the LP that HiGHS builds for IPX drops the rows
+  * with no finite side and renumbers the others, yet puts the slack column
+  * of a row with two different finite sides in the row with its original
+  * index, and reads past the end of the list of free rows when one is not
+  * the last row (ERGO-Code/HiGHS#3319, fixed after 1.15.1): the interior
+  * point then solves another LP, which it may say infeasible when it is
+  * not, or fails. Each such row becomes the equality a'x + s = 0 with a
+  * free slack s appended as the last column, which IPX keeps as it is: the
+  * rows keep their index, the slack has cost 0, and the dual value of the
+  * row is 0, as that of a free row. The columns of HiGHS are then more
+  * than those of the Block, and are cut to numcols wherever a solution is
+  * read; the slacks go when the problem is loaded again, which any
+  * Modification does as long as they are there [see
+  * reload_on_modification()]. */
+ void bind_free_rows( void );
+
+ /// writes the model of the Block to the file name
+ /** Writes the model of HiGHS, in the format of the extension of name;
+  * if it has the slack columns of the free rows [see bind_free_rows()],
+  * it writes a copy without them, the rows free again, which leaves the
+  * model and the solution of HiGHS as they are. */
+ void write_model( const std::string & name );
+
  /// passes q_hessian to HiGHS, the name of the caller going in the error
  void pass_hessian( const char * caller );
 
@@ -853,9 +969,12 @@ void add_mip_starts(
  /** Changes the costs of the columns in idx in one call, reading the old ones
   * in one call as well if add is true. The indices need not be ordered, and
   * a column named twice gets the sum of its values if add is true and the
-  * last one otherwise. */
- void change_obj_costs( std::vector< int > & idx , std::vector< double > & val ,
-                        bool add );
+  * last one otherwise. If add and removal are both true, round a finite
+  * result to zero when its magnitude is at most
+  * dblObjRemovalTol * max( 1 , abs( old cost ) , abs( summed delta ) ). */
+ void change_obj_costs( std::vector< int > & idx ,
+                        std::vector< double > & val ,
+                        bool add , bool removal = false );
 
 /*--------------------------------------------------------------------------*/
 
@@ -875,5 +994,5 @@ void add_mip_starts(
 #endif  /* HiGHSMILPSolver.h included */
 
 /*--------------------------------------------------------------------------*/
-/*------------------------ End File HiGHSMILPSolver.h ------------------------*/
+/*------------------------ End File HiGHSMILPSolver.h ----------------------*/
 /*--------------------------------------------------------------------------*/

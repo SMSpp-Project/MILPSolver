@@ -162,9 +162,6 @@ class GRBMILPSolver : public MILPSolver {
 /** @name Public Methods derived from base classes
  * @{ */
 
- /// sets the Block that the Solver has to solve and initializes Gurobi
- void set_Block( Block * block ) override;
-
  // note: the public compute() entry point is inherited from MILPSolver;
  // GRBMILPSolver implements only the Gurobi-specific solve in
  // guts_of_compute() below (protected)
@@ -248,13 +245,13 @@ class GRBMILPSolver : public MILPSolver {
  //  in the branch-and-bound algorithm for a MIP problem.  
  //  
  /// NOTE: This method should only be called during the callback process  
- //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and in specific situations (e.g., when a new incumbent solution is found,
  //  and you need to identify the node from which it originates).  
  [[nodiscard]] long get_id_node( void ) const override;
 
 /** 
  * Adds multiple MIP starts to a MIP problem. This function allows the solver 
- * to receive multiple sets of starting values by providing vectors of variable 
+ * to receive multiple sets of starting values by providing vectors of variable
  * indices and corresponding values for each start.
  * 
  * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
@@ -539,7 +536,8 @@ void add_mip_starts(
 
  int callback( GRBmodel *model , void *cbdata , int where );
 
- /// returns the current best solution for the problem when the callback is set.
+ /// returns the current best solution for the problem when the callback is
+ /// set.
  OFValue get_bestsol_callback( void );
 
  /// returns the current best bound for the problem when the callback is set
@@ -568,7 +566,8 @@ void add_mip_starts(
   *
   * The following two methods retrieve the upper and lower bound for the
   * given variable considering both the Variable bounds and all the active
-  * OneVarConstraints active for that Variable. */
+  * OneVarConstraints active for that Variable.
+  *  @{ */
 
  /// gets the LB for the given variable in the problem
  double get_problem_lb( const ColVariable & var ) const override;
@@ -606,6 +605,18 @@ void add_mip_starts(
 
  /// handles a Function Modification applied to a Constraint
  void constraint_function_modification( const FunctionMod * mod ) override;
+
+ /// the linear coefficients of the Objective changed in place
+ void set_linear_objective( const std::vector< double > & obj ) override;
+
+ /// coefficients of the matrix changed in place
+ void set_quadratic_objective( const std::vector< int > & cols ,
+                               const std::vector< double > & vals ) override;
+
+ void set_matrix_coefficients(
+	    const std::vector< const FRowConstraint * > & rows ,
+	    const std::vector< int > & cols ,
+	    const std::vector< double > & vals ) override;
 
  /// handles a Function Variable Modification applied to the Objective
  void objective_fvars_modification( const FunctionModVars * mod )
@@ -713,11 +724,11 @@ void add_mip_starts(
 /** @name Methods for separating user cuts / lazy constraints
  *  @{ */
 
- /** From within the callback, run the cut separation invoking
-  * generate_dynamic_constraints() with the given Configuration and then
-  * examining the list of Modification to see if some dynamic Constraint have
-  * been added; if so they are reported back under the form needed to be
-  * added as user cuts or lazy constraints (which is the same).
+ /** From within the callback, writes the rows that separate_in_callback()
+  * gives with the given Configuration (the dynamic Constraint just added by
+  * generate_dynamic_constraints() and the violated ones of the pool) under
+  * the form needed to be added as user cuts or lazy constraints (which is
+  * the same).
   *
   * Note that all vectors are supposed to be empty at the beginning of the
   * call, and they will still be empty if no cuts are found. */
@@ -756,6 +767,40 @@ void add_mip_starts(
   * updated, so the three methods deleting a row or a column update on the
   * spot and clear the mark [see remove_dynamic_constraint()]. */
  GRBmodel * updated_model( void ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// an attribute of the solution, from the model or from what was kept
+ /** The attributes of the solution of the last solve: those that the model
+  * has, or those kept when the workspace was freed, for the copy of the
+  * model has none [see free_workspace()]. The returned
+  * value is that of the GUROBI call it stands for. */
+
+ int sol_int_attr( const char * name , int * value ) const;
+
+ int sol_dbl_attr( const char * name , double * value ) const;
+
+ int sol_dbl_attrarray( const char * name , int first , int len ,
+                        double * values ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// keeps the solution and the basis, and replaces the model by a copy
+ /** Called after each solve of a continuous model ending optimal: the
+  * attributes of the solution and the basis are kept, and the model is
+  * replaced by a copy of itself, with no workspace, since the one GUROBI
+  * keeps after a solve takes several times the memory of the model and the
+  * next solve, which starts from the kept basis, does not need it. If
+  * GUROBI cannot copy the model, nothing changes. */
+
+ void free_workspace( void );
+
+/*--------------------------------------------------------------------------*/
+ /// gives the model the basis kept by free_workspace(), if any
+ /** A row or a column added since gets the status of a basic row or of a
+  * column at its lower bound, which is how GUROBI warm starts after the
+  * same change to a model it has kept; a model with fewer rows or columns
+  * than the basis starts cold. */
+
+ void restore_basis( void );
 
 /*--------------------------------------------------------------------------*/
  /// the objective coefficients of the given columns, read in one call
@@ -800,6 +845,32 @@ void add_mip_starts(
 
  bool f_callback_set;  // true if the callback has been set
 
+ double f_saved_cutoff = 0;        ///< Cutoff before set_lp_cutoff()
+ int f_saved_method = -1;          ///< Method before set_lp_cutoff()
+ int f_saved_presolve = -1;        ///< Presolve before set_lp_cutoff()
+
+ /// the attributes of the solution kept by free_workspace()
+ /**< Valid until the model is changed or solved again, which is when GUROBI
+  * discards the solution of a model it keeps [see updated_model()]. */
+ struct KeptSolution {
+  bool valid = false;
+  int status = 0;
+  int solcount = 0;
+  double objval = 0;
+  int objbound_err = 0;  ///< the GUROBI error asking ObjBound, if any
+  double objbound = 0;
+  double runtime = 0;
+  double nodecount = 0;
+  std::vector< double > x;   ///< X
+  std::vector< double > rc;  ///< RC
+  std::vector< double > pi;  ///< Pi
+  };
+ mutable KeptSolution f_kept;
+
+ /// the basis kept by free_workspace(), until the next solve
+ std::vector< int > f_vbasis;
+ std::vector< int > f_cbasis;
+
  /// how many GRBMILPSolver are using the shared environment
  static unsigned int f_env_users;
 
@@ -834,6 +905,26 @@ void add_mip_starts(
 
  void compute_certificate( int m_status );
 
+/*--------------------------------------------------------------------------*/
+ /// gives a continuous model the cutoff of this Solver, if any
+ /** The cutoff on the bound that the dual simplex certifies, i.e.,
+  * dblUpCutOff of a minimization and dblLwCutOff of a maximization, becomes
+  * the Cutoff parameter of GUROBI, the method the dual simplex and the
+  * presolve off, since a presolved model stopped at the cutoff gives no
+  * dual solution of the original one: when the
+  * dual objective passes it the solve stops, with status GRB_CUTOFF, with
+  * the cutoff as the bound and the dual solution it has, which is feasible
+  * and gives, say, a valid Benders cut. Returns whether it did, in which
+  * case reset_lp_cutoff() gives back the Cutoff, the method and the
+  * presolve there were.
+  * The other cutoff of each sense asks for a primal solution good enough,
+  * which is not what the dual simplex gives, and it is left alone. */
+
+ bool set_lp_cutoff( void );
+
+ /// gives back the parameters set_lp_cutoff() has changed
+ void reset_lp_cutoff( void );
+
  // note: CutSepPar is now an inherited member of MILPSolver base
 
  /** vector containing the indices of the Configuration for the various
@@ -847,7 +938,8 @@ void add_mip_starts(
  /// the "Configuration DB" istself
  std::vector< Configuration * > v_ConfigDB;
 
-  /** pointer used to keep track of the current data and status of the callback */
+  /** pointer used to keep track of the current data and status of the
+   * callback */
  void * current_cbdata;
  int current_cbwhere;
 
@@ -862,28 +954,30 @@ void add_mip_starts(
   * of the GUROBI threads for the critical sections of the callback(). */
  std::mutex f_callback_mutex;
 
- /* Unlike SMS++, Gurobi handles ranged constraints adding an auxiliary variable 
-  * to the model. Thus, it is important to map exactly the indices of the ranged
-  * constraints of the model with the indices of those corresponding variables.
-  * To do so, we will use a vector of pair ( idx_rng_con , idx_aux_var ) which 
-  * will be constantly updated if the model changes. It is important to note that
-  * indices corresponding to static constraints cannot change. Thus, due to the 
-  * fact that in SMS++ static constraints are added before dynamic ones, an int 
-  * element will point to the last static ranged constraint added (default -1 
-  * if no static ranged constraint are used in the model) for computational
+ /* Unlike SMS++, Gurobi handles ranged constraints adding an auxiliary
+  * variable to the model. Thus, it is important to map exactly the indices
+  * of the ranged constraints of the model with the indices of those
+  * corresponding variables. To do so, we will use a vector of pair
+  * ( idx_rng_con , idx_aux_var ) which will be constantly updated if the
+  * model changes. It is important to note that indices corresponding to
+  * static constraints cannot change. Thus, due to the fact that in SMS++
+  * static constraints are added before dynamic ones, an int element will
+  * point to the last static ranged constraint added (default -1 if no
+  * static ranged constraint are used in the model) for computational
   * reasons.
   * 
-  *   IMPORTANT NOTE: this vector will be automatically sorted in ascending order
-  *                   both by idx_rng_con and by idx_aux_var. In fact, when adding
-  *                   a new ranged constraint, Gurobi add both constraint and auxiliary 
-  *                   variable at the end of the model. Thus, the new couple
-  *                   ( idx_rng_con , idx_aux_var ) will have values greater than the
-  *                   previously added ones. 
+  *   IMPORTANT NOTE: this vector will be automatically sorted in ascending
+  *                   order both by idx_rng_con and by idx_aux_var. In fact,
+  *                   when adding a new ranged constraint, Gurobi add both
+  *                   constraint and auxiliary variable at the end of the
+  *                   model. Thus, the new couple ( idx_rng_con , idx_aux_var )
+  *                   will have values greater than the previously added ones. 
   * 
-  *   IMPORTANT NOTE2: Gurobi does not add auxiliary variables until GRBupdatemodel() 
-  *                   is called. Since we only call it at the end of the loading phase,
-  *                   we assume that all auxiliary ranged variables are located in
-  *                   the last columns of the Gurobi matrix.
+  *   IMPORTANT NOTE2: Gurobi does not add auxiliary variables until
+  *                   GRBupdatemodel() is called. Since we only call it at
+  *                   the end of the loading phase, we assume that all
+  *                   auxiliary ranged variables are located in the last
+  *                   columns of the Gurobi matrix.
   */
  // the vector of pair ( ranged constraint - axiliary variable )
  std::vector<std::pair < int , int >> map_rng_con_aux_var;
@@ -912,6 +1006,14 @@ void add_mip_starts(
   std::vector< int > grb_quad_con_aux;
   std::vector< int > grb_idx_aux_qvar; // Need to be sorted
 
+ /// true if row i is a quadratic constraint
+ /** After load_problem() the base representation, q_part included, is gone
+  * [see MILPSolver::clear_problem()], and what is left is this. */
+ bool is_quad_row( int i ) const {
+  return( ( i < int( grb_quad_con_aux.size() ) ) &&
+          ( grb_quad_con_aux[ i ] != -1 ) );
+  }
+
  // last static ranged constraint added
  int last_static_rng_con;
 
@@ -920,13 +1022,33 @@ void add_mip_starts(
 
  int grb_index_of_variable( const int old_idx ) const;
 
- // function to retrieve actual idx of dynamic variable considering auxiliary ones
+ // function to retrieve actual idx of dynamic variable considering
+ // auxiliary ones
  int grb_index_of_dynamic_variable( const ColVariable * var ) const; 
 
- // function to retrieve actual idx of constraint. In GUROBI indices of linear and
- // quadratic constraint are disjoint, so we need to retrieve the actual index 
- // based on the type of constraint.
+ // function to retrieve actual idx of constraint. In GUROBI indices of
+ // linear and quadratic constraint are disjoint, so we need to retrieve
+ // the actual index based on the type of constraint.
  int grb_index_of_linear_constraint( const FRowConstraint * con ) const;
+
+ /// tells whether a row of MILPSolver, given its sense and rhs, is free
+ /** A row with no finite side, as a relaxed one, is 'L' with rhs + Inf or
+  * 'G' with rhs - Inf [see MILPSolver]. */
+ static bool is_free_row( char sense , double rhs ) {
+  return( ( ( sense == 'L' ) && ( rhs == Inf< double >() ) ) ||
+          ( ( sense == 'G' ) && ( rhs == -Inf< double >() ) ) );
+  }
+
+ /// makes the linear row index of the GUROBI model free
+ /** The row becomes the equality a'x + s = 0 with a free slack s, the one
+  * of the row if it is ranged and a new one otherwise, recorded in
+  * map_rng_con_aux_var as the slack of a ranged row: the row keeps its
+  * index, binds nothing and has dual value 0, while a'x <= GRB_INFINITY
+  * would be a row whose right-hand side of 1e100 makes a warm re-solve
+  * after a change of the coefficients end in numerical trouble. A side
+  * that becomes finite again gives the slack back its bounds [see
+  * const_modification()]. */
+ void make_free_row( int index );
  
  /** @name Handling of Gurobi parameters
   *
@@ -939,9 +1061,12 @@ void add_mip_starts(
   *       long Gurobi parameters are handled as SMS++ int parameters.
   * @{ */
 
- const static std::array< std::string , GRB_NUM_INT_PARS > SMSpp_to_GUROBI_int_pars;
- const static std::array< std::string , GRB_NUM_DBL_PARS > SMSpp_to_GUROBI_dbl_pars;
- const static std::array< std::string , GRB_NUM_STR_PARS > SMSpp_to_GUROBI_str_pars;
+ const static std::array< std::string , GRB_NUM_INT_PARS >
+  SMSpp_to_GUROBI_int_pars;
+ const static std::array< std::string , GRB_NUM_DBL_PARS >
+  SMSpp_to_GUROBI_dbl_pars;
+ const static std::array< std::string , GRB_NUM_STR_PARS >
+  SMSpp_to_GUROBI_str_pars;
 
  const static std::array< std::pair< std::string , int > , GRB_NUM_INT_PARS >
   GUROBI_to_SMSpp_int_pars;

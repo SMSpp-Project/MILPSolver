@@ -51,6 +51,38 @@ find_package(BLAS QUIET)
 find_package(LAPACK QUIET)
 find_package(Threads QUIET)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again, together with the cached directories that do
+# not exist any more, so that they are derived again from the source tree
+set(_PIPS_cached PIPS_SOURCE_ROOT PIPS_LIBRARY PIPS_MUMPS_SOLVER_LIBRARY
+        PIPS_PARDISO_SOLVER_LIBRARY PIPS_PARDISO_ABSTRACT_LIBRARY
+        PIPS_MA57_LIBRARY PIPS_METIS_ADAPTER_LIBRARY PIPS_MUMPS_D_LIBRARY
+        PIPS_MUMPS_COMMON_LIBRARY PIPS_PORD_LIBRARY PIPS_PARDISO_LIBRARY
+        PIPS_METIS_LIBRARY PIPS_MPI_MPIFH_LIBRARY PIPS_GFORTRAN_LIBRARY)
+foreach (_var ${_PIPS_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_PIPS_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_PIPS_stale)
+    message(STATUS "Cached PIPS-IPM++ paths not found, searching again")
+    foreach (_var ${_PIPS_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+    foreach (_var PIPS_BUILD_DIR PIPS_CORE_LIB_DIR
+            PIPS_LINEAR_SOLVERS_LIB_DIR PIPS_PARDISO_DIR)
+        if (IS_ABSOLUTE "${${_var}}" AND NOT EXISTS "${${_var}}")
+            unset(${_var} CACHE)
+        endif ()
+    endforeach ()
+endif ()
+unset(_PIPS_cached)
+unset(_PIPS_stale)
+unset(_var)
+unset(_path)
+
 # Check if already in cache
 if (PIPS_SOURCE_ROOT AND PIPS_LIBRARY)
     set(PIPS_FOUND TRUE)
@@ -275,12 +307,16 @@ if (PIPS_FOUND)
 
     if (PIPS_MPI_MPIFH_LIBRARY AND UNIX AND NOT APPLE)
         # This is the CMake equivalent of the --no-as-needed section in
-        # makefile-libPIPS, needed by some shared MUMPS/OpenMPI combinations.
+        # makefile-libPIPS, needed by some shared MUMPS/OpenMPI combinations;
+        # the section restores the state it found rather than turning
+        # --as-needed on, which would drop from the link the libraries that
+        # follow and that a module keeps with --no-as-needed so that its
+        # classes register themselves in the factories
         list(APPEND _PIPS_LINK_LIBRARIES
-                -Wl,--no-as-needed
+                -Wl,--push-state,--no-as-needed
                 "${PIPS_MPI_MPIFH_LIBRARY}"
                 MPI::MPI_CXX
-                -Wl,--as-needed)
+                -Wl,--pop-state)
     else ()
         if (PIPS_MPI_MPIFH_LIBRARY)
             list(APPEND _PIPS_LINK_LIBRARIES "${PIPS_MPI_MPIFH_LIBRARY}")

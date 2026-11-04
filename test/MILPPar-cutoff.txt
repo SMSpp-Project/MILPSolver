@@ -1,0 +1,57 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - -  MILPPar-cutoff.txt - - - - - - - - - - - - - - -
+#
+# A txt description of a BlockSolverConfig for the MIPs of
+# test_cutoff_status, attaching each :MILPSolver three times, one for each
+# of the ComputeConfig MILPCfg-cutoff.txt (an upper cutoff),
+# MILPCfg-cutoff-lw.txt (a lower cutoff) and MILPCfg-cutoff-bnd.txt (both,
+# the lower one on a bound)
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+BlockSolverConfig     # exact type of the Configuration object
+
+1  # the BlockSolverConfig is a "differential" one: values are being set
+
+15  # number of (the names of) Solver in this BlockSolverConfig
+
+# now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
+CPXMILPSolver    # name of Solver, if it is in the build
+CPXMILPSolver    # name of Solver, if it is in the build
+CPXMILPSolver    # name of Solver, if it is in the build
+GRBMILPSolver    # name of Solver, if it is in the build
+GRBMILPSolver    # name of Solver, if it is in the build
+GRBMILPSolver    # name of Solver, if it is in the build
+MOSEKMILPSolver  # name of Solver, if it is in the build
+MOSEKMILPSolver  # name of Solver, if it is in the build
+MOSEKMILPSolver  # name of Solver, if it is in the build
+HiGHSMILPSolver  # name of Solver, if it is in the build
+HiGHSMILPSolver  # name of Solver, if it is in the build
+HiGHSMILPSolver  # name of Solver, if it is in the build
+SCIPMILPSolver   # name of Solver, if it is in the build
+SCIPMILPSolver   # name of Solver, if it is in the build
+SCIPMILPSolver   # name of Solver, if it is in the build
+
+15  # number of ComputeConfig in this BlockSolverConfig
+
+# now all the ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - -
+*MILPCfg-cutoff.txt
+*MILPCfg-cutoff-lw.txt
+*MILPCfg-cutoff-bnd.txt
+*MILPCfg-cutoff.txt
+*MILPCfg-cutoff-lw.txt
+*MILPCfg-cutoff-bnd.txt
+*MILPCfg-cutoff.txt
+*MILPCfg-cutoff-lw.txt
+*MILPCfg-cutoff-bnd.txt
+*MILPCfg-cutoff.txt
+*MILPCfg-cutoff-lw.txt
+*MILPCfg-cutoff-bnd.txt
+*MILPCfg-cutoff.txt
+*MILPCfg-cutoff-lw.txt
+*MILPCfg-cutoff-bnd.txt
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - -  END MILPPar-cutoff.txt - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

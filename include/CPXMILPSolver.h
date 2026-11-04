@@ -168,9 +168,6 @@ class CPXMILPSolver : public MILPSolver {
 /** @name Public Methods derived from base classes
  * @{ */
 
- /// sets the Block that the Solver has to solve and initializes CPLEX
- void set_Block( Block * block ) override;
-
  // note: the public compute() entry point is inherited from MILPSolver;
  // CPXMILPSolver implements only the CPLEX-specific solve in
  // guts_of_compute() below (protected)
@@ -249,13 +246,13 @@ class CPXMILPSolver : public MILPSolver {
  //  in the branch-and-bound algorithm for a MIP problem.  
  //  
  /// NOTE: This method should only be called during the callback process  
- //  and in specific situations (e.g., when a new incumbent solution is found,  
+ //  and in specific situations (e.g., when a new incumbent solution is found,
  //  and you need to identify the node from which it originates).  
  [[nodiscard]] long get_id_node( void ) const override;
 
 /** 
  * Adds multiple MIP starts to a MIP problem. This function allows the solver 
- * to receive multiple sets of starting values by providing vectors of variable 
+ * to receive multiple sets of starting values by providing vectors of variable
  * indices and corresponding values for each start.
  * 
  * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
@@ -556,7 +553,8 @@ class CPXMILPSolver : public MILPSolver {
   *
   * The following two methods retrieve the upper and lower bound for the
   * given variable considering both the Variable bounds and all the active
-  * OneVarConstraints active for that Variable. */
+  * OneVarConstraints active for that Variable.
+  *  @{ */
 
  /// gets the LB for the given variable in the problem
  double get_problem_lb( const ColVariable & var ) const override;
@@ -645,6 +643,18 @@ class CPXMILPSolver : public MILPSolver {
  /// handles a Function Modification applied to a Constraint
  void constraint_function_modification( const FunctionMod * mod ) override;
 
+ /// the linear coefficients of the Objective changed in place
+ void set_linear_objective( const std::vector< double > & obj ) override;
+
+ /// coefficients of the matrix changed in place
+ void set_quadratic_objective( const std::vector< int > & cols ,
+                               const std::vector< double > & vals ) override;
+
+ void set_matrix_coefficients(
+	    const std::vector< const FRowConstraint * > & rows ,
+	    const std::vector< int > & cols ,
+	    const std::vector< double > & vals ) override;
+
  /// handles a Function Variable Modification applied to the Objective
  void objective_fvars_modification( const FunctionModVars * mod )
   override;
@@ -691,11 +701,11 @@ class CPXMILPSolver : public MILPSolver {
 /** @name Methods for separating user cuts / lazy constraints
  *  @{ */
 
- /** From within the callback, run the cut separation invoking
-  * generate_dynamic_constraints() with the given Configuration and then
-  * examining the list of Modification to see if some dynamic Constraint have
-  * been added; if so they are reported back under the form needed to be
-  * added as user cuts or lazy constraints (which is the same).
+ /** From within the callback, writes the rows that separate_in_callback()
+  * gives with the given Configuration (the dynamic Constraint just added by
+  * generate_dynamic_constraints() and the violated ones of the pool) under
+  * the form needed to be added as user cuts or lazy constraints (which is
+  * the same).
   *
   * Note that all vectors are supposed to be empty at the beginning of the
   * call, and they will still be empty if no cuts are found. */
@@ -726,6 +736,34 @@ class CPXMILPSolver : public MILPSolver {
  CPXLPptr lp;   ///< CPLEX LP problem
 
  bool f_callback_set;  // true if the callback has been set
+ int f_lp_cutoff_par = 0;      ///< the limit set_lp_cutoff() has set
+ double f_saved_cutoff = 0;    ///< its value before set_lp_cutoff()
+ int f_saved_method = 0;       ///< LPMethod before set_lp_cutoff()
+
+ /// the solution of the last solve, kept by free_workspace()
+ /**< Valid from the end of the solve that free_workspace() follows to the
+  * start of the next one: the copy of the problem that replaces the solved
+  * one has no solution, and the problem only changes within compute(),
+  * before the solve [see MILPSolver::process_modifications()]. */
+ struct KeptSolution {
+  bool valid = false;
+  int stat = 0;                  ///< CPXgetstat()
+  int method = 0;                ///< the four outputs of CPXsolninfo()
+  int type = 0;
+  int pfeas = 0;
+  int dfeas = 0;
+  double objval = 0;             ///< CPXgetobjval()
+  int bestobj_err = 0;           ///< the error of CPXgetbestobjval(), if any
+  double bestobjval = 0;         ///< CPXgetbestobjval()
+  std::vector< double > x;       ///< CPXgetx()
+  std::vector< double > pi;      ///< CPXgetpi()
+  std::vector< double > dj;      ///< CPXgetdj()
+  };
+ KeptSolution f_kept;
+
+ /// the basis kept by free_workspace(), until the next solve
+ std::vector< int > f_cstat;
+ std::vector< int > f_rstat;
 
  // note: CutSepPar (the bitwise-encoded cut/lazy separation parameter)
  // is now an inherited member of MILPSolver base
@@ -744,7 +782,8 @@ class CPXMILPSolver : public MILPSolver {
  /** pointer used to keep track of the current context of the callback */
  CPXCALLBACKCONTEXTptr current_Cntx;
 
- /** an integer value specifying the context in which the callback is invoked. */
+ /** an integer value specifying the context in which the callback is
+  * invoked. */
  CPXLONG current_Cntx_id;
 
  /** double storing the timestamp when optimization begins. */
@@ -785,15 +824,24 @@ class CPXMILPSolver : public MILPSolver {
   std::vector< int > cpx_quad_con_aux;
   std::vector< int > cpx_idx_aux_qvar; // Need to be sorted
 
+ /// true if row i is a quadratic constraint
+ /** After load_problem() the base representation, q_part included, is gone
+  * [see MILPSolver::clear_problem()], and what is left is this. */
+ bool is_quad_row( int i ) const {
+  return( ( i < int( cpx_quad_con_aux.size() ) ) &&
+          ( cpx_quad_con_aux[ i ] != -1 ) );
+  }
+
  // function to retrieve actual idx of variable considering auxiliary ones
  int cpx_index_of_variable( const ColVariable * var ) const;
 
- // function to retrieve actual idx of dynamic variable considering auxiliary ones
+ // function to retrieve actual idx of dynamic variable considering
+ // auxiliary ones
  int cpx_index_of_dynamic_variable( const ColVariable * var ) const;
 
- // function to retrieve actual idx of constraint. In CPLEX indices of linear and
- // quadratic constraint are disjoint, so we need to retrieve the actual index 
- // based on the type of constraint.
+ // function to retrieve actual idx of constraint. In CPLEX indices of
+ // linear and quadratic constraint are disjoint, so we need to retrieve
+ // the actual index based on the type of constraint.
  int cpx_index_of_linear_constraint( const FRowConstraint * con ) const;
  
  /** @name Handling of CPLEX parameters
@@ -843,6 +891,62 @@ class CPXMILPSolver : public MILPSolver {
   * CPLEX error returned by CPXmipopt(), CPXlpopt() or CPXqpopt(). */
  static int decode_cpx_error( int error );
 
+ /// gives a continuous model the cutoff of this Solver, if any
+ /** The cutoff on the bound that the dual simplex certifies, i.e.,
+  * dblUpCutOff of a minimization and dblLwCutOff of a maximization, becomes
+  * the limit on the objective of the simplex of CPLEX (UpperObj or
+  * LowerObj), and the method the dual simplex: when the dual objective
+  * passes it the solve stops with the dual feasible basis it has, which is
+  * the bound and gives, say, a valid Benders cut. A model with a quadratic
+  * part is left alone. Returns whether it did, in which case
+  * reset_lp_cutoff() gives back the limit and the method there were. */
+
+ bool set_lp_cutoff( void );
+
+ /// gives back the limit and the method set_lp_cutoff() has changed
+ void reset_lp_cutoff( void );
+
+ /// keeps the solution and the basis, and replaces the problem by a copy
+ /** Called after each solve of an LP ending optimal: the solution, the
+  * duals, the reduced costs and the basis are kept, and the problem is
+  * replaced by a copy of itself, which has none of the memory CPLEX keeps
+  * after a solve (several times that of the problem itself) and the next
+  * solve, which starts from the kept basis, does not need. If CPLEX cannot
+  * copy the problem, nothing changes. */
+
+ void free_workspace( void );
+
+ /// gives the problem the basis kept by free_workspace(), if any
+ /** A row or a column added since gets the status of a basic row or of a
+  * column at its lower bound, which is how CPLEX warm starts after the
+  * same change to a problem it has kept; a problem with fewer rows or
+  * columns than the basis starts cold. */
+
+ void restore_basis( void );
+
+ /** @name The solution of the last solve
+  * Each stands for the CPLEX call with the same arguments but the
+  * environment and the problem, and returns what that call returns: the
+  * value is read from the problem, or from what free_workspace() has kept,
+  * for the copy of the problem has none.
+  * @{ */
+
+ int sol_stat( void ) const;
+
+ int sol_info( int * method , int * type , int * pfeas , int * dfeas ) const;
+
+ int sol_objval( double * value ) const;
+
+ int sol_bestobjval( double * value ) const;
+
+ int sol_x( double * x , int begin , int end ) const;
+
+ int sol_pi( double * pi , int begin , int end ) const;
+
+ int sol_dj( double * dj , int begin , int end ) const;
+
+ /** @} ---------------------------------------------------------------- */
+
  /** Reloads a constraint.
   * To be used as fallback method for constraint FunctionMods. */
  // void reload_constraint( const LinearFunction * lf );
@@ -872,10 +976,15 @@ class CPXMILPSolver : public MILPSolver {
         Index row ,
         bool lin_null );
 
- /** Evaluate the gradient of a specific quadratic constraint
-  * in the optimum find by CPLEX. */
+ /// the dual of the quadratic row with no linear part of index row
+ /** CPLEX gives no dual of a quadratic constraint, but its dual slack, which
+  * is the multiplier times the gradient of the constraint at the solution
+  * \p x_sol (auxiliary columns included): the multiplier is read on the
+  * component of the gradient largest in absolute value, the constraint
+  * being taken from CPLEX [see CPXgetqconstr()], as the quadratic part of
+  * the matrix-based representation is gone after the load. */
  double evaluate_dual_qcon( Index row ,
-        std::vector< double > x_sol );
+                            const std::vector< double > & x_sol );
 
  /// FRowConstraints with \f$ lhs > rhs \f$ in their current state
  /** CPLEX encodes a ranged row with \f$ \mathit{rngval} =

@@ -11,18 +11,20 @@
 ##############################################################################
 
 # the executables built here
-NAMES = test_cuts test_dual test_dynamic
+NAMES = test_cuts test_dual test_dynamic test_qp
 
 # basic directory
 DIR = .
 
 # common flags
-COMMON_SW = -std=c++20 -ferror-limit=1
+COMMON_SW = -std=c++20 $(SMSppSWERR)
 
 # debug switches
-SW_DEBUG = -g -glldb -fno-inline $(COMMON_SW)
+SW_DEBUG = -g $(SMSppSWDBG) -fno-inline $(COMMON_SW)
 # debug switches with address sanitizer and extra pedantic warning
-SW_DEBUG_ASAN = -g3 -glldb -fno-inline $(COMMON_SW) -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer -Wpedantic -Wextra -Wno-unused-parameter
+SW_DEBUG_ASAN = -g3 $(SMSppSWDBG) -fno-inline $(COMMON_SW) \
+	-fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer \
+	-Wpedantic -Wextra -Wno-unused-parameter
 # production switches
 SW_RELEASE = -O3 $(COMMON_SW) -DNDEBUG
 
@@ -85,6 +87,9 @@ $(DIR)/test_dual: $(MOBJ) $(DIR)/test_dual.o
 
 $(DIR)/test_dynamic: $(MOBJ) $(DIR)/test_dynamic.o
 	$(CC) -o $@ $(DIR)/test_dynamic.o $(MOBJ) $(MLIB) $(SW)
+
+$(DIR)/test_qp: $(MOBJ) $(DIR)/test_qp.o
+	$(CC) -o $@ $(DIR)/test_qp.o $(MOBJ) $(MLIB) $(SW)
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
 

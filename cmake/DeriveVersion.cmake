@@ -1,30 +1,31 @@
 # --------------------------------------------------------------------------- #
-# DeriveVersion.cmake                                                          #
-#                                                                              #
-# Derive the module version from git, so that cutting a release is just        #
-# `git tag x.y.z` with NO version number written by hand anywhere: the version #
-# in project(), in the generated <Module>Config.h and in the tools' --version  #
-# all follow the tag.                                                          #
-#                                                                              #
-# Resolution order (the first that yields a numeric x[.y[.z]] wins):           #
-#   1. a working git clone: `git describe --tags --abbrev=0`;                  #
-#   2. a source tarball (e.g. a GitLab release, NOT a git repo): the           #
-#      VERSION.txt file, which git fills in at `git archive` time via the      #
-#      `VERSION.txt export-subst` .gitattributes entry (its content is         #
-#      "$Format:%(describe:tags,abbrev=0)$", substituted with the tag by git); #
-#   3. otherwise the sentinel "0.0.0" (no version info available).             #
-#                                                                              #
-# NOTE: the file is VERSION.txt, NOT VERSION: libc++'s C++20 <version> header  #
-# would otherwise be shadowed by it on case-insensitive filesystems (macOS,    #
-# Windows) whenever the repo root is on a -I include path.                     #
-#                                                                              #
-# The leading x[.y[.z]] is extracted from whatever git returns, so a describe  #
-# with a distance suffix ("1.2.3-4-gdeadbee", e.g. an archive of a non-tag     #
-# commit) still yields "1.2.3" rather than the sentinel.                       #
-#                                                                              #
-# Call it BEFORE project():                                                    #
-#     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DeriveVersion.cmake)           #
-#     smspp_derive_version(MOD_VERSION)                                        #
+# DeriveVersion.cmake                                                         #
+#                                                                             #
+# Derive the module version from git, so that cutting a release is just       #
+# `git tag x.y.z` with NO version number written by hand anywhere: the        #
+# version in project(), in the generated <Module>Config.h and in the tools'   #
+# --version all follow the tag.                                               #
+#                                                                             #
+# Resolution order (the first that yields a numeric x[.y[.z]] wins):          #
+#   1. a working git clone: `git describe --tags --abbrev=0`;                 #
+#   2. a source tarball (e.g. a GitLab release, NOT a git repo): the          #
+#      VERSION.txt file, which git fills in at `git archive` time via the     #
+#      `VERSION.txt export-subst` .gitattributes entry (its content is        #
+#      "$Format:%(describe:tags,abbrev=0)$", substituted with the tag by      #
+#      git);                                                                  #
+#   3. otherwise the sentinel "0.0.0" (no version info available).            #
+#                                                                             #
+# NOTE: the file is VERSION.txt, NOT VERSION: libc++'s C++20 <version> header #
+# would otherwise be shadowed by it on case-insensitive filesystems (macOS,   #
+# Windows) whenever the repo root is on a -I include path.                    #
+#                                                                             #
+# The leading x[.y[.z]] is extracted from whatever git returns, so a describe #
+# with a distance suffix ("1.2.3-4-gdeadbee", e.g. an archive of a non-tag    #
+# commit) still yields "1.2.3" rather than the sentinel.                      #
+#                                                                             #
+# Call it BEFORE project():                                                   #
+#     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DeriveVersion.cmake)          #
+#     smspp_derive_version(MOD_VERSION)                                       #
 #     project(<Module> VERSION ${MOD_VERSION} ...)                            #
 # --------------------------------------------------------------------------- #
 

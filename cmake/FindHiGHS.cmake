@@ -38,14 +38,49 @@ find_package(Threads QUIET)
 
 find_package(ZLIB REQUIRED QUIET)
 
+# Drop the cached paths if one of them does not exist any more, so that
+# they are all searched again from the same place
+set(_HiGHS_cached HiGHS_INCLUDE_DIR HiGHS_LIBRARY HiGHS_LIBRARY_DEBUG
+        HiGHS_DLL HiGHS_DLL_DEBUG HiGHS_EXTRAS_LIBRARY HiGHS_VERSION)
+foreach (_var ${_HiGHS_cached})
+    foreach (_path ${${_var}})
+        if (IS_ABSOLUTE "${_path}" AND NOT EXISTS "${_path}")
+            set(_HiGHS_stale TRUE)
+        endif ()
+    endforeach ()
+endforeach ()
+if (_HiGHS_stale)
+    message(STATUS "Cached HiGHS paths not found, searching again")
+    foreach (_var ${_HiGHS_cached})
+        unset(${_var} CACHE)
+    endforeach ()
+endif ()
+unset(_HiGHS_cached)
+unset(_HiGHS_stale)
+unset(_var)
+unset(_path)
+
+# The cached version is the one of the include directory it was read from
+if (NOT "${HiGHS_INCLUDE_DIR}" STREQUAL
+        "${_HiGHS_VERSION_INCLUDE_DIR}")
+    unset(HiGHS_VERSION CACHE)
+endif ()
+
+# The compilers of MinGW (MSYS2) find it as on Unix, by its import library
+# (libhighs.dll.a), while MSVC needs the DLL too
+if (WIN32 AND NOT MINGW)
+    set(_HiGHS_DLL_PLATFORM TRUE)
+endif ()
+
 # Check if already in cache
-if (WIN32)
+if (_HiGHS_DLL_PLATFORM)
     if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG
             AND HiGHS_DLL AND HiGHS_DLL_DEBUG AND HiGHS_VERSION)
         set(HiGHS_FOUND TRUE)
     endif ()
 else ()
-    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG AND HiGHS_VERSION)
+    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG
+            AND HiGHS_VERSION)
         set(HiGHS_FOUND TRUE)
     endif ()
 endif ()
@@ -60,7 +95,7 @@ if (NOT HiGHS_FOUND)
             DOC "HiGHS include directory.")
 
     # ----- Find the HiGHS library ------------------------------------------ #
-    if (UNIX)
+    if (NOT _HiGHS_DLL_PLATFORM)
         find_library(HiGHS_LIBRARY
                 NAMES highs
                 PATHS ${HiGHS_ROOT}/lib
@@ -68,7 +103,7 @@ if (NOT HiGHS_FOUND)
 
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
                 CACHE FILEPATH "HiGHS debug library." FORCE)
-    elseif (WIN32)
+    else ()
         find_library(HiGHS_LIBRARY
                 NAMES highs
                 PATHS
@@ -125,13 +160,18 @@ if (NOT HiGHS_FOUND)
     if (HiGHS_INCLUDE_DIR)
         file(STRINGS
                 "${HiGHS_INCLUDE_DIR}/HConfig.h"
-                _HiGHS_version_lines REGEX "#define HIGHS_VERSION_(MAJOR|MINOR|PATCH)")
+                _HiGHS_version_lines
+                REGEX "#define HIGHS_VERSION_(MAJOR|MINOR|PATCH)")
 
-        string(REGEX REPLACE ".*HIGHS_VERSION_MAJOR *\([0-9]*\).*" "\\1" _HiGHS_version_major "${_HiGHS_version_lines}")
-        string(REGEX REPLACE ".*HIGHS_VERSION_MINOR *\([0-9]*\).*" "\\1" _HiGHS_version_minor "${_HiGHS_version_lines}")
-        string(REGEX REPLACE ".*HIGHS_VERSION_PATCH *\([0-9]*\).*" "\\1" _HiGHS_version_patch "${_HiGHS_version_lines}")
+        string(REGEX REPLACE ".*HIGHS_VERSION_MAJOR *\([0-9]*\).*" "\\1"
+                _HiGHS_version_major "${_HiGHS_version_lines}")
+        string(REGEX REPLACE ".*HIGHS_VERSION_MINOR *\([0-9]*\).*" "\\1"
+                _HiGHS_version_minor "${_HiGHS_version_lines}")
+        string(REGEX REPLACE ".*HIGHS_VERSION_PATCH *\([0-9]*\).*" "\\1"
+                _HiGHS_version_patch "${_HiGHS_version_lines}")
 
-        set(HiGHS_VERSION "${_HiGHS_version_major}.${_HiGHS_version_minor}.${_HiGHS_version_patch}")
+        string(CONCAT HiGHS_VERSION "${_HiGHS_version_major}."
+                "${_HiGHS_version_minor}.${_HiGHS_version_patch}")
         unset(_HiGHS_version_lines)
         unset(_HiGHS_version_major)
         unset(_HiGHS_version_minor)
@@ -143,10 +183,11 @@ if (NOT HiGHS_FOUND)
     # options passed to find_package(). It also sets <PackageName>_FOUND if
     # REQUIRED_VARS are set.
     # REQUIRED_VARS should be cache entries and not output variables. See:
-    # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
-    if (WIN32)
-        # The debug library/DLL are optional (they fall back to the release ones
-        # above), so they are deliberately kept out of REQUIRED_VARS.
+    # https://cmake.org/cmake/help/latest/module/
+    # FindPackageHandleStandardArgs.html
+    if (_HiGHS_DLL_PLATFORM)
+        # The debug library/DLL are optional (they fall back to the release
+        # ones above), so they are deliberately kept out of REQUIRED_VARS.
         find_package_handle_standard_args(
                 HiGHS
                 REQUIRED_VARS HiGHS_LIBRARY HiGHS_DLL HiGHS_INCLUDE_DIR
@@ -157,6 +198,15 @@ if (NOT HiGHS_FOUND)
                 REQUIRED_VARS HiGHS_LIBRARY HiGHS_INCLUDE_DIR
                 VERSION_VAR HiGHS_VERSION)
     endif ()
+endif ()
+
+# A found package keeps its version in the cache, with the include
+# directory it was read from
+if (HiGHS_FOUND)
+    set(HiGHS_VERSION "${HiGHS_VERSION}" CACHE INTERNAL
+            "HiGHS version.")
+    set(_HiGHS_VERSION_INCLUDE_DIR "${HiGHS_INCLUDE_DIR}"
+            CACHE INTERNAL "Include directory of the HiGHS version.")
 endif ()
 
 # ----- Export the target --------------------------------------------------- #
@@ -180,8 +230,27 @@ if (HiGHS_FOUND)
     endif ()
     unset(_HiGHS_hipo_line)
 
+    # From version 1.15, a static libhighs calls the functions of the extras
+    # library of HiGHS, which is static too in such a build (shared, and
+    # loaded at run time, otherwise) and must be linked explicitly, as the
+    # highs target of the upstream highs-config.cmake does.
+    if (UNIX AND HiGHS_LIBRARY MATCHES "\\${CMAKE_STATIC_LIBRARY_SUFFIX}$")
+        get_filename_component(_HiGHS_libdir "${HiGHS_LIBRARY}" DIRECTORY)
+        set(_HiGHS_extras ${CMAKE_STATIC_LIBRARY_PREFIX}highs_extras)
+        find_library(HiGHS_EXTRAS_LIBRARY
+                NAMES ${_HiGHS_extras}${CMAKE_STATIC_LIBRARY_SUFFIX}
+                PATHS ${_HiGHS_libdir}
+                NO_DEFAULT_PATH
+                DOC "HiGHS extras library.")
+        if (HiGHS_EXTRAS_LIBRARY)
+            set(HiGHS_LIBRARIES ${HiGHS_EXTRAS_LIBRARY} ${HiGHS_LIBRARIES})
+        endif ()
+        unset(_HiGHS_libdir)
+        unset(_HiGHS_extras)
+    endif ()
+
     if (NOT TARGET HiGHS::HiGHS)
-        if (WIN32)
+        if (_HiGHS_DLL_PLATFORM)
             add_library(HiGHS::HiGHS SHARED IMPORTED)
             set_target_properties(
                     HiGHS::HiGHS PROPERTIES
@@ -205,7 +274,7 @@ endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-if (WIN32)
+if (_HiGHS_DLL_PLATFORM)
     mark_as_advanced(HiGHS_INCLUDE_DIR
             HiGHS_LIBRARY
             HiGHS_LIBRARY_DEBUG
@@ -218,5 +287,7 @@ else ()
             HiGHS_LIBRARY_DEBUG
             HiGHS_VERSION)
 endif ()
+
+unset(_HiGHS_DLL_PLATFORM)
 
 # --------------------------------------------------------------------------- #

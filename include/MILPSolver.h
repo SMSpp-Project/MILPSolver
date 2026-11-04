@@ -15,7 +15,7 @@
  * (that is, it is not an abstract class) for just keeping up the standard
  * "sparse matrix as a vector of doubles + two vectors of int, plus vectors
  * for costs, bounds and lhs/rhs of constraints" representation of the
- * problem. 
+ * problem.
  *
  * \author Enrico Calandrini \n
  *         Dipartimento di Informatica \n
@@ -66,11 +66,23 @@
 
 #include <algorithm>
 
+#include <array>
+
+#include <atomic>
+
 #include <cmath>
+
+#include <cstddef>
 
 #include <functional>
 
 #include <limits>
+
+#include <map>
+
+#include <typeinfo>
+
+#include <unordered_map>
 
 #include <unordered_set>
 
@@ -128,6 +140,13 @@ namespace SMSpp_di_unipi_it
  * The information can be retrieved by a library of getters. The methods
  * compute(), get_var_solution() and new_var_solution(), derived from the
  * Solver class, do nothing and should be implemented by derived classes.
+ *
+ * The derived classes implement get_var_solution(), get_dual_solution() and
+ * the two methods of the directions with write_var_solution() and
+ * write_dual_solution(), to which they hand the Configuration they are
+ * given: a SimpleConfiguration< std::vector< int > > listing sub-Blocks of
+ * the Block, and -1 for the Block itself, has only that part of the solution
+ * written, any other Configuration all of it [see write_var_solution()].
  *
  * The class defines also an interface that the derived classes should
  * implement to support Modification. The method process_modifications() is
@@ -217,7 +236,14 @@ class MILPSolver : public CDASolver
    *
    * - when non-zero, the loop driven by intRelaxIntVars == 2 (see) is
    *   executed (only if intRelaxIntVars == 2; otherwise the derived
-   *   class governs the callback installation as appropriate). */
+   *   class governs the callback installation as appropriate).
+   *
+   * The dynamic Constraint that the Block adds while the callback of the
+   * derived class separates are given to the back-end as user cuts or
+   * lazy constraints of that solve, and do not become rows of the model
+   * as long as the following solves separate lazy constraints: they are
+   * kept in a pool that the callback gives back when they are violated
+   * [see separate_in_callback()]. */
   intCutSepPar ,
   /// maximum number of LP cut separation passes (when intRelaxIntVars == 2)
   /**< Caps the number of "solve LP - separate user cuts - re-solve"
@@ -243,19 +269,68 @@ class MILPSolver : public CDASolver
    *
    * get_dual_solution() is not affected either way. The derived classes that
    * compute the multipliers themselves out of the duals honour the parameter
-   * [CPXMILPSolver and GRBMILPSolver]; SCIPMILPSolver asks its back-end for
-   * the Farkas coefficients, which are homogeneous to begin with, so there is
-   * nothing for it to do; HiGHSMILPSolver, whose back-end only hands out the
-   * reduced costs of the iterate it stopped at, refuses the value 1 rather
-   * than take it and go on writing multipliers that carry the Objective. */
+   * [CPXMILPSolver, GRBMILPSolver and HiGHSMILPSolver]; SCIPMILPSolver asks
+   * its back-end for the Farkas coefficients, which are homogeneous to begin
+   * with, so there is nothing for it to do. */
   intHomogeneousDirection ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
  /// enum for double parameters
  enum dbl_par_type_MILP {
+  /// tolerance for rounding objective coefficients after a removal delta
+  /**< When a Variable is removed from a LinearFunction objective and the
+   * Modification carries its coefficient delta, the derived Solver adds
+   * that delta to the current total objective coefficient. A finite result
+   * is rounded to zero if its absolute value is at most
+   *
+   *   dblObjRemovalTol * max( 1 , abs( old coefficient ) , abs( delta ) ).
+   *
+   * The default is 1e-12. The value must be finite and nonnegative; zero
+   * disables rounding of nonzero residuals. The tolerance applies only to
+   * removals carrying a delta, not to additions or coefficient changes.
+   * Removals without a delta retain their existing zeroing behaviour.
+   * CPXMILPSolver, GRBMILPSolver, SCIPMILPSolver and HiGHSMILPSolver use it.
+   * Changing it affects subsequent removals without reloading the model. */
+  dblObjRemovalTol = dblLastParCDAS ,
+  /// tolerance of the check of the optimality conditions, 0 = no check
+  /**< If positive, whenever the solve returns kOK compute() writes the
+   * solution in the Block [see get_var_solution() and get_dual_solution()]
+   * and checks it against the Block itself, with the convention of the duals
+   * of write_dual_solution(). For the problem written as
+   * \f$ \min \{ f(x) : l \leq A x \leq u , \underline{x} \leq x \leq
+   * \overline{x} \} \f$ (a maximization is checked as the minimization of
+   * \f$ - f \f$), with \f$ \pi = - y \f$ the multipliers of the rows,
+   * \f$ y \f$ being their get_dual(), and
+   * \f$ z = \nabla f(x) - A^\top \pi \f$ the ones of the bounds, three
+   * residuals are measured:
+   *
+   * - primal: the largest violation of a row or of a bound (and of the
+   *   integrality of an integer Variable in a MIP), each divided by
+   *   \f$ \max\{ 1 , | \text{side} | \} \f$;
+   *
+   * - dual: the largest part of a \f$ \pi_i \f$ or \f$ z_j \f$ whose sign
+   *   points to an infinite side or bound, divided by
+   *   \f$ \max\{ 1 , \| \nabla f(x) \|_\infty \} \f$;
+   *
+   * - gap: \f$ \sum_i | \pi_i ( A_i x - b_i ) | + \sum_j | z_j ( x_j -
+   *   \beta_j ) | \f$, with \f$ b_i \f$ and \f$ \beta_j \f$ the side
+   *   and the bound the sign of the multiplier points to, divided by
+   *   \f$ \max\{ 1 , | f(x) | \} \f$; for a convex QP this is the
+   *   difference between the primal and the dual value.
+   *
+   * The dual residual and the gap are only measured on a continuous problem
+   * (or with intRelaxIntVars != 0) with linear rows, an Objective whose
+   * Function is a C05Function and a Solver that has a dual solution; for a
+   * MIP, or when the back-end gives no duals, only the primal residual is.
+   * If one of them is larger than the value, compute() returns kError, says
+   * which on the log, and the solution can still be read; the residuals of
+   * the last check are given by get_kkt_residuals(). Since the solution is
+   * written in the Block, compute() holds the Block under a write lock()
+   * when the check is on. The default is 0. */
+  dblKKTTol ,
   /// First allowed new double parameter for derived classes
-  dblLastAlgParMILP = dblLastParCDAS
+  dblLastAlgParMILP
   };
 
  /// enum for string parameters
@@ -292,7 +367,7 @@ class MILPSolver : public CDASolver
 
  using Index = Block::Index;  // "import" Index from Block
 
- using v_off_diag_term = QuadFunction::v_off_diag_term; 
+ using v_off_diag_term = QuadFunction::v_off_diag_term;
                               // "import" v_off_diag_term from QuadFunction
  using Qmat = QuadFunction::Qmat; // "import" Qmat from QuadFunction
  using Coefficient = QuadFunction::Coefficient;
@@ -393,7 +468,7 @@ class MILPSolver : public CDASolver
  * @param set       Index of the group within qb.
  * @param counter   Current number of elements of type T that have been
  *                  scanned.
- * @param T         The element type of the group. Should be either
+ * @tparam T        The element type of the group. Should be either
  *                  FRowConstraint or ColVariable, depending on the group
  *                  being scanned.
  */
@@ -518,7 +593,7 @@ class MILPSolver : public CDASolver
  [[nodiscard]] virtual int get_explored_nodes( void ) const {
   throw( std::runtime_error( "Function get_explored_nodes is not supported "
     "by the current *MILPSolver" ) );
-  
+
   return( 0 );
   }
 
@@ -526,16 +601,16 @@ class MILPSolver : public CDASolver
  [[nodiscard]] virtual long get_left_nodes( void ) const {
   throw( std::runtime_error( "Function get_left_nodes is not supported "
     "by the current *MILPSolver" ) );
-  
+
   return( 0 );
   }
 
- /// Returns a true value if a feasible solution is known, 
+ /// Returns a true value if a feasible solution is known,
  //  false otherwise.
  [[nodiscard]] virtual bool has_feasible_sol( void ) {
   throw( std::runtime_error( "Function has_feasible_sol is not supported "
     "by the current *MILPSolver" ) );
-  
+
   return( 0 );
   }
 
@@ -543,32 +618,32 @@ class MILPSolver : public CDASolver
  [[nodiscard]] virtual double get_runtime( void ) const {
   throw( std::runtime_error( "Function get_runtime is not supported "
     "by the current *MILPSolver" ) );
-  
+
   return( 0 );
   }
 
- /// Returns a unique identifier for the node currently being explored  
- //  in the branch-and-bound algorithm for a MIP problem.  
- //  
- /// NOTE: This method should only be called during the callback process  
- //  and in specific situations (e.g., when a new incumbent solution is found,  
- //  and you need to identify the node from which it originates).  
+ /// Returns a unique identifier for the node currently being explored
+ //  in the branch-and-bound algorithm for a MIP problem.
+ //
+ /// NOTE: This method should only be called during the callback process
+ //  and in specific situations (e.g., when a new incumbent solution is
+ //  found, and you need to identify the node from which it originates).
  [[nodiscard]] virtual long get_id_node( void ) const {
   throw( std::runtime_error( "Function get_id_node is not supported "
     "by the current *MILPSolver" ) );
-  
+
   return( 0 );
   }
 
- /** 
- * Adds multiple MIP starts to a MIP problem. This function allows the solver 
- * to receive multiple sets of starting values by providing vectors of variable 
- * indices and corresponding values for each start.
- * 
- * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ /**
+ * Adds multiple MIP starts to a MIP problem. This function allows the
+ * solver to receive multiple sets of starting values by providing vectors of
+ * variable indices and corresponding values for each start.
+ *
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt
  * to infer values for the unspecified variables.
  */
- virtual void add_mip_starts( 
+ virtual void add_mip_starts(
   std::vector< std::vector< int > > varidxs ,
   std::vector< std::vector< double > > varvalues ) {
 
@@ -711,6 +786,49 @@ class MILPSolver : public CDASolver
 
  const FRowConstraint * dynamic_constraint_with_index( int i ) const;
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the index of a column in the problem loaded before this one
+ /** Each load_problem() but the first one finds, for each column of the
+  * problem it loads, the one of the same ColVariable in the problem loaded
+  * before it, so that a back-end that loads the problem again whole at a
+  * Modification [see reload_on_modification()] can start its solve from
+  * the previous one even if columns have been added or removed. The
+  * ColVariable are told apart by their address, hence a Variable created
+  * where a deleted one was is taken for it: what is carried over is only
+  * the start of a solve, which this cannot make wrong.
+  *
+  * @param j a column index of the problem loaded last
+  * @return its index in the problem loaded before, or -1 if it was not
+  *         there (or there was no such problem) */
+
+ [[nodiscard]] int previous_column_index( int j ) const {
+  return( ( j >= 0 ) && ( std::size_t( j ) < v_prev_col.size() ) ?
+          v_prev_col[ j ] : -1 );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the index of a row in the problem loaded before this one
+ /** The same as previous_column_index() for the rows, told apart by the
+  * address of their FRowConstraint.
+  *
+  * @param i a row index of the problem loaded last
+  * @return its index in the problem loaded before, or -1 if it was not
+  *         there (or there was no such problem) */
+
+ [[nodiscard]] int previous_row_index( int i ) const {
+  return( ( i >= 0 ) && ( std::size_t( i ) < v_prev_row.size() ) ?
+          v_prev_row[ i ] : -1 );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the number of columns and rows of the problem loaded before this one
+ /** The sizes of the problem the indices of previous_column_index() and
+  * previous_row_index() refer to, 0 and 0 if there was none. */
+
+ [[nodiscard]] std::pair< int , int > previous_sizes( void ) const {
+  return( std::make_pair( prev_numcols , prev_numrows ) );
+  }
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -727,20 +845,20 @@ class MILPSolver : public CDASolver
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-/** 
+/**
  * Adds a new warm start to the solver. See Solver.h for further details.
- * 
- * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ *
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt
  * to infer values for the unspecified variables.  */
  //void add_warm_start( const Solution * sol ,
   //                    const std::vector< AbstractPath > varpaths ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-/** 
+/**
  * Adds a set of warm start to the solver. See Solver.h for further details.
- * 
- * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
+ *
+ * NOTE: Partial solutions are allowed. In such cases, the solver will attempt
  * to infer values for the unspecified variables.  */
 //void add_warm_start( const std::vector< Solution * > sols ,
 //                     const std::vector< AbstractPath > varpaths ) override;
@@ -781,6 +899,16 @@ class MILPSolver : public CDASolver
   *   guts_of_compute() iteration. The loop terminates when no new
   *   Modification is produced or intMaxCutPasses rounds have been done.
   *
+  * A MIP solve that the callback of a derived class interrupts because
+  * the incumbent or the bound of the search has reached dblUpCutOff or
+  * dblLwCutOff [see Solver.h] returns kCutOff, which is in [ kOK , kError )
+  * as kStopTime is, rather than the error status of an interrupted run.
+  * Nothing is then proved optimal: as after kStopTime, get_lb() and get_ub()
+  * give the value of the incumbent, if any, on its side and the bound of the
+  * search on the other, either of them infinite if the solve has none, and
+  * get_var_solution() gives the incumbent. The cutoffs are not checked on
+  * a continuous problem, nor with intRelaxIntVars == 2.
+  *
   * Derived classes should *not* override compute(); they should instead
   * override guts_of_compute(). */
 
@@ -796,9 +924,22 @@ class MILPSolver : public CDASolver
   * natural format, i.e., x[ i ] is the value of the ColVariable corresponding
   * to the i-th column in the coefficient matrix as constructed by
   * MILPSolver; this method writes it in the Block. It can obviously be used
-  * to implement get_var_solution(). */
- 
- void write_var_solution( const std::vector< double > & x );
+  * to implement get_var_solution().
+  *
+  * \p solc selects the part of the solution that is written, as the
+  * Configuration of get_var_solution() [see Solver.h] does. If it is a
+  * SimpleConfiguration< std::vector< int > >, only the ColVariable of the
+  * Block that its f_value lists are written: an index k >= 0 stands for the
+  * k-th sub-Block of the Block, i.e., get_nested_Block( k ), together with
+  * all its sub-Blocks, recursively, while -1 stands for the ColVariable of
+  * the Block itself, without those of its sub-Blocks. Any other
+  * Configuration, nullptr included, asks for the whole solution. An index
+  * that is neither -1 nor that of a sub-Block throws std::invalid_argument.
+  * The columns not asked for are skipped a group at a time, so writing a
+  * part costs in proportion to the part rather than to the whole Block. */
+
+ void write_var_solution( const std::vector< double > & x ,
+                          Configuration * solc = nullptr );
 
 /*--------------------------------------------------------------------------*/
  /// does nothing as there is nothing to do
@@ -823,10 +964,16 @@ class MILPSolver : public CDASolver
   * not it ignores the thing; maybe we'll add a general mechanism to throw
   * exception instead.
   *
-  * This method can obviously be used to implement get_dual_solution(). */
- 
+  * This method can obviously be used to implement get_dual_solution().
+  *
+  * \p solc selects the part of the solution that is written as in
+  * write_var_solution(): the dual values of the FRowConstraint and the
+  * reduced costs of the ColVariable of the Block it lists, a row or column
+  * belonging to the Block its Constraint or Variable belongs to. */
+
  void write_dual_solution( const std::vector< double > & pi ,
-			   const std::vector< double > & rc );
+			   const std::vector< double > & rc ,
+			   Configuration * solc = nullptr );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// true if the solver handed over the value of the dual direction
@@ -859,6 +1006,27 @@ class MILPSolver : public CDASolver
  [[nodiscard]] OFValue get_dual_direction_value( void ) override {
   return( f_dual_direction_value );
   }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the iterations of the back-end in the last compute()
+ /** The iterations that the back-end has made in the last compute(), all
+  * its solves summed [see elapsed_iter], what an iteration is being the
+  * back-end's own (e.g., a change of the working set for an active-set
+  * method); 0 for a back-end that does not count them. */
+
+ [[nodiscard]] long get_elapsed_iterations( void ) const override {
+  return( elapsed_iter );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the residuals of the last check of the optimality conditions
+ /** The primal residual, the dual residual and the gap of the solution
+ * returned by the last compute() [see dblKKTTol], NaN for those that were
+ * not measured, all of them if the check is off or the solve did not
+ * return kOK. */
+
+ [[nodiscard]] const std::array< double , 3 > & get_kkt_residuals( void )
+  const { return( kkt_residuals ); }
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------- METHODS FOR HANDLING THE PARAMETERS ------------------*/
@@ -896,13 +1064,7 @@ class MILPSolver : public CDASolver
  void set_par( idx_type par , int value ) override;
 
  /// sets a double parameter with the given value
- // although it actually does nothing, it has to be there since, due to an
- // excess of caution, *MILPSolver::set_par( double ) call it, and if it's
- // not there then set_par( int ) ends up being called with duuble -> int
- // conversion that can go awry
- void set_par( idx_type par , double value ) override {
-  CDASolver::set_par( par, value );
-  }
+ void set_par( idx_type par , double value ) override;
 
  /// sets a string parameter with the given value
  void set_par( idx_type par , std::string && value ) override;
@@ -927,8 +1089,8 @@ class MILPSolver : public CDASolver
  /// gets the default value of the specified integer parameter
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override;
 
- // gets the default value of the specified double parameter
- // [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
+ /// gets the default value of the specified double parameter
+ [[nodiscard]] double get_dflt_dbl_par( idx_type par ) const override;
 
  /// returns the default value of the specified string parameter
  [[nodiscard]] const std::string & get_dflt_str_par( idx_type par )
@@ -942,8 +1104,8 @@ class MILPSolver : public CDASolver
  /// returns the value of the specified integer parameter
  [[nodiscard]] int get_int_par( idx_type par ) const override;
 
- // returns the value of the specified double parameter
- // [[nodiscard]] double get_dbl_par( idx_type par ) const override;
+ /// returns the value of the specified double parameter
+ [[nodiscard]] double get_dbl_par( idx_type par ) const override;
 
  /// returns the value of the specified string parameter
  [[nodiscard]] const std::string & get_str_par( idx_type par ) const override;
@@ -962,13 +1124,13 @@ class MILPSolver : public CDASolver
   const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- // returns the index of the double parameter with the specified name
- // [[nodiscard]] idx_type
- // dbl_par_str2idx( const std::string & name ) const override;
+ /// returns the index of the double parameter with the specified name
+ [[nodiscard]] idx_type
+ dbl_par_str2idx( const std::string & name ) const override;
 
- // returns the name of the double parameter with the specified index
- // [[nodiscard]] const std::string &
- // dbl_par_idx2str( idx_type idx ) const override;
+ /// returns the name of the double parameter with the specified index
+ [[nodiscard]] const std::string &
+ dbl_par_idx2str( idx_type idx ) const override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// returns the index of the string parameter with the specified name
@@ -996,6 +1158,59 @@ class MILPSolver : public CDASolver
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- PROTECTED METHODS ------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ /// the Block of #v_BFS whose solution solc asks for
+ /** Returns false if \p solc asks for the whole solution, otherwise true and
+  * the Block of #v_BFS whose ColVariable and FRowConstraint have to be
+  * written in \p sel [see write_var_solution()]; \p who is the name of the
+  * method in the exception thrown on an invalid index. */
+
+ bool selected_Blocks( Configuration * solc , const char * who ,
+                       std::unordered_set< const Block * > & sel ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// the weight of the Objective whose Function is \p f
+ /** Returns the factor by which the coefficients of \p f, the Function of
+  * the FRealObjective of a Block in the tree of the Block of this Solver,
+  * enter the objective of the problem, i.e., the product of the weights of
+  * the Objective of that Block and of its ancestors up to, and excluding,
+  * the Block of this Solver [see Block::get_objective_weight()], 1 for a
+  * Function that is not that of the Objective of such a Block; the
+  * back-ends multiply by it whatever they take out of a Modification of
+  * \p f. */
+
+ double objective_weight( const Function * f ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// the weight of the coefficient of \p var in \p con
+ /** Returns the factor by which the coefficient of the Variable \p var in
+  * the Constraint \p con, both in the tree of the Block of this Solver,
+  * enters the problem, i.e., the product of the weights of the Variable
+  * [see Block::get_variable_weight( const Block * )] from the Block of
+  * \p var up to the closest Block that also contains the Block of \p con,
+  * the latter excluded; it is 1, with no computation, when no Block of the
+  * tree has a weight of the Variable other than 1. The back-ends multiply
+  * by it whatever coefficient of a row they take out of a Modification. */
+
+ double variable_weight( const Variable * var , const Constraint * con ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// MILPSolver handles a change of the weights of a sub-Block
+ /** A BlockWeightMod coming from a sub-Block [see Block::set_weight()] has
+  * the problem loaded again, with the new weights, as a NBModification. */
+
+ [[nodiscard]] bool handles_weight_change( void ) const override {
+  return( true );
+  }
+
+/*--------------------------------------------------------------------------*/
+ /// MILPSolver applies the weights of the Variable [see variable_weight()]
+
+ [[nodiscard]] bool handles_variable_weight( void ) const override {
+  return( true );
+  }
+
 /*--------------------------------------------------------------------------*/
 
  /// derived-class hook performing the actual back-end solve
@@ -1029,21 +1244,23 @@ class MILPSolver : public CDASolver
   * called repeatedly to concatenate the rows of a batch into a single
   * pair of buffers (in conjunction with a separate rmatbeg vector).
   *
-  * The helper is inline so that the resulting code is identical to
-  * the hand-rolled loop the derived solvers were carrying around, and
-  * static / template so the LinearFunction-iteration boilerplate is
-  * stated once and the per-back-end idx_fn stays a zero-overhead
-  * abstraction. */
+  * The coefficients of a row are multiplied by their weight [see
+  * variable_weight()], hence the helper is a member. It is inline so that
+  * the resulting code is identical to the hand-rolled loop the derived
+  * solvers were carrying around, and a template so the
+  * LinearFunction-iteration boilerplate is stated once and the per-back-end
+  * idx_fn stays a zero-overhead abstraction. */
 
  template< typename IdxFn >
- static inline void scatter_lf_to_csr(
-                              const LinearFunction * lf , IdxFn && idx_fn ,
-                              std::vector< int > & out_ind ,
-                              std::vector< double > & out_val ) {
+ inline void scatter_lf_to_csr( const LinearFunction * lf , IdxFn && idx_fn ,
+                                std::vector< int > & out_ind ,
+                                std::vector< double > & out_val ) const {
+  const auto con = dynamic_cast< const Constraint * >( lf->get_Observer() );
   for( auto & el : lf->get_v_var() )
    if( auto idx = idx_fn( el.first ) ; idx < Inf< int >() ) {
     out_ind.push_back( idx );
-    out_val.push_back( el.second );
+    out_val.push_back( con ? el.second * variable_weight( el.first , con )
+                           : el.second );
     }
   }
 
@@ -1088,16 +1305,21 @@ class MILPSolver : public CDASolver
   *    variables and constraints, respectively. The element at idx_to_d*[ i ]
   *    has index ( i + static_*s ), that is, it is the column/row
   *    ( i + static_*s ) of the constraint matrix.
-  * 
-  *  - svar_to_bound : vector of single OneVarConstraint * associated to 
-  *    each static variable. The order of the variables used to sort the 
-  *    array is the one given by Block::get_static_variables.
-  *    NOTE: this is used only if the option intSingleBound is set to 1.
   *
-  *  - dvar_to_bound : vector of single OneVarConstraint * associated to 
-  *    each dynamic variable. The order of the variables used to sort the 
-  *    array is the one given by Block::get_static_variables.
-  *    NOTE: this is used only if the option intSingleBound is set to 1.
+  *  - svar_to_bound : a OneVarConstraint * associated to each static
+  *    variable (nullptr if it has none), in the order of the columns, so that
+  *    the reduced costs are written without looking for the bounds among the
+  *    active stuff of each variable [see get_column_bounds()]. If the option
+  *    intSingleBound is set to 1, each variable has at most one.
+  *
+  *  - dvar_to_bound : the same for the dynamic variables, in the order of
+  *    idx_to_dvar.
+  *
+  *  - m_more_bounds : the other OneVarConstraint * of the few variables that
+  *    have more than one, by variable rather than by index, so that it stays
+  *    valid when a dynamic variable is removed and the indices shift. With
+  *    one pointer per column the memory of a problem with many columns is
+  *    the same as with intSingleBound.
   *
   * Using these vectors of pair we can at any time locate the index of each
   * constraint and variable within the constraint matrix, and viceversa.
@@ -1111,20 +1333,29 @@ class MILPSolver : public CDASolver
  std::vector< int_var > idx_to_svar;     ///< from index to static variable
 
  std::vector< con_int_int > scon_to_idx; ///< from static constraint to index
- std::vector< int_con> idx_to_scon;      ///< from index to linear static constraint
+ std::vector< int_con> idx_to_scon;      ///< from index to linear static row
 
  std::vector< var_int > dvar_to_idx;     ///< from dynamic variable to index
  std::vector< const ColVariable * > idx_to_dvar;
                                          ///< from index to dynamic variable
 
  std::vector< con_int > dcon_to_idx;     ///< from dynamic constraint to index
- std::vector< const FRowConstraint * > idx_to_dcon;     
+ std::vector< const FRowConstraint * > idx_to_dcon;
                                         ///< from index to dynamic constraint
 
- std::vector< const OneVarConstraint * > svar_to_bound; 
+ std::vector< OneVarConstraint * > svar_to_bound;
                                          ///< from static variable to bound
- std::vector< const OneVarConstraint * > dvar_to_bound; 
-                                         /// from dynamic variable to bound
+ std::vector< OneVarConstraint * > dvar_to_bound;
+                                         ///< from dynamic variable to bound
+
+ std::vector< int > v_prev_col;  ///< previous index of each column, or -1
+ std::vector< int > v_prev_row;  ///< previous index of each row, or -1
+ int prev_numcols = 0;           ///< columns of the previous problem
+ int prev_numrows = 0;           ///< rows of the previous problem
+
+ /// the bounds of a variable beyond the one in svar_to_bound/dvar_to_bound
+ std::unordered_map< const ColVariable * ,
+                     std::vector< OneVarConstraint * > > m_more_bounds;
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- FIELDS FOR PROBLEM DESCRIPTION ---------------------*/
@@ -1136,27 +1367,29 @@ class MILPSolver : public CDASolver
   * plus vectors for costs, bounds and lhs/rhs of constraints" format.
   *
   * #matbeg, #matcnt, #matind and #matval define the (sparse) constraint
-  * matrix associated to linear constraints by its nonzero coefficients. 
-  * These are grouped by column in the array matval. The nonzero elements 
-  * of every column must be stored in sequential locations in this array 
-  * with matbeg[ j ] containing the index of the beginning of column j 
-  * and matcnt[ j ] containing the number of entries in column j. 
-  * The components of matbeg must be in ascending order. For each k, 
-  * matind[ k ] specifies the row number of the corresponding coefficient, 
+  * matrix associated to linear constraints by its nonzero coefficients.
+  * These are grouped by column in the array matval. The nonzero elements
+  * of every column must be stored in sequential locations in this array
+  * with matbeg[ j ] containing the index of the beginning of column j
+  * and matcnt[ j ] containing the number of entries in column j.
+  * The components of matbeg must be in ascending order. For each k,
+  * matind[ k ] specifies the row number of the corresponding coefficient,
   * matval[ k ].
   *
-  * NOTE: the above mentioned structures are grouped by column when no 
-  * quadratic constraint is in the initial load of the model. Otherwise, 
+  * NOTE: the above mentioned structures are grouped by column when no
+  * quadratic constraint is in the initial load of the model. Otherwise,
   * the representation is switched to the rows.
   *
   * For a quadratic constraint i, we separtely store all the nonzeros linear
   * terms in the above mentioned matbeg, matcnt, ... structures (grouped by
   * rows). The quadratic part of the constraint is instead represented with a
-  * map< mat_indices,float > stored in the i-th position of the vector q_part.
-  * 
-  * The same procedure is applied for the objective function, with the linear
-  * coefficients stored in objective, the diagonal coefficients of the quadratic
-  * matrix stored in q_objective and the off-diagonal ones stored using three 
+  * map< mat_indices , double > stored in the i-th position of the vector
+  * q_part.
+  *
+  * The same procedure is applied for the objective function, with the
+  * linear coefficients stored in objective, the diagonal coefficients of the
+  * quadratic matrix stored in q_objective and the off-diagonal ones stored
+  * using three
   * vectors ndq_rowind, ndq_colind, ndq_objective.
   * @{  */
 
@@ -1172,6 +1405,31 @@ class MILPSolver : public CDASolver
   * queries while constructing and updating the MILP matrix. */
  std::unordered_set< Block * > BFS_set;
 
+ /** The weight with which the Objective of each Block of #v_BFS enters the
+  * problem [see objective_weight()], for those whose weight is not 1: it is
+  * computed going down the tree in load_problem(), each Block having that
+  * of its father times its own, and the Block of this Solver 1. */
+ std::unordered_map< const Block * , double > f_obj_weight;
+
+ /// true if a Block of #v_BFS below the Block of this Solver has a weight
+ /// of the Variable other than 1 [see variable_weight()]
+ bool f_var_weighted = false;
+
+ /// the weight of the Variable of a Block in a Block [see
+ /// variable_weight()], by pair of Block, as it is asked
+ mutable std::map< std::pair< const Block * , const Block * > , double >
+  f_var_weight_cache;
+
+ /// buffers of the scan of the columns, kept for the whole load
+ /** Each column is scanned with these rather than with containers of its
+  * own [see scan_variable()]: the rows it is active in, ( row , position )
+  * pairs sorted by row, the ( row , coefficient ) entries of the column and
+  * the bounds it has. */
+ std::vector< FRowConstraint * > f_scan_rows;
+ std::vector< std::pair< int , Index > > f_scan_pos;
+ std::vector< std::pair< int , double > > f_scan_sorted;
+ std::vector< OneVarConstraint * > f_scan_bounds;
+
  std::string prob_name;    ///< problem name
  std::string output_file;  ///< output file
 
@@ -1184,7 +1442,7 @@ class MILPSolver : public CDASolver
  int numrows{};
 
  /** An integer that specifies the number of quadratic rows in the set of
-  * constraints, not including the objective function or bounds on the 
+  * constraints, not including the objective function or bounds on the
   * variables. */
  int numquadrows{};
 
@@ -1199,8 +1457,8 @@ class MILPSolver : public CDASolver
  /// A double that specify the summation of the constant terms of all blocks.
  OFValue constant_value{};
 
- /** An array of length at least numcols containing the linear objective function
-  * coefficients. */
+ /** An array of length at least numcols containing the linear objective
+  * function coefficients. */
  std::vector< double > objective;
 
  /** An array of length numcols containing the quadratic coefficients along
@@ -1211,8 +1469,8 @@ class MILPSolver : public CDASolver
   * the diagonal of the quadratic objective matrix. */
  std::vector< double > ndq_objective;
 
- std::vector< int > ndq_rowind; ///< Indices of rows for each quadratic coefficient
- std::vector< int > ndq_colind; ///< Indices of columns for each quadratic coefficient
+ std::vector< int > ndq_rowind; ///< row of each quadratic coefficient
+ std::vector< int > ndq_colind; ///< column of each quadratic coefficient
 
  /** An array of length at least numrows containing the righthand side value
   * for each constraint in the constraint matrix. */
@@ -1226,8 +1484,8 @@ class MILPSolver : public CDASolver
   * row i activity is in [ rhs[ i ] + rngval[ i ] , rhs[ i ] ] */
  std::vector< double > rngval;
 
- /** An array of length at least numrows containing the sense of each constraint
-  * in the constraint matrix. */
+ /** An array of length at least numrows containing the sense of each
+  * constraint in the constraint matrix. */
  std::vector< char > sense;
 
  // Linear constraints container
@@ -1236,12 +1494,12 @@ class MILPSolver : public CDASolver
  std::vector< int > matind;     ///< Indices of rows for each coefficient
  std::vector< double > matval;  ///< All nonzero coefficients
 
- /* Quadratic constraints container */ 
+ /* Quadratic constraints container */
 
  // Linear coefficients (already stored in matbeg,...)
 
  // Quadratic coefficients
- std::vector< std::map< mat_indices , float > > q_part;
+ std::vector< std::map< mat_indices , double > > q_part;
 
  /** An array of length at least numcols containing the lower bound on each
   * of the variables. */
@@ -1278,6 +1536,30 @@ class MILPSolver : public CDASolver
  /// maximum number of LP cut separation passes (see intMaxCutPasses)
  int max_cut_passes = 1000;
 
+ /// objective coefficient removal tolerance (see dblObjRemovalTol)
+ double obj_removal_tol = 1e-12;
+
+ /// tolerance of the check of the optimality conditions (see dblKKTTol)
+ double kkt_tol = 0;
+
+ /// the residuals of the last check [see get_kkt_residuals()]
+ std::array< double , 3 > kkt_residuals = {
+  std::numeric_limits< double >::quiet_NaN() ,
+  std::numeric_limits< double >::quiet_NaN() ,
+  std::numeric_limits< double >::quiet_NaN() };
+
+ /// the rows of the pool [see separate_in_callback()]
+ std::vector< const FRowConstraint * > v_cut_pool;
+
+ /// the set of Variable each row of v_cut_pool is written on
+ std::vector< Index > v_cut_support;
+
+ /// the position of each row of the pool in v_cut_pool
+ std::unordered_map< const FRowConstraint * , Index > m_cut_pool;
+
+ /// the index of each set of Variable some row of the pool is written on
+ std::map< std::vector< const Variable * > , Index > m_cut_supports;
+
  /// SMS++-semantic value of intLogVerb captured at set_par() time
  /**< Mirrors the value most recently set via set_par( intLogVerb , v ).
   * The derived classes each map intLogVerb to their backend log
@@ -1289,9 +1571,7 @@ class MILPSolver : public CDASolver
  int log_verbosity = 0;
 
  /* if true, no more than one OneVarConstraint can be associated to a
- *  single variable. 
- *  Moreover, the vectors svar_to_bound and dvar_to_bound are activated
- *  to guarantee a direct link between variables and bound. */
+ *  single variable. */
  bool single_bound = false;
 
  /* if true, the model should be cleared and re-loaded. This parameter
@@ -1301,7 +1581,7 @@ class MILPSolver : public CDASolver
  bool f_reset = false;
 
   /* if true, modification on constraints are enabled. This parameter can
-  *  be useful when dealing with quadratic constraint, where Modification 
+  *  be useful when dealing with quadratic constraint, where Modification
   * from some Solver (e.g. CPLEX) are not allowed. */
  bool cons_modification = true;
 
@@ -1331,7 +1611,22 @@ class MILPSolver : public CDASolver
   * strings containing the names of the constraints. */
  std::vector< char * > rowname;
 
- int sol_status = kUnEval; ///< Solution status (OK, Infeasible, Unbounded, ...)
+ int sol_status = kUnEval; ///< Solution status (OK, Infeasible, ...)
+
+ /// the iterations of the back-end in the current compute()
+ /** Cleared by compute() before the first solve, and increased by each
+  * guts_of_compute() of a derived class that counts the iterations of its
+  * back-end [see get_elapsed_iterations()]. */
+ long elapsed_iter = 0;
+
+ /// whether the callback of the cutoffs has interrupted the current solve
+ /** Set by the callback of a derived class (possibly from several threads
+  * of the back-end) when the incumbent or the bound of the search reaches
+  * dblUpCutOff or dblLwCutOff and it asks the back-end to stop; compute()
+  * clears it before the solve and reads it after, giving kCutOff rather
+  * than the error status of an interrupted run. */
+ std::atomic< bool > f_cutoff_stop = false;
+
  int int_vars{};           ///< Number of integer variables
  int static_vars{};        ///< Number of static variables
  int static_cons{};        ///< Number of static constraints
@@ -1348,9 +1643,9 @@ class MILPSolver : public CDASolver
  * - v_warmstart_vars: stores the AbstractPath vectors
  *
  * @note A single std::vector<AbstractPath> can be shared across multiple
- * Solution * instances. To track this association, a std::vector<int> 
- * — matching the length of v_warmstart_sol— is used to record which :AbstractPath
- * vector is referenced by each Solution *.
+ * Solution * instances. To track this association, a std::vector<int>
+ * (matching the length of v_warmstart_sol) is used to record which
+ * :AbstractPath vector is referenced by each Solution *.
  *
  * Currently, warm starts can be provided in two ways:
  *
@@ -1377,10 +1672,10 @@ class MILPSolver : public CDASolver
 
  //std::vector< std::vector< AbstractPath >> v_warmstart_vars;
                                   // warm start variables
- //std::vector< Solution * > v_warmstart_sol;               
+ //std::vector< Solution * > v_warmstart_sol;
                                   // warm start solutions
- 
- //std::vector< int > v_warmstart_sol2vars; 
+
+ //std::vector< int > v_warmstart_sol2vars;
                                   // corresponding variables for each solution
 
 /** @} ---------------------------------------------------------------------*/
@@ -1400,6 +1695,14 @@ class MILPSolver : public CDASolver
  virtual double get_problem_ub( const ColVariable & var ) const;
 
  /// gets both bounds for the given variable in the problem
+ /// checks the optimality conditions of the solution [see dblKKTTol]
+ /** Writes the solution in the Block, measures the residuals in
+  * #kkt_residuals and returns the largest of them. */
+
+ double check_kkt( void );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
  virtual std::array< double , 2 > get_problem_bounds(
 					     const ColVariable & var ) const;
 
@@ -1422,13 +1725,56 @@ class MILPSolver : public CDASolver
 
 /*--------------------------------------------------------------------------*/
  /// gets the active constraints for the specified variable
- std::vector< FRowConstraint * > get_active_constraints(
-					     const ColVariable & var ) const;
+ /** The constraints are written in \p active_constraints, which is cleared
+  * first, so that a caller scanning many variables keeps one buffer. */
+ void get_active_constraints( const ColVariable & var ,
+               std::vector< FRowConstraint * > & active_constraints ) const;
+
+ /// the dynamic_cast of \p i to T *, made once per dynamic type
+ /** Gives what dynamic_cast< T * >( \p i ) gives. The active stuff of a
+  * ColVariable is taken to an FRowConstraint or to a OneVarConstraint for
+  * each ColVariable that is loaded, and a dynamic_cast in a hierarchy with
+  * multiple inheritance spread over shared libraries compares the names of
+  * the types, which a large problem pays tens of millions of times; what
+  * the cast gives only depends on the dynamic type of the object, so it is
+  * made the first time a type is seen, and the offset from the active
+  * stuff to the object of the cast (the same for all the objects of a
+  * type, which have the same layout) is kept in a table of the thread,
+  * keyed by the std::type_info of the type. */
+ template< class T >
+ static T * cast_active( ThinVarDepInterface * i ) {
+  // PTRDIFF_MIN if the cast fails
+  static thread_local std::unordered_map< const std::type_info * ,
+					  std::ptrdiff_t > cache;
+  auto [ it , fresh ] = cache.try_emplace( & typeid( * i ) , PTRDIFF_MIN );
+  if( fresh )
+   if( auto * t = dynamic_cast< T * >( i ) )
+    it->second = reinterpret_cast< char * >( t ) -
+                 reinterpret_cast< char * >( i );
+  if( it->second == PTRDIFF_MIN )
+   return( nullptr );
+  return( reinterpret_cast< T * >( reinterpret_cast< char * >( i ) +
+				   it->second ) );
+  }
 
  /// gets the active bounds for the specified variable
- std::vector< OneVarConstraint * > get_active_bounds(
-					     const ColVariable & var ,
-               bool first_scan = false ) const;
+ /** As get_active_constraints(), the bounds go in \p active_bounds. They are
+  * found among the active stuff of the variable, which is what
+  * svar_to_bound and dvar_to_bound keep track of. */
+ void get_active_bounds( const ColVariable & var ,
+		 std::vector< OneVarConstraint * > & active_bounds ) const;
+
+ /// gets the bounds of a column, from svar_to_bound and dvar_to_bound
+ /** As get_active_bounds(), but in constant time: the bounds of the
+  * column \p col, whose ColVariable is \p var, go in \p bounds. */
+ void get_column_bounds( int col , const ColVariable & var ,
+                         std::vector< OneVarConstraint * > & bounds ) const;
+
+ /// records the bounds of a column found by get_active_bounds()
+ /** Writes the first of \p bounds in \p slot and the others in
+  * m_more_bounds, for the ColVariable \p var. */
+ void set_column_bounds( OneVarConstraint * & slot , const ColVariable & var ,
+                         const std::vector< OneVarConstraint * > & bounds );
 
 /*--------------------------------------------------------------------------*/
 /*----------------- INTERFACE FOR SUPPORTING MODIFICATIONS ---------------- */
@@ -1642,6 +1988,14 @@ class MILPSolver : public CDASolver
   */
  static bool is_of( Function * f );
 
+ /// true if \p mod is, or has inside, a Modification of an ignored Objective
+ /** Returns true if \p mod is an ObjectiveMod, a FunctionMod or a
+  * FunctionModVars of the Objective of a Block given to
+  * Solver::set_excluded_objectives(), or a GroupModification having one of
+  * them inside at any depth. */
+ [[nodiscard]] bool touches_excluded_objective( const Modification * mod )
+  const;
+
  /// handles a variable modification
  virtual void var_modification( const VariableMod * mod );
 
@@ -1669,6 +2023,57 @@ class MILPSolver : public CDASolver
  /// handles a dynamic modification
  virtual void dynamic_modification( const BlockModAD * mod );
 
+ /// handles a change of the weights of a Block [see BlockWeightMod]
+ /** The Objective of the problem, and its constant, are built again when
+  * the weight of the Objective has changed [see set_linear_objective()], and
+  * the coefficients of the Variable of the Block and of those below it in
+  * the rows outside of it when the weight of the Variable has [see
+  * set_matrix_coefficients()]; the diagonal of the quadratic part of the
+  * Objective changes only in the columns of a Block below the changed one
+  * whose quadratic coefficient is not 0 [see set_quadratic_objective()].
+  * f_reset is set, so that the problem is loaded again whole, if a Block
+  * below the changed one has off-diagonal quadratic terms, if a row whose
+  * coefficients change is not linear, or if the back-end does not change
+  * them in place. */
+ void weight_modification( const BlockWeightMod * mod );
+
+ /// gives the back-end the linear coefficients \p obj of the Objective
+ /** \p obj has one coefficient per column, in the order of the columns,
+  * the weights comprised. The method of the base class sets f_reset, so
+  * that the problem is loaded again: a back-end that can change the
+  * coefficients of its Objective in place redefines it. */
+ virtual void set_linear_objective( const std::vector< double > & obj ) {
+  f_reset = true;
+  }
+
+ /// gives the back-end new diagonal coefficients of the quadratic Objective
+ /** The coefficient of x_j^2, for j = cols[ i ], becomes vals[ i ], the
+  * weights comprised, as in q_objective (with no factor 1/2). The method of
+  * the base class sets f_reset, so that the problem is loaded again: a
+  * back-end that can change them in place redefines it. */
+ virtual void set_quadratic_objective( const std::vector< int > & cols ,
+                                       const std::vector< double > & vals ) {
+  f_reset = true;
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// gives the back-end new coefficients of the matrix
+ /** The coefficient of the column cols[ i ] in the linear row rows[ i ]
+  * becomes vals[ i ], the weights comprised. The method of the base class
+  * sets f_reset, so that the problem is loaded again: a back-end that can
+  * change the coefficients in place redefines it. */
+ virtual void set_matrix_coefficients(
+	    const std::vector< const FRowConstraint * > & rows ,
+	    const std::vector< int > & cols ,
+	    const std::vector< double > & vals ) {
+  f_reset = true;
+  }
+
+ /// computes the weights of the Block of v_BFS
+ /** Fills f_obj_weight and f_var_weighted out of the weights of the Block
+  * of v_BFS [see objective_weight() and variable_weight()]. */
+ void refresh_weights( void );
+
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// calls \p f on every addition of FRowConstraint inside \p mod
  /** The rows that a Block generates may well arrive inside a
@@ -1680,9 +2085,69 @@ class MILPSolver : public CDASolver
  static void for_each_row_addition( const Modification * mod ,
   const std::function< void( const BlockModAdd< FRowConstraint > * ) > & f );
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the rows that a callback gives the back-end at the current point
+ /** To be called from within the callback of the back-end, with the Block
+  * lock()-ed and the point (be it a relaxed or a feasible one) written in
+  * its Variable. It calls generate_dynamic_constraints( cfg ) on the Block
+  * and writes in \p rows, which is supposed to be empty, the rows that the
+  * callback has to give the back-end at this point: (i) all the dynamic
+  * FRowConstraint that the Block has added in the call, and (ii) for each
+  * set of Variable on which none of (i) is written, the most violated row
+  * of the pool written on that set, if any is violated.
+  *
+  * The pool is the set of the rows that the Block has added during the
+  * callbacks of this Solver: they are dynamic Constraint of the Block, and
+  * this Solver knows them, but they are not rows of the model. A row that
+  * a callback gives a back-end as a user cut or a lazy constraint belongs
+  * to that solve, and a back-end is free to discard it and to show the
+  * same point again later (another thread, a cut not deemed useful): a
+  * Block that does not give again a Constraint it already has is then
+  * served by (ii). When the BlockModAdd of a row of the pool is processed,
+  * the row is not added to the model; when its BlockModRmv is, the row
+  * leaves the pool [see dynamic_modification()].
+  *
+  * Hence, with lazy constraint separation the model keeps the rows of the
+  * formulation alone, and those separated are given back by the callback
+  * whenever they are violated, solve after solve. If the next solve does
+  * not separate lazy constraints [see cut_pool_enforced()], before it the
+  * pool becomes rows of the model, as the BlockModAdd would have made it;
+  * so does load_problem(), which reads all the dynamic Constraint of the
+  * Block. */
+
+ void separate_in_callback( Configuration * cfg ,
+                            std::vector< const FRowConstraint * > & rows );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// whether the callback of the next solve gives back the pool
+ /** True if the next solve will run the callback that separates lazy
+  * constraints, which is what makes it safe to keep the pool out of the
+  * model: the default says so for the MIP path, i.e., with integer columns
+  * and intRelaxIntVars == 0, when intCutSepPar has bit 2 set; a back-end
+  * that cannot give lazy constraints from its callback answers false. */
+
+ virtual bool cut_pool_enforced( void ) const {
+  return( ( CutSepPar & 4 ) && ( int_vars > 0 ) && ( ! relax_int_vars ) );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// adds all the rows of the pool to the model, and empties it
+
+ void flush_cut_pool( void );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// empties the pool without adding its rows to the model
+
+ void clear_cut_pool( void );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// removes \p con from the pool, returning false if it is not there
+
+ bool erase_from_cut_pool( const FRowConstraint * con );
+
  /// adds a single new dynamic constraint
- /** Notice that empty constraints, i.e., constraints with null function, are by
-  * definition equals to zero, so as in some cases it might be useful to
+ /** Notice that empty constraints, i.e., constraints with null function, are
+  * by definition equals to zero, so as in some cases it might be useful to
   * handle them, if FRowConstraint::get_function() returns nullptr, then the
   * constraint will be added and the respective row will be generated since,
   * formally speaking, an empty constraint is linear since the identical
@@ -1781,7 +2246,7 @@ class MILPSolver : public CDASolver
  void scan_constraint( const FRowConstraint & con , Index & row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /** Scans a static ColVariable to found the associated bound and fills the 
+ /** Scans a static ColVariable to found the associated bound and fills the
   *  dictionaries accordingly
   *
   * @param var a reference to a ColVariable */
@@ -1789,7 +2254,7 @@ class MILPSolver : public CDASolver
  void scan_static_variable_bound( const ColVariable & var );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /** Scans a dynamic ColVariable to found the associated bound and fills the 
+ /** Scans a dynamic ColVariable to found the associated bound and fills the
   *  dictionaries accordingly
   *
   * @param var a reference to a ColVariable */
@@ -1801,10 +2266,13 @@ class MILPSolver : public CDASolver
   * Moreover, since both the CPLEX and SCIP C API does not support the concept
   * of "constant term", all of them, for each Block of the problem, are
   * accumulated in the homonymous variable to provide the updated OF value.
+  * All the coefficients and the constant term are multiplied by \p w, the
+  * weight of the Objective [see objective_weight()].
   *
-  * @param obj a FRealObjective */
+  * @param obj a FRealObjective
+  * @param w the weight of its Block */
 
- void scan_objective( const FRealObjective * obj );
+ void scan_objective( const FRealObjective * obj , double w );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1812,7 +2280,7 @@ class MILPSolver : public CDASolver
  SMSpp_insert_in_factory_h;
 
 /*--------------------------------------------------------------------------*/
- 
+
  };  // end( class( MILPSolver ) )
 
 /*--------------------------------------------------------------------------*/

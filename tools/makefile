@@ -2,7 +2,7 @@
 ################################ makefile ####################################
 ##############################################################################
 #                                                                            #
-#   makefile of cpx_pars / scip_pars / grb_pars / highs_pars                 #
+#   makefile of cpx_pars / scip_pars / grb_pars / highs_pars / mosek_pars    #
 #                                                                            #
 #                              Antonio Frangioni                             #
 #                          Dipartimento di Informatica                       #
@@ -46,7 +46,7 @@ endif
 COMMON_SW = -std=c++20
 
 # debug switches
-SW_DEBUG = -g -glldb -fno-inline
+SW_DEBUG = -g $(SMSppSWDBG) -fno-inline
 # production switches
 SW_RELEASE = -O3 -DNDEBUG
 
@@ -83,12 +83,14 @@ ifeq ($(strip $(MAKECMDGOALS)),)
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
     include $(DIR)/makefile_pips
+    include $(DIR)/makefile_mosek
 else ifneq ($(filter default debug release clean distclean,$(MAKECMDGOALS)),)
     include $(DIR)/makefile_cpx
     include $(DIR)/makefile_grb
     include $(DIR)/makefile_highs
     include $(DIR)/makefile_scip
     include $(DIR)/makefile_pips
+    include $(DIR)/makefile_mosek
 else
     ifneq ($(filter cpx_pars,$(MAKECMDGOALS)),)
 		include $(DIR)/makefile_cpx
@@ -105,10 +107,16 @@ else
 	ifneq ($(filter pips_pars,$(MAKECMDGOALS)),)
 		include $(DIR)/makefile_pips
 	endif
+	ifneq ($(filter mosek_pars,$(MAKECMDGOALS)),)
+		include $(DIR)/makefile_mosek
+	endif
 endif
 
-# collate all (defined) executables
-NAME = $(CPX_PARS) $(GRB_PARS) $(HIGHS_PARS) $(SCIP_PARS) $(PIPS_PARS)
+# collate all (defined) executables, each of those of a solver only if the
+# solver is installed [see extlib/makefile-lib*], as with CMake
+NAME = $(if $(CPLEX_PRESENT),$(CPX_PARS)) $(if $(GUROBI_PRESENT),$(GRB_PARS)) \
+	$(if $(HiGHS_PRESENT),$(HIGHS_PARS)) $(if $(SCIP_PRESENT),$(SCIP_PARS)) \
+	$(if $(MOSEK_PRESENT),$(MOSEK_PARS)) $(PIPS_PARS)
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

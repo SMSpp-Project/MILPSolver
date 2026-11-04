@@ -7,6 +7,775 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-04
+
+### Added
+
+- each int parameter of MOSEK is also a string parameter of
+  `MOSEKMILPSolver` of the same name, whose value is the symbolic one of
+  MOSEK (e.g., `MSK_IPAR_OPTIMIZER` `MSK_OPTIMIZER_DUAL_SIMPLEX`), so that a
+  configuration need not know the numbers, which change from a version of
+  MOSEK to the next
+
+- the weight of the `Objective` of the `Block` [see
+  `Block::set_objective_weight()`]: the `Objective` of each `Block` of the
+  tree enters the problem multiplied by the product of the weights along
+  the path up to the `Block` of the `Solver`, the latter excluded, in the
+  loading of the problem and in every `Modification` of the `Objective`
+  (coefficients, constant term, quadratic terms, `Variable` added and
+  removed) of `GRBMILPSolver`, `CPXMILPSolver`, `HiGHSMILPSolver`,
+  `SCIPMILPSolver`, `MOSEKMILPSolver` and of the back-ends that read the
+  objective of `MILPSolver` (`MILPSolver::objective_weight()`)
+
+- the weight of the Variable of a `Block` [see
+  `Block::set_variable_weight()`]: the coefficient of a `Variable` in a
+  linear Constraint outside of its `Block` enters the problem multiplied by
+  the product of the weights from its `Block` up to the closest one that
+  also contains the Constraint (`MILPSolver::variable_weight()`), in the
+  loading of the problem (rows and columns, `PIPSMILPSolver` comprised), in
+  every `Modification` of the coefficients of a row and in the rows and
+  columns added afterwards (`scatter_lf_to_csr()` comprised), in the cuts of
+  the separation and in the check of the optimality conditions; a weight
+  other than 1 in a quadratic Constraint is refused; a change of the weights
+  of a sub-Block (`BlockWeightMod`) loads the problem again, and
+  `MILPSolver_ObjectiveWeight_test` checks both weights, changed with the
+  `Solver` attached too
+
+- `MILPSolver::previous_column_index()`, `previous_row_index()` and
+  `previous_sizes()`: each `load_problem()` but the first finds, by the
+  address of its `ColVariable` or `FRowConstraint`, where each column and
+  row of the problem it loads was in the one loaded before, so that a
+  back-end that loads the problem again whole at a Modification
+  (`reload_on_modification()`) can start from the previous solve even when
+  columns or rows have been added or removed; `test_qp` checks it after a
+  row has been removed
+
+- `dblUpCutOff` and `dblLwCutOff` act on a continuous model too in
+  `CPXMILPSolver`, `GRBMILPSolver` and `HiGHSMILPSolver`: the cutoff on the
+  bound that the dual simplex certifies (the lower one of a minimization,
+  the upper one of a maximization) becomes the objective limit of the dual
+  simplex of the back-end, which stops as soon as its dual objective
+  passes it and returns `kCutOff`, with a certified bound at least as good
+  as the cutoff and a feasible dual solution, i.e., one that gives a valid
+  cut, and no bound on the other side, since the solution it stops at is
+  not primal feasible (the presolve is turned off for this solve in
+  `GRBMILPSolver` and `HiGHSMILPSolver`, whose presolved solve gives no such
+  dual solution or ignores the limit, and HiGHS acts on it only when
+  minimizing). The
+  parameters changed for it are given back after the solve.
+  `test_cutoff_status` checks it on an LP with 60 columns and 40 rows, in
+  either sense, with a cutoff that is reached and with one that is not
+
+- `MILPSolver::get_elapsed_iterations()` gives the iterations of the
+  back-end in the last `compute()`, all its solves summed: those of DAQP in
+  `DAQPMILPSolver` and the working set recalculations of qpOASES in
+  `QPOASESMILPSolver`, those of a hot start repeated from scratch included;
+  0 for the back-ends that do not count them
+
+- `get_var_solution()`, `get_dual_solution()`, `get_var_direction()` and
+  `get_dual_direction()` of every :MILPSolver write only a part of the
+  solution when they are given a `SimpleConfiguration< std::vector< int > >`:
+  the sub-Blocks of the `Block` it lists, each with all its sub-Blocks, and
+  the `Block` itself without them for -1; the columns and rows not asked for
+  are skipped a group at a time, and any other `Configuration` gives the
+  whole solution as before. `test_partial_solution` checks it on every
+  back-end, dynamic rows and columns included
+
+- the makefiles build the C++20 module `smspp.milpsolver` when `SMSppMOD`
+  is not empty (e.g., `make SMSppMOD=1`), with clang++ 16 or later [see
+  `lib/makefile-mod` of SMS++]
+
+- `GRBMILPSolver`, `CPXMILPSolver` and `SCIPMILPSolver` free after each
+  solve of an LP ending optimal the memory that the back-end keeps and the
+  next solve does not need: the solution and the duals are kept by the
+  `Solver`, and the problem is replaced by a copy of itself (GUROBI,
+  CPLEX), whose next solve starts from the kept basis, or the transformed
+  problem of SCIP is freed (SCIP starts from scratch after any change in
+  any case). On 16 copies of a subproblem of 129676 rows and 124492
+  columns of a Benders decomposition of a PyPSA-Eur instance the memory
+  after the solves goes from 2.0 to 0.4 GB with GUROBI, from 1.7 to 0.4 GB
+  with CPLEX and from 11.1 to 5.9 GB with SCIP, with the same simplex
+  iterations, and with the 200 subproblems of the instance with 200
+  scenarios the peak of `GRBMILPSolver` goes from 50 to 30 GB, with the
+  same rounds. `MOSEKMILPSolver` keeps its task, since a copy of it does
+  not lower the memory (what the deleted task had stays with the
+  environment of MOSEK), and `HiGHSMILPSolver` its instance: a new one with
+  the same options, model and basis frees 2.0 of the 2.3 GB, but its next
+  solve does not start from the state the dual simplex had, and on the
+  badly scaled master of a Benders decomposition HiGHS then ends in
+  `Unknown` and, from scratch, in a wrong `Unbounded`, where the instance
+  that is kept solves it.
+  `test_free_workspace` checks every `:MILPSolver` of `LPPar-all.txt`
+  against the others across warm re-solves after changes of sides, bounds
+  and costs, an infeasible solve and a solve with no change
+
+- `HPIPMMILPSolver`, the interface with the dense interior-point solver
+  of HPIPM (0.1.2 or later, on BLASFEO) for convex QPs and LPs with linear
+  constraints: the rows with equal sides and the fixed variables are its
+  equalities, whose dependent ones it removes, the other bounds and rows
+  its box and general constraints, an infinite side masked out; the duals
+  follow the convention of the other backends, `intHPIPMMode` picks the
+  mode of HPIPM (ROBUST by default) and `intHPIPMWarmStart` starts a solve
+  from the previous solution; it is built when `MILPSolver_USE_HPIPM` is
+  ON and `FindHPIPM` finds it (CMake) or HPIPM is in `HPIPM_ROOT`
+  (makefile), and the tests of the QP backends run it
+
+- `dblKKTTol`, off by default: when positive, `compute()` writes the
+  solution in the `Block` after a solve that returns `kOK` and measures
+  its primal residual, its dual residual and its gap, with the duals in the
+  convention of `write_dual_solution()` and the multipliers of the bounds
+  taken as the reduced costs that the duals of the rows imply, and returns
+  `kError` if one of them exceeds the value; `get_kkt_residuals()` gives
+  them, and `test_qp` checks every back-end and a sloppy `OSQPMILPSolver`
+
+- `ClarabelMILPSolver` and `OSQPMILPSolver` give the unbounded ray of a
+  dual infeasible problem through `get_var_direction()` and the Farkas
+  certificate of a primal infeasible one through `get_dual_direction()`,
+  with the sign of those of the other :MILPSolver and with
+  `intHomogeneousDirection`, and `ProxQPMILPSolver` gives the ray;
+  `test_farkas` checks them, and checks on an unbounded convex QP with a
+  singular Hessian that the ray of every :MILPSolver that gives one is a
+  ray
+
+- `MOSEKMILPSolver`, the interface with the commercial solver MOSEK (10 or
+  later) for LPs, MILPs, convex QPs and MIQPs with linear constraints:
+  bounds, sides, costs, coefficients, integrality, rows, columns and terms
+  of the quadratic objective are changed in place in the task, which keeps
+  its basis for the simplex; the duals and reduced costs follow the
+  convention of the other backends, and the certificates of infeasibility
+  and unboundedness come with the solve that finds them; `dblUpCutOff` and
+  `dblLwCutOff` stop a MIP from the callback of MOSEK, quadratic
+  constraints and the separation of user cuts or lazy constraints in a MIP
+  are refused, and every parameter of MOSEK can be given with its symbolic
+  name, listed for the installed version by `tools/mosek_pars`; it is
+  built when `MILPSolver_USE_MOSEK` is ON (CMake) or MOSEK is in
+  `MOSEK_ROOT` (makefile)
+
+- `QPOASESMILPSolver`, the interface with the open-source online active-set
+  solver qpOASES for convex QPs (and LPs) with linear constraints, dense and
+  with no integer variables, whose Hessian may be singular: a direction of
+  zero curvature is followed until a constraint blocks it, and an unbounded
+  problem is declared so. The problem is loaded again whole at every
+  Modification, and a solve is a hot start from the solution of the
+  previous one if the size has not changed (`intQPOASESHotStart`), repeated
+  from scratch if it does not end optimal; it is built when
+  `MILPSolver_USE_qpOASES` is ON (CMake) or qpOASES is in `qpOASES_ROOT`
+  (makefile)
+
+- `PIPSMILPSolver` solves convex QPs: the Hessian of the objective is given
+  to PIPS-IPM++ node by node through the callbacks that had it empty, a
+  term between the Variable of two nodes making `load_problem()` throw, and
+  a solve with a Hessian runs with the presolve of PIPS-IPM++ off and its
+  outer BiCGStab given no iteration, since the presolve treats the
+  objective as linear and the BiCGStab refines on Q + diag( Q ), which
+  halves the residual at each step and ends in a crash of the
+  factorization; a Modification of the quadratic part loads the model
+  again, as any other one does
+
+- `test_qp` checks every `:MILPSolver` of the build on small quadratic
+  models with a known optimum: the value, the solution and the duals (with
+  the stationarity of the KKT conditions) of a convex QP with a separable
+  and a non-separable objective, minimized and maximized, the value of an
+  MIQP, and the value after each of a sequence of Modifications against a
+  Solver loaded anew, a Solver that is not meant to handle a model having
+  to refuse it rather than answer
+
+- the Objective of the Block given to `Solver::set_excluded_objectives()` is
+  not loaded, nor is its sense, and its Modification are dropped, a
+  GroupModification having one of them inside being processed piece by piece
+  rather than as one operation of the back-end
+
+- a dynamic `FRowConstraint` whose Function is not a `LinearFunction` (e.g.,
+  a `DQuadFunction`) added to a loaded problem has the problem loaded again,
+  which reads it as the rows of the problem as first loaded are, rather than
+  have the back-end throw, which adds only linear rows; so do the dynamic
+  rows and columns that come or go in a problem with quadratic rows, whose
+  duals `GRBMILPSolver` read at the wrong index once a linear row had been
+  added in place
+
+- `DAQPMILPSolver`, the interface with the open-source dual active-set
+  solver DAQP for convex QPs (and LPs) with linear constraints, dense and
+  with no integer variables: the problem is loaded again whole at every
+  Modification, and a solve starts from the working set of the previous one
+  if the size has not changed (`intDAQPWarmStart`), but for the constraints
+  that either problem fixes, which are active only if the new one fixes
+  them; it is built when
+  `MILPSolver_USE_DAQP` is ON (CMake) or DAQP is in `DAQP_ROOT` (makefile)
+
+- `ClarabelMILPSolver`, the interface with the open-source interior-point
+  solver Clarabel for convex QPs (and LPs) with linear constraints, sparse
+  and with no integer variables: an unbounded problem is detected as such
+  (`kUnbounded`) and a singular Hessian needs no regularization, as in the
+  master problems of bundle methods with vertical cuts; Clarabel has no
+  warm start, hence the problem is loaded again whole at every Modification
+  and each solve starts from scratch; it is built when
+  `MILPSolver_USE_Clarabel` is ON (CMake) or Clarabel is in `Clarabel_ROOT`
+  (makefile)
+
+- `ProxQPMILPSolver`, the interface with the open-source proximal augmented
+  Lagrangian solver ProxQP of ProxSuite for convex QPs (and LPs) with linear
+  constraints and no integer variables, with its dense backend (the bounds
+  as box constraints) or its sparse one (`intProxQPBackend`): the problem is
+  loaded again whole at every Modification, and a solve starts from the
+  primal and dual solution of the previous one if the size has not changed
+  (`intProxQPWarmStart`); it is built when `MILPSolver_USE_ProxQP` is ON and
+  ProxSuite is found (CMake, `proxsuite_ROOT` as a hint) or ProxSuite is in
+  `proxsuite_ROOT` (makefile)
+
+- `PIQPMILPSolver`, the interface with the open-source proximal interior
+  point solver PIQP for convex QPs (and LPs) with linear constraints and no
+  integer variables, with its dense backend or its sparse one
+  (`intPIQPBackend`) and the bounds as box constraints of PIQP: the problem
+  is loaded again whole at every Modification, and each solve starts from
+  scratch, PIQP having no warm start; it is built when
+  `MILPSolver_USE_PIQP` is ON and PIQP 0.6 or later is found (CMake,
+  `piqp_ROOT` as a hint) or PIQP is in `piqp_ROOT` (makefile)
+
+- `OSQPMILPSolver`, the interface with the open-source operator splitting
+  solver OSQP for convex QPs (and LPs) with linear constraints and no
+  integer variables, with the bounds as unit rows of the constraints of OSQP
+  (the solution is projected on them), the polishing of the solution on and
+  the tolerances of the certificates of infeasibility at 1e-8 by default:
+  the problem is loaded again whole at every Modification, but the data are
+  given to the solver already set up if their sparsity pattern has not
+  changed, and each solve starts from the primal and dual solution of the
+  previous one (`intOSQPWarmStart`); it is built when `MILPSolver_USE_OSQP`
+  is ON and OSQP 1.0 or later is found (CMake, `osqp_ROOT` as a hint) or
+  OSQP is in `osqp_ROOT` (makefile)
+
+- `QPMADMILPSolver`, the interface with the open-source dual active-set
+  solver qpmad, of Goldfarb and Idnani, for strictly convex QPs with linear
+  constraints, dense and with no integer variables: H has to be positive
+  definite, and a solve whose Cholesky factorization of H fails ends with
+  `kError` unless H is regularized (`dblQPMADReg`); the problem is loaded
+  again whole at every Modification and each solve starts from the
+  unconstrained minimum, qpmad having no warm start of the active set, but
+  the Cholesky factor of H is kept from a solve to the next as long as H
+  has not changed (`intQPMADReuseFactor`); the multipliers, of which qpmad
+  only gives those of the active inequalities, are computed from its active
+  set; it is built when `MILPSolver_USE_qpmad` is ON and qpmad is found
+  (CMake, `qpmad_ROOT` as a hint) or qpmad is in `qpmad_ROOT` (makefile)
+
+- `QuadProgMILPSolver`, the interface with the open-source dual active-set
+  solver quadprog, the original implementation of the method of Goldfarb
+  and Idnani, for the same QPs as `QPMADMILPSolver`: each finite bound and
+  side is a constraint of quadprog and an equality is one, the multipliers
+  are those of quadprog, the inverse of the Cholesky factor of H, regularized
+  if so asked (`dblQuadProgReg`), is computed once and kept as long as H has
+  not changed (`intQuadProgReuseFactor`), and quadprog has no limit on the
+  iterations or the time; quadprog is under the GPL, and it is built when
+  `MILPSolver_USE_quadprog` is ON and `libquadprog` is found (CMake,
+  `quadprog_ROOT` as a hint) or is in `quadprog_ROOT/lib` (makefile)
+
+- the C++20 module `smspp.milpsolver` (`src/MILPSolver.cppm`), which exports
+  every name that the headers declare at namespace scope and re-exports
+  `smspp`, so that a source file can write `import smspp.milpsolver;` in
+  place of the `#include` of the headers; it is built with the CMake option
+  `SMSpp_BUILD_MODULE`, as the target `SMS++::MILPSolver_module`. The names
+  of a backend are there only if the backend is
+
+### Changed
+
+- the README leaves the channels that distribute SMS++ to the
+  installation guide of the wiki (Installing-SMS++), keeping the names
+  of the packages of the module
+
+- the names of the rows and of the columns are not made when
+  `intUseCustomNames` is 0, the back-ends not being given them: a large
+  problem loaded without names takes less time and less memory
+
+- a change of the weights of a `Block` [see `BlockWeightMod`] is made in
+  place rather than by loading the problem again: the linear part of the
+  Objective and its constant are built again when the weight of the
+  Objective changes, and the coefficients of the Variable below the `Block`
+  in the rows outside of it when the weight of the Variable does, which the
+  back-ends take with `set_linear_objective()` and
+  `set_matrix_coefficients()` (Gurobi, CPLEX, HiGHS and MOSEK; the other
+  ones, a quadratic Objective below the `Block` and a quadratic row with a
+  weight still load the problem again)
+
+- the active stuff of a `ColVariable` is taken to an `FRowConstraint` or to
+  a `OneVarConstraint` with a `dynamic_cast` made once per dynamic type and
+  per thread [see `MILPSolver::cast_active()`], rather than once per
+  `ColVariable` and per active stuff, which compared the names of the types
+  tens of millions of times while loading a large problem
+
+- `DAQPMILPSolver`, `QPOASESMILPSolver`, `ProxQPMILPSolver`,
+  `OSQPMILPSolver` and `HPIPMMILPSolver` start a solve from the previous one
+  also after columns or rows have been added or removed, on those that are
+  still there [see `MILPSolver::previous_column_index()`], instead of only
+  when the size of the problem has not changed: DAQP from the working set,
+  ProxQP from the primal solution and the multipliers of the equalities,
+  those of the inequalities at 0, OSQP from the primal and dual solution,
+  HPIPM from the primal solution, repeating from its initial point a solve
+  that does not end, and qpOASES with a hot start if no column or row has
+  moved, otherwise with a new problem initialized from the working set,
+  solution and multipliers, given up for a solve from scratch after half
+  as many working set recalculations as variables and rows (at least 10)
+
+- `MILPSolver::get_elapsed_iterations()` also gives the iterations of
+  ProxQP, OSQP and HPIPM
+
+- `GRBMILPSolver` starts the environment of GUROBI with `OutputFlag` off,
+  which it turns on again right after: the license parameters and banner
+  are no longer printed, once per process, and the log of the tests on the
+  CI, which start thousands of processes, stays within the limit of
+  GitLab
+
+- the pipeline builds the module also with its makefiles, after CMake, and
+  runs on a change of the makefiles too [see `ci/makefile` of the umbrella]
+
+- `SMSpp_BUILD_MODULE` no longer stops the configuration when the C++20
+  module cannot be built, i.e., with a CMake older than 3.28, a generator
+  other than Ninja or Visual Studio, a compiler other than Clang 16 (with
+  `clang-scan-deps`) or MSVC 19.34, or a module it imports that is not
+  there: the option is turned off with a warning that says why, and the
+  build goes on with the headers [see `cmake/CheckModule.cmake` of SMS++]
+
+- `write_dual_solution()` finds the bounds of each column in constant time,
+  from a bound per column kept up to date when Variable and bounds are
+  added or removed, with the few columns having more than one in a map,
+  instead of looking for them with a `dynamic_cast` among the active stuff
+  of every Variable at each call, which on an `InvestmentBlock` over a
+  `TwoStageStochasticBlock` solved as a MILP took more than half of the
+  time; the duals written are the same
+
+- `MILPSolver::clear_problem()` gives back the memory of the arrays the
+  model is loaded from, which `clear()` kept, so that a `Solver` no longer
+  holds a second copy of its model next to the one of the back-end
+
+- the minimum versions of the QP back-ends are those their code builds and
+  passes the tests with, checked by CMake: MOSEK 11.0.1 (was 10.0, which
+  lacks some error codes), ProxSuite 0.4 (was 0.6), qpmad 1.5, DAQP 0.8.2
+  and Clarabel.cpp 0.11.1, the last two from their headers, which carry no
+  version number, as does qpOASES when it has no CMake configuration;
+  the configuration of the installed MILPSolver asks for the same
+  versions
+
+- the CI runs the batteries of the QPs of qpbenchmark (`batchMPC_C`,
+  `batchMM_C` and their dense versions) in a stage `test-qpb` of their
+  own, after `test-miqp`, and the job `test` leaves them out
+
+- `load_problem()` scans the columns with buffers kept for the whole load,
+  rather than with a std::set, a std::map and two vectors of its own for
+  each column, the entries of a column being the same in the same order,
+  and `GRBMILPSolver` gathers the nonzero diagonal of a quadratic objective
+  in one pass rather than erasing the zeros one at a time
+
+- `HiGHSMILPSolver` leaves `qp_regularization_value` at the 1e-7 of HiGHS,
+  the 1e-5 of 0.10.0 making many QPs less precise and slower (the Lagrangian
+  dual of a UC master and of an SDDP stage); a QP that the active set QP
+  solver of HiGHS does not solve is solved again from scratch and then with
+  the Hessian regularized by 1e-5 and by 1e-4, and if none of these solves
+  it the Solver throws, saying which Solver or stabilization to use instead,
+  rather than returning a solution that is not there
+
+### Fixed
+
+- `GRBMILPSolver` solves a continuous model again from scratch with the
+  primal simplex when Gurobi calls it optimal with a solution that violates
+  it far beyond the feasibility tolerance (more than 1000 times it, and
+  1e-6), as the dual simplex of Gurobi 13.0 does on a QP that is infeasible,
+  which the primal simplex and the barrier tell infeasible
+
+- `GRBMILPSolver` no longer passes to GUROBI a null change of a quadratic
+  coefficient of the objective, which came with every change of the linear
+  coefficient of a term of a `DQuadFunction` alone: GUROBI drops the simplex
+  basis whenever the quadratic part is touched, even by a null change, so
+  that the next solve started from scratch instead of re-optimizing from
+  the previous basis
+
+- `GRBMILPSolver` solves a continuous model once more from scratch, with no
+  basis, when Gurobi stops on numerical troubles (status `NUMERIC`), which
+  the simplex warm-started from the basis of the previous solve can meet
+  where a solve from scratch does not, e.g., on the master of the
+  `BendersDecompositionSolver` of a hierarchy with stages of `HQPBlock`
+
+- with MOSEK, CMake no longer warns, for every target that links MILPSolver,
+  that the libtbb that MOSEK keeps next to its library hides the one of the
+  system (e.g., of SCIP): MOSEK is linked from a directory of the build tree
+  that holds only links to libmosek64, which finds a libtbb by itself, and
+  the installed library finds MOSEK in its directory
+
+- `FindHiGHS.cmake` finds HiGHS with the compilers of MinGW (MSYS2) as on
+  Unix, by its import library, instead of asking for the DLL as for MSVC:
+  HiGHS was not found there, and MILPSolver was built without it
+
+- `test_farkas` reads its :MILPSolver and their parameters from
+  `LPPar-farkas.txt` and `QPPar-farkas.txt` instead of setting them in its
+  code, HiGHS being there with the simplex method and with the interior point
+  method, with both of which it has to give a certificate; `LPPar-ipm.txt`
+  gives the interior point of MOSEK by its name, its number in MOSEK 12 being
+  the new dual simplex in MOSEK 11
+
+- on Windows, the executables that copy their DLLs next to themselves
+  are linked one at a time (a job pool of Ninja), since two copies of the
+  same DLL into one directory collided (e.g., with the clang++ of MSYS2)
+
+- with the compilers of MinGW (MSYS2) the target asks whoever links it
+  for the symbol that forces the module in, as with MSVC and on macOS:
+  the linker imports a DLL only for the symbols asked for, so that a
+  program that used none had the module left out and its classes
+  missing from the factory
+
+- `HiGHSMILPSolver::has_dual_direction()` has HiGHS compute the ray, by the
+  simplex method, when it proved the infeasibility with none at hand (e.g.,
+  after the interior point method), and `HiGHSMILPSolver` accepts
+  `intHomogeneousDirection` 1, whose multipliers `get_dual_direction()`
+  already computed out of the matrix: an infeasible inner problem solved by
+  the interior point method gave no feasibility cut
+
+- `cmake/FindSCIP.cmake` no longer wants in the cache, on Windows, a
+  `TBB_DLL` that nothing sets, so that a configure there takes SCIP from the
+  cache
+
+- `cmake/FindCPLEX.cmake`, `cmake/FindGUROBI.cmake`, `cmake/FindMOSEK.cmake`,
+  `cmake/FindHiGHS.cmake` and `cmake/FindSCIP.cmake` keep the version of a
+  found library in the cache, with the include directory it is read from, and
+  read it again when that directory changes: the check of the cache wanted
+  the version, which was not cached, so that every configure searched the
+  library again
+
+- the find modules drop the cached paths of a library when one of them does
+  not exist any more (e.g., in a build directory configured once outside and
+  once inside a container, or after an upgrade), so that all of them are
+  searched again; the stale include directory was kept, since `find_path()`
+  does not search a cached one again, and the configuration stopped on
+  reading the version from a header that is not there (`FindMOSEK.cmake`,
+  `FindCPLEX.cmake`) or went on with a library that is not there [see
+  `cmake/Find*.cmake`]
+
+- `FindMOSEK.cmake` and `FindGUROBI.cmake` (`FindCPLEX.cmake` on Windows)
+  search the include directory again whenever they take the library from the
+  directory of the version they find, so that include directory and library
+  come from the same version (a build directory with `MOSEK_INCLUDE_DIR` in
+  `/opt/mosek/11.0` got the library of `/opt/mosek/12.0`)
+
+- a change of the weight of the Objective of a Block below which an
+  Objective is quadratic (say, the copies of a `ThermalUnitBlock`, whose
+  Objective is a `DQuadFunction` also with no quadratic coefficient) no
+  longer has the problem loaded again: the diagonal of the quadratic part
+  changes only in the columns whose quadratic coefficient is not 0, and is
+  written in place by `set_quadratic_objective()` in Gurobi, HiGHS and
+  MOSEK, and in CPLEX while its quadratic part is separable; off-diagonal
+  terms below the changed Block still have it loaded again
+
+- `GRBMILPSolver::get_dflt_str_par()` gave an empty string: the value of
+  Gurobi was written in a string of length 0
+
+- the strings returned by `get_str_par()`, `get_dflt_str_par()` and
+  `*_par_idx2str()` of the `:MILPSolver` are one per thread, and the defaults
+  are read under a lock, so that `Solver` in different threads can be
+  configured together
+
+- `GRBMILPSolver` creates its model under the lock of the environment it
+  shares with the other ones, which a Gurobi environment needs when it is
+  used by more than one thread
+
+- `GRBMILPSolver::get_lb()` (`get_ub()` when maximizing) never exceeds the
+  value of the solution: on a continuous QP solved with `NonConvex` left at
+  its default Gurobi may publish an `ObjBound` above `ObjVal` (e.g.,
+  1.2e-2 against an optimum of 7.1e-4 on the master problem of a Benders
+  decomposition), which was returned as the lower bound
+
+- the section of `cmake/FindPIPS.cmake` that keeps the MPI libraries in the
+  link restores the `--as-needed` state it found (`--push-state` /
+  `--pop-state`) instead of turning `--as-needed` on: it dropped from the
+  link of a consumer the libraries of the modules that follow and that it
+  does not call directly, such as BranchAndXSolver in the testers of UCBlock,
+  so that their classes were not in the factories
+
+- `HiGHSMILPSolver` returns `kError` on a continuous QP that the active set
+  of HiGHS declares optimal with a primal-dual objective error above
+  `QPObjectiveError` (1e-3): on the unbounded master problems of a bundle
+  with vertical linearizations, whose Hessian is singular, HiGHS 1.15.1
+  ends at a finite point with the status optimal and an error close to 1,
+  and so it did on 16 of 190 QPs (the master problems of `PFB`, MMCF and UC
+  and the QPs of `qpbenchmark`), 11 of them unbounded, all with an error
+  of at least 3.6e-3, while 8 of the 174 it solves right have an error
+  above 1e-3, which are now `kError` as well
+
+- `CPXMILPSolver`: a change of the coefficients of a `DQuadFunction` in the
+  `Objective` whose `Variable` has left the `Function` before the change is
+  handled (by a `Modification` still in the queue) passed to CPLEX entries
+  that had not been written, and the deltas of the following `Variable`
+  shifted by one; so did `GRBMILPSolver` and `SCIPMILPSolver` with the
+  deltas. The `Variable` added to a `DQuadFunction` that has already left it
+  is now left alone, rather than being given an uninitialized quadratic
+  coefficient
+
+- `SCIPMILPSolver`: a `Variable` taken out of a quadratic `Objective`, or
+  a quadratic coefficient that goes to 0, threw "SCIP does not currently
+  support the removal of quadratic terms", after which the solutions were
+  wrong; the term now stays in the expression with coefficient 0. A
+  `Variable` put back into a `DQuadFunction` or a `QuadFunction` whose term
+  was there changed the coefficient of the next term, with the wrong sign
+
+- `HiGHSMILPSolver`: a continuous QP whose columns are all bounded, that
+  the active set QP solver of HiGHS calls unbounded (which it does, up to
+  1.15.1 at least, of some convex QPs it takes for nonconvex ones), is no
+  longer returned as `kUnbounded`: it goes through the attempts of a QP
+  the active set has not solved, and if none solves it the `Solver` throws
+
+- `ProxQPMILPSolver` and `HPIPMMILPSolver` start from the previous solve
+  also after a Modification: the `clear_problem()` that
+  `MILPSolver::load_problem()` calls threw away the solution of ProxQP and
+  the memory of HPIPM, hence every solve after a Modification started from
+  the initial guess
+
+- `SCIPMILPSolver` with `intComputeDuals` gave no duals (all of them
+  `SCIP_INVALID`, i.e., 1e+99) after a change of the costs that left the
+  previous solution optimal: SCIP keeps the solutions of a solve when the
+  problem changes and gives them to the next one as candidates, one of
+  them became the best solution in place of that of the LP, and the duals
+  belong to the latter. `intComputeDuals` now sets `limits/maxorigsol` to
+  0, so that no solution is carried over
+
+- `MOSEKMILPSolver` gives the diagonal of the Hessian the value of the
+  quadratic coefficient of the objective, not the sum of the deltas of
+  its changes: a coefficient that went back to its value after a few
+  changes kept a rounding error, which on a singular Hessian (e.g., the
+  Wolfe dual of a SVM with a polynomial kernel) made MOSEK refuse the
+  objective as not convex
+
+- `FindHiGHS.cmake` links the extras library of HiGHS (`libhighs_extras.a`)
+  after a static `libhighs.a`, which calls its functions from HiGHS 1.15
+  on: a static build of HiGHS, as the one of vcpkg, left the tools and the
+  consumers of MILPSolver with undefined references to
+  `HighsExtras_getApi`
+
+- the duals of a model with quadratic constraints in `GRBMILPSolver` and
+  `CPXMILPSolver`, and the index of a linear row among them, no longer
+  read `q_part`, which `load_problem()` empties: they tell the quadratic
+  rows by the indices the back-end keeps [see `is_quad_row()`]. Since
+  `clear_problem()` gives the memory back, the reading crashed, e.g., in
+  `linear_constraints_test` of BundleSolver
+
+- `write_dual_solution()` writes in the quadratic rows the dual that the
+  back-end gives them, which it skipped, leaving there whatever was there
+  before: `CPXMILPSolver` and `GRBMILPSolver` computed it, and it was lost;
+  `GRBMILPSolver` gives a quadratic row with a linear part the dual of its
+  linear row, as `CPXMILPSolver` does, and no longer that of the quadratic
+  constraint Gurobi gets it with, which has the opposite sign
+
+- the dual that `CPXMILPSolver` writes in a quadratic row was always -1, and
+  the duals of the linear rows that follow a quadratic row with no linear
+  part were shifted by one: a quadratic row with a linear part takes the
+  dual of its linear row, and one with no linear part the multiplier that
+  its dual slack gives; `test_qcp_dual` checks them on every back-end that
+  takes quadratic rows
+
+- the makefiles build `CPXMILPSolver`, `GRBMILPSolver`, `SCIPMILPSolver`
+  and `HiGHSMILPSolver` only if CPLEX, Gurobi, SCIP and HiGHS are there,
+  as `CPLEX_PRESENT`, `GUROBI_PRESENT`, `SCIP_PRESENT` and `HiGHS_PRESENT`
+  of `extlib` say, as for the optional back-ends, and add their -I and
+  libraries only then, and `tools/makefile` builds the tool of a solver
+  only if the solver is there: a build without CPLEX (e.g., the image of
+  the pipelines) failed on `ilcplex/cplex.h`
+
+- the makefiles of the tests and of the tools build also with g++: they
+  take the option that stops at the first error and the one of the
+  debugging information, which clang++ and g++ spell differently
+  (`-ferror-limit=1` and `-glldb` against `-fmax-errors=1` and `-ggdb`),
+  from `SMSppSWERR` and `SMSppSWDBG` of `lib/makefile-OS` of SMS++
+
+- the makefile finds `tools/` also when `MILPSSDR` is an absolute path:
+  `./` was put in front of it, which turned `/home/...` into `./home/...`
+
+- `test_farkas` takes the values of `MSK_IPAR_OPTIMIZER` from the `mosek.h`
+  of the build and `test/LPPar-ipm.txt` gives the interior point of MOSEK 12:
+  MOSEK 12 numbers the optimizers differently, and with it the test asked
+  for the deprecated interior point and got no ray on the unbounded QP
+
+- an Objective whose Function is a `PolyhedralFunction` makes the
+  exception say that the `PolyhedralFunctionBlock` has to be in its
+  linearized representation, rather than that the type of the Function is
+  unknown
+- `variable_with_index()` and `constraint_with_index()` of a dynamic column
+  or row check the index against the dynamic ones, rather than reading past
+  them
+- `SCIPMILPSolver` gives no unbounded ray when the problem has a quadratic
+  objective or quadratic rows: the ray of SCIP is then that of its LP
+  relaxation, where they are outer approximated, and on an unbounded QP it
+  was not a ray of the problem
+
+- `QuadProgMILPSolver` projects the solution on the bounds of the
+  variables, which quadprog has as constraints and satisfies only up to the
+  accuracy of the dual method on the regularized Hessian: a fixed variable
+  came back up to 4e-3 away from its value, and `ColVariable::set_value()`
+  refused it (10 of the 60 cases of the PolyhedralFunctionBlock battery
+  with QuadProgMILPSolver as the solver of the master of the bundle)
+
+- the HiGHS that `HiGHSMILPSolver` asks for is 1.8.0 or later: it calls the
+  callbacks of the C API of HiGHS, which came with 1.6.0, and
+  `Highs_setSparseSolution`, which came with 1.8.0, so that with a HiGHS
+  between 1.5.3 and 1.7.2 the configure accepted it and the build failed
+
+- `SCIPMILPSolver` tells whether a quadratic objective is convex from the
+  pivots of a sparse LDL^T factorization of Q + tol I, rather than from the
+  eigenvalues of a dense Q, which on the QPLIB instances of the MIQP
+  battery took longer than the solve itself and outside its time limit
+
+- `SCIPMILPSolver` solved a QP whose objective is not separable by spatial
+  branch-and-bound when SCIP is built without LAPACK (through Ipopt), as
+  it then cannot prove the auxiliary constraint z >= x^T Q x convex; with
+  free variables the search need not end, and it ran forever on the
+  re-solve after a Modification and on any solve with `intComputeDuals`.
+  SCIP is now told that the problem is convex
+  (`constraints/nonlinear/assumeconvex`) when the only nonlinear
+  constraint is that of the objective and its matrix is positive
+  semidefinite (negative in a maximization), as checked before each solve
+  that follows a change of the objective; the first quadratic term given
+  to an objective that had none built that constraint with null variables
+
+- `PIPSMILPSolver` threw on a non-separable quadratic objective but solved
+  a separable one (a `DQuadFunction`) as if its quadratic terms were not
+  there, returning the optimum of another problem
+
+- a MIP solve that `CPXMILPSolver`, `GRBMILPSolver`, `HiGHSMILPSolver` or
+  `SCIPMILPSolver` interrupted because a cutoff (`dblUpCutOff`,
+  `dblLwCutOff`) was reached returned `kError`, with infinite bounds: it
+  now returns `kCutOff`, which `Solver.h` defines for this case, with the
+  value of the incumbent and the bound of the search from `get_lb()` and
+  `get_ub()` as after `kStopTime`, and the incumbent as the solution
+  (`SCIPMILPSolver` gives it with `kCutOff` as well), and `GRBMILPSolver`
+  no longer warns of an interrupted run for it. A `LagBFunction` or
+  `BendersBFunction` passes the status of its inner Solver on, and a
+  `BundleSolver` that gives them targets (`intTrgtMng`) stopped with
+  `kError` at the first component that reached one, while it reads
+  `kCutOff` as an evaluation stopped early; `test_cutoff_status` expects
+  `kCutOff`, a solution beyond the cutoff and a valid bound
+
+- the cutoffs `dblUpCutOff` and `dblLwCutOff` of a `ComputeConfig` never
+  reached a solve: `CPXMILPSolver`, `GRBMILPSolver`, `HiGHSMILPSolver` and
+  `SCIPMILPSolver` set them back to infinite whenever they loaded the
+  problem, in `set_Block()` (which a `BlockSolverConfig` calls after giving
+  the `ComputeConfig`) and at any reload, and now keep them as any other
+  parameter. A lower cutoff alone did not install the callback that checks
+  them, which compared it with + infinity, and the callbacks compared the
+  cutoffs with the values of the solver, which lack the constant of the
+  objective. `GRBMILPSolver` also checks the cutoffs at each new
+  incumbent, unless it separates lazy constraints, since a short run may
+  find its solutions with no call of the callback in between
+
+- the callback of `HiGHSMILPSolver` did not interrupt a minimization that
+  reached a cutoff, and took the incumbent for the bound, so that the
+  lower cutoff of a maximization stopped it at an incumbent below the
+  cutoff with nothing proved; it now reads the bound of HiGHS and
+  interrupts a minimization as a maximization
+
+- `SCIPMILPSolver` did not stop at a cutoff: the constraint handler it
+  installed for one did nothing with it, and added to a solved problem, as
+  a cutoff given after a solve made it, returned `SCIP_INVALIDCALL` (-8) as
+  the status of `compute()`. An event handler now interrupts SCIP at a new
+  incumbent or at a solved node that reaches a cutoff, which ends the solve
+  with `kCutOff` as for the other `:MILPSolver`; the constraint handler of
+  the separation is added once, to the original problem with the
+  transformed one gone, and again after the problem is loaded again.
+  `test_cutoff_status` attaches each `:MILPSolver`, `SCIPMILPSolver`
+  included, with an upper cutoff, a lower one and both in its
+  `ComputeConfig`, to a maximization and a minimization MIP with a constant
+  in the objective, and checks that the first solve stops at the first
+  solution if that reaches a cutoff and gives the optimal value otherwise
+
+- `HiGHSMILPSolver` wrote (`write_lp()`, `strOutputFile`) the model with
+  the slack columns of the free rows that an interior point solve had added
+  to it: it now writes a copy without them, the rows free again, which
+  leaves the model and the solution of HiGHS as they are;
+  `test_ipm_free_rows` checks that each `:MILPSolver` writes the same model
+  before and after a solve
+
+- `HiGHSMILPSolver` threw "unknown status" on a run that HiGHS ended with
+  the model status Interrupt, which its callback asks for when a cutoff is
+  reached on a maximization MIP, or with Postsolve error: both are now
+  `kError`, as an aborted or interrupted run of `CPXMILPSolver` and
+  `GRBMILPSolver` and a presolve or solve error of HiGHS are;
+  `test_cutoff_status` solves a maximization MIP with an upper cutoff that
+  its first integer solution reaches with each `:MILPSolver`
+
+- the interior point of HiGHS up to 1.15.1, asked for on an LP without
+  presolve, solved another LP whenever a row with no finite side came
+  before a row with two finite sides: the LP that HiGHS builds for IPX
+  drops the free rows and renumbers the others, but puts the slack of a
+  row with two finite sides in the row with its original index
+  (ERGO-Code/HiGHS#3319), so that a feasible LP could be declared
+  infeasible with no error to tell. `HiGHSMILPSolver` now gives each free
+  row, before the interior point solves the LP (also as the second attempt
+  after a failed simplex), a free slack column s, the row becoming
+  a'x + s = 0: the rows keep their index and the free ones their dual value
+  of 0, the slacks are out of every solution read and go at the next
+  Modification, which loads the problem again. The remedy is compiled only
+  with a HiGHS up to 1.15.1; `test_ipm_free_rows` checks the interior point
+  of each `:MILPSolver` on such an LP and on its changes
+
+- an LP on which HiGHS ended with model status Solve error got no second
+  attempt, and the second attempt after an Unknown was always the interior
+  point, even when the interior point was the algorithm that had failed:
+  `HiGHSMILPSolver` now solves again with the other algorithm after either
+  status, the simplex if the `solver` option asks for an interior point and
+  the interior point otherwise. The interior point of HiGHS (up to 1.15.1
+  at least) fails at random with a Solve error on an LP with a free row
+  that is not the last one, reading past the end of its list of free rows
+  (ERGO-Code/HiGHS#3319), which stopped the Solver of the inner Block of
+  some `InvestmentBlock` instances with `kError`
+
+- `GRBMILPSolver` gave a row with no finite side, and a relaxed one, to
+  GUROBI as a'x <= GRB_INFINITY, a row with right-hand side 1e100 on which
+  a warm re-solve after a change of the coefficients of other rows ends in
+  numerical trouble (status 12, from a right-hand side of 1e33 on): such a
+  row is now the equality a'x + s = 0 with a free slack s, which keeps the
+  index of the row, as the ranged rows keep theirs, and the slack gets its
+  bounds back when a side becomes finite or the row is enforced; a row that
+  is still relaxed stays free when a side of it changes
+
+- the bound of `CPXMILPSolver` on the side of the optimum it has not proved,
+  on a continuous problem stopped by a limit, was the value of whatever
+  point CPLEX had (0 with no point at all), which is no bound: it is now
+  that value only if the point is a dual feasible basis, and -INF / +INF
+  otherwise; on a problem with integer variables a best bound that CPLEX
+  does not have is now infinite as well. The same for `SCIPMILPSolver`,
+  whose bounds were SCIP's infinity (1e20) where SCIP has none
+
+- a double parameter set out of the range that the back-end admits (an
+  infinite or a negative `dblMaxTime`, say) was refused by CPLEX, GUROBI
+  and HiGHS, which kept the previous value, so that a Solver solved once
+  with `dblMaxTime` 0 did not reach the optimum after the time limit was
+  lifted with `dblMaxTime` = INF; SCIP refused it with an error. It is now
+  taken as the nearest end of the range
+
+- the bound of `GRBMILPSolver` on the side of the optimum it has not proved
+  (`get_lb()` when minimizing, `get_ub()` when maximizing) on a continuous
+  problem whose solve does not end optimal, e.g., stopped by the time limit
+  or with a sub-optimal solution, unless `NonConvex` is 0: it was GUROBI's
+  infinity (1e100) or its "undefined" (1e101), finite numbers that the
+  callers took for a bound. A `LagBFunction` whose inner Block is such a
+  problem built from it a linearization with a constant of the order of
+  1e100, which made the master problem of the `BundleSolver` above it fail
+  at every call thereafter. The bound is now infinite
+
+- the rows that a Block separates in the callback of a solve became rows of
+  the model at the following `compute()`, all of them and for good, whether
+  the back-end had used them or not: on a unit commitment re-solved after
+  changes of the costs the perspective cuts of the first solve took the
+  model from some 1500 rows to more than 70000, half of them copies of one
+  another and most nearly parallel, and with them GUROBI declared optimal
+  a solution with a value worse than the optimum by 18 out of 34800. Those
+  rows are now given to the back-end as user cuts or lazy constraints of
+  the solve they are separated in, and are kept in a pool, out of the model,
+  that the callback gives back whenever they are violated (the most
+  violated one on each set of variables), so that the model keeps the rows
+  of the formulation alone; the pool becomes rows of the model, as before,
+  only before a solve that does not separate lazy constraints (with HiGHS,
+  whose callback cannot give them, always), and a Block that removes one of
+  its rows from the pool is followed [see `separate_in_callback()`]
+
+- the coefficients of the quadratic part of a constraint were stored as
+  `float` between the scan of the Block and the loading into the backend,
+  so that each of them reached the solver rounded to some 7 significant
+  digits (those of the envelope of the cosine of `ACNetworkBlock`, for
+  instance); they are now kept as `double`, as all the other coefficients
+  of the model
+
 ## [0.10.0] - 2026-10-09
 
 ### Added
@@ -601,7 +1370,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.10.0...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.11.0...develop
+[0.11.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.10.0...0.11.0
 [0.10.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.1...0.10.0
 [0.9.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...0.9.1
 [0.9.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.8.0...0.9.0

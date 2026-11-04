@@ -1,0 +1,34 @@
+##############################################################################
+############################# makefile_mosek #################################
+##############################################################################
+#                                                                            #
+#   makefile of mosek_pars                                                   #
+#                                                                            #
+#                                Donato Meoli                                #
+#                         Dipartimento di Informatica                        #
+#                            Universita' di Pisa                             #
+#                                                                            #
+##############################################################################
+
+# module name
+MOSEK_PARS = mosek_pars
+
+# define & include the necessary modules- - - - - - - - - - - - - - - - - - -
+# each module outputs some macros to be used here:
+# *LIB is the external libraries + -L< libdirs >
+# *INC is the -I< include directories >
+
+# include makefile libMOSEK
+include $(DIR)/../../extlib/makefile-libMOSEK
+
+# main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(MOSEK_PARS): $(DIR)/$(MOSEK_PARS).o
+	$(CC) -o $(MOSEK_PARS) $(DIR)/$(MOSEK_PARS).o $(libMOSEKLIB) $(SW)
+
+# compile command - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+$(DIR)/$(MOSEK_PARS).o: $(DIR)/$(MOSEK_PARS).cpp
+	$(CC) -c $*.cpp -o $@ $(libMOSEKINC) $(SW)
+
+######################### End of makefile_mosek ##############################

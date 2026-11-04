@@ -52,6 +52,8 @@
 /// namespace for the Structured Modeling System++ (SMS++)
 namespace SMSpp_di_unipi_it
 {
+class SCIPMILPSolver_CutOff;  // the event handler of the cutoffs
+
 /*--------------------------------------------------------------------------*/
 /*----------------------- CLASS SCIPMILPSolver -----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -158,9 +160,6 @@ class SCIPMILPSolver : public MILPSolver
 /** @name Public Methods derived from base classes
  *  @{ */
 
- /// sets the Block that the Solver has to solve and initializes CPLEX.
- void set_Block( Block * block ) override;
-
  // note: the public compute() entry point is inherited from MILPSolver;
  // SCIPMILPSolver implements only the SCIP-specific solve in
  // guts_of_compute() below (protected)
@@ -235,11 +234,11 @@ class SCIPMILPSolver : public MILPSolver
 /** @name Methods for separating user cuts / lazy constraints
  *  @{ */
 
- /** From within the callback, run the cut separation invoking
-  * generate_dynamic_constraints() with the given Configuration and then
-  * examining the list of Modification to see if some dynamic Constraint have
-  * been added; if so they are reported back under the form needed to be
-  * added as user cuts or lazy constraints (which is the same).
+ /** From within the callback, writes the rows that separate_in_callback()
+  * gives with the given Configuration (the dynamic Constraint just added by
+  * generate_dynamic_constraints() and the violated ones of the pool) under
+  * the form needed to be added as user cuts or lazy constraints (which is
+  * the same).
   *
   * Note that all vectors are supposed to be empty at the beginning of the
   * call, and they will still be empty if no cuts are found. */
@@ -252,8 +251,8 @@ class SCIPMILPSolver : public MILPSolver
 			  std::vector< double > & lhs );
 
  /* From within the class SCIPMILPSolver_Conhdlr it is not possible to set
-  * some protected field of the class useful to avoid collision between threads 
-  * when performing separation. Thus, the two following public functions allows 
+  * some protected field of the class useful to avoid collision between threads
+  * when performing separation. Thus, the two following public functions allows
   * us to obtain this results from external class. */
   
  void set_f_cb_mutex( void );
@@ -265,7 +264,7 @@ class SCIPMILPSolver : public MILPSolver
 
   /** 
  * Adds multiple MIP starts to a MIP problem. This function allows the solver 
- * to receive multiple sets of starting values by providing vectors of variable 
+ * to receive multiple sets of starting values by providing vectors of variable
  * indices and corresponding values for each start.
  * 
  * NOTE: Partial solutions are allowed. In such cases, the solver will attempt 
@@ -503,6 +502,35 @@ class SCIPMILPSolver : public MILPSolver
    *  should be disabled.  */
  int ComputeDuals;
 
+ /// the solution of the last solve, kept by free_workspace()
+ /**< Valid from the end of the solve that free_workspace() follows to the
+  * start of the next one: the problem has no transformed form, hence no
+  * solution, after it, and it only changes within compute(), before the
+  * solve [see MILPSolver::process_modifications()]. */
+ struct KeptSolution {
+  bool valid = false;
+  SCIP_STATUS status = SCIP_STATUS_UNKNOWN;  ///< SCIPgetStatus()
+  double primalbound = 0;          ///< SCIPgetPrimalbound()
+  double dualbound = 0;            ///< SCIPgetDualbound()
+  long long nodes = 0;             ///< SCIPgetNTotalNodes()
+  bool has_sol = false;            ///< whether there was a best solution
+  std::vector< double > x;         ///< its values
+  bool dual_available = false;     ///< SCIPisDualSolAvailable()
+  bool has_duals = false;          ///< whether the two below were read
+  std::vector< double > pi;        ///< SCIPgetDualSolVal() of each row
+  std::vector< double > dj;        ///< SCIPgetVarRedcost() of each column
+  };
+ KeptSolution f_kept;
+
+ /// keeps the solution, and frees the transformed problem
+ /** Called after each solve of an LP ending optimal: the solution, and the
+  * duals if they are available, are kept, and the transformed problem is
+  * freed, with the LP and the rest of what SCIP keeps after a solve (as
+  * much as the problem itself). The next solve, which in SCIP starts from
+  * scratch after any change to the problem, does not need it. */
+
+ void free_workspace( void );
+
  /** vector containing the indices of the Configuration for the various
   * user cuts / lazy constraints separations in the "Configuration DB" */
  std::vector< int > CutSepCfgInd;
@@ -524,8 +552,8 @@ class SCIPMILPSolver : public MILPSolver
  std::vector< SCIP_CONS * > cons;  ///< SCIP constraints
 
  /* Nonlinear objective functions are not supported by SCIP and must be 
-  * modeled as constraint function. Thus, a problem like min xQx is reformulated
-  * into min z  s.t. z >= xQx.
+  * modeled as constraint function. Thus, a problem like min xQx is
+  * reformulated into min z  s.t. z >= xQx.
   * To map these new structures with the original model, we keep track 
   * of the generated auxiliary constraint and variable. 
   *
@@ -542,8 +570,27 @@ class SCIPMILPSolver : public MILPSolver
  std::vector< int > qobj_idx1;
  std::vector< int > qobj_idx2;
 
+ /// true if the objective has changed since SCIP was told whether the
+ /// problem is convex, which is then done before the next solve
+ bool f_check_convex{};
+
  double UpCutOff;  ///< externally set upper cutoff to terminate
  double LwCutOff;  ///< externally set lower cutoff to terminate
+
+ /// whether the cutoffs stop the current solve, i.e., that of a MIP
+ bool f_cutoff_on;
+
+ /// whether the bounds of SCIP have reached a cutoff
+ /** True if the cutoffs stop the current solve [see f_cutoff_on] and either
+  * the lower bound on the optimal value is at least dblUpCutOff or the
+  * upper bound is at most dblLwCutOff, both with the constant of the
+  * objective [see dblUpCutOff and dblLwCutOff in Solver.h]; the event
+  * handler SCIPMILPSolver_CutOff then interrupts SCIP. The incumbent is
+  * sol if it is given, the new one that SCIP has not yet taken for its
+  * primal bound, and the best solution of SCIP otherwise. */
+ bool cutoff_reached( SCIP_SOL * sol = nullptr );
+
+ friend class SCIPMILPSolver_CutOff;
 
 /*--------------------------------------------------------------------------*/
 /*------------------- PROTECTED METHODS OF THE CLASS -----------------------*/
@@ -682,7 +729,13 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
 			  std::vector< int > & qidx2 ,
 			  std::vector< double > & qcoeff );
 
-/** @} ---------------------------------------------------------------------*/
+/** Tells SCIP whether the problem is convex (constraints/nonlinear/
+ *  assumeconvex), i.e., whether the only nonlinear constraint is the
+ *  auxiliary one of a quadratic objective and it is convex [see
+ *  f_check_convex]. */
+ void set_assume_convex( void );
+
+/*--------------------------------------------------------------------------*/
 /*---------------------- METHODS FOR ADDING A CALLBACK ---------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for add a new constraint which will eventually be 
@@ -713,7 +766,8 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
                                          to column generation)? */
    SCIP_Bool    dynamic,            /**< is constraint dynamic? */
    SCIP_Bool    removable           /**< should the constraint be removed 
-                                         from the LP due to aging or cleanup? */
+                                         from the LP due to aging or
+                                         cleanup? */
    );
 
 /** Creates and captures a constraint which will be used as a separator. This
@@ -726,7 +780,8 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
  */
  SCIP_RETCODE SCIPcreateSCIPMILPSolver_basiccb(
    SCIP*        scip,               /**< SCIP data structure */
-   SCIP_CONS**  cons,               /**< pointer to hold the created constraint */
+   SCIP_CONS**  cons,               /**< pointer to hold the created
+                                         constraint */
    const char*  name,               /**< name of constraint */
    const char*  Conhdlr_name,       /**< name of constraint handler */
    std::vector< SCIP_VAR * > vars,  /**< SCIP vars */
@@ -820,7 +875,7 @@ class SCIPMILPSolver_CBK : public scip::ObjConshdlr
 
 /** separation method of constraint handler for LP solution
 *
-*  Separates all constraints of the constraint handler. The method is called in 
+*  Separates all constraints of the constraint handler. The method is called in
 *  the LP solution loop, which means that a valid LP candidate exists.
 *
 *  Possible return values for *result (if more than one applies, the first in 
@@ -885,14 +940,14 @@ class SCIPMILPSolver_CBK : public scip::ObjConshdlr
 *    nlocksneg, nlockspos), saying that rounding up is potentially rendering 
 *    the constraint's negation infeasible and rounding up is potentially 
 *    rendering the constraint itself infeasible.
-*  - If the constraint may get violated by changing the variable in any direction,
-*    it should call SCIPaddVarLocksType(scip, var, SCIP_LOCKTYPE_MODEL, 
-*    nlockspos + nlocksneg, nlockspos + nlocksneg).
+*  - If the constraint may get violated by changing the variable in any
+*    direction, it should call SCIPaddVarLocksType(scip, var,
+*    SCIP_LOCKTYPE_MODEL, nlockspos + nlocksneg, nlockspos + nlocksneg).
 *
 *    NOTE: when creating the caallback method, we don't know which variables 
-*    may get involved in future cuts or lazy constraints and in which direction.
-*    Thus, the last method will be always called on all the problem variables,
-*    in order to avoid SCIP from fixing them. 
+*    may get involved in future cuts or lazy constraints and in which
+*    direction. Thus, the last method will be always called on all the
+*    problem variables, in order to avoid SCIP from fixing them. 
 */
  virtual SCIP_DECL_CONSLOCK(scip_lock) override;
 
@@ -902,7 +957,8 @@ class SCIPMILPSolver_CBK : public scip::ObjConshdlr
 /** @name Additional Callback Methods
  *  @{ */
 
-/** transforms constraint data into data belonging to the transformed problem */
+/** transforms constraint data into data belonging to the transformed
+ *  problem */
    virtual SCIP_DECL_CONSTRANS(scip_trans) override;
 
 /** frees specific constraint data */
@@ -910,7 +966,7 @@ class SCIPMILPSolver_CBK : public scip::ObjConshdlr
 
  protected:
 
-/*--------------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
