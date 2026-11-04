@@ -523,7 +523,7 @@ int PERMONMILPSolver::guts_of_compute( void )
   d_status = int( reason );
   PetscInt its;
   PetscCall( QPSGetIterationNumber( pd.qps , &its ) );
-  elapsed_iter += int( its );
+  elapsed_iter += long( its );
   if( d_status <= 0 )
    PetscFunctionReturn( PETSC_SUCCESS );
 
