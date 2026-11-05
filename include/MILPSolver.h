@@ -1544,6 +1544,13 @@ class MILPSolver : public CDASolver
  /// tolerance of the check of the optimality conditions (see dblKKTTol)
  double kkt_tol = 0;
 
+ /// tolerance of the check of a solution that the back-end may have got wrong
+ /** Cleared by compute() before guts_of_compute(), and set by a derived
+  * class whose back-end has returned a solution that it does not trust:
+  * compute() then checks the optimality conditions as with dblKKTTol, with
+  * the larger of the two tolerances, and gives kError if they fail. */
+ double check_tol = 0;
+
  /// the residuals of the last check [see get_kkt_residuals()]
  std::array< double , 3 > kkt_residuals = {
   std::numeric_limits< double >::quiet_NaN() ,

@@ -2009,6 +2009,7 @@ int MILPSolver::compute( bool changedvars )
  // dispatch to the derived class for the actual back-end solve - - - - - - -
  f_cutoff_stop = false;
  elapsed_iter = 0;
+ check_tol = 0;
  int sts = guts_of_compute();
 
  // a run that the callback interrupted at a cutoff stopped where it was asked
@@ -2066,15 +2067,17 @@ int MILPSolver::compute( bool changedvars )
   }
 
  // the check of the optimality conditions [see dblKKTTol] - - - - - - - - -
+ // a solution that the back-end may have got wrong is checked in any case
  kkt_residuals.fill( std::numeric_limits< double >::quiet_NaN() );
- if( ( kkt_tol > 0 ) && ( sts == kOK ) && ( check_kkt() > kkt_tol ) ) {
+ const double ktol = std::max( kkt_tol , check_tol );
+ if( ( ktol > 0 ) && ( sts == kOK ) && ( check_kkt() > ktol ) ) {
   if( f_log && ( log_verbosity >= 1 ) ) {
    static const char * what[] = { "primal residual" , "dual residual" ,
 				  "gap" };
    *f_log << "MILPSolver::compute: the solution fails the check of the "
-	  << "optimality conditions at " << kkt_tol << ":";
+	  << "optimality conditions at " << ktol << ":";
    for( int k = 0 ; k < 3 ; ++k )
-    if( kkt_residuals[ k ] > kkt_tol )
+    if( kkt_residuals[ k ] > ktol )
      *f_log << " " << what[ k ] << " " << kkt_residuals[ k ];
    *f_log << std::endl;
    }

@@ -117,15 +117,18 @@ namespace SMSpp_di_unipi_it {
  *
  * - a QP that the active set declares optimal with a primal-dual objective
  *   error (the info primal_dual_objective_error of HiGHS) larger than
- *   QPObjectiveError is not solved, and compute() returns kError: on an
- *   unbounded QP whose Hessian is singular, e.g., the master problem of a
- *   bundle with vertical linearizations, the active set of HiGHS (up to
- *   1.15.1 at least) ends at a finite point with the status optimal and
- *   an error close to 1, and solving it again with a larger regularization
- *   would make it bounded, hence give a value just as wrong; the error of
- *   a right solution of the active set is mostly below 1e-5, but it
- *   reaches 1e-3 on some, and once in a while it is large on a right one
- *   too, which this then turns into kError.
+ *   QPObjectiveError has its solution checked by compute() as with
+ *   dblKKTTol, with the tolerance QPCheckTol at least, and compute()
+ *   returns kError if it fails: on an unbounded QP whose Hessian is
+ *   singular, e.g., the master problem of a bundle with vertical
+ *   linearizations, the active set of HiGHS (up to 1.15.1 at least) ends at
+ *   a finite point with the status optimal and an error close to 1, which
+ *   is not optimal, and solving it again with a larger regularization would
+ *   make it bounded, hence give a value just as wrong; on the other hand,
+ *   the error of a right solution of the active set is mostly below 1e-5,
+ *   but it reaches 1e-3 on some, and it is large on some right ones too
+ *   (e.g., 5e-2 on a QP with no rows whose solution is exact), which the
+ *   check accepts.
  *
  * Both options only act on QPs, and they can be set to any value in the
  * configuration as any other one.
@@ -195,6 +198,9 @@ class HiGHSMILPSolver : public MILPSolver {
 
  /// the largest primal-dual objective error of an optimal QP [see the class]
  static constexpr double QPObjectiveError = 1e-3;
+
+ /// the tolerance of the check of an optimal QP with a larger error
+ static constexpr double QPCheckTol = 1e-6;
 
  /// enum for string parameters (options in HiGHS)
  enum str_par_type_HiGHS {

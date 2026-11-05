@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `HiGHSMILPSolver` checks the optimality conditions of a QP that HiGHS
+  declares optimal with a primal-dual objective error above 1e-3, at 1e-6
+  (or at `dblKKTTol` if larger), and returns `kError` only if they fail,
+  rather than in any case: HiGHS 1.15.1 gives such an error also on right
+  solutions, e.g., on the master problem of a proximal bundle with no cut
+
 - `test_farkas` also checks the ray of `PIQPMILPSolver` on the unbounded QP
 
 - `get_elapsed_iterations()` also counts the iterations of
