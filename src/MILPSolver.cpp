@@ -3581,10 +3581,8 @@ void MILPSolver::set_par( idx_type par , int value )
   max_cut_passes = value;
   return;
   }
- if( par == intHomogeneousDirection ) {
-  homogeneous_direction = bool( value );
+ if( par == intHomogeneousDirection )  // accepted, and of no effect
   return;
-  }
 
  CDASolver::set_par( par, value );
  }
@@ -3692,7 +3690,7 @@ int MILPSolver::get_dflt_int_par( idx_type par ) const
   return( 1000 );
 
  if( par == intHomogeneousDirection )
-  return( 0 );
+  return( 1 );
 
  return( CDASolver::get_dflt_int_par( par ) );
  }
@@ -3765,7 +3763,7 @@ int MILPSolver::get_int_par( idx_type par ) const
   return( max_cut_passes );
 
  if( par == intHomogeneousDirection )
-  return( homogeneous_direction );
+  return( 1 );
 
  return( CDASolver::get_int_par( par ) );
  }

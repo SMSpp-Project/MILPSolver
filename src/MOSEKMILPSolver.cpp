@@ -896,9 +896,9 @@ void MOSEKMILPSolver::get_dual_direction( Configuration * dirc )
    }
   }
 
- // the multipliers of the columns, c - A' y as CPXdjfrompi() gives them,
- // or - A' y with intHomogeneousDirection, computed out of the matrix
- // rather than taken as slx - sux, so that they are those of y exactly
+ // the multipliers of the columns, - A' y, those of the ray of the
+ // homogeneous system, computed out of the matrix rather than taken as
+ // slx - sux, so that they are those of y exactly
  std::vector< double > dj( numcols , 0 );
  if( numcols > 0 ) {
   std::vector< MSKboundkeye > bk( numcols );
@@ -913,10 +913,6 @@ void MOSEKMILPSolver::get_dual_direction( Configuration * dirc )
        ( bk[ j ] == MSK_BK_FX ) )
     value -= bu[ j ] * sux[ j ];
    }
-
-  if( ! homogeneous_direction )
-   check( MSK_getcslice( task , 0 , numcols , dj.data() ) ,
-	  "get_dual_direction" );
 
   MSKint64t nnz = 0;
   check( MSK_getacolslicenumnz64( task , 0 , numcols , & nnz ) ,

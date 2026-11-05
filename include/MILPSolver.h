@@ -252,26 +252,13 @@ class MILPSolver : public CDASolver
    * many passes to converge; reduce to limit the time spent in the
    * separation loop when fast (possibly weaker) bounds are acceptable. */
   intMaxCutPasses ,
-  /// the multipliers of the columns of a dual direction are homogeneous
-  /**< What get_dual_direction() writes as the multiplier of a column is, by
-   * default, the reduced cost \f$ c - A' y \f$: that is what the multiplier
-   * of a dual *point* is, and it is what whoever reads the duals of an
-   * optimum needs. A dual *direction*, though, is a ray of the homogeneous
-   * system, and the objective has no part in it: its column multipliers are
-   * \f$ - A' y \f$. The two differ on every column whose objective
-   * coefficient is not zero, which on a real model is most of them, and only
-   * the homogeneous ones describe the certificate.
-   *
-   * - intHomogeneousDirection == 0 [default]: get_dual_direction() writes
-   *   \f$ c - A' y \f$, as it has always done.
-   *
-   * - intHomogeneousDirection == 1: it writes \f$ - A' y \f$.
-   *
-   * get_dual_solution() is not affected either way. The derived classes that
-   * compute the multipliers themselves out of the duals honour the parameter
-   * [CPXMILPSolver, GRBMILPSolver and HiGHSMILPSolver]; SCIPMILPSolver asks
-   * its back-end for the Farkas coefficients, which are homogeneous to begin
-   * with, so there is nothing for it to do. */
+  /// no longer of any effect, the multipliers of a dual direction are - A' y
+  /**< get_dual_direction() writes as the multipliers of the columns those
+   * of the ray of the homogeneous system, \f$ - A' y \f$, and not the
+   * reduced costs \f$ c - A' y \f$ of a dual point, in which the Objective
+   * has a part that a certificate does not have. The parameter is accepted,
+   * whatever its value, and has no effect: its name stays only so that the
+   * configurations that set it are not refused. */
   intHomogeneousDirection ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
@@ -1610,11 +1597,6 @@ class MILPSolver : public CDASolver
  * an inconsistency when a reduced cost is being stored during a call to
  * get_dual_solution() or get_dual_direction(). */
  bool throw_reduced_cost_exception;
-
- /** true if get_dual_direction() writes the homogeneous multipliers of the
-  * columns, - A' y, instead of the reduced costs c - A' y
-  * [see intHomogeneousDirection]. */
- bool homogeneous_direction = false;
 
  /** The value the dual objective takes along the unbounded dual direction
   * the last call to get_dual_direction() wrote in the Block, in the sign

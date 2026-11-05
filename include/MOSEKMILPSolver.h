@@ -249,8 +249,7 @@ class MOSEKMILPSolver : public MILPSolver {
   * which has \f$ y_i \geq 0 \f$ on a row whose lower side is used and
   * \f$ y_i \leq 0 \f$ on one whose upper side is, as the Farkas
   * certificates of the other :MILPSolver; those of the columns are
-  * \f$ c - A^\top y \f$, or \f$ - A^\top y \f$ with
-  * intHomogeneousDirection [see MILPSolver]. The value of the
+  * \f$ - A^\top y \f$. The value of the
   * certificate, \f$ (l^c)^\top s_l^c - (u^c)^\top s_u^c + (l^x)^\top s_l^x
   * - (u^x)^\top s_u^x \f$ over the finite sides, is recorded as well [see
   * MILPSolver::get_dual_direction_value()]. */

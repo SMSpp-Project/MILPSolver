@@ -2196,22 +2196,11 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
   std::fill( y.begin() , y.end() , 0.0 );
   }
 
- // TEMP-PATCH: Farkas-consistent reduced costs dj = c - A' y (same as
- // CPXdjfrompi() in CPXMILPSolver): the RC attribute refers to the last
+ // the multipliers of the columns are - A' y, the ray of the homogeneous
+ // system, accumulated below from zero: the RC attribute refers to the last
  // simplex iterate w.r.t. the original objective and is unrelated to the
- // Farkas certificate.
- // with intHomogeneousDirection the multipliers of the columns are - A' y,
- // the ray of the homogeneous system, so the accumulation below starts from
- // zero instead of from the objective
- // [see MILPSolver::intHomogeneousDirection]
- if( homogeneous_direction )
-  std::fill( dj_grb.begin() , dj_grb.end() , 0.0 );
- else
-  if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_OBJ , 0 ,
-                          tot_grb_vars , dj_grb.data() ) )
-   throw( std::runtime_error(
-              "GRBMILPSolver::get_dual_direction: "
-              "unable to get objective coefficients querying GRB_OBJ" ) );
+ // Farkas certificate
+ std::fill( dj_grb.begin() , dj_grb.end() , 0.0 );
 
  {
   int nnz = 0;

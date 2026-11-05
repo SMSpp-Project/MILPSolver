@@ -570,16 +570,13 @@ void PIQPMILPSolver::get_dual_direction( Configuration * dirc )
    pi[ i ] = - ( p >= 0 ? d_y[ p ] : d_z[ - p - 1 ] );
   }
 
- // the multipliers of the columns, c - A' y, or - A' y with
- // intHomogeneousDirection, computed out of the matrix so that they are
- // those of y exactly
+ // the multipliers of the columns, - A' y, those of the ray of the
+ // homogeneous system, computed out of the matrix so that they are those
+ // of y exactly
  std::vector< double > dj( d_n , 0 );
- for( int j = 0 ; j < d_n ; ++j ) {
-  if( ! homogeneous_direction )
-   dj[ j ] = objective[ j ];
+ for( int j = 0 ; j < d_n ; ++j )
   for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
    dj[ j ] -= matval[ k ] * pi[ matind[ k ] ];
-  }
 
  f_dual_direction_value = value;
 

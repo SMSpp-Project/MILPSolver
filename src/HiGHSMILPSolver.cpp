@@ -1274,9 +1274,8 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
  // dual objective takes along it is left unset and has_dual_direction_value()
  // reports that this Solver does not have it
 
- // the multipliers of the columns are those of the ray, c - A' y as
- // CPXdjfrompi() gives them, or - A' y with intHomogeneousDirection
- // [see MILPSolver::intHomogeneousDirection]
+ // the multipliers of the columns are those of the ray of the homogeneous
+ // system, - A' y
  if( ncol > 0 ) {
   const HighsInt nnz = Highs_getNumNz( highs );
   std::vector< double > cost( ncol ) , lb( ncol ) , ub( ncol ) , val( nnz );
@@ -1294,7 +1293,7 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
    double aty = 0;
    for( HighsInt k = start[ j ] ; k < end ; ++k )
     aty += val[ k ] * y[ index[ k ] ];
-   dj[ j ] = ( homogeneous_direction ? 0 : cost[ j ] ) - aty;
+   dj[ j ] = - aty;
    }
   }
 

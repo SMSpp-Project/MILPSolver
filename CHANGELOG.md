@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Block, which the MILPSolver has no use for, no longer reach it (nor
   have a back-end that reloads the problem at each change do so for them)
 
+- `get_dual_direction()` writes as the multipliers of the columns those of
+  the ray, - A' y, which is what a Farkas certificate and the feasibility
+  cut of a Benders decomposition need, rather than c - A' y;
+  `intHomogeneousDirection` has no effect, and its name is still accepted
+  so that the configurations that set it are not refused
+
 - `HiGHSMILPSolver` checks the optimality conditions of a QP that HiGHS
   declares optimal with a primal-dual objective error above 1e-3, at 1e-6
   (or at `dblKKTTol` if larger), and returns `kError` only if they fail,

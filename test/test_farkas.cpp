@@ -62,9 +62,8 @@
  * infeasibility certificate is a statement about the constraint system alone,
  * so giving the same program two different Objectives must leave the ray
  * unchanged up to the positive factor each solver is free to scale it by.
- * This is checked only where the Solver knows intHomogeneousDirection, the
- * parameter that asks for the multipliers of the ray, \f$ - A' y \f$, rather
- * than the reduced costs of an optimal dual point, \f$ c - A' y \f$.
+ * The multipliers of the columns are those of the ray, \f$ - A' y \f$, and
+ * not the reduced costs of an optimal dual point, \f$ c - A' y \f$.
  *
  * Finally, the unbounded side of the same interface is checked on a convex
  * QP whose Hessian is singular,
@@ -666,59 +665,34 @@ int main( void )
    else
     std::cout << " -> OK";
 
-   /* The multipliers of a ray are tied to one another: with the homogeneous
-    * ones asked for, the multiplier of the bound of each column is minus the
-    * combination of the rows through that column. In the sign convention the
-    * Constraints carry (they hold the multipliers negated) this reads
+   /* The multipliers of a ray are tied to one another: the multiplier of
+    * the bound of each column is minus the combination of the rows through
+    * that column. In the sign convention the Constraints carry (they hold
+    * the multipliers negated) this reads
     *
     *     b_j + sum_i a_ij d_i = 0
     *
     * which holds whichever of the rays the solver happens to return, and is
     * what the reduced costs of an optimal dual point, c - A' y, do not
     * satisfy: the Objective has no part in a certificate. */
-   const auto par = solver->int_par_str2idx( "intHomogeneousDirection" );
-   if( par >= Inf< Solver::idx_type >() )
-    std::cout << ", the columns are not checked, this Solver has no"
-	      << " intHomogeneousDirection";
-   else {
-    // a Solver that cannot produce them says so rather than taking the
-    // parameter and going on, which is a legitimate answer and not a failure
-    bool asked = true;
-    try { solver->set_par( par , 1 ); }
-    catch( const std::exception & ) {
-     asked = false;
-     std::cout << ", the columns are not checked, this Solver refuses the"
-	       << " homogeneous direction";
+   {
+    // the coefficient of column j in row i, as build_boxed() states them
+    static const double a[ 3 ][ 2 ] = { { 2 , 1 } , { 1 , 2 } , { 1 , 1 } };
+
+    double worst = 0;
+    for( std::size_t j = 0 ; j < 2 ; ++j ) {
+     double sum = ray[ 3 + j ];
+     for( std::size_t i = 0 ; i < 3 ; ++i )
+      sum += a[ i ][ j ] * ray[ i ];
+     worst = std::max( worst , std::abs( sum ) );
      }
 
-    if( asked ) {
-     std::vector< double > hray;
-     double hvalue = 0;
-
-     if( ! ray_of( 1.0 , hray , hvalue ) )
-      std::cout << ", the columns are not checked, no certificate with it";
-     else {
-      // the coefficient of column j in row i, as build_boxed() states them
-      static const double a[ 3 ][ 2 ] = { { 2 , 1 } , { 1 , 2 } , { 1 , 1 } };
-
-      double worst = 0;
-      for( std::size_t j = 0 ; j < 2 ; ++j ) {
-       double sum = hray[ 3 + j ];
-       for( std::size_t i = 0 ; i < 3 ; ++i )
-	sum += a[ i ][ j ] * hray[ i ];
-       worst = std::max( worst , std::abs( sum ) );
-       }
-
-      if( worst > 1e-6 ) {
-       std::cout << ", the columns are off by " << worst << " -> KO";
-       all_passed = false;
-       }
-      else
-       std::cout << ", the columns are the ray's -> OK";
-      }
-
-     solver->set_par( par , 0 );
+    if( worst > 1e-6 ) {
+     std::cout << ", the columns are off by " << worst << " -> KO";
+     all_passed = false;
      }
+    else
+     std::cout << ", the columns are the ray's -> OK";
     }
 
    std::cout << std::endl;
