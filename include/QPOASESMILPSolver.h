@@ -154,7 +154,10 @@ class QPOASESMILPSolver : public MILPSolver
    * taken as positive definite until a zero curvature shows up), 1 if H is
    * positive definite, 2 if it is positive semidefinite, which has it
    * regularized in a solve from scratch if intQPOASESEnableReg is 1. A hot
-   * start with a new H always has qpOASES find it out. */
+   * start with a new H always has qpOASES find it out. With 1, a solve that
+   * qpOASES ends as unbounded gives kError rather than kUnbounded, since
+   * the problem cannot be unbounded and qpOASES has only found a projected
+   * H numerically singular. */
   intQPOASESHessianType ,
   /// whether a semidefinite or zero H is regularized (enableRegularisation)
   /**< If 1, H is added dblQPOASESEpsReg times its norm on the diagonal

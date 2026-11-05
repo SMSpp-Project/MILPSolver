@@ -65,6 +65,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   after the master with the bundle empty, on which `LagrangianDualSolver`
   stopped with `kError` on a `UCBlock` translated from PyPSA
 
+- `QPOASESMILPSolver` answers `kError` rather than `kUnbounded` when qpOASES
+  ends a solve as unbounded and `intQPOASESHessianType` is 1, i.e., H is
+  positive definite and the problem cannot be unbounded: qpOASES has only
+  found a projected H numerically singular, as on a level of a hierarchy of
+  `HQPBlock` with the lower levels in the model
+
 - `DAQPMILPSolver` answers `kUnbounded` rather than `kInfeasible` on a
   problem that DAQP calls infeasible but whose rows and bounds admit a point
   (the same problem with no linear term has a solution): with a singular H,

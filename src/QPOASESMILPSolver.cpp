@@ -414,15 +414,19 @@ int QPOASESMILPSolver::decode( int ret , int nwsr , int done ) const
  if( ( ret == qpOASES::RET_QP_INFEASIBLE ) || d_qp->isInfeasible() )
   return( kInfeasible );
 
+ // with H positive definite the problem cannot be unbounded: an unbounded
+ // qpOASES only says that a projected H has turned out numerically singular
+ const int unb = ( d_hessian_type == 1 ) ? kError : kUnbounded;
+
  if( ( ret == qpOASES::RET_QP_UNBOUNDED ) || d_qp->isUnbounded() )
-  return( kUnbounded );
+  return( unb );
 
  switch( qpOASES::getSimpleStatus( qpOASES::returnValue( ret ) ) ) {
   case( 1 ):   // the working set recalculations, or the time, are over
    return( ( ( d_max_time < Inf< double >() ) && ( done < nwsr ) ) ?
 	   kStopTime : kStopIter );
   case( -2 ):  return( kInfeasible );
-  case( -3 ):  return( kUnbounded );
+  case( -3 ):  return( unb );
   default:     return( kError );
   }
  }
