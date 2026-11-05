@@ -1139,8 +1139,15 @@ int GRBMILPSolver::guts_of_compute( void )
  // a simplex started from the basis of the previous solve may stop on
  // numerical troubles that a solve from scratch does not meet, e.g., on a
  // master of a cutting-plane method with a few hundred cuts: one more try
- // with no basis
- if( m_status == GRB_NUMERIC ) {
+ // with no basis. The same holds for a continuous model that the simplex
+ // started from that basis calls infeasible, while a solve from scratch
+ // finds it optimal (the dual simplex of 13.0 on a QP); not for a MIP,
+ // whose solve from scratch is a whole branch-and-bound
+ int is_mip = 0;
+ if( m_status == GRB_INFEASIBLE )
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_MIP , & is_mip );
+ if( ( m_status == GRB_NUMERIC ) ||
+     ( ( m_status == GRB_INFEASIBLE ) && ( ! is_mip ) ) ) {
   GRBreset( model , 0 );
   if( int status = optimize( updated_model() , elapsed_iter ) ) {
    sol_status = decode_grb_error( status );

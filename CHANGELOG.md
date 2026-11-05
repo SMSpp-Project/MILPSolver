@@ -57,6 +57,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` solves again from scratch a continuous model that Gurobi
+  calls infeasible, as it already did for one that stops on numerical
+  troubles: the dual simplex of Gurobi 13.0, started from the basis of the
+  previous solve, calls infeasible a QP that a solve from scratch finds
+  optimal, as the dual master problem of a bundle method at its first cut
+  after the master with the bundle empty, on which `LagrangianDualSolver`
+  stopped with `kError` on a `UCBlock` translated from PyPSA
+
 - `DAQPMILPSolver` answers `kUnbounded` rather than `kInfeasible` on a
   problem that DAQP calls infeasible but whose rows and bounds admit a point
   (the same problem with no linear term has a solution): with a singular H,
