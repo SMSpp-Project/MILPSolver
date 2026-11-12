@@ -3,8 +3,8 @@
 #
 # A txt description of a BlockSolverConfig for the unbounded convex QP of
 # test_farkas: MOSEK with the optimizer of its choice, as the dual
-# simplex of LPPar-farkas.txt does not solve a QP, and ProxQP and PIQP,
-# whose ray alone is checked
+# simplex of LPPar-farkas.txt does not solve a QP, and ProxQP, whose ray
+# alone is checked
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -14,13 +14,12 @@ BlockSolverConfig     # exact type of the Configuration object
 
 1  # the BlockSolverConfig is a "differential" one: values are being set
 
-3  # number of (the names of) Solver in this BlockSolverConfig
+2  # number of (the names of) Solver in this BlockSolverConfig
 # now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
 MOSEKMILPSolver   # name of Solver, if it is in the build
 ProxQPMILPSolver  # name of Solver, if it is in the build
-PIQPMILPSolver    # name of Solver, if it is in the build
 
-3  # number of ComputeConfig in this BlockSolverConfig
+2  # number of ComputeConfig in this BlockSolverConfig
 
 # now all the ComputeConfig
 # the ComputeConfig of MOSEKMILPSolver - - - - - - - - - - - - - - - - - - -
@@ -102,10 +101,6 @@ intLogVerb               0
 
 # pointer to the "extra" Configuration
 *  # [none]
-
-# the ComputeConfig of PIQPMILPSolver - - - - - - - - - - - - - - - - - - - -
-
-*  # none: the defaults
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - -  END QPPar-farkas.txt - - - - - - - - - - - - - -

@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `test_farkas` checks `PIQPMILPSolver` on the linear programs too, as PIQP
+  0.7.0 gives a certificate of their infeasibility (up to 0.6.4 it stops at
+  its iteration limit there): `PIQPMILPSolver` moves from `QPPar-farkas.txt`
+  to `LPPar-farkas.txt`, and needs PIQP 0.7.0 or later to pass the test
+
 - `MILPSolver::concerned_by()` is `eModAbst`: the physical Modification of
   the Block, which the MILPSolver has no use for, no longer reach it (nor
   have a back-end that reloads the problem at each change do so for them)
