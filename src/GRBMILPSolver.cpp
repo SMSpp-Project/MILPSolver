@@ -1147,18 +1147,25 @@ int GRBMILPSolver::guts_of_compute( void )
  // with no basis. The same holds for a continuous model that the simplex
  // started from that basis calls infeasible, while a solve from scratch
  // finds it optimal (the dual simplex of 13.0 on a QP); not for a MIP,
- // whose solve from scratch is a whole branch-and-bound
+ // whose solve from scratch is a whole branch-and-bound. Only an optimal
+ // solution overturns the first answer: whatever else the solve from
+ // scratch says (e.g., that it stops on numerical troubles), the model
+ // stays infeasible, as the master problem of a bundle method with t so
+ // small that 1 / t is enormous
  int is_mip = 0;
  if( ( m_status == GRB_INFEASIBLE ) || ( m_status == GRB_NUMERIC ) )
   GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_MIP , & is_mip );
  if( ( m_status == GRB_NUMERIC ) ||
      ( ( m_status == GRB_INFEASIBLE ) && ( ! is_mip ) ) ) {
+  const int first = m_status;
   GRBreset( model , 0 );
   if( int status = optimize( updated_model() , elapsed_iter ) ) {
    sol_status = decode_grb_error( status );
    return( sol_status );
    }
   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+  if( ( first == GRB_INFEASIBLE ) && ( m_status != GRB_OPTIMAL ) )
+   m_status = first;
   }
 
  // the presolve of a QCP turns its quadratic rows into second-order cones,

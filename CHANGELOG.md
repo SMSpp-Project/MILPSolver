@@ -76,7 +76,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previous solve, calls infeasible a QP that a solve from scratch finds
   optimal, as the dual master problem of a bundle method at its first cut
   after the master with the bundle empty, on which `LagrangianDualSolver`
-  stopped with `kError` on a `UCBlock` translated from PyPSA
+  stopped with `kError` on a `UCBlock` translated from PyPSA; the model
+  stays infeasible unless the solve from scratch finds it optimal, whatever
+  else that solve says (e.g., that it stops on numerical troubles), as on
+  the master problem of a bundle method whose t is so small that 1 / t is
+  enormous
 
 - `GRBMILPSolver` solves once more without presolve a continuous model
   with quadratic rows that stops on numerical troubles also from scratch,
