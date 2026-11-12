@@ -62,6 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `DAQPMILPSolver` solves again with no working set a problem that the
+  solve started from the working set of the previous one ends as unbounded
+  or infeasible: DAQP 0.11 so ended after one iteration on master problems
+  of the battery of `MasterProblemBlock` whose components start empty,
+  which a solve from scratch finds optimal
+
 - `test_cutoff_status` takes the optimal value (`kOK`) as a right answer
   also to a cutoff that the first solution reaches, since a Solver may find
   and prove the optimum before its first check of the cutoffs: HiGHS 1.16

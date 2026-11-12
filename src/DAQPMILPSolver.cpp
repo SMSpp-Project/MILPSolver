@@ -235,61 +235,79 @@ void DAQPMILPSolver::load_problem( void )
 
 int DAQPMILPSolver::guts_of_compute( void )
 {
- if( d_loaded || ( ! d_has_work ) ) {
-  free_workspace();
+ // a solve started from the working set of the previous one may end
+ // unbounded or infeasible on a problem that a solve from scratch finds
+ // optimal (DAQP 0.11 after one iteration, on a master problem of a
+ // cutting-plane method whose components start empty): one more try with
+ // no working set
+ for( bool cold = false ; ; cold = true ) {
+  bool warm = false;  // true if the solve starts from a working set
+  if( d_loaded || ( ! d_has_work ) || cold ) {
+   free_workspace();
 
-  // the constraints the problem fixes, and the working set of the previous
-  // solve on the others, if any and of the same size; a constraint that the
-  // previous problem fixed and this one does not is left out, since it was
-  // active for being fixed rather than at the solution
-  d_sense = d_fixed;
-  if( d_warm_start && ( d_ws_n == d_n ) &&
-      ( d_ws.size() == std::size_t( d_m ) ) )
-   for( int i = 0 ; i < d_m ; ++i )
-    if( ( ! d_fixed[ i ] ) && ( ! ( d_ws[ i ] & DAQP_IMMUTABLE ) ) )
-     d_sense[ i ] |= d_ws[ i ] & ( DAQP_ACTIVE | 2 );
+   // the constraints the problem fixes, and the working set of the
+   // previous solve on the others, if any and of the same size; a
+   // constraint that the previous problem fixed and this one does not is
+   // left out, since it was active for being fixed rather than at the
+   // solution
+   d_sense = d_fixed;
+   if( d_warm_start && ( ! cold ) && ( d_ws_n == d_n ) &&
+       ( d_ws.size() == std::size_t( d_m ) ) )
+    for( int i = 0 ; i < d_m ; ++i )
+     if( ( ! d_fixed[ i ] ) && ( ! ( d_ws[ i ] & DAQP_IMMUTABLE ) ) ) {
+      d_sense[ i ] |= d_ws[ i ] & ( DAQP_ACTIVE | 2 );
+      if( d_ws[ i ] & DAQP_ACTIVE )
+       warm = true;
+      }
 
-  d_qp = DAQPProblem{};
-  d_qp.n = d_n;
-  d_qp.m = d_m;
-  d_qp.ms = d_n;
-  d_qp.H = d_H.data();
-  d_qp.f = d_f.data();
-  d_qp.A = d_A.empty() ? nullptr : d_A.data();
-  d_qp.bupper = d_bu.data();
-  d_qp.blower = d_bl.data();
-  d_qp.sense = d_sense.data();
+   d_qp = DAQPProblem{};
+   d_qp.n = d_n;
+   d_qp.m = d_m;
+   d_qp.ms = d_n;
+   d_qp.H = d_H.data();
+   d_qp.f = d_f.data();
+   d_qp.A = d_A.empty() ? nullptr : d_A.data();
+   d_qp.bupper = d_bu.data();
+   d_qp.blower = d_bl.data();
+   d_qp.sense = d_sense.data();
 
-  d_work = DAQPWorkspace{};
-  d_work.settings = & d_settings;
-  double setup_time = 0;
-  const int flag = setup_daqp( & d_qp , & d_work , & setup_time );
-  if( flag < 0 ) {
-   d_work.settings = nullptr;
-   free_daqp_workspace( & d_work );
-   free_daqp_ldp( & d_work );
-   d_exitflag = flag;
+   d_work = DAQPWorkspace{};
+   d_work.settings = & d_settings;
+   double setup_time = 0;
+   const int flag = setup_daqp( & d_qp , & d_work , & setup_time );
+   if( flag < 0 ) {
+    d_work.settings = nullptr;
+    free_daqp_workspace( & d_work );
+    free_daqp_ldp( & d_work );
+    d_exitflag = flag;
+    d_loaded = false;
+    return( sol_status = decode_exitflag( flag ) );
+    }
+   d_has_work = true;
    d_loaded = false;
-   return( sol_status = decode_exitflag( flag ) );
    }
-  d_has_work = true;
-  d_loaded = false;
+  else
+   warm = true;  // the workspace keeps the working set of its last solve
+
+  // DAQP keeps its own iteration limit if none is set, and has no time
+  // limit if its own is 0, so that a time limit of 0 is the smallest
+  // positive one
+  d_settings.iter_limit = ( d_max_iter < Inf< int >() ) ?
+   d_max_iter : DAQP_DEFAULT_ITER_LIMIT;
+  d_settings.time_limit = ( d_max_time < Inf< double >() ) ?
+   std::max( d_max_time , std::numeric_limits< double >::min() ) : 0;
+
+  d_res = DAQPResult{};
+  d_res.x = d_x.data();
+  d_res.lam = d_lam.data();
+  daqp_solve( & d_res , & d_work );
+  d_exitflag = d_res.exitflag;
+  elapsed_iter += d_res.iter;
+
+  if( cold || ( ! warm ) || ( ( d_exitflag != DAQP_EXIT_UNBOUNDED ) &&
+                              ( d_exitflag != DAQP_EXIT_INFEASIBLE ) ) )
+   break;
   }
-
- // DAQP keeps its own iteration limit if none is set, and has no time
- // limit if its own is 0, so that a time limit of 0 is the smallest positive
- // one
- d_settings.iter_limit = ( d_max_iter < Inf< int >() ) ?
-  d_max_iter : DAQP_DEFAULT_ITER_LIMIT;
- d_settings.time_limit = ( d_max_time < Inf< double >() ) ?
-  std::max( d_max_time , std::numeric_limits< double >::min() ) : 0;
-
- d_res = DAQPResult{};
- d_res.x = d_x.data();
- d_res.lam = d_lam.data();
- daqp_solve( & d_res , & d_work );
- d_exitflag = d_res.exitflag;
- elapsed_iter += d_res.iter;
 
  // with a singular H (the proximal-point iterations) DAQP may take a problem
  // unbounded below for an infeasible one: the rows are feasible if the same
