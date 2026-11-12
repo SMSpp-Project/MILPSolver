@@ -1144,7 +1144,7 @@ int GRBMILPSolver::guts_of_compute( void )
  // finds it optimal (the dual simplex of 13.0 on a QP); not for a MIP,
  // whose solve from scratch is a whole branch-and-bound
  int is_mip = 0;
- if( m_status == GRB_INFEASIBLE )
+ if( ( m_status == GRB_INFEASIBLE ) || ( m_status == GRB_NUMERIC ) )
   GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_MIP , & is_mip );
  if( ( m_status == GRB_NUMERIC ) ||
      ( ( m_status == GRB_INFEASIBLE ) && ( ! is_mip ) ) ) {
@@ -1154,6 +1154,38 @@ int GRBMILPSolver::guts_of_compute( void )
    return( sol_status );
    }
   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+  }
+
+ // the presolve of a QCP turns its quadratic rows into second-order cones,
+ // and the barrier may stop on numerical troubles on the cones that it
+ // does not meet on the rows, e.g., on the SOCP of the AC network of a
+ // UCBlock at some Lagrangian multipliers: one more try without presolve
+ if( ( m_status == GRB_NUMERIC ) && ( ! is_mip ) && ( numquadrows > 0 ) ) {
+  int presolve = 0;
+  GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRESOLVE , & presolve );
+  if( presolve ) {
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRESOLVE , 0 );
+   GRBreset( model , 0 );
+   int status = optimize( updated_model() , elapsed_iter );
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRESOLVE , presolve );
+   if( status ) {
+    sol_status = decode_grb_error( status );
+    return( sol_status );
+    }
+   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+   }
+  }
+
+ // a continuous model that stops on numerical troubles also from scratch
+ // may still have a solution: it is given as the one of a GRB_SUBOPTIMAL,
+ // i.e., with no accuracy promise and no bound attached to it [see get_lb()
+ // and get_ub()]
+ int solcount = 0;
+ if( ( m_status == GRB_NUMERIC ) && ( ! is_mip ) &&
+     ( ! GRBgetintattr( updated_model() , GRB_INT_ATTR_SOLCOUNT ,
+                        & solcount ) ) && ( solcount > 0 ) ) {
+  sol_status = kLowPrecision;
+  return( sol_status );
   }
 
  sol_status = decode_model_status( m_status );

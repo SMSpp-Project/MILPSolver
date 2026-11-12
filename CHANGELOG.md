@@ -70,6 +70,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   after the master with the bundle empty, on which `LagrangianDualSolver`
   stopped with `kError` on a `UCBlock` translated from PyPSA
 
+- `GRBMILPSolver` solves once more without presolve a continuous model
+  with quadratic rows that stops on numerical troubles also from scratch,
+  and answers `kLowPrecision` rather than `kError` when a continuous model
+  that still does has a solution, which is then given as the one of a
+  sub-optimal solve, with no bound attached to it: the presolve of Gurobi
+  13.0 turns the quadratic rows of the SOCP of the AC network of a
+  `UCBlock` into second-order cones on which the barrier stops after 5
+  iterations at some Lagrangian multipliers, while without presolve it
+  solves the model in 27, and the `LagrangianDualSolver` evaluating every
+  component at each iteration stopped with `kError` on the first of them
+
 - `QPOASESMILPSolver` answers `kError` rather than `kUnbounded` when qpOASES
   ends a solve as unbounded and `intQPOASESHessianType` is 1, i.e., H is
   positive definite and the problem cannot be unbounded: qpOASES has only
