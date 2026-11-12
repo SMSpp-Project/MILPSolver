@@ -1427,7 +1427,6 @@ int GRBMILPSolver::decode_grb_error( int error )
   * without doing extensive tests. So we are implementing just the ones we
   * encounter as we go. */
  switch( error ) {
-  //case( GRB_ERROR_OUT_OF_MEMORY ):
   //case( GRB_ERROR_NULL_ARGUMENT ):
   //case( GRB_ERROR_INVALID_ARGUMENT ):
   //case( GRB_ERROR_UNKNOWN_ATTRIBUTE ):
@@ -1453,6 +1452,15 @@ int GRBMILPSolver::decode_grb_error( int error )
   //case( GRB_ERROR_UPDATEMODE_CHANGE ):
   //case( GRB_ERROR_MODEL_MODIFICATION ):
   //case( GRB_ERROR_TUNE_MODEL_TYPES ):
+
+  // the model does not fit in the memory the process may take: the Solver
+  // says that it failed, as below for the license service, rather than
+  // taking down the whole computation
+  case( GRB_ERROR_OUT_OF_MEMORY ):
+   std::cerr << "GRBMILPSolver::decode_grb_error: warning: GUROBI ran out "
+                "of memory [GUROBI error " << error
+             << "], the model was not solved" << std::endl;
+   return( kError );
 
   // these have nothing to do with the model that was being solved: the
   // license service is unreachable, or it refused the request, which

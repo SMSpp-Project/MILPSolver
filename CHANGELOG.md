@@ -62,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` answers `kError` when Gurobi runs out of memory, rather
+  than throwing an exception that takes down the whole computation
+
 - `GRBMILPSolver` makes a last try with `NumericFocus` 3 on a continuous
   model on which the solve from scratch too stops on numerical troubles,
   and then puts the previous value back: the dual simplex with
