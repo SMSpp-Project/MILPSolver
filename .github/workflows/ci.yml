@@ -35,13 +35,29 @@ jobs:
           echo "Using: $flags"
 
       - name: Clone the umbrella
-        run: git clone --branch develop https://gitlab.com/smspp/smspp-project.git
+        run: |
+          git clone --branch develop \
+            https://gitlab.com/smspp/smspp-project.git
+
+      # MOSEK, which is in the image but unlicensed, reads its license from
+      # the file in MOSEKLM_LICENSE_FILE; with no secret it is left out of
+      # the build, since every test that runs it would fail
+      - name: Write the MOSEK license, if the secret is set
+        env:
+          MOSEK_LICENSE: ${{ secrets.MOSEK_LICENSE }}
+        run: |
+          if [ -n "$MOSEK_LICENSE" ]; then
+            printf '%s\n' "$MOSEK_LICENSE" > /tmp/mosek.lic
+            echo "MOSEKLM_LICENSE_FILE=/tmp/mosek.lic" >> "$GITHUB_ENV"
+          fi
 
       - name: Configure
         run: |
+          mosek=""
+          [ -n "$MOSEKLM_LICENSE_FILE" ] || mosek="-DMILPSolver_USE_MOSEK=OFF"
           cmake -S smspp-project -B smspp-project/build \
             -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
-            ${{ steps.flags.outputs.flags }}
+            ${{ steps.flags.outputs.flags }} $mosek
 
       - name: Build
         run: cmake --build smspp-project/build --target install -- -j$(nproc)
@@ -54,7 +70,8 @@ jobs:
         run: |
           if [ -n "$GRB_WLSSECRET" ]; then
             printf 'LICENSEID=%s\nWLSACCESSID=%s\nWLSSECRET=%s\n' \
-              "$GRB_LICENSEID" "$GRB_WLSACCESSID" "$GRB_WLSSECRET" > /tmp/gurobi.lic
+              "$GRB_LICENSEID" "$GRB_WLSACCESSID" "$GRB_WLSSECRET" \
+              > /tmp/gurobi.lic
             echo "GRB_LICENSE_FILE=/tmp/gurobi.lic" >> "$GITHUB_ENV"
           fi
 
@@ -63,28 +80,33 @@ jobs:
         # runs a labelled ctest (ctest ... -L ...), run exactly that set here,
         # selecting by the repo-name label (each test is tagged in tests/ with
         # its owning module). Otherwise the module has no integration tests, so
-        # this is a build-only (compile-check) CI. This workflow is identical in
-        # every repo and never needs per-module changes: the recipe lives in
-        # .gitlab-ci.yml.
+        # this is a build-only (compile-check) CI. This workflow is identical
+        # in every repo and never needs per-module changes: the recipe lives
+        # in .gitlab-ci.yml.
         run: |
           run_tests() {
             if grep -qE 'ctest .* -L ' .gitlab-ci.yml; then
-              ctest --test-dir smspp-project/build -L "${GITHUB_REPOSITORY##*/}" \
+              ctest --test-dir smspp-project/build \
+                    -L "${GITHUB_REPOSITORY##*/}" \
                     -V -C Release --no-tests=error
             else
-              echo "no labelled tests for ${GITHUB_REPOSITORY##*/}; build-only CI"
+              echo "no labelled tests for ${GITHUB_REPOSITORY##*/};" \
+                   "build-only CI"
             fi
           }
-          # the academic Gurobi WLS license caps concurrent sessions; during a
-          # push wave a job can abort with "GRBstartenv ... status 10030". Retry
-          # ONLY on that transient cap (a real test failure fails immediately, so
-          # no re-runs are wasted). GitHub Actions has no native job retry.
+          # the academic Gurobi WLS license caps concurrent sessions; during
+          # a push wave a job can abort with "GRBstartenv ... status 10030".
+          # Retry ONLY on that transient cap (a real test failure fails
+          # immediately, so no re-runs are wasted). GitHub Actions has no
+          # native job retry.
           log=smspp-project/build/Testing/Temporary/LastTest.log
           for attempt in 1 2 3 4 5 6; do
-            if run_tests; then exit 0; fi
+            run_tests && exit 0
             rc=$?
-            if [ -f "$log" ] && grep -qE 'status 10030|too many sessions|cannot initialize Gurobi' "$log"; then
-              echo "Gurobi WLS session cap hit (attempt $attempt/6); retrying after backoff..."
+            cap='status 10030|too many sessions|cannot initialize Gurobi'
+            if [ -f "$log" ] && grep -qE "$cap" "$log"; then
+              echo "Gurobi WLS session cap hit (attempt $attempt/6);" \
+                   "retrying after backoff..."
               sleep 90
               continue
             fi
