@@ -62,6 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` makes a last try with `NumericFocus` 3 on a continuous
+  model on which the solve from scratch too stops on numerical troubles,
+  and then puts the previous value back: the dual simplex with
+  `NumericFocus` 1 stopped so on an infeasible master problem of the
+  battery of `MasterProblemBlock`, which `NumericFocus` 3 proves infeasible
+
 - `GRBMILPSolver` solves a continuous model again from scratch with the
   primal simplex, when Gurobi calls it optimal with a `MaxVio` beyond the
   tolerance, only if the solution has a basis: after the barrier without

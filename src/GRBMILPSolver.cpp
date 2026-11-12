@@ -1188,6 +1188,27 @@ int GRBMILPSolver::guts_of_compute( void )
    }
   }
 
+ // a continuous model on which the solve from scratch too stops on
+ // numerical troubles may still be solved with the highest numerical care,
+ // which costs too much to ask for at every solve (e.g., the dual simplex
+ // with NumericFocus 1 on an infeasible master of a cutting-plane method,
+ // which NumericFocus 3 proves infeasible): a last try with it
+ if( m_status == GRB_NUMERIC ) {
+  int saved = 3;
+  GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NUMERICFOCUS , & saved );
+  if( ( ! is_mip ) && ( saved < 3 ) ) {
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_NUMERICFOCUS , 3 );
+   GRBreset( model , 0 );
+   const int status = optimize( updated_model() , elapsed_iter );
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_NUMERICFOCUS , saved );
+   if( status ) {
+    sol_status = decode_grb_error( status );
+    return( sol_status );
+    }
+   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+   }
+  }
+
  // a continuous model that stops on numerical troubles also from scratch
  // may still have a solution: it is given as the one of a GRB_SUBOPTIMAL,
  // i.e., with no accuracy promise and no bound attached to it [see get_lb()
