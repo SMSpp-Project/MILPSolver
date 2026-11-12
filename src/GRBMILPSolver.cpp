@@ -1092,14 +1092,19 @@ int GRBMILPSolver::guts_of_compute( void )
  // bounds of the variables far beyond the tolerance (seen on an infeasible
  // one, which the primal simplex and the barrier tell infeasible): such an
  // answer is no solution, and the model is solved again from scratch with
- // the primal simplex
+ // the primal simplex; this only for a basic solution, since that of the
+ // barrier without crossover has none, and its MaxVio also holds the
+ // complementarity violation, which BarConvTol has already accepted
  if( m_status == GRB_OPTIMAL ) {
   auto menv = GRBgetenv( model );
   double vio = 0;
   double ftol = 1e-6;
+  int vbasis;
   GRBgetdblattr( model , GRB_DBL_ATTR_MAX_VIO , & vio );
   GRBgetdblparam( menv , GRB_DBL_PAR_FEASIBILITYTOL , & ftol );
-  if( vio > std::max( 1e-6 , 1e3 * ftol ) ) {
+  if( ( vio > std::max( 1e-6 , 1e3 * ftol ) ) &&
+      ( ! GRBgetintattrelement( model , GRB_INT_ATTR_VBASIS , 0 ,
+                                & vbasis ) ) ) {
    int method;
    GRBgetintparam( menv , GRB_INT_PAR_METHOD , & method );
    GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_PRIMAL );

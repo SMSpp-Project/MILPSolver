@@ -62,6 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` solves a continuous model again from scratch with the
+  primal simplex, when Gurobi calls it optimal with a `MaxVio` beyond the
+  tolerance, only if the solution has a basis: after the barrier without
+  crossover `MaxVio` also holds the complementarity violation, which
+  `BarConvTol` has already accepted, and the primal simplex that followed
+  threw a good solution away and did not end in a useful time on large LPs
+  (an LP of 500000 rows translated from PyPSA)
+
 - `GRBMILPSolver` solves again from scratch a continuous model that Gurobi
   calls infeasible, as it already did for one that stops on numerical
   troubles: the dual simplex of Gurobi 13.0, started from the basis of the
