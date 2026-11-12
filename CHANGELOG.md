@@ -62,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `test_cutoff_status` takes the optimal value (`kOK`) as a right answer
+  also to a cutoff that the first solution reaches, since a Solver may find
+  and prove the optimum before its first check of the cutoffs: HiGHS 1.16
+  solves the knapsack of the test at the root node, and failed it
+
 - `GRBMILPSolver` answers `kError` when Gurobi runs out of memory, rather
   than throwing an exception that takes down the whole computation
 

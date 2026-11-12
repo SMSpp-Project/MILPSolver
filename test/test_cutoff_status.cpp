@@ -18,9 +18,10 @@
  * either problem with its ComputeConfig, whose cutoffs it has to keep when
  * it loads the problem, and the first solve is to stop at a cutoff that the
  * first solution reaches (kCutOff, with bounds that show it reached and stay
- * valid) and to solve the problem otherwise (kOK and the optimal value). The
- * cutoffs of each ComputeConfig are read in the BlockSolverConfig, and are
- * those of
+ * valid), unless it gives the optimal value (kOK), which a Solver may find
+ * and prove before its first check of the cutoffs, and to solve the problem
+ * otherwise (kOK and the optimal value). The cutoffs of each ComputeConfig
+ * are read in the BlockSolverConfig, and are those of
  *
  * - MILPCfg-cutoff.txt, an upper cutoff of 1000: the maximization stops at
  *   its first solution, the minimization is solved;
@@ -297,7 +298,10 @@ int main( void )
      if( st == Solver::kOK ) {
       const double v = s->get_var_value();
       std::cout << ", value " << v;
-      ok = ( std::abs( v - opt ) <= 1e-6 * Opt ) && ! ( first && stop );
+      // the optimum is a right answer also to a cutoff that the first
+      // solution reaches: a Solver may find it, and prove it, before its
+      // first check of the cutoffs (HiGHS 1.16 at the root node)
+      ok = ( std::abs( v - opt ) <= 1e-6 * Opt );
       }
      else
       if( st == Solver::kCutOff ) {
