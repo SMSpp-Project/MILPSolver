@@ -422,6 +422,20 @@ class MOSEKMILPSolver : public MILPSolver {
 
  protected:
 
+ /// the shifts of the diagonal of a refused Hessian [see guts_of_compute()]
+ /** A convex quadratic objective whose Hessian is singular, e.g., the
+  * Gram matrix X X^T of more samples than features, may be refused by the
+  * check of convexity of MOSEK, whose Cholesky factorization takes the
+  * rounding for a negative eigenvalue, and which no parameter turns off
+  * (MOSEK 12 at least). Then the model is solved again with the diagonal of the
+  * Hessian shifted by these multiples of its largest absolute entry, one
+  * after the other until MOSEK takes it, and the Hessian goes back to what
+  * it was at the next solve. The solution is that of the shifted model, and
+  * its value has the term of the shift, which these multiples keep below
+  * the tolerances of the interior point method. */
+ static constexpr std::array< double , 3 > HessianShift = { 1e-12 , 1e-10 ,
+                                                             1e-8 };
+
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/

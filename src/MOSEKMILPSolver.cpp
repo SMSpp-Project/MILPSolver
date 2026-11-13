@@ -402,7 +402,36 @@ int MOSEKMILPSolver::guts_of_compute( void )
    }
 
  MSKrescodee trm = MSK_RES_OK;
- const MSKrescodee r = MSK_optimizetrm( task , & trm );
+ MSKrescodee r = MSK_optimizetrm( task , & trm );
+
+ // a convex objective with a singular Hessian that MOSEK refuses as not
+ // convex is solved again with the diagonal shifted [see HessianShift],
+ // toward positive semidefinite when minimizing and negative when
+ // maximizing; the Hessian goes back to what it was at the next solve
+ const auto refused = []( MSKrescodee res ) {
+  return( ( res == MSK_RES_ERR_OBJ_Q_NOT_PSD ) ||
+	  ( res == MSK_RES_ERR_OBJ_Q_NOT_NSD ) );
+  };
+ if( ( ! mip ) && refused( r ) && q_hessian_nnz ) {
+  double big = 0;
+  for( int j = 0 ; j < int( q_hessian.size() ) ; ++j )
+   for( const auto & e : q_hessian[ j ] )
+    big = std::max( big , std::abs( e.second ) );
+  const double sign = ( r == MSK_RES_ERR_OBJ_Q_NOT_NSD ) ? -1 : 1;
+  double shift = 0;
+  for( const double rel : HessianShift ) {
+   const double d = sign * rel * big - shift;
+   for( int j = 0 ; j < int( q_hessian.size() ) ; ++j )
+    add_to_hessian( j , j , d );
+   shift += d;
+   pass_hessian();
+   r = MSK_optimizetrm( task , & trm );
+   if( ! refused( r ) )
+    break;
+   }
+  for( int j = 0 ; j < int( q_hessian.size() ) ; ++j )
+   add_to_hessian( j , j , - shift );
+  }
 
  // the iterations of the solve: simplex and interior point ones, those of
  // the relaxations for a MIP

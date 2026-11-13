@@ -62,6 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `MOSEKMILPSolver` solves a continuous QP whose convex Hessian is
+  singular, which MOSEK refuses as not convex (as it does on the dual of
+  SVMs with more samples than features) and with no parameter that turns
+  the check off: it solves again with the diagonal of the Hessian shifted
+  by 1e-12, 1e-10 and then 1e-8 times its largest entry, until MOSEK takes
+  it, and restores the Hessian for the next solve; the objective value
+  then holds the term of the shift
+
 - `DAQPMILPSolver` solves again with no working set a problem that the
   solve started from the working set of the previous one ends as unbounded
   or infeasible: DAQP 0.11 so ended after one iteration on master problems
