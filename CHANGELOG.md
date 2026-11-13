@@ -113,8 +113,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   threw a good solution away and did not end in a useful time on large LPs
   (an LP of 500000 rows translated from PyPSA)
 
-- `GRBMILPSolver` solves again from scratch a continuous model that Gurobi
-  calls infeasible, as it already did for one that stops on numerical
+- `GRBMILPSolver` solves again from scratch a continuous QP that Gurobi
+  calls infeasible, as it already did for a model that stops on numerical
   troubles: the dual simplex of Gurobi 13.0, started from the basis of the
   previous solve, calls infeasible a QP that a solve from scratch finds
   optimal, as the dual master problem of a bundle method at its first cut
@@ -123,7 +123,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays infeasible unless the solve from scratch finds it optimal, whatever
   else that solve says (e.g., that it stops on numerical troubles), as on
   the master problem of a bundle method whose t is so small that 1 / t is
-  enormous
+  enormous. An LP is not solved again: every infeasible one would be solved
+  twice, the second time with no basis, and the feasibility cuts of a
+  decomposition on a sector-coupled network took ten times as long in its
+  first iterations
 
 - `GRBMILPSolver` solves once more without presolve a continuous model
   with quadratic rows that stops on numerical troubles also from scratch,
