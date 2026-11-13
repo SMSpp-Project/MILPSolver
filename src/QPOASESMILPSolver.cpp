@@ -49,19 +49,6 @@ static const std::array< std::string , 5 > QPOASES_dbl_pars_str = {
 /*-------------------------------- FUNCTIONS -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-// a side of SMS++ in the format of qpOASES, where an infinite one is INFTY
-
-static double qpoases_side( double v )
-{
- if( v >= qpOASES::INFTY )
-  return( qpOASES::INFTY );
- if( v <= - qpOASES::INFTY )
-  return( - qpOASES::INFTY );
- return( v );
- }
-
-/*--------------------------------------------------------------------------*/
-
 // the default Options of qpOASES
 
 static const qpOASES::Options & default_options( void )
@@ -128,92 +115,42 @@ void QPOASESMILPSolver::load_problem( void )
 				"variables are only supported if relaxed "
 				"(intRelaxIntVars)" ) );
 
- const int n = numcols;
- d_n = n;
- d_nc = numrows;
+ // the fixed columns and the free rows are not given to qpOASES; the
+ // positions in the problem of qpOASES of the columns and rows of the
+ // previous problem are kept, to move to the new one its solution
+ std::vector< int > ppos = std::move( d_dq.pos );
+ std::vector< int > prpos = std::move( d_dq.rpos );
+ const int qn = std::count_if( ppos.begin() , ppos.end() ,
+			       []( int k ) { return( k >= 0 ); } );
+ const int qm = std::count_if( prpos.begin() , prpos.end() ,
+			       []( int k ) { return( k >= 0 ); } );
  d_sign = ( objsense == -1 ) ? -1 : 1;  // qpOASES minimizes
+ make_dense_qp( d_dq , d_sign , qpOASES::INFTY );
+ const int n = d_n = d_dq.n;
+ d_nc = d_dq.m;
 
- // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
- // 1/2 x' H x + g' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k
- d_g.assign( n , 0 );
- for( int j = 0 ; j < n ; ++j )
-  d_g[ j ] = d_sign * objective[ j ];
-
- d_H.assign( std::size_t( n ) * n , 0 );
- for( int j = 0 ; j < n ; ++j )
-  d_H[ std::size_t( j ) * n + j ] = d_sign * 2 * q_objective[ j ];
- for( std::size_t k = 0 ; k < ndq_objective.size() ; ++k ) {
-  const int i = ndq_rowind[ k ];
-  const int j = ndq_colind[ k ];
-  const double v = d_sign * ndq_objective[ k ];
-  if( i == j )
-   d_H[ std::size_t( i ) * n + i ] += 2 * v;
-  else {
-   d_H[ std::size_t( i ) * n + j ] += v;
-   d_H[ std::size_t( j ) * n + i ] += v;
-   }
-  }
-
- // the rows, dense and row-major, from the columns of MILPSolver
- d_A.assign( std::size_t( d_nc ) * n , 0 );
- for( int j = 0 ; j < n ; ++j )
-  for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
-   d_A[ std::size_t( matind[ k ] ) * n + j ] += matval[ k ];
-
- // the bounds of the variables, then the sides of the rows
- d_lb.resize( n );
- d_ub.resize( n );
- for( int j = 0 ; j < n ; ++j ) {
-  d_lb[ j ] = qpoases_side( lb[ j ] );
-  d_ub[ j ] = qpoases_side( ub[ j ] );
-  }
-
- d_lbA.resize( d_nc );
- d_ubA.resize( d_nc );
- for( int i = 0 ; i < d_nc ; ++i )
-  switch( sense[ i ] ) {
-   case( 'L' ): d_lbA[ i ] = - qpOASES::INFTY;
-                d_ubA[ i ] = qpoases_side( rhs[ i ] );
-                break;
-   case( 'G' ): d_lbA[ i ] = qpoases_side( rhs[ i ] );
-                d_ubA[ i ] = qpOASES::INFTY;
-                break;
-   case( 'E' ): d_lbA[ i ] = d_ubA[ i ] = rhs[ i ];
-                break;
-   case( 'R' ): if( rngval[ i ] > 0 ) {
-                 d_lbA[ i ] = qpoases_side( rhs[ i ] );
-                 d_ubA[ i ] = qpoases_side( rhs[ i ] + rngval[ i ] );
-                 }
-                else {
-                 d_lbA[ i ] = qpoases_side( rhs[ i ] + rngval[ i ] );
-                 d_ubA[ i ] = qpoases_side( rhs[ i ] );
-                 }
-                break;
-   default:
-    throw( std::invalid_argument( "QPOASESMILPSolver::load_problem: row " +
-				  std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
-   }
-
- // a solved problem of another size cannot be hot-started, but its
- // working set, solution and multipliers, moved to the columns and rows
- // that are still there [see previous_column_index()], are the guess with
- // which the next one is initialized, the new ones inactive and at 0; an
- // active side that is no longer finite is inactive
+ // a solved problem with other columns or rows cannot be hot-started, but
+ // its working set, solution and multipliers, moved to the columns and
+ // rows that are still there [see previous_column_index()], are the guess
+ // with which the next one is initialized, the new ones inactive and at 0;
+ // an active side that is no longer finite is inactive
  d_guess = false;
  const auto [ pn , pm ] = previous_sizes();
- bool same = ( pn == n ) && ( pm == d_nc );
- for( int j = 0 ; same && ( j < n ) ; ++j )
-  same = ( previous_column_index( j ) == j );
- for( int i = 0 ; same && ( i < d_nc ) ; ++i )
-  same = ( previous_row_index( i ) == i );
- if( d_hot_start && d_qp && d_qp_solved && ( ! same ) &&
-     ( d_qp->getNV() == pn ) && ( d_qp->getNC() == pm ) ) {
+ d_same = ( pn == numcols ) && ( pm == numrows ) &&
+          ( ppos == d_dq.pos ) && ( prpos == d_dq.rpos );
+ for( int j = 0 ; d_same && ( j < numcols ) ; ++j )
+  d_same = ( previous_column_index( j ) == j );
+ for( int i = 0 ; d_same && ( i < numrows ) ; ++i )
+  d_same = ( previous_row_index( i ) == i );
+ if( d_hot_start && d_qp && d_qp_solved && ( ! d_same ) &&
+     ( d_qp->getNV() == qn ) && ( d_qp->getNC() == qm ) &&
+     ( ppos.size() == std::size_t( pn ) ) &&
+     ( prpos.size() == std::size_t( pm ) ) ) {
   qpOASES::Bounds ob;
   qpOASES::Constraints oc;
   d_qp->getBounds( ob );
   d_qp->getConstraints( oc );
-  std::vector< double > ox( pn ) , oy( pn + pm );
+  std::vector< double > ox( qn ) , oy( qn + qm );
   d_qp->getPrimalSolution( ox.data() );
   d_qp->getDualSolution( oy.data() );
 
@@ -232,22 +169,24 @@ void QPOASESMILPSolver::load_problem( void )
   d_guess_b->init( n );
   d_guess_c->init( d_nc );
   for( int j = 0 ; j < n ; ++j ) {
-   const int pj = previous_column_index( j );
+   const int pc = previous_column_index( d_dq.col[ j ] );
+   const int pj = ( pc >= 0 ) ? ppos[ pc ] : -1;
    d_guess_b->setupBound( j , pj < 0 ? qpOASES::ST_INACTIVE :
-                          status( ob.getStatus( pj ) , d_lb[ j ] ,
-                                  d_ub[ j ] ) );
+                          status( ob.getStatus( pj ) , d_dq.lb[ j ] ,
+                                  d_dq.ub[ j ] ) );
    if( pj >= 0 ) {
     d_guess_x[ j ] = ox[ pj ];
     d_guess_y[ j ] = oy[ pj ];
     }
    }
   for( int i = 0 ; i < d_nc ; ++i ) {
-   const int pi = previous_row_index( i );
+   const int pr = previous_row_index( d_dq.row[ i ] );
+   const int pi = ( pr >= 0 ) ? prpos[ pr ] : -1;
    d_guess_c->setupConstraint( i , pi < 0 ? qpOASES::ST_INACTIVE :
-			       status( oc.getStatus( pi ) , d_lbA[ i ] ,
-				       d_ubA[ i ] ) );
+			       status( oc.getStatus( pi ) , d_dq.rl[ i ] ,
+				       d_dq.ru[ i ] ) );
    if( pi >= 0 )
-    d_guess_y[ n + i ] = oy[ pn + pi ];
+    d_guess_y[ n + i ] = oy[ qn + pi ];
    }
   d_guess = true;
   }
@@ -264,7 +203,7 @@ void QPOASESMILPSolver::load_problem( void )
 
 int QPOASESMILPSolver::guts_of_compute( void )
 {
- d_fval = 0;
+ d_fval = d_dq.fconst;
 
  // qpOASES needs at least one variable: with none, the problem is feasible
  // if and only if each row admits 0
@@ -272,7 +211,7 @@ int QPOASESMILPSolver::guts_of_compute( void )
   const double eps = d_options->terminationTolerance;
   d_status = kOK;
   for( int i = 0 ; i < d_nc ; ++i )
-   if( ( d_lbA[ i ] > eps ) || ( d_ubA[ i ] < - eps ) )
+   if( ( d_dq.rl[ i ] > eps ) || ( d_dq.ru[ i ] < - eps ) )
     d_status = kInfeasible;
   d_y.assign( d_nc , 0 );
   return( sol_status = d_status );
@@ -284,8 +223,7 @@ int QPOASESMILPSolver::guts_of_compute( void )
  // by load_problem(), if any; one that does not end with a solution, unless
  // it is stopped by the time limit, is repeated from scratch
  if( d_hot_start && d_qp && d_qp_solved && ( ! d_new_options ) &&
-     ( ! d_guess ) && ( d_qp->getNV() == d_n ) &&
-     ( d_qp->getNC() == d_nc ) ) {
+     d_same && ( d_qp->getNV() == d_n ) && ( d_qp->getNC() == d_nc ) ) {
   d_status = hot_start();
   if( ( d_status != kOK ) && ( d_status != kStopTime ) )
    d_status = solve_from_scratch();
@@ -320,8 +258,8 @@ int QPOASESMILPSolver::guts_of_compute( void )
   for( int i = 0 ; i < d_n ; ++i ) {
    double Hx = 0;
    for( int j = 0 ; j < d_n ; ++j )
-    Hx += d_H[ std::size_t( i ) * d_n + j ] * d_x[ j ];
-   d_fval += d_x[ i ] * ( d_g[ i ] + Hx / 2 );
+    Hx += d_dq.H[ std::size_t( i ) * d_n + j ] * d_x[ j ];
+   d_fval += d_x[ i ] * ( d_dq.f[ i ] + Hx / 2 );
    }
   }
 
@@ -345,8 +283,8 @@ int QPOASESMILPSolver::solve_from_scratch( bool guess )
  d_new_options = false;
 
  d_cur = 0;
- d_qpH[ 0 ] = d_oldH = d_H;
- d_qpA[ 0 ] = d_oldA = d_A;
+ d_qpH[ 0 ] = d_oldH = d_dq.H;
+ d_qpA[ 0 ] = d_oldA = d_dq.A;
 
  // a guess that is good takes few working set recalculations, and on a
  // singular H a bad one may take as many as from scratch, or more: a
@@ -360,19 +298,19 @@ int QPOASESMILPSolver::solve_from_scratch( bool guess )
  const bool timed = d_max_time < Inf< double >();
 
  const auto ret = guess ?
-  d_qp->init( d_qpH[ 0 ].data() , d_g.data() ,
+  d_qp->init( d_qpH[ 0 ].data() , d_dq.f.data() ,
 	      d_nc ? d_qpA[ 0 ].data() : nullptr ,
-	      d_lb.data() , d_ub.data() ,
-	      d_nc ? d_lbA.data() : nullptr ,
-	      d_nc ? d_ubA.data() : nullptr ,
+	      d_dq.lb.data() , d_dq.ub.data() ,
+	      d_nc ? d_dq.rl.data() : nullptr ,
+	      d_nc ? d_dq.ru.data() : nullptr ,
 	      done , timed ? & time : nullptr ,
 	      d_guess_x.data() , d_guess_y.data() ,
 	      d_guess_b.get() , d_guess_c.get() ) :
-  d_qp->init( d_qpH[ 0 ].data() , d_g.data() ,
+  d_qp->init( d_qpH[ 0 ].data() , d_dq.f.data() ,
 	      d_nc ? d_qpA[ 0 ].data() : nullptr ,
-	      d_lb.data() , d_ub.data() ,
-	      d_nc ? d_lbA.data() : nullptr ,
-	      d_nc ? d_ubA.data() : nullptr ,
+	      d_dq.lb.data() , d_dq.ub.data() ,
+	      d_nc ? d_dq.rl.data() : nullptr ,
+	      d_nc ? d_dq.ru.data() : nullptr ,
 	      done , timed ? & time : nullptr );
  elapsed_iter += done;
 
@@ -391,23 +329,23 @@ int QPOASESMILPSolver::hot_start( void )
  const bool timed = d_max_time < Inf< double >();
  qpOASES::returnValue ret;
 
- if( ( d_H == d_oldH ) && ( d_A == d_oldA ) )
+ if( ( d_dq.H == d_oldH ) && ( d_dq.A == d_oldA ) )
   // only the vectors have changed, if anything
-  ret = d_qp->hotstart( d_g.data() , d_lb.data() , d_ub.data() ,
-			d_nc ? d_lbA.data() : nullptr ,
-			d_nc ? d_ubA.data() : nullptr ,
+  ret = d_qp->hotstart( d_dq.f.data() , d_dq.lb.data() , d_dq.ub.data() ,
+			d_nc ? d_dq.rl.data() : nullptr ,
+			d_nc ? d_dq.ru.data() : nullptr ,
 			done , timed ? & time : nullptr );
  else {
   // the new matrices go into the other copy, the current one being still
   // read by qpOASES while it moves to the new ones
   const int nxt = 1 - d_cur;
-  d_qpH[ nxt ] = d_oldH = d_H;
-  d_qpA[ nxt ] = d_oldA = d_A;
-  ret = d_qp->hotstart( d_qpH[ nxt ].data() , d_g.data() ,
+  d_qpH[ nxt ] = d_oldH = d_dq.H;
+  d_qpA[ nxt ] = d_oldA = d_dq.A;
+  ret = d_qp->hotstart( d_qpH[ nxt ].data() , d_dq.f.data() ,
 			d_nc ? d_qpA[ nxt ].data() : nullptr ,
-			d_lb.data() , d_ub.data() ,
-			d_nc ? d_lbA.data() : nullptr ,
-			d_nc ? d_ubA.data() : nullptr ,
+			d_dq.lb.data() , d_dq.ub.data() ,
+			d_nc ? d_dq.rl.data() : nullptr ,
+			d_nc ? d_dq.ru.data() : nullptr ,
 			done , timed ? & time : nullptr );
   d_cur = nxt;
   }
@@ -586,7 +524,8 @@ void QPOASESMILPSolver::get_var_solution( Configuration * solc )
   throw( std::logic_error( "QPOASESMILPSolver::get_var_solution: "
 			   "no solution available" ) );
 
- MILPSolver::write_var_solution( d_x , solc );
+ MILPSolver::write_var_solution( dense_qp_x( d_dq , d_x.data() ) ,
+				  solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -614,14 +553,16 @@ void QPOASESMILPSolver::get_dual_solution( Configuration * solc )
  // qpOASES has H x + g = y_x + A' y_A, with y > 0 on an active lower side
  // and y < 0 on an active upper one, for the problem it minimizes: the
  // multipliers of the problem of the Block are y for a minimization and
- // - y for a maximization, whose Objective qpOASES has been given negated
- std::vector< double > rc( d_n );
- for( int j = 0 ; j < d_n ; ++j )
-  rc[ j ] = d_sign * d_y[ j ];
-
- std::vector< double > pi( d_nc );
+ // - y for a maximization, whose Objective qpOASES has been given negated,
+ // and 0 on a row that qpOASES has not been given
+ std::vector< double > pi( numrows , 0 );
  for( int i = 0 ; i < d_nc ; ++i )
-  pi[ i ] = d_sign * d_y[ d_n + i ];
+  pi[ d_dq.row[ i ] ] = d_sign * d_y[ d_n + i ];
+
+ std::vector< double > rc( numcols , 0 );
+ for( int j = 0 ; j < d_n ; ++j )
+  rc[ d_dq.col[ j ] ] = d_sign * d_y[ j ];
+ dense_qp_fixed_rc( d_dq , dense_qp_x( d_dq , d_x.data() ) , pi , rc );
 
  MILPSolver::write_dual_solution( pi , rc , solc );
  }

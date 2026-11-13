@@ -1866,6 +1866,191 @@ double MILPSolver::variable_weight( const Variable * var ,
 
 /*--------------------------------------------------------------------------*/
 
+void MILPSolver::make_dense_qp( DenseQP & qp , int sign , double inf ) const
+{
+ auto side = [ inf ]( double v ) {
+  return( v >= inf ? inf : ( v <= - inf ? - inf : v ) );
+  };
+
+ // a fixed column is not in the QP, unless all the columns are fixed
+ qp.xfix.assign( numcols , 0 );
+ qp.pos.assign( numcols , -1 );
+ qp.col.clear();
+ for( int j = 0 ; j < numcols ; ++j )
+  if( ( lb[ j ] == ub[ j ] ) && ( std::abs( lb[ j ] ) < inf ) )
+   qp.xfix[ j ] = lb[ j ];
+  else {
+   qp.pos[ j ] = qp.col.size();
+   qp.col.push_back( j );
+   }
+ if( qp.col.empty() )
+  for( int j = 0 ; j < numcols ; ++j ) {
+   qp.pos[ j ] = j;
+   qp.col.push_back( j );
+   }
+ const int n = qp.n = qp.col.size();
+
+ // the part of each row on the fixed columns, and whether the row has
+ // entries on the others
+ std::vector< double > shift( numrows , 0 );
+ std::vector< char > used( numrows , 0 );
+ for( int j = 0 ; j < numcols ; ++j )
+  for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
+   if( qp.pos[ j ] >= 0 )
+    used[ matind[ k ] ] = 1;
+   else
+    shift[ matind[ k ] ] += matval[ k ] * qp.xfix[ j ];
+
+ // the sides of each row, and the rows that are in the QP
+ std::vector< double > rl( numrows ) , ru( numrows );
+ qp.row.clear();
+ qp.rpos.assign( numrows , -1 );
+ for( int i = 0 ; i < numrows ; ++i ) {
+  switch( sense[ i ] ) {
+   case( 'L' ): rl[ i ] = - inf;
+                ru[ i ] = side( rhs[ i ] );
+                break;
+   case( 'G' ): rl[ i ] = side( rhs[ i ] );
+                ru[ i ] = inf;
+                break;
+   case( 'E' ): rl[ i ] = ru[ i ] = rhs[ i ];
+                break;
+   case( 'R' ): if( rngval[ i ] > 0 ) {
+                 rl[ i ] = side( rhs[ i ] );
+                 ru[ i ] = side( rhs[ i ] + rngval[ i ] );
+                 }
+                else {
+                 rl[ i ] = side( rhs[ i ] + rngval[ i ] );
+                 ru[ i ] = side( rhs[ i ] );
+                 }
+                break;
+   default:
+    throw( std::invalid_argument( "MILPSolver::make_dense_qp: row " +
+				  std::to_string( i ) + " has sense " +
+				  std::string( 1 , sense[ i ] ) ) );
+   }
+  if( ( rl[ i ] <= - inf ) && ( ru[ i ] >= inf ) )
+   continue;
+  if( ( ! used[ i ] ) && ( rl[ i ] <= shift[ i ] ) &&
+      ( shift[ i ] <= ru[ i ] ) )
+   continue;
+  qp.rpos[ i ] = qp.row.size();
+  qp.row.push_back( i );
+  }
+ const int m = qp.m = qp.row.size();
+
+ // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
+ // 1/2 x' H x + f' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k; the term
+ // H_ij x_i x_j / 2 of an entry on a fixed column goes to the linear term,
+ // or to the constant if both columns are fixed
+ qp.f.assign( n , 0 );
+ qp.H.assign( std::size_t( n ) * n , 0 );
+ qp.fconst = 0;
+ auto add_H = [ & ]( int i , int j , double h ) {
+  const int pi = qp.pos[ i ];
+  const int pj = qp.pos[ j ];
+  if( ( pi >= 0 ) && ( pj >= 0 ) )
+   qp.H[ std::size_t( pi ) * n + pj ] += h;
+  else if( pi >= 0 )
+   qp.f[ pi ] += h * qp.xfix[ j ] / 2;
+  else if( pj >= 0 )
+   qp.f[ pj ] += h * qp.xfix[ i ] / 2;
+  else
+   qp.fconst += h * qp.xfix[ i ] * qp.xfix[ j ] / 2;
+  };
+
+ for( int j = 0 ; j < numcols ; ++j ) {
+  if( qp.pos[ j ] >= 0 )
+   qp.f[ qp.pos[ j ] ] += sign * objective[ j ];
+  else
+   qp.fconst += sign * objective[ j ] * qp.xfix[ j ];
+  if( q_objective[ j ] != 0 )
+   add_H( j , j , sign * 2 * q_objective[ j ] );
+  }
+ for( std::size_t k = 0 ; k < ndq_objective.size() ; ++k ) {
+  const int i = ndq_rowind[ k ];
+  const int j = ndq_colind[ k ];
+  const double v = sign * ndq_objective[ k ];
+  if( i == j )
+   add_H( i , i , 2 * v );
+  else {
+   add_H( i , j , v );
+   add_H( j , i , v );
+   }
+  }
+
+ // the rows, dense and row-major, from the columns of MILPSolver
+ qp.A.assign( std::size_t( m ) * n , 0 );
+ for( int k = 0 ; k < n ; ++k ) {
+  const int j = qp.col[ k ];
+  for( int h = matbeg[ j ] ; h < matbeg[ j ] + matcnt[ j ] ; ++h )
+   if( const int r = qp.rpos[ matind[ h ] ] ; r >= 0 )
+    qp.A[ std::size_t( r ) * n + k ] += matval[ h ];
+  }
+
+ // the bounds of the columns, and the sides of the rows less their part
+ // on the fixed columns
+ qp.lb.resize( n );
+ qp.ub.resize( n );
+ for( int k = 0 ; k < n ; ++k ) {
+  qp.lb[ k ] = side( lb[ qp.col[ k ] ] );
+  qp.ub[ k ] = side( ub[ qp.col[ k ] ] );
+  }
+
+ qp.rl.resize( m );
+ qp.ru.resize( m );
+ for( int r = 0 ; r < m ; ++r ) {
+  const int i = qp.row[ r ];
+  qp.rl[ r ] = ( rl[ i ] <= - inf ) ? - inf : rl[ i ] - shift[ i ];
+  qp.ru[ r ] = ( ru[ i ] >= inf ) ? inf : ru[ i ] - shift[ i ];
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+std::vector< double > MILPSolver::dense_qp_x( const DenseQP & qp ,
+					      const double * x ) const
+{
+ std::vector< double > xx( qp.xfix );
+ for( int k = 0 ; k < qp.n ; ++k )
+  xx[ qp.col[ k ] ] = x[ k ];
+ return( xx );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::dense_qp_fixed_rc( const DenseQP & qp ,
+				    const std::vector< double > & x ,
+				    const std::vector< double > & pi ,
+				    std::vector< double > & rc ) const
+{
+ if( qp.n == numcols )
+  return;
+
+ std::vector< double > g( numcols , 0 );  // grad f( x ) - A' pi
+ for( int j = 0 ; j < numcols ; ++j ) {
+  g[ j ] = objective[ j ] + 2 * q_objective[ j ] * x[ j ];
+  for( int h = matbeg[ j ] ; h < matbeg[ j ] + matcnt[ j ] ; ++h )
+   g[ j ] -= matval[ h ] * pi[ matind[ h ] ];
+  }
+ for( std::size_t k = 0 ; k < ndq_objective.size() ; ++k ) {
+  const int i = ndq_rowind[ k ];
+  const int j = ndq_colind[ k ];
+  const double v = ndq_objective[ k ];
+  if( i == j )
+   g[ i ] += 2 * v * x[ i ];
+  else {
+   g[ i ] += v * x[ j ];
+   g[ j ] += v * x[ i ];
+   }
+  }
+ for( int j = 0 ; j < numcols ; ++j )
+  if( qp.pos[ j ] < 0 )
+   rc[ j ] = g[ j ];
+ }
+
+/*--------------------------------------------------------------------------*/
+
 void MILPSolver::scan_objective( const FRealObjective * obj , double w )
 {
  // DEBUG_LOG( "MILPSolver::scan_objective() " << *obj );

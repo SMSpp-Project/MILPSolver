@@ -48,21 +48,6 @@ static const std::array< std::string , 5 > DAQP_dbl_pars_str = {
  "dblDAQPEpsProx" , "dblDAQPEtaProx" };
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------------- FUNCTIONS -------------------------------*/
-/*--------------------------------------------------------------------------*/
-
-// a side of SMS++ in the format of DAQP, where an infinite one is DAQP_INF
-
-static double daqp_side( double v )
-{
- if( v >= DAQP_INF )
-  return( DAQP_INF );
- if( v <= - DAQP_INF )
-  return( - DAQP_INF );
- return( v );
- }
-
-/*--------------------------------------------------------------------------*/
 /*------------------------- FACTORY MANAGEMENT -----------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -151,150 +136,21 @@ void DAQPMILPSolver::load_problem( void )
 
  d_sign = ( objsense == -1 ) ? -1 : 1;  // DAQP minimizes
 
- // a fixed column is not given to DAQP, its value going to the sides of
- // the rows and to the linear term, unless all the columns are fixed
- d_xfix.assign( numcols , 0 );
- d_pos.assign( numcols , -1 );
- d_col.clear();
- for( int j = 0 ; j < numcols ; ++j )
-  if( ( lb[ j ] == ub[ j ] ) && std::isfinite( lb[ j ] ) )
-   d_xfix[ j ] = lb[ j ];
-  else {
-   d_pos[ j ] = d_col.size();
-   d_col.push_back( j );
-   }
- if( d_col.empty() )
-  for( int j = 0 ; j < numcols ; ++j ) {
-   d_pos[ j ] = j;
-   d_col.push_back( j );
-   }
- const int n = d_col.size();
+ // the fixed columns and the free rows are not given to DAQP
+ make_dense_qp( d_dq , d_sign , DAQP_INF );
+ const int n = d_n = d_dq.n;
+ d_m = n + d_dq.m;
 
- // the part of each row on the fixed columns, and whether the row has
- // entries on the others
- std::vector< double > shift( numrows , 0 );
- std::vector< char > used( numrows , 0 );
- for( int j = 0 ; j < numcols ; ++j )
-  for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
-   if( d_pos[ j ] >= 0 )
-    used[ matind[ k ] ] = 1;
-   else
-    shift[ matind[ k ] ] += matval[ k ] * d_xfix[ j ];
-
- // the sides of each row; a row with both sides infinite (e.g., a relaxed
- // one) is not given to DAQP, nor is one with no entries on the columns
- // that are given whose fixed part is within its sides
- std::vector< double > rbl( numrows ) , rbu( numrows );
- d_row.clear();
- d_rpos.assign( numrows , -1 );
- for( int i = 0 ; i < numrows ; ++i ) {
-  switch( sense[ i ] ) {
-   case( 'L' ): rbl[ i ] = - DAQP_INF;
-                rbu[ i ] = daqp_side( rhs[ i ] );
-                break;
-   case( 'G' ): rbl[ i ] = daqp_side( rhs[ i ] );
-                rbu[ i ] = DAQP_INF;
-                break;
-   case( 'E' ): rbl[ i ] = rbu[ i ] = rhs[ i ];
-                break;
-   case( 'R' ): if( rngval[ i ] > 0 ) {
-                 rbl[ i ] = daqp_side( rhs[ i ] );
-                 rbu[ i ] = daqp_side( rhs[ i ] + rngval[ i ] );
-                 }
-                else {
-                 rbl[ i ] = daqp_side( rhs[ i ] + rngval[ i ] );
-                 rbu[ i ] = daqp_side( rhs[ i ] );
-                 }
-                break;
-   default:
-    throw( std::invalid_argument( "DAQPMILPSolver::load_problem: row " +
-				  std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
-   }
-  if( ( rbl[ i ] <= - DAQP_INF ) && ( rbu[ i ] >= DAQP_INF ) )
-   continue;
-  if( ( ! used[ i ] ) && ( rbl[ i ] <= shift[ i ] ) &&
-      ( shift[ i ] <= rbu[ i ] ) )
-   continue;
-  d_rpos[ i ] = d_row.size();
-  d_row.push_back( i );
-  }
-
- d_n = n;
- d_m = n + d_row.size();
- d_ncols = numcols;
- d_nrows = numrows;
-
- // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
- // 1/2 x' H x + f' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k; the term
- // H_ij x_i x_j / 2 of an entry on a fixed column goes to the linear term,
- // or to the constant if both columns are fixed
- d_f.assign( n , 0 );
- d_H.assign( std::size_t( n ) * n , 0 );
- d_fconst = 0;
- auto add_H = [ & ]( int i , int j , double h ) {
-  const int pi = d_pos[ i ];
-  const int pj = d_pos[ j ];
-  if( ( pi >= 0 ) && ( pj >= 0 ) )
-   d_H[ std::size_t( pi ) * n + pj ] += h;
-  else if( pi >= 0 )
-   d_f[ pi ] += h * d_xfix[ j ] / 2;
-  else if( pj >= 0 )
-   d_f[ pj ] += h * d_xfix[ i ] / 2;
-  else
-   d_fconst += h * d_xfix[ i ] * d_xfix[ j ] / 2;
-  };
-
- for( int j = 0 ; j < numcols ; ++j ) {
-  if( d_pos[ j ] >= 0 )
-   d_f[ d_pos[ j ] ] += d_sign * objective[ j ];
-  else
-   d_fconst += d_sign * objective[ j ] * d_xfix[ j ];
-  if( q_objective[ j ] != 0 )
-   add_H( j , j , d_sign * 2 * q_objective[ j ] );
-  }
- for( std::size_t k = 0 ; k < ndq_objective.size() ; ++k ) {
-  const int i = ndq_rowind[ k ];
-  const int j = ndq_colind[ k ];
-  const double v = d_sign * ndq_objective[ k ];
-  if( i == j )
-   add_H( i , i , 2 * v );
-  else {
-   add_H( i , j , v );
-   add_H( j , i , v );
-   }
-  }
-
- // the rows, dense and row-major, from the columns of MILPSolver
- d_A.assign( std::size_t( d_m - n ) * n , 0 );
- for( int k = 0 ; k < n ; ++k ) {
-  const int j = d_col[ k ];
-  for( int h = matbeg[ j ] ; h < matbeg[ j ] + matcnt[ j ] ; ++h )
-   if( const int r = d_rpos[ matind[ h ] ] ; r >= 0 )
-    d_A[ std::size_t( r ) * n + k ] += matval[ h ];
-  }
-
- // the sides: the bounds first, then the rows less their fixed part; a
- // fixed variable and an equality row are constraints that DAQP keeps
- // active
- d_bu.resize( d_m );
- d_bl.resize( d_m );
+ // the sides: the bounds first, then the rows; a fixed variable and an
+ // equality row are constraints that DAQP keeps active
+ d_bl = d_dq.lb;
+ d_bl.insert( d_bl.end() , d_dq.rl.begin() , d_dq.rl.end() );
+ d_bu = d_dq.ub;
+ d_bu.insert( d_bu.end() , d_dq.ru.begin() , d_dq.ru.end() );
  d_fixed.assign( d_m , 0 );
- for( int k = 0 ; k < n ; ++k ) {
-  const int j = d_col[ k ];
-  d_bl[ k ] = daqp_side( lb[ j ] );
-  d_bu[ k ] = daqp_side( ub[ j ] );
-  if( lb[ j ] == ub[ j ] )
-   d_fixed[ k ] = DAQP_ACTIVE | DAQP_IMMUTABLE;
-  }
-
- for( int r = n ; r < d_m ; ++r ) {
-  const int i = d_row[ r - n ];
-  d_bl[ r ] = ( rbl[ i ] <= - DAQP_INF ) ? - DAQP_INF : rbl[ i ] - shift[ i ];
-  d_bu[ r ] = ( rbu[ i ] >= DAQP_INF ) ? DAQP_INF : rbu[ i ] - shift[ i ];
-  if( d_bl[ r ] == d_bu[ r ] )
-   d_fixed[ r ] = DAQP_ACTIVE | DAQP_IMMUTABLE;
-  }
+ for( int i = 0 ; i < d_m ; ++i )
+  if( d_bl[ i ] == d_bu[ i ] )
+   d_fixed[ i ] = DAQP_ACTIVE | DAQP_IMMUTABLE;
 
  d_x.assign( n , 0 );
  d_lam.assign( d_m , 0 );
@@ -333,8 +189,8 @@ int DAQPMILPSolver::guts_of_compute( void )
    if( d_warm_start && ( ! cold ) && ( d_ws_n == numcols ) &&
        ( d_ws.size() == std::size_t( numcols + numrows ) ) )
     for( int i = 0 ; i < d_m ; ++i ) {
-     const int ws = d_ws[ ( i < d_n ) ? d_col[ i ]
-                                      : numcols + d_row[ i - d_n ] ];
+     const int ws = d_ws[ ( i < d_n ) ? d_dq.col[ i ]
+                                      : numcols + d_dq.row[ i - d_n ] ];
      if( ( ! d_fixed[ i ] ) && ( ! ( ws & DAQP_IMMUTABLE ) ) ) {
       d_sense[ i ] |= ws & ( DAQP_ACTIVE | 2 );
       if( ws & DAQP_ACTIVE )
@@ -346,9 +202,9 @@ int DAQPMILPSolver::guts_of_compute( void )
    d_qp.n = d_n;
    d_qp.m = d_m;
    d_qp.ms = d_n;
-   d_qp.H = d_H.data();
-   d_qp.f = d_f.data();
-   d_qp.A = d_A.empty() ? nullptr : d_A.data();
+   d_qp.H = d_dq.H.data();
+   d_qp.f = d_dq.f.data();
+   d_qp.A = d_dq.A.empty() ? nullptr : d_dq.A.data();
    d_qp.bupper = d_bu.data();
    d_qp.blower = d_bl.data();
    d_qp.sense = d_sense.data();
@@ -408,13 +264,13 @@ int DAQPMILPSolver::guts_of_compute( void )
  // the value is computed here rather than taken from DAQP, whose value of a
  // problem solved by proximal-point iterations (e.g., a Linear Program) is
  // not that of the problem
- d_fval = d_fconst;
+ d_fval = d_dq.fconst;
  if( solved() )
   for( int i = 0 ; i < d_n ; ++i ) {
    double Hx = 0;
    for( int j = 0 ; j < d_n ; ++j )
-    Hx += d_H[ std::size_t( i ) * d_n + j ] * d_x[ j ];
-   d_fval += d_x[ i ] * ( d_f[ i ] + Hx / 2 );
+    Hx += d_dq.H[ std::size_t( i ) * d_n + j ] * d_x[ j ];
+   d_fval += d_x[ i ] * ( d_dq.f[ i ] + Hx / 2 );
    }
 
  return( sol_status = decode_exitflag( d_exitflag ) );
@@ -446,7 +302,7 @@ bool DAQPMILPSolver::rows_feasible( void )
 {
  // copies of all that DAQP is given, which its setup may change in place
  std::vector< double > f0( d_n , 0 );
- std::vector< double > H( d_H ) , A( d_A ) , bu( d_bu ) , bl( d_bl );
+ std::vector< double > H( d_dq.H ) , A( d_dq.A ) , bu( d_bu ) , bl( d_bl );
  std::vector< int > sense( d_fixed );
  DAQPProblem qp = d_qp;
  qp.H = H.data();
@@ -478,12 +334,13 @@ void DAQPMILPSolver::free_workspace( void )
 
  // the working set, for the next start, on all the columns and rows of
  // MILPSolver (0 on those that DAQP has not been given)
- d_ws.assign( d_ncols + d_nrows , 0 );
+ const int nc = d_dq.pos.size();
+ d_ws.assign( nc + d_dq.rpos.size() , 0 );
  for( int k = 0 ; k < d_work.m ; ++k )
-  d_ws[ ( k < d_work.n ) ? d_col[ k ]
-                         : d_ncols + d_row[ k - d_work.n ] ] =
+  d_ws[ ( k < d_work.n ) ? d_dq.col[ k ]
+                         : nc + d_dq.row[ k - d_work.n ] ] =
    d_work.sense[ k ];
- d_ws_n = d_ncols;
+ d_ws_n = nc;
 
  d_work.settings = nullptr;  // they are ours
  free_daqp_workspace( & d_work );
@@ -554,11 +411,7 @@ void DAQPMILPSolver::get_var_solution( Configuration * solc )
   throw( std::logic_error( "DAQPMILPSolver::get_var_solution: "
 			   "no solution available" ) );
 
- std::vector< double > x( d_xfix );
- for( int k = 0 ; k < d_n ; ++k )
-  x[ d_col[ k ] ] = d_x[ k ];
-
- MILPSolver::write_var_solution( x , solc );
+ MILPSolver::write_var_solution( dense_qp_x( d_dq , d_x.data() ) , solc );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -592,39 +445,12 @@ void DAQPMILPSolver::get_dual_solution( Configuration * solc )
  // H x + f + A' lam zero
  std::vector< double > pi( numrows , 0 );
  for( int r = d_n ; r < d_m ; ++r )
-  pi[ d_row[ r - d_n ] ] = - d_sign * d_lam[ r ];
+  pi[ d_dq.row[ r - d_n ] ] = - d_sign * d_lam[ r ];
 
  std::vector< double > rc( numcols , 0 );
  for( int k = 0 ; k < d_n ; ++k )
-  rc[ d_col[ k ] ] = - d_sign * d_lam[ k ];
-
- if( d_n < numcols ) {
-  std::vector< double > x( d_xfix );
-  for( int k = 0 ; k < d_n ; ++k )
-   x[ d_col[ k ] ] = d_x[ k ];
-
-  std::vector< double > g( numcols , 0 );  // H x + f + A' lam
-  for( int j = 0 ; j < numcols ; ++j ) {
-   g[ j ] = d_sign * ( objective[ j ] + 2 * q_objective[ j ] * x[ j ] );
-   for( int h = matbeg[ j ] ; h < matbeg[ j ] + matcnt[ j ] ; ++h )
-    if( const int r = d_rpos[ matind[ h ] ] ; r >= 0 )
-     g[ j ] += matval[ h ] * d_lam[ d_n + r ];
-   }
-  for( std::size_t k = 0 ; k < ndq_objective.size() ; ++k ) {
-   const int i = ndq_rowind[ k ];
-   const int j = ndq_colind[ k ];
-   const double v = d_sign * ndq_objective[ k ];
-   if( i == j )
-    g[ i ] += 2 * v * x[ i ];
-   else {
-    g[ i ] += v * x[ j ];
-    g[ j ] += v * x[ i ];
-    }
-   }
-  for( int j = 0 ; j < numcols ; ++j )
-   if( d_pos[ j ] < 0 )
-    rc[ j ] = d_sign * g[ j ];
-  }
+  rc[ d_dq.col[ k ] ] = - d_sign * d_lam[ k ];
+ dense_qp_fixed_rc( d_dq , dense_qp_x( d_dq , d_x.data() ) , pi , rc );
 
  MILPSolver::write_dual_solution( pi , rc , solc );
  }

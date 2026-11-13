@@ -1197,6 +1197,64 @@ class MILPSolver : public CDASolver
  double variable_weight( const Variable * var , const Constraint * con ) const;
 
 /*--------------------------------------------------------------------------*/
+ /// the problem as a dense QP on its free part alone
+ /** The problem written for a back-end that takes H and A dense [see
+  * make_dense_qp()]: a column with equal bounds is not in it, its value
+  * going to the sides of the rows and to the linear term, nor is a row with
+  * both sides infinite (e.g., a relaxed one), or one with entries on fixed
+  * columns alone whose value is within its sides, so that the dense
+  * factorizations of the back-end are paid on the free part of the problem
+  * alone (e.g., in a hierarchical QP whose levels fix the slacks of the
+  * levels before them). If all the columns are fixed, all of them are in
+  * it, the back-ends needing at least one. */
+
+ struct DenseQP {
+  int n = 0;                     ///< number of columns of the QP
+  int m = 0;                     ///< number of rows of the QP
+  std::vector< int > col;        ///< the column of MILPSolver of each one
+  std::vector< int > row;        ///< the row of MILPSolver of each one
+  std::vector< int > pos;        ///< the column of the QP, or -1
+  std::vector< int > rpos;       ///< the row of the QP, or -1
+  std::vector< double > xfix;    ///< the value of each fixed column, or 0
+  std::vector< double > H;       ///< the n x n Hessian, row-major
+  std::vector< double > f;       ///< the linear term
+  double fconst = 0;             ///< the constant of the objective
+  std::vector< double > A;       ///< the m x n rows, row-major
+  std::vector< double > lb;      ///< the lower bounds of the columns
+  std::vector< double > ub;      ///< the upper bounds of the columns
+  std::vector< double > rl;      ///< the lower sides of the rows
+  std::vector< double > ru;      ///< the upper sides of the rows
+  };
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// writes the problem loaded as a DenseQP
+ /** The objective of the QP is \f$ \frac{1}{2} x^\top H x + f^\top x +
+  * f_0 \f$, \p sign times that of the problem (-1 to minimize the opposite
+  * of an objective to be maximized), and a side of \p inf or more in
+  * absolute value is written as \f$ \pm \f$ \p inf, the infinity of the
+  * back-end. */
+
+ void make_dense_qp( DenseQP & qp , int sign , double inf ) const;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the columns of MILPSolver out of those of a DenseQP
+
+ [[nodiscard]] std::vector< double > dense_qp_x( const DenseQP & qp ,
+                                                 const double * x ) const;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the reduced costs of the columns fixed in a DenseQP
+ /** Given the solution \p x and the multipliers \p pi of the rows, both on
+  * the columns and rows of MILPSolver, writes in \p rc, for each column
+  * that is not in \p qp, the multiplier of its bound, i.e., the component
+  * of \f$ \nabla f( x ) - A^\top \pi \f$ on it, f being the objective of
+  * the problem. */
+
+ void dense_qp_fixed_rc( const DenseQP & qp , const std::vector< double > & x ,
+                         const std::vector< double > & pi ,
+                         std::vector< double > & rc ) const;
+
+/*--------------------------------------------------------------------------*/
  /// MILPSolver handles a change of the weights of a sub-Block
  /** A BlockWeightMod coming from a sub-Block [see Block::set_weight()] has
   * the problem loaded again, with the new weights, as a NBModification. */

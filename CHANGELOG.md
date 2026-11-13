@@ -31,12 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `DAQPMILPSolver` does not give DAQP the columns with equal bounds, whose
-  values go to the sides of the rows and to the linear term, nor the rows
-  with both sides infinite, so that its dense factorizations are paid on
-  the free part of the problem alone; on the hierarchical QPs of
-  `HQPSolver`, whose levels fix the slacks of the levels before them, a
-  solve is about 10 times as fast
+- `DAQPMILPSolver` and `QPOASESMILPSolver` do not give their solver the
+  columns with equal bounds, whose values go to the sides of the rows and
+  to the linear term, nor the rows with both sides infinite, so that the
+  dense factorizations are paid on the free part of the problem alone; the
+  problem is written by the new `MILPSolver::make_dense_qp()`, which both
+  use; on the hierarchical QPs of `HQPSolver`, whose levels fix the slacks
+  of the levels before them, a solve of DAQP is about 10 times as fast and
+  one of qpOASES about 6 times
 
 - `test_farkas` checks `PIQPMILPSolver` on the linear programs too, as PIQP
   0.7.0 gives a certificate of their infeasibility (up to 0.6.4 it stops at

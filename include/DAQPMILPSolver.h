@@ -67,12 +67,9 @@ namespace SMSpp_di_unipi_it
  * typically solved many times with small changes, where an active-set
  * method is at its best, since the working set of the previous solution is
  * a good start for the next one (see intDAQPWarmStart); the iterations of
- * DAQP in the last compute() are given by get_elapsed_iterations(). A
- * column with equal bounds is not given to DAQP, its value going to the
- * sides of the rows and to the linear term, and neither is a row with both
- * sides infinite (e.g., a relaxed one), so that the dense factorizations of
- * DAQP are paid on the free part of the problem alone (e.g., in a
- * hierarchical QP whose levels fix the slacks of the levels before them).
+ * DAQP in the last compute() are given by get_elapsed_iterations(). DAQP
+ * is given the problem without its fixed columns and its free rows [see
+ * MILPSolver::DenseQP].
  *
  * The following restrictions apply:
  *
@@ -329,25 +326,11 @@ class DAQPMILPSolver : public MILPSolver
  int d_m = 0;                    ///< number of constraints, bounds included
  double d_sign = 1;              ///< -1 if a maximization was negated
 
- std::vector< double > d_H;      ///< dense Hessian, row-major
- std::vector< double > d_f;      ///< linear term
- std::vector< double > d_A;      ///< dense rows, row-major
+ DenseQP d_dq;                   ///< the problem [see make_dense_qp()]
  std::vector< double > d_bu;     ///< upper sides: bounds, then rows
  std::vector< double > d_bl;     ///< lower sides: bounds, then rows
  std::vector< int > d_sense;     ///< sense of each constraint
  std::vector< int > d_fixed;     ///< sense the problem fixes (equalities)
- double d_fconst = 0;            ///< objective on the fixed columns
-
- // the columns and rows of MILPSolver that DAQP is given [see
- // load_problem()]
-
- int d_ncols = 0;                ///< number of columns of MILPSolver
- int d_nrows = 0;                ///< number of rows of MILPSolver
- std::vector< int > d_col;       ///< the column of each variable of DAQP
- std::vector< int > d_row;       ///< the row of each row of DAQP
- std::vector< int > d_pos;       ///< the variable of each column, or -1
- std::vector< int > d_rpos;      ///< the row of DAQP of each row, or -1
- std::vector< double > d_xfix;   ///< the value of each fixed column
 
  DAQPProblem d_qp{};             ///< the problem DAQP is given
  DAQPSettings d_settings{};      ///< the settings DAQP is given

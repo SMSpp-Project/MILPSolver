@@ -83,7 +83,8 @@ namespace SMSpp_di_unipi_it
  * one is at its best (see intQPOASESHotStart); the iterations of qpOASES in
  * the last compute(), i.e., its working set recalculations, those of a hot
  * start repeated from scratch included, are given by
- * get_elapsed_iterations().
+ * get_elapsed_iterations(). qpOASES is given the problem without its fixed
+ * columns and its free rows [see MILPSolver::DenseQP].
  *
  * The following restrictions apply:
  *
@@ -391,13 +392,7 @@ class QPOASESMILPSolver : public MILPSolver
 
  // the problem as loaded from the Block
 
- std::vector< double > d_H;      ///< dense Hessian, row-major
- std::vector< double > d_g;      ///< linear term
- std::vector< double > d_A;      ///< dense rows, row-major
- std::vector< double > d_lb;     ///< lower bounds on the variables
- std::vector< double > d_ub;     ///< upper bounds on the variables
- std::vector< double > d_lbA;    ///< lower sides of the rows
- std::vector< double > d_ubA;    ///< upper sides of the rows
+ DenseQP d_dq;                   ///< the problem [see make_dense_qp()]
 
  // qpOASES works on the H and A it is given rather than on copies, and
  // regularizes H in place, hence it is given copies of them; a hot start
@@ -415,6 +410,7 @@ class QPOASESMILPSolver : public MILPSolver
  bool d_qp_solved = false;       ///< true if d_qp has been solved
  bool d_new_options = false;     ///< true if d_options changed after it
 
+ bool d_same = false;            ///< true if d_qp has the same structure
  bool d_guess = false;           ///< true if the guess below is to be used
  std::vector< double > d_guess_x;  ///< guessed solution, from the previous
  std::vector< double > d_guess_y;  ///< guessed multipliers, bounds then rows
