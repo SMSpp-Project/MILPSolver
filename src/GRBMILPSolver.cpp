@@ -1144,19 +1144,21 @@ int GRBMILPSolver::guts_of_compute( void )
  // a simplex started from the basis of the previous solve may stop on
  // numerical troubles that a solve from scratch does not meet, e.g., on a
  // master of a cutting-plane method with a few hundred cuts: one more try
- // with no basis. The same holds for a continuous model that the simplex
+ // with no basis. The same holds for a continuous QP that the simplex
  // started from that basis calls infeasible, while a solve from scratch
- // finds it optimal (the dual simplex of 13.0 on a QP); not for a MIP,
- // whose solve from scratch is a whole branch-and-bound. Only an optimal
- // solution overturns the first answer: whatever else the solve from
- // scratch says (e.g., that it stops on numerical troubles), the model
- // stays infeasible, as the master problem of a bundle method with t so
- // small that 1 / t is enormous
+ // finds it optimal (the dual simplex of 13.0); not for an LP, whose every
+ // infeasible solve (e.g., a subproblem of a decomposition that asks for a
+ // feasibility cut) would be done twice, the second time with no basis,
+ // nor for a MIP, whose solve from scratch is a whole branch-and-bound.
+ // Only an optimal solution overturns the first answer: whatever else the
+ // solve from scratch says (e.g., that it stops on numerical troubles), the
+ // model stays infeasible, as the master problem of a bundle method with t
+ // so small that 1 / t is enormous
  int is_mip = 0;
  if( ( m_status == GRB_INFEASIBLE ) || ( m_status == GRB_NUMERIC ) )
   GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_MIP , & is_mip );
  if( ( m_status == GRB_NUMERIC ) ||
-     ( ( m_status == GRB_INFEASIBLE ) && ( ! is_mip ) ) ) {
+     ( ( m_status == GRB_INFEASIBLE ) && ( ! is_mip ) && is_qp ) ) {
   const int first = m_status;
   GRBreset( model , 0 );
   if( int status = optimize( updated_model() , elapsed_iter ) ) {
