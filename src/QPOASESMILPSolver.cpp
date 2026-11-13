@@ -297,6 +297,18 @@ int QPOASESMILPSolver::guts_of_compute( void )
   }
  d_guess = false;
 
+ // with a singular H and no regularization qpOASES may cycle until the
+ // limit on the working set recalculations, which is only a safeguard when
+ // intMaxIter is not set (as on the dual of an SVM with more samples than
+ // features): the solve is then repeated from scratch with the H
+ // regularized, which the problem of qpOASES keeps for its hot starts
+ if( ( d_status == kStopIter ) && ( d_max_iter == Inf< int >() ) &&
+     ( d_hessian_type != 1 ) && ( ! d_options->enableRegularisation ) ) {
+  d_options->enableRegularisation = qpOASES::BT_TRUE;
+  d_status = solve_from_scratch();
+  d_options->enableRegularisation = qpOASES::BT_FALSE;
+  }
+
  d_qp_solved = ( d_status == kOK );
 
  if( d_qp_solved ) {

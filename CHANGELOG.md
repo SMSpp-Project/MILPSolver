@@ -62,6 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `QPOASESMILPSolver` repeats from scratch with the regularization of
+  qpOASES a solve that ends at the limit on the working set recalculations
+  when `intMaxIter` is not set, as qpOASES does when it cycles on a
+  singular H (the dual of an SVM with more samples than features), rather
+  than answering `kStopIter`
+
 - `DAQPMILPSolver` repeats from scratch with 10 and then 100 times as large
   a `cycle_tol` a solve that DAQP ends as cycling, which with a singular H
   it may do on a problem that it then solves (the dual of an SVM with more

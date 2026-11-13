@@ -163,7 +163,9 @@ class QPOASESMILPSolver : public MILPSolver
   /**< If 1, H is added dblQPOASESEpsReg times its norm on the diagonal
    * whenever it is known to be semidefinite or zero; a zero H has it 1 in
    * any case. Note that the regularized problem of an unbounded one has a
-   * finite solution, far from the origin. */
+   * finite solution, far from the origin. If 0, a solve that ends at the
+   * limit on the working set recalculations when intMaxIter is not set
+   * (qpOASES cycling on a singular H) is repeated with it 1. */
   intQPOASESEnableReg ,
   /// number of refinements of the solution of a regularized problem
   intQPOASESRegSteps ,
