@@ -239,7 +239,12 @@ int DAQPMILPSolver::guts_of_compute( void )
  // unbounded or infeasible on a problem that a solve from scratch finds
  // optimal (DAQP 0.11 after one iteration, on a master problem of a
  // cutting-plane method whose components start empty): one more try with
- // no working set
+ // no working set; likewise a solve that DAQP gives up as cycling, which
+ // with a singular H it may do on a problem it then solves when allowed
+ // more cycles (an SVM dual with more samples than features), is repeated
+ // from scratch with 10 and then 100 times as many
+ const int cycle_tol = d_settings.cycle_tol;
+ int retry = 0;
  for( bool cold = false ; ; cold = true ) {
   bool warm = false;  // true if the solve starts from a working set
   if( d_loaded || ( ! d_has_work ) || cold ) {
@@ -281,6 +286,7 @@ int DAQPMILPSolver::guts_of_compute( void )
     free_daqp_ldp( & d_work );
     d_exitflag = flag;
     d_loaded = false;
+    d_settings.cycle_tol = cycle_tol;
     return( sol_status = decode_exitflag( flag ) );
     }
    d_has_work = true;
@@ -304,10 +310,16 @@ int DAQPMILPSolver::guts_of_compute( void )
   d_exitflag = d_res.exitflag;
   elapsed_iter += d_res.iter;
 
+  if( ( d_exitflag == DAQP_EXIT_CYCLE ) && ( retry++ < 2 ) ) {
+   d_settings.cycle_tol = 10 * std::max( d_settings.cycle_tol , 1 );
+   continue;
+   }
+
   if( cold || ( ! warm ) || ( ( d_exitflag != DAQP_EXIT_UNBOUNDED ) &&
                               ( d_exitflag != DAQP_EXIT_INFEASIBLE ) ) )
    break;
   }
+ d_settings.cycle_tol = cycle_tol;
 
  // with a singular H (the proximal-point iterations) DAQP may take a problem
  // unbounded below for an infeasible one: the rows are feasible if the same

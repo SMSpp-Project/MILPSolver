@@ -62,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `DAQPMILPSolver` repeats from scratch with 10 and then 100 times as large
+  a `cycle_tol` a solve that DAQP ends as cycling, which with a singular H
+  it may do on a problem that it then solves (the dual of an SVM with more
+  samples than features, at small C), rather than answering `kError`
+
 - `MOSEKMILPSolver` solves a continuous QP whose convex Hessian is
   singular, which MOSEK refuses as not convex (as it does on the dual of
   SVMs with more samples than features) and with no parameter that turns

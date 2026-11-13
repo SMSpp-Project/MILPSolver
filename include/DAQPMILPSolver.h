@@ -125,6 +125,9 @@ class DAQPMILPSolver : public MILPSolver
    * the versions of DAQP (up to 0.9) that have no elimination. */
   intDAQPEqReduction ,
   /// number of non-improving iterations after which DAQP declares cycling
+  /**< The value of cycle_tol in DAQPSettings: a solve that DAQP ends as
+   * cycling is repeated from scratch with 10 and then 100 times as many
+   * (at least 10 and 100), and the value is restored after. */
   intDAQPCycleTol ,
   /// first allowed new int parameter for derived classes
   intLastAlgParDAQP
