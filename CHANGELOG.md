@@ -62,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `OSQPMILPSolver`, `PIQPMILPSolver` and `ProxQPMILPSolver` print the log
+  of their solver when `intLogVerb` is positive, which they ignored, as
+  `MILPSolver` does not keep it
+
 - `QPOASESMILPSolver` repeats from scratch with the regularization of
   qpOASES a solve that ends at the limit on the working set recalculations
   when `intMaxIter` is not set, as qpOASES does when it cycles on a

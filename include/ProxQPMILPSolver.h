@@ -279,8 +279,9 @@ class ProxQPMILPSolver : public MILPSolver
 /** @name Handling the parameters of ProxQPMILPSolver
  *
  * Besides those of MILPSolver and those of ProxQP above, the standard
- * intMaxIter (the iteration limit of ProxQP) and dblFAccSol (its absolute
- * tolerance on the primal and dual residuals) are handled.
+ * intMaxIter (the iteration limit of ProxQP), dblFAccSol (its absolute
+ * tolerance on the primal and dual residuals) and intLogVerb (its log on
+ * stdout if positive) are handled.
  * @{ */
 
  void set_par( idx_type par , int value ) override;

@@ -267,8 +267,9 @@ class PIQPMILPSolver : public MILPSolver
 /** @name Handling the parameters of PIQPMILPSolver
  *
  * Besides those of MILPSolver and those of PIQP above, the standard
- * intMaxIter (the iteration limit of PIQP) and dblFAccSol (its absolute
- * tolerance on the primal and dual residuals) are handled.
+ * intMaxIter (the iteration limit of PIQP), dblFAccSol (its absolute
+ * tolerance on the primal and dual residuals) and intLogVerb (its log on
+ * stdout if positive) are handled.
  * @{ */
 
  void set_par( idx_type par , int value ) override;

@@ -283,7 +283,6 @@ int PIQPMILPSolver::guts_of_compute( void )
  auto set_setup = [ this ]( piqp::Settings< double > & s ) {
   s.preconditioner_iter = d_precond_iter;
   s.preconditioner_scale_cost = d_precond_cost;
-  s.verbose = false;
   s.compute_timings = false;
   };
 
@@ -301,6 +300,7 @@ int PIQPMILPSolver::guts_of_compute( void )
   s.iterative_refinement_always_enabled = d_iter_ref;
   s.max_iter = ( d_max_iter < Inf< int >() ) ? d_max_iter
                                              : PIQP_dflt.max_iter;
+  s.verbose = ( log_verbosity > 0 );
   };
 
  // a problem with no variables is solved here, PIQP needing some
@@ -591,6 +591,7 @@ void PIQPMILPSolver::set_par( idx_type par , int value )
 {
  switch( par ) {
   case( intMaxIter ):             d_max_iter = std::max( value , 1 ); return;
+  case( intLogVerb ):             log_verbosity = value;              return;
   case( intPIQPBackend ):         d_par_backend = value ? 1 : 0;      return;
   case( intPIQPCheckDualityGap ): d_check_gap = bool( value );        return;
   case( intPIQPIterRefinement ):  d_iter_ref = bool( value );         return;
@@ -679,6 +680,7 @@ int PIQPMILPSolver::get_int_par( idx_type par ) const
 {
  switch( par ) {
   case( intMaxIter ):              return( d_max_iter );
+  case( intLogVerb ):              return( log_verbosity );
   case( intPIQPBackend ):          return( d_par_backend );
   case( intPIQPCheckDualityGap ):  return( d_check_gap );
   case( intPIQPPrecondIter ):      return( d_precond_iter );

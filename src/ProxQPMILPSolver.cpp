@@ -266,7 +266,7 @@ int ProxQPMILPSolver::guts_of_compute( void )
   s.eps_primal_inf = d_eps_primal_inf;
   s.eps_dual_inf = d_eps_dual_inf;
   s.check_duality_gap = d_check_gap;
-  s.verbose = false;
+  s.verbose = ( log_verbosity > 0 );
   };
 
  // a problem with no variables is solved here, ProxQP needing some
@@ -576,6 +576,7 @@ void ProxQPMILPSolver::set_par( idx_type par , int value )
 {
  switch( par ) {
   case( intMaxIter ): d_max_iter = std::max( value , 0 );   return;
+  case( intLogVerb ): log_verbosity = value;               return;
   case( intProxQPWarmStart ):    d_warm_start = bool( value ); return;
   case( intProxQPInitialGuess ): d_initial_guess = bool( value ); return;
   case( intProxQPBackend ):      d_par_backend = value ? 1 : 0; return;
@@ -656,6 +657,7 @@ int ProxQPMILPSolver::get_int_par( idx_type par ) const
 {
  switch( par ) {
   case( intMaxIter ):               return( d_max_iter );
+  case( intLogVerb ):               return( log_verbosity );
   case( intProxQPWarmStart ):       return( d_warm_start );
   case( intProxQPInitialGuess ):    return( d_initial_guess );
   case( intProxQPBackend ):         return( d_par_backend );
