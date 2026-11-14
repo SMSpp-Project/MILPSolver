@@ -47,7 +47,9 @@
 // include the proper GUROBI parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( GRB , GRB_VERSION_MAJOR ) , GRB_VERSION_MINOR ) , GRB_VERSION_TECHNICAL ) , _maps.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( \
+         BOOST_PP_CAT( GRB , GRB_VERSION_MAJOR ) , GRB_VERSION_MINOR ) , \
+         GRB_VERSION_TECHNICAL ) , _maps.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/

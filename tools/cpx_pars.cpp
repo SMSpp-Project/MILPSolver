@@ -288,7 +288,8 @@ int main( int argc , char ** argv )
   << " CPXMILPSolver::CPLEX_to_SMSpp_int_pars{" << std::endl
   << " {" << std::endl;
  for( const auto & i : int_parameters ) {
-  maps_file << "  { " << i.second << ", intFirstCPLEXPar + " << i.first << " },"
+  maps_file << "  { " << i.second << ", intFirstCPLEXPar + " << i.first <<
+    " },"
             << std::endl;
  }
  maps_file
@@ -301,7 +302,8 @@ int main( int argc , char ** argv )
   << " CPXMILPSolver::CPLEX_to_SMSpp_dbl_pars{" << std::endl
   << " {" << std::endl;
  for( const auto & i : dbl_parameters ) {
-  maps_file << "  { " << i.second << ", dblFirstCPLEXPar + " << i.first << " },"
+  maps_file << "  { " << i.second << ", dblFirstCPLEXPar + " << i.first <<
+    " },"
             << std::endl;
  }
  maps_file
@@ -314,7 +316,8 @@ int main( int argc , char ** argv )
   << " CPXMILPSolver::CPLEX_to_SMSpp_str_pars{" << std::endl
   << " {" << std::endl;
  for( const auto & i : str_parameters ) {
-  maps_file << "  { " << i.second << ", strFirstCPLEXPar + " << i.first << " },"
+  maps_file << "  { " << i.second << ", strFirstCPLEXPar + " << i.first <<
+    " },"
             << std::endl;
  }
  maps_file

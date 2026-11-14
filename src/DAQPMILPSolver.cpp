@@ -115,7 +115,8 @@ void DAQPMILPSolver::load_problem( void )
  // removed starts from the previous one as well; it is kept on all the
  // columns and rows of MILPSolver, those that DAQP is not given included
  if( ( d_ws_n >= 0 ) && ( ( d_ws_n != numcols ) ||
-			  ( d_ws.size() != std::size_t( numcols + numrows ) ) ) ) {
+			  ( d_ws.size() !=
+			    std::size_t( numcols + numrows ) ) ) ) {
   const auto [ pn , pm ] = previous_sizes();
   if( ( d_ws_n == pn ) && ( d_ws.size() == std::size_t( pn + pm ) ) ) {
    std::vector< int > ws( numcols + numrows , 0 );

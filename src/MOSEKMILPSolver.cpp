@@ -40,7 +40,9 @@
 
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( MOSEK , MSK_VERSION_MAJOR ) , MSK_VERSION_MINOR ) , MSK_VERSION_REVISION ) , _maps.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( \
+         BOOST_PP_CAT( MOSEK , MSK_VERSION_MAJOR ) , MSK_VERSION_MINOR ) , \
+         MSK_VERSION_REVISION ) , _maps.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/

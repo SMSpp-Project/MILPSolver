@@ -528,7 +528,8 @@ int main( int argc , char **argv )
  //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  #if( LOG_LEVEL >= 3 )
    NCCB.get_registered_solvers().front()->set_par(
-		                     MILPSolver::strOutputFile , "NCCBlock.lp" );
+		                     MILPSolver::strOutputFile ,
+				     "NCCBlock.lp" );
  #endif
 
  // first solver call - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

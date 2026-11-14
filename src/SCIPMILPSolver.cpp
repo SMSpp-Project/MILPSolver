@@ -55,7 +55,9 @@
 // include the proper SCIP parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( SCIP , SCIP_VERSION_MAJOR ) , SCIP_VERSION_MINOR ) , SCIP_VERSION_PATCH ) , _maps.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( \
+         BOOST_PP_CAT( SCIP , SCIP_VERSION_MAJOR ) , SCIP_VERSION_MINOR ) , \
+         SCIP_VERSION_PATCH ) , _maps.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -3735,7 +3737,7 @@ SCIPMILPSolver_CBK::SCIPMILPSolver_CBK( SCIP* scip,
                     
  if( rhs.empty() ){
   *result = enforce ? SCIP_FEASIBLE : SCIP_DIDNOTFIND;
-  return SCIP_OKAY;
+  return( SCIP_OKAY );
  }
 
  assert(rmatbeg.size() == rhs.size() + 1);
@@ -3832,7 +3834,7 @@ SCIP_DECL_CONSENFOLP(SCIPMILPSolver_CBK::scip_enfolp)
       result
    ) );
 
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -3849,7 +3851,7 @@ SCIP_DECL_CONSSEPALP(SCIPMILPSolver_CBK::scip_sepalp)
  if( ( ( ! depth ) && ( ! ( DepthPar & 1 ) ) ) ||
    ( depth && ( ! ( DepthPar & 2 ) ) ) ){
     *result = SCIP_DIDNOTRUN;
-    return SCIP_OKAY;
+    return( SCIP_OKAY );
   }
 
  SCIP_CALL( scipmilpsolver_separation ( scip, conshdlr , parent_scipmilpsolver,
@@ -3864,7 +3866,7 @@ SCIP_DECL_CONSSEPALP(SCIPMILPSolver_CBK::scip_sepalp)
 SCIP_DECL_CONSENFOPS(SCIPMILPSolver_CBK::scip_enfops)
 {  /*lint --e{715}*/
    *result = SCIP_SOLVELP;
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 }
 
 /** feasibility check method of constraint handler for primal solutions */
@@ -3881,7 +3883,7 @@ SCIP_DECL_CONSCHECK(SCIPMILPSolver_CBK::scip_check)
       result
    ) );
 
-   return SCIP_OKAY;
+   return( SCIP_OKAY );
 
    return( SCIP_OKAY );
 }

@@ -144,7 +144,8 @@ int main( int argc , char ** argv )
  // }
 
  std::string HiGHS_VERSION =
-  std::to_string( HIGHS_VERSION_MAJOR ) + std::to_string( HIGHS_VERSION_MINOR ) +
+  std::to_string( HIGHS_VERSION_MAJOR ) +
+  std::to_string( HIGHS_VERSION_MINOR ) +
   std::to_string( HIGHS_VERSION_PATCH );
 
  std::string defs_filename = "HiGHS" + HiGHS_VERSION + "_defs.h";
@@ -176,7 +177,8 @@ int main( int argc , char ** argv )
   std::cout << "HiGHS_VERSION is " << HiGHS_VERSION << std::endl;
  }
 
- for( int i = 0 ; Highs_getOptionName( highsenv , i , &name ) == kHighsStatusOk ;
+ for( int i = 0 ;
+      Highs_getOptionName( highsenv , i , &name ) == kHighsStatusOk ;
              ++i ) {
 
   if( strlen( name ) == 0 ) {

@@ -36,7 +36,9 @@
 // Include the proper MOSEK parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( MOSEK , MSK_VERSION_MAJOR ) , MSK_VERSION_MINOR ) , MSK_VERSION_REVISION ) , _defs.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( \
+         BOOST_PP_CAT( MOSEK , MSK_VERSION_MAJOR ) , MSK_VERSION_MINOR ) , \
+         MSK_VERSION_REVISION ) , _defs.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -427,8 +429,8 @@ class MOSEKMILPSolver : public MILPSolver {
   * Gram matrix X X^T of more samples than features, may be refused by the
   * check of convexity of MOSEK, whose Cholesky factorization takes the
   * rounding for a negative eigenvalue, and which no parameter turns off
-  * (MOSEK 12 at least). Then the model is solved again with the diagonal of the
-  * Hessian shifted by these multiples of its largest absolute entry, one
+  * (MOSEK 12 at least). Then the model is solved again with the diagonal of
+  * the Hessian shifted by these multiples of its largest absolute entry, one
   * after the other until MOSEK takes it, and the Hessian goes back to what
   * it was at the next solve. The solution is that of the shifted model, and
   * its value has the term of the shift, which these multiples keep below

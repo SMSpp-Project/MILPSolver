@@ -137,8 +137,8 @@ std::string normalize_source_path( const std::string & p )
  if( file_exists( pp + "/PIPS-IPM/Core/Options/PIPSIPMppOptions.C" ) )
   return( pp + "/PIPS-IPM/Core/Options" );
 
- throw std::runtime_error( "Could not locate PIPS-IPM/Core/Options from "
-  "path: " + p );
+ throw( std::runtime_error( "Could not locate PIPS-IPM/Core/Options from "
+  "path: " + p ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -159,9 +159,9 @@ std::string find_source_path()
   catch( const std::exception & ) {}
  }
 
- throw std::runtime_error(
+ throw( std::runtime_error(
   "Could not automatically locate PIPS-IPM/Core/Options. "
-  "Use -s or --source to specify it." );
+  "Use -s or --source to specify it." ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -275,8 +275,8 @@ std::string read_file( const std::string & filename )
 {
  std::ifstream file( filename );
  if( ! file )
-  throw std::runtime_error( "Could not open " + filename + ": " +
-                            std::strerror( errno ) );
+  throw( std::runtime_error( "Could not open " + filename + ": " +
+                             std::strerror( errno ) ) );
 
  return( std::string( std::istreambuf_iterator< char >( file ) ,
                       std::istreambuf_iterator< char >() ) );
@@ -538,7 +538,8 @@ bool is_floating_literal( const std::string & arg )
   return( true );
 
  static const std::regex floating_regex(
-  R"((^|[^A-Za-z0-9_])([+-]?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+))([^A-Za-z0-9_]|$))" );
+  R"((^|[^A-Za-z0-9_])([+-]?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+))"
+  R"((?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+))([^A-Za-z0-9_]|$))" );
 
  if( std::regex_search( value , floating_regex ) )
   return( true );
@@ -798,17 +799,17 @@ int main( int argc , char ** argv )
                             int_counter , dbl_counter , str_counter );
 
  if( int_counter + dbl_counter + str_counter == 0 )
-  throw std::runtime_error(
+  throw( std::runtime_error(
    "No PIPS-IPM++ options were found. Check that -s points to the source "
    "tree containing Core/Options/PIPSIPMppOptions.C, and run with -v to see "
-   "which file is parsed." );
+   "which file is parsed." ) );
 
  // Generate defs file
  std::ofstream defs_file;
  defs_file.open( defs_path );
  if( ! defs_file )
-  throw std::runtime_error( "Could not open output file " + defs_path + ": " +
-                            std::strerror( errno ) );
+  throw( std::runtime_error( "Could not open output file " + defs_path + ": " +
+                             std::strerror( errno ) ) );
 
  defs_file << "/* FILE GENERATED AUTOMATICALLY, DO NOT EDIT */" << std::endl
            << std::endl
@@ -831,8 +832,8 @@ int main( int argc , char ** argv )
  std::ofstream maps_file;
  maps_file.open( maps_path );
  if( ! maps_file )
-  throw std::runtime_error( "Could not open output file " + maps_path + ": " +
-                            std::strerror( errno ) );
+  throw( std::runtime_error( "Could not open output file " + maps_path + ": " +
+                             std::strerror( errno ) ) );
 
  maps_file << "/* FILE GENERATED AUTOMATICALLY, DO NOT EDIT */" << std::endl
            << std::endl
