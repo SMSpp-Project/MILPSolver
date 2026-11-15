@@ -71,6 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `CPXMILPSolver::has_dual_direction()` answers no on a problem with
+  quadratic rows without asking CPLEX for a Farkas certificate, which it
+  does not give there and whose request wrote "CPLEX Error 1031: Not
+  available for QCP" in its log (e.g., after each solve of the SOCP
+  formulation of a `SingleFlowDCRBlock`); `test_qcp_dual` looks for errors
+  in the log of CPLEX
+
 - `OSQPMILPSolver`, `PIQPMILPSolver` and `ProxQPMILPSolver` print the log
   of their solver when `intLogVerb` is positive, which they ignored, as
   `MILPSolver` does not keep it

@@ -3,7 +3,8 @@
 #
 # ComputeConfig of CPXMILPSolver in LPPar-qcp.txt: that of LPCfg-all.txt,
 # with the duals of the quadratic rows computed, which the back-end does
-# not give otherwise
+# not give otherwise, and the log of the back-end in a file, where
+# test_qcp_dual looks for the errors of the queries that follow the solve
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -22,10 +23,10 @@ CPXPARAM_Preprocessing_QCPDuals  2  # CPX_QCPDUALS_FORCE
 # now all the double parameters
 # [none]
 
-0  # number of string parameters
+1  # number of string parameters
 
 # now all the string parameters
-# [none]
+strLogFileName  test_qcp_dual-CPX.log  # the log of the back-end
 
 0  # number of vector-of-int parameters
 

@@ -1909,6 +1909,11 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
 
 bool CPXMILPSolver::has_dual_direction( void )
 {
+ // CPLEX gives no Farkas certificate of a problem with quadratic rows, and
+ // asking for one writes an error in its log
+ if( numquadrows > 0 )
+  return( false );
+
  std::vector< double > y( numrows , 0 );
  double proof = 0;
  return( ! bool( CPXdualfarkas( env , lp , y.data() , & proof ) ) );
@@ -1931,14 +1936,6 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
   throw( std::runtime_error(
              "CPXMILPSolver::get_dual_direction: "
              "an error occurred in CPXdualfarkas()" ) );
-
- // the second output of CPXdualfarkas is the value the dual objective takes
- // along the certificate, in the sign convention of y, which here is the one
- // of CPXgetpi and is therefore left alone: for min 0 s.t. x >= 2 , x <= -3
- // with x free, y is ( 1 , -1 ) and the value is 5 = y' b, the same number
- // Gurobi reports once its own y is flipped
- // [see MILPSolver::f_dual_direction_value]
- f_dual_direction_value = proof;
 
  // the second output of CPXdualfarkas is the value the dual objective takes
  // along the certificate, in the sign convention of y, which here is the one
