@@ -231,12 +231,7 @@ void MOSEKMILPSolver::load_problem( void )
  MILPSolver::load_problem();
 
  // the problems MOSEKMILPSolver does not take are refused before anything
- // reaches the task: with quadratic rows MILPSolver stores the matrix by
- // rows, which would be misread below
- if( numquadrows > 0 )
-  throw( std::invalid_argument( "MOSEKMILPSolver::load_problem: "
-				"quadratic constraints are not supported" ) );
-
+ // reaches the task
  for( int j = 0 ; j < numcols ; ++j )
   if( ( xctype[ j ] == 'S' ) || ( xctype[ j ] == 'N' ) )
    throw( std::invalid_argument(
@@ -285,14 +280,22 @@ void MOSEKMILPSolver::load_problem( void )
   check( MSK_putvarboundslice( task , 0 , numcols , bk.data() , bl.data() ,
 			       bu.data() ) , "load_problem" );
 
-  // the matrix, by columns, as MILPSolver keeps it
-  std::vector< MSKint32t > ptre( numcols );
-  for( int j = 0 ; j < numcols ; ++j )
+  // the matrix as MILPSolver keeps it: by columns, or by rows if there
+  // are quadratic rows
+  const int nm = ( numquadrows > 0 ) ? numrows : numcols;
+  std::vector< MSKint32t > ptre( nm );
+  for( int j = 0 ; j < nm ; ++j )
    ptre[ j ] = matbeg[ j ] + matcnt[ j ];
-  if( ! matval.empty() )
-   check( MSK_putacolslice( task , 0 , numcols , matbeg.data() ,
-			    ptre.data() , matind.data() , matval.data() ) ,
-	  "load_problem" );
+  if( ! matval.empty() ) {
+   if( numquadrows > 0 )
+    check( MSK_putarowslice( task , 0 , numrows , matbeg.data() ,
+			     ptre.data() , matind.data() , matval.data() ) ,
+	   "load_problem" );
+   else
+    check( MSK_putacolslice( task , 0 , numcols , matbeg.data() ,
+			     ptre.data() , matind.data() , matval.data() ) ,
+	   "load_problem" );
+   }
 
   // the type of the columns
   std::vector< MSKint32t > cols( numcols );
@@ -341,6 +344,24 @@ void MOSEKMILPSolver::load_problem( void )
  // the quadratic part of the objective
  generate_qobj_hessian();
  pass_hessian();
+
+ // the quadratic part of each quadratic row: MILPSolver has the
+ // coefficient of x_i x_j once for each pair, while MOSEK takes the lower
+ // triangle of Q in 1/2 x' Q x, i.e., the same coefficient off the diagonal
+ // and twice it on the diagonal
+ for( int i = 0 ; ( numquadrows > 0 ) && ( i < numrows ) ; ++i ) {
+  if( q_part[ i ].empty() )
+   continue;
+  std::vector< MSKint32t > qi , qj;
+  std::vector< double > qv;
+  for( const auto & [ ij , v ] : q_part[ i ] ) {
+   qi.push_back( std::max( ij.first , ij.second ) );
+   qj.push_back( std::min( ij.first , ij.second ) );
+   qv.push_back( ( ij.first == ij.second ) ? 2 * v : v );
+   }
+  check( MSK_putqconk( task , i , qv.size() , qi.data() , qj.data() ,
+		       qv.data() ) , "load_problem" );
+  }
 
  if( use_custom_names ) {
   for( int j = 0 ; j < numcols ; ++j )

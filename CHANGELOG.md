@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `MOSEKMILPSolver` takes the rows with a quadratic Function, convex ones,
+  which it refused: their linear part goes to the matrix of MOSEK, given
+  by rows as `MILPSolver` keeps it then, and their quadratic part to the
+  constraint by `MSK_putqconk()`
+
 - `PIQPMILPSolver` gives the certificates of the versions of PIQP after
   0.6.4, which test them instead of the heuristic criterion: the ray of an
   unbounded problem in `get_var_direction()` and the Farkas certificate of

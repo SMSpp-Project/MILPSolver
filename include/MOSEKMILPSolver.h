@@ -57,8 +57,9 @@ namespace SMSpp_di_unipi_it {
 /// class for solving MILP and convex MIQP problems via MOSEK
 /** The MOSEKMILPSolver class derives from MILPSolver and extends the base
  * class to solve, using the Optimizer API for C of MOSEK, the problems with
- * linear constraints and a linear or convex quadratic objective, with or
- * without integer Variable, i.e., LP, QP, MILP and MIQP.
+ * linear or convex quadratic constraints and a linear or convex quadratic
+ * objective, with or without integer Variable, i.e., LP, QP, QCQP and their
+ * mixed-integer versions.
  *
  * The MOSEKMILPSolver can be registered to any kind of Block (assuming that
  * it contains such a formulation): it uses the base class to build the
@@ -83,9 +84,16 @@ namespace SMSpp_di_unipi_it {
  * solve. A non-convex \f$ Q \f$ makes the solve fail, MOSEK being a convex
  * solver.
  *
- * Constraints with a quadratic Function are not supported, and neither are
- * semi-continuous or semi-integer columns: load_problem() throws
- * std::invalid_argument if the Block has any. MOSEK has no callback through
+ * A row with a quadratic Function (a QuadFunction or a DQuadFunction),
+ * \f$ l \leq a^\top x + x^\top Q x \leq u \f$, is given to MOSEK with its
+ * linear part in the matrix and the lower triangle of \f$ 2 Q \f$ as its
+ * quadratic part; MOSEK takes it only if it is convex, i.e., \f$ Q \f$
+ * positive semidefinite with \f$ l = - \infty \f$ (or negative
+ * semidefinite with \f$ u = + \infty \f$), and the solve fails otherwise.
+ * As in MILPSolver, a problem with quadratic rows is loaded again when rows
+ * or columns come or go. Semi-continuous and semi-integer columns are not
+ * supported: load_problem() throws std::invalid_argument if the Block has
+ * any. MOSEK has no callback through
  * which user cuts or lazy constraints can be given to the branch-and-bound,
  * hence a MIP solve with intCutSepPar asking for separation throws
  * std::invalid_argument as well; with intRelaxIntVars == 2 the separation
