@@ -1861,6 +1861,18 @@ class MILPSolver : public CDASolver
 
  virtual bool reload_on_modification( void ) { return( false ); }
 
+ /// whether the back-end changes the sides of a nonlinear row in place
+ /** A change of the Function of a row that is not a LinearFunction makes
+  * the problem be loaded again whole by every back-end, and so does a change
+  * of the sides of such a row (or its relaxation) unless this returns true,
+  * i.e., unless the back-end keeps the sides of these rows as those of the
+  * linear ones. */
+
+ virtual bool nonlinear_row_sides_in_place( void ) const
+ {
+  return( false );
+  }
+
  /// process all not-GroupModification (bulk of the work)
  void guts_of_process_modifications( const p_Mod mod );
 

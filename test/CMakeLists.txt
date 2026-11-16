@@ -96,6 +96,13 @@ add_test(NAME test_quad_modify
          COMMAND test_quad_modify
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_quad_row_modify ------------------------------------------------ #
+
+add_milp_test(test_quad_row_modify test_quad_row_modify.cpp)
+add_test(NAME test_quad_row_modify
+         COMMAND test_quad_row_modify
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_qp ------------------------------------------------------------- #
 
 add_milp_test(test_qp test_qp.cpp)

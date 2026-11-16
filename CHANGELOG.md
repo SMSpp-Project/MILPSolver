@@ -76,6 +76,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- a change of a row whose Function is not a `LinearFunction`, of its
+  coefficients or of its Variable, loads the problem again in every
+  `:MILPSolver`, which ignored it, and so does a change of its sides or its
+  relaxation, which threw in `CPXMILPSolver` and `GRBMILPSolver` and was
+  given to SCIP as that of a linear row, but in `MOSEKMILPSolver`, which
+  changes the sides in place; `test_quad_row_modify` checks the three changes
+
 - `CPXMILPSolver::has_dual_direction()` answers no on a problem with
   quadratic rows without asking CPLEX for a Farkas certificate, which it
   does not give there and whose request wrote "CPLEX Error 1031: Not

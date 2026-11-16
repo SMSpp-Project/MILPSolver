@@ -2382,6 +2382,36 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
  if( touches_excluded_objective( mod ) )
   return;
 
+ // a change of a row whose Function is not a LinearFunction, of the
+ // Function or, for most back-ends, of the sides, is not made in place
+ // [see nonlinear_row_sides_in_place()]: the problem is loaded again
+ auto nonlinear_row = []( const Constraint * con ) {
+  auto row = dynamic_cast< const FRowConstraint * >( con );
+  return( row && row->get_function() &&
+	  ( ! dynamic_cast< const LinearFunction * >( row->get_function() ) ) );
+  };
+
+ if( auto fm = dynamic_cast< const FunctionMod * >( mod ) )
+  if( ( ! is_of( fm->function() ) ) && nonlinear_row(
+	   dynamic_cast< const Constraint * >( fm->function()->get_Observer() ) ) ) {
+   f_reset = true;
+   return;
+   }
+
+ if( auto fvm = dynamic_cast< const FunctionModVars * >( mod ) )
+  if( ( ! is_of( fvm->function() ) ) && nonlinear_row(
+	  dynamic_cast< const Constraint * >( fvm->function()->get_Observer() ) ) ) {
+   f_reset = true;
+   return;
+   }
+
+ if( auto cm = dynamic_cast< const ConstraintMod * >( mod ) )
+  if( ( ! nonlinear_row_sides_in_place() ) &&
+      nonlinear_row( cm->constraint() ) ) {
+   f_reset = true;
+   return;
+   }
+
  // for all other Modification, dispatch the appropriate virtual method
  if( auto vm = dynamic_cast< const VariableMod * >( mod ) ) {
   var_modification( vm );

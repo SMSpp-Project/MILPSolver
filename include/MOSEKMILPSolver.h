@@ -469,6 +469,12 @@ class MOSEKMILPSolver : public MILPSolver {
  /// handles a Constraint Modification
  void const_modification( const ConstraintMod * mod ) override;
 
+ /// the sides of a quadratic row are those of a linear one in MOSEK
+ bool nonlinear_row_sides_in_place( void ) const override
+ {
+  return( true );
+  }
+
  /// handles a bound (OneVarConstraint) Modification
  void bound_modification( const OneVarConstraintMod * mod ) override;
 
