@@ -1227,12 +1227,13 @@ int GRBMILPSolver::guts_of_compute( void )
    }
   }
 
- // a continuous model that stops on numerical troubles also from scratch
- // may still have a solution: it is given as the one of a GRB_SUBOPTIMAL,
- // i.e., with no accuracy promise and no bound attached to it [see get_lb()
- // and get_ub()]
+ // a model that stops on numerical troubles also from scratch may still
+ // have a solution, e.g., the incumbent of a MIP: it is given as the one of
+ // a GRB_SUBOPTIMAL, i.e., with no accuracy promise and no bound attached
+ // to it [see get_lb() and get_ub()], as CPXMILPSolver does with a MIP that
+ // CPLEX stops for an error with an integer solution
  int solcount = 0;
- if( ( m_status == GRB_NUMERIC ) && ( ! is_mip ) &&
+ if( ( m_status == GRB_NUMERIC ) &&
      ( ! GRBgetintattr( updated_model() , GRB_INT_ATTR_SOLCOUNT ,
                         & solcount ) ) && ( solcount > 0 ) ) {
   sol_status = kLowPrecision;
@@ -1542,9 +1543,17 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NONCONVEX ,
                       &convexity );
 
+      // the solution of a model stopped on numerical troubles comes with
+      // no bound, as the OBJBOUND of a MIP cannot be trusted there
+      if( ( sol_status == kLowPrecision ) && ( m_status == GRB_NUMERIC ) ) {
+       lower_bound = -Inf< OFValue >();
+       break;
+       }
+
       if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) ) {
         // a sub-optimal solution (GRB_SUBOPTIMAL) bounds the optimum only
-        // from above: its value is no lower bound
+        // from above: its value is no lower bound, while the OBJBOUND of a
+        // sub-optimal MIP, below, still is one
         if( sol_status == kLowPrecision ) {
          lower_bound = -Inf< OFValue >();
          break;
@@ -1725,9 +1734,16 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
      int convexity;
      GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NONCONVEX , &convexity );
 
+     // as in get_lb(): no bound with a model stopped on numerical troubles
+     if( ( sol_status == kLowPrecision ) && ( m_status == GRB_NUMERIC ) ) {
+      upper_bound = Inf< OFValue >();
+      break;
+      }
+
      if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) ) {
         // a sub-optimal solution (GRB_SUBOPTIMAL) bounds the optimum only
-        // from below: its value is no upper bound
+        // from below: its value is no upper bound, while the OBJBOUND of a
+        // sub-optimal MIP, below, still is one
         if( sol_status == kLowPrecision ) {
          upper_bound = Inf< OFValue >();
          break;

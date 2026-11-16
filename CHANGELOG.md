@@ -62,7 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `test_farkas` checks `PIQPMILPSolver` on the linear programs too, as PIQP
   0.7.0 gives a certificate of their infeasibility (up to 0.6.4 it stops at
   its iteration limit there): `PIQPMILPSolver` moves from `QPPar-farkas.txt`
-  to `LPPar-farkas.txt`, and needs PIQP 0.7.0 or later to pass the test
+  to `LPPar-farkas.txt`, and the test reports, rather than fails, a
+  `:MILPSolver` that stops at a limit on those programs and states that it
+  has no certificate to give, as `PIQPMILPSolver` does with PIQP 0.6.4
 
 - `MILPSolver::concerned_by()` is `eModAbst`: the physical Modification of
   the Block, which the MILPSolver has no use for, no longer reach it (nor
@@ -118,6 +120,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   available for QCP" in its log (e.g., after each solve of the SOCP
   formulation of a `SingleFlowDCRBlock`); `test_qcp_dual` looks for errors
   in the log of CPLEX
+
+- `CPXMILPSolver` answers `kLowPrecision` rather than `kError` when CPLEX
+  stops a MIP for an error with an integer solution at hand
+  (`CPXMIP_FAIL_FEAS`), as it does for a continuous problem with a solution
+  not proved optimal: the solution and its value are there, the bound of
+  the search is not (e.g., the SOCP formulation of the `SingleFlowDCRBlock`
+  `topo/Garr201112_1`, whose incumbent is optimal), which the new
+  `test_fail_feas` solves
+
+- `GRBMILPSolver` answers `kLowPrecision` rather than `kError` on a MIP that
+  Gurobi stops on numerical troubles (`GRB_NUMERIC`), also from scratch,
+  with a solution at hand, as it does on a continuous model and as
+  `CPXMILPSolver` does: `get_lb()` and `get_ub()` give no bound of the
+  search then, as `CPXMILPSolver`, the `OBJBOUND` of a MIP not being one
+  that can be trusted, while a sub-optimal MIP (`GRB_SUBOPTIMAL`) keeps it,
+  as `test_fail_feas` checks
 
 - `OSQPMILPSolver`, `PIQPMILPSolver` and `ProxQPMILPSolver` print the log
   of their solver when `intLogVerb` is positive, which they ignored, as

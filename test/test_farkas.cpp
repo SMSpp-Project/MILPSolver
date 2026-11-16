@@ -41,10 +41,15 @@
  *
  * The solvers that state they have no certificate to give are reported and
  * skipped, that being a legitimate answer: the infeasibility may have been
- * proved by the presolve, with no dual basis to build a ray from. HiGHS is
- * the exception, as it computes a certificate whenever it has none at hand:
- * it is in LPPar-farkas.txt with the simplex method and with the interior
- * point method, and has to give one with both.
+ * proved by the presolve, with no dual basis to build a ray from. So are
+ * those that stop at a limit on the infeasible instance and state that they
+ * have no certificate, as a solver whose infeasibility criterion is a
+ * heuristic one does (PIQPMILPSolver with a PIQP up to 0.6.4): having
+ * proved nothing, they have nothing to give, while any other status of the
+ * infeasible instance is a failure. HiGHS is the exception, as it computes
+ * a certificate whenever it has none at hand: it is in LPPar-farkas.txt
+ * with the simplex method and with the interior point method, and has to
+ * give one with both.
  *
  * Two more properties are checked on a second program, the same one with the
  * third row made two-sided and the two variables given an explicit box, so
@@ -80,8 +85,9 @@
  * :MILPSolver there that LPPar-farkas.txt does not have, which do not detect
  * the infeasibility of the linear programs above (ProxQPMILPSolver, whose
  * dense backend stops at its iteration limit on them), are only checked on
- * this QP. PIQPMILPSolver, in LPPar-farkas.txt, needs a PIQP after 0.6.4,
- * which also stops at its iteration limit on them.
+ * this QP. PIQPMILPSolver, in LPPar-farkas.txt, gives the certificates
+ * with a PIQP after 0.6.4, while 0.6.4 stops at its iteration limit on the
+ * infeasible programs and is reported as above.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -549,7 +555,22 @@ int main( void )
 
   status = solver->compute();
 
-  if( status != Solver::kInfeasible ) {
+  // a solve stopped at a limit has proved nothing: it is a legitimate
+  // answer if the Solver states that it has no certificate to give
+  const bool stopped = ( status == Solver::kStopIter ) ||
+                       ( status == Solver::kStopTime );
+  bool stopped_has = false;
+  if( stopped && ( ! must ) )
+   try {
+    auto cda = dynamic_cast< CDASolver * >( solver );
+    stopped_has = cda && cda->has_dual_direction();
+    }
+   catch( const std::exception & ) { stopped_has = true; }
+
+  if( stopped && ( ! must ) && ( ! stopped_has ) )
+   std::cout << " stops before proving the instance infeasible (status "
+             << status << ") and has no certificate to give" << std::endl;
+  else if( status != Solver::kInfeasible ) {
    std::cout << " does not report the instance as infeasible (status "
              << status << ")" << std::endl;
    all_passed = false;

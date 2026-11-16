@@ -887,7 +887,9 @@ int CPXMILPSolver::decode_mip_status( int status )
    // Deterministic time limit exceeded; no integer solution.
    return( kStopTime );
   case( CPXMIP_FAIL_FEAS ):
-   // Terminated because of an error, but integer solution exists.
+   // Terminated because of an error, but integer solution exists: it is
+   // given with no accuracy promise attached, as that of CPX_STAT_NUM_BEST
+   return( kLowPrecision );
   case( CPXMIP_FAIL_FEAS_NO_TREE ):
    // Out of memory, no tree available, integer solution exists.
   case( CPXMIP_FAIL_INFEAS ):

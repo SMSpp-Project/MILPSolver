@@ -180,6 +180,13 @@ add_test(NAME test_qcp_dual
          COMMAND test_qcp_dual
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_fail_feas ------------------------------------------------------ #
+
+add_milp_test(test_fail_feas test_fail_feas.cpp)
+add_test(NAME test_fail_feas
+         COMMAND test_fail_feas
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_dynamic -------------------------------------------------------- #
 
 add_milp_test(test_dynamic test_dynamic.cpp)

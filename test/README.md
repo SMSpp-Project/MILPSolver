@@ -97,6 +97,14 @@ Three testers for the `MILPSolver` module, each registered as a separate
   change of its coefficients, of its right-hand side and of its Variable,
   against the same problem loaded anew.
 
+- `test_fail_feas` verifies that a `:MILPSolver` whose solver ends a MIP
+  with a solution and no accuracy promise answers `kLowPrecision` with that
+  solution: `CPXMILPSolver` when CPLEX stops the search for an error
+  (`CPXMIP_FAIL_FEAS`, `fail-feas.lp` with `MILPCfg-fail-feas.txt`), and
+  `GRBMILPSolver` when Gurobi ends it as sub-optimal, keeping the bound of
+  the search (`grb-suboptimal.lp` with `MILPCfg-grb-suboptimal.txt`); both
+  are the SOCP formulation of a delay-constrained routing problem.
+
 - `test_qp` verifies what each `:MILPSolver` of the build does with small
   quadratic models whose optimum is known: a convex QP with a separable and
   a non-separable objective, minimized and (its opposite) maximized, with
