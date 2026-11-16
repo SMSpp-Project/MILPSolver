@@ -103,6 +103,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `test_cutoff_status` solves the LP stopped by the cutoff again with no
   change, i.e., from what the Solver has kept of it
 
+- `test_cuts` and `test_dynamic` use `smspp_terminate()` of the core, and the
+  `*_pars` tools, which are built also without SMS++, print that
+  `std::terminate()` was called with no exception and abort: all of them
+  crashed rethrowing the null exception, e.g., when the destructor of a
+  `std::thread` that can still be joined terminates, as when HiGHS cannot
+  start its threads
+
 - the installed module `smspp.milpsolver` could not be imported, since its
   package gave the interface of the module the target of the library by its
   name in the build tree, which an installed package does not have
