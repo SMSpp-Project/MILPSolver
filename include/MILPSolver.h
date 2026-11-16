@@ -145,8 +145,10 @@ namespace SMSpp_di_unipi_it
  * the two methods of the directions with write_var_solution() and
  * write_dual_solution(), to which they hand the Configuration they are
  * given: a SimpleConfiguration< std::vector< int > > listing sub-Blocks of
- * the Block, and -1 for the Block itself, has only that part of the solution
- * written, any other Configuration all of it [see write_var_solution()].
+ * the Block, and -1 for the Block itself, or the "meta" Configuration that
+ * names Blocks by classname() [see Solver::get_var_solution()], has only
+ * that part of the solution written, any other Configuration all of it [see
+ * write_var_solution()].
  *
  * The class defines also an interface that the derived classes should
  * implement to support Modification. The method process_modifications() is
@@ -942,9 +944,14 @@ class MILPSolver : public CDASolver
   * Block that its f_value lists are written: an index k >= 0 stands for the
   * k-th sub-Block of the Block, i.e., get_nested_Block( k ), together with
   * all its sub-Blocks, recursively, while -1 stands for the ColVariable of
-  * the Block itself, without those of its sub-Blocks. Any other
-  * Configuration, nullptr included, asks for the whole solution. An index
-  * that is neither -1 nor that of a sub-Block throws std::invalid_argument.
+  * the Block itself, without those of its sub-Blocks. If it is a
+  * SimpleConfiguration< std::map< std::string , Configuration * > >, the
+  * "meta" format of Solver::get_var_solution(), the Blocks it chooses by
+  * classname() are written as the Configuration they are mapped to says,
+  * which is read for that Block in the same way: positional, "meta" in its
+  * turn, or nullptr for all of it. Any other Configuration, nullptr
+  * included, asks for the whole solution. An index that is neither -1 nor
+  * that of a sub-Block throws std::invalid_argument.
   * The columns not asked for are skipped a group at a time, so writing a
   * part costs in proportion to the part rather than to the whole Block. */
 
@@ -1180,6 +1187,16 @@ class MILPSolver : public CDASolver
 
  bool selected_Blocks( Configuration * solc , const char * who ,
                        std::unordered_set< const Block * > & sel ) const;
+
+ /// adds to sel the part of \p block that \p solc asks for
+ /** \p top says whether \p block is the Block of the Solver, where a
+  * "meta" \p solc is visited from \p block itself, rather than one it has
+  * chosen already, where it is visited from its sub-Blocks [see
+  * selected_Blocks()]. */
+
+ void select_part( Block * block , Configuration * solc , bool top ,
+                   const char * who ,
+                   std::unordered_set< const Block * > & sel ) const;
 
 /*--------------------------------------------------------------------------*/
  /// the weight of the Objective whose Function is \p f

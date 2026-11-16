@@ -4517,35 +4517,63 @@ bool MILPSolver::selected_Blocks( Configuration * solc , const char * who ,
                                   std::unordered_set< const Block * > & sel )
  const
 {
- auto c = dynamic_cast< SimpleConfiguration< std::vector< int > > * >( solc );
- if( ! c )
+ if( ( ! dynamic_cast< SimpleConfiguration< std::vector< int > > * >(
+                                                                solc ) ) &&
+     ( ! dynamic_cast< SimpleConfiguration< std::map< std::string ,
+                                    Configuration * > > * >( solc ) ) )
   return( false );
 
  sel.clear();
- bool own = false;
- for( auto k : c->f_value ) {
-  if( k == -1 ) {
-   own = true;
-   continue;
+ select_part( f_Block , solc , true , who , sel );
+ return( true );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::select_part( Block * block , Configuration * solc ,
+                              bool top , const char * who ,
+                              std::unordered_set< const Block * > & sel )
+ const
+{
+ // all of block: the Block and its sub-Blocks, recursively
+ auto all = [ & sel ]( Block * b , auto && self ) -> void {
+  sel.insert( b );
+  for( auto el : b->get_nested_Blocks() )
+   self( el , self );
+  };
+
+ if( auto c = dynamic_cast< SimpleConfiguration< std::vector< int > > * >(
+                                                                  solc ) ) {
+  for( auto k : c->f_value ) {
+   if( k == -1 ) {
+    sel.insert( block );
+    continue;
+    }
+   if( ( k < 0 ) || ( Index( k ) >= block->get_number_nested_Blocks() ) )
+    throw( std::invalid_argument( std::string( who ) + ": invalid index " +
+                                  std::to_string( k ) ) );
+   all( block->get_nested_Block( k ) , all );
    }
-  if( ( k < 0 ) || ( Index( k ) >= f_Block->get_number_nested_Blocks() ) )
-   throw( std::invalid_argument( std::string( who ) + ": invalid index " +
-                                 std::to_string( k ) ) );
-  sel.insert( f_Block->get_nested_Block( k ) );
+  return;
   }
 
- // the sub-Blocks of a selected sub-Block are selected too: in BFS order
- // the father of a Block comes before it, the Block itself first of all,
- // whose own selection does not extend to its sub-Blocks
- for( auto qb : v_BFS )
-  if( ( qb != f_Block ) && ( qb->get_f_Block() != f_Block ) &&
-      sel.count( qb->get_f_Block() ) )
-   sel.insert( qb );
+ if( auto m = dynamic_cast< SimpleConfiguration< std::map< std::string ,
+                                    Configuration * > > * >( solc ) ) {
+  // the Block chosen by classname() are read with their own Configuration;
+  // below a Block chosen already the visit starts from its sub-Blocks,
+  // which is where its own "meta" Configuration chooses
+  auto pick = [ & ]( Block * b , Configuration * cb ) {
+   select_part( b , cb , false , who , sel );
+   };
+  if( top )
+   for_each_selected( block , m->f_value , pick );
+  else
+   for( auto el : block->get_nested_Blocks() )
+    for_each_selected( el , m->f_value , pick );
+  return;
+  }
 
- if( own )
-  sel.insert( f_Block );
-
- return( true );
+ all( block , all );  // nullptr, or any other Configuration: all of it
  }
 
 /*--------------------------------------------------------------------------*/

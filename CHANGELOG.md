@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `MSK_DPAR_MIO_TOL_ABS_RELAX_INT` for `MOSEKMILPSolver`; the Solver whose
   back-end has none keep it and do nothing with it
 
+- `get_var_solution()`, `get_dual_solution()` and the directions of every
+  :MILPSolver read also the "meta" Configuration of
+  `Solver::get_var_solution()`, which chooses Blocks by `classname()`: each
+  Block chosen is written as the Configuration it is mapped to says, which
+  is read for that Block in the same way (positional, "meta" in its turn or
+  nullptr for all of it); `test_partial_solution` checks it on every
+  back-end
+
 - `MOSEKMILPSolver` takes the rows with a quadratic Function, convex ones,
   which it refused: their linear part goes to the matrix of MOSEK, given
   by rows as `MILPSolver` keeps it then, and their quadratic part to the
