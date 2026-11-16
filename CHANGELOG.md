@@ -76,6 +76,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the installed module `smspp.milpsolver` could not be imported, since its
+  package gave the interface of the module the target of the library by its
+  name in the build tree, which an installed package does not have
+
 - a change of a row whose Function is not a `LinearFunction`, of its
   coefficients or of its Variable, loads the problem again in every
   `:MILPSolver`, which ignored it, and so does a change of its sides or its
