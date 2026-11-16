@@ -76,6 +76,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` and `CPXMILPSolver` free the memory that the back-end
+  keeps also after a solve of an LP stopped by the cutoff, and not only
+  after an optimal one: there GUROBI has the duals and no primal solution,
+  so the duals, the reduced costs and the basis are kept, and the value and
+  the primal solution are answered as missing, as GUROBI answers them. On
+  the Benders decomposition of a PyPSA-Eur instance with 50 scenarios, with
+  the cutoff on the LP of every subproblem, the peak memory goes from 10.3
+  to 6.2 GB, the same as with no cutoff, with the same iterations;
+  `test_cutoff_status` solves the LP stopped by the cutoff again with no
+  change, i.e., from what the Solver has kept of it
+
 - the installed module `smspp.milpsolver` could not be imported, since its
   package gave the interface of the module the target of the library by its
   name in the build tree, which an installed package does not have

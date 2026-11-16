@@ -59,11 +59,16 @@
  * the cutoff and the optimal value, no bound on the other side short of the
  * optimal value (the solution they stop at is not primal feasible) and a
  * dual solution that is feasible, i.e., one that gives a valid Benders cut;
- * the others may solve the LP.
- * Solved again with the cutoffs of LPCfg-cutoff-far.txt, which nothing
- * reaches, each has to give the optimal value, which tells that the
- * parameters changed for the cutoff are given back. The test is skipped
- * (exit status 77) if no Solver is in the factory.
+ * the others may solve the LP. Each is then solved again with the same
+ * cutoffs and no change, i.e., from what the Solver has kept of the solve
+ * stopped at the cutoff (once it has freed the memory of its back-end [see
+ * free_workspace() in CPXMILPSolver and GRBMILPSolver]), with the same
+ * outcome required of CPXMILPSolver and GRBMILPSolver, while
+ * HiGHSMILPSolver, warm started at the basis where it stopped, may solve
+ * the LP. Solved again with the cutoffs of LPCfg-cutoff-far.txt,
+ * which nothing reaches, each has to give the optimal value, which tells
+ * that the parameters changed for the cutoff are given back. The test is
+ * skipped (exit status 77) if no Solver is in the factory.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -379,11 +384,17 @@ int main( void )
    const bool must = ( name == "CPXMILPSolver" ) ||
                      ( name == "GRBMILPSolver" ) ||
                      ( ( name == "HiGHSMILPSolver" ) && ! max );
-   for( const bool first : { true , false } ) {
+   // pass 0 and 1 with the cutoff, the second from what the Solver has
+   // kept of the first, pass 2 with the cutoff nothing reaches
+   for( const int pass : { 0 , 1 , 2 } ) {
+    const bool first = ( pass < 2 );
+    const bool stop = must &&
+                      ( ( pass == 0 ) || ( name != "HiGHSMILPSolver" ) );
     if( ! first )
      s->set_ComputeConfig( far );
     std::cout << name << ", LP" << ( max ? ", max" : ", min" )
-              << ( first ? ", cutoff: " : ", no cutoff reached: " );
+              << ( pass == 0 ? ", cutoff: " :
+                   pass == 1 ? ", cutoff again: " : ", no cutoff reached: " );
     bool ok;
     try {
      const auto st = s->compute();
@@ -392,7 +403,7 @@ int main( void )
      if( st == Solver::kOK ) {
       const double v = max ? - s->get_var_value() : s->get_var_value();
       std::cout << ", value " << v;
-      ok = ( std::abs( v - LOpt ) <= ltol ) && ! ( first && must );
+      ok = ( std::abs( v - LOpt ) <= ltol ) && ! ( first && stop );
       }
      else
       if( ( st == Solver::kCutOff ) && first ) {

@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <queue>
 #include <iostream>
 #include <map>
@@ -349,8 +350,11 @@ int GRBMILPSolver::sol_dbl_attr( const char * name , double * value ) const
  if( ! f_kept.valid )
   return( GRBgetdblattr( m , name , value ) );
 
- if( ! std::strcmp( name , GRB_DBL_ATTR_OBJVAL ) )
+ if( ! std::strcmp( name , GRB_DBL_ATTR_OBJVAL ) ) {
+  if( std::isnan( f_kept.objval ) )
+   return( GRB_ERROR_DATA_NOT_AVAILABLE );
   *value = f_kept.objval;
+  }
  else
   if( ! std::strcmp( name , GRB_DBL_ATTR_OBJBOUND ) ) {
    if( f_kept.objbound_err )
@@ -412,13 +416,23 @@ void GRBMILPSolver::free_workspace( void )
  kept.pi.resize( r );
  if( GRBgetintattr( m , GRB_INT_ATTR_STATUS , & kept.status ) ||
      GRBgetintattr( m , GRB_INT_ATTR_SOLCOUNT , & kept.solcount ) ||
-     GRBgetdblattr( m , GRB_DBL_ATTR_OBJVAL , & kept.objval ) ||
-     GRBgetdblattr( m , GRB_DBL_ATTR_RUNTIME , & kept.runtime ) ||
-     GRBgetdblattrarray( m , GRB_DBL_ATTR_X , 0 , n , kept.x.data() ) ||
-     GRBgetdblattrarray( m , GRB_DBL_ATTR_RC , 0 , n , kept.rc.data() ) ||
-     ( r && GRBgetdblattrarray( m , GRB_DBL_ATTR_PI , 0 , r ,
-                                kept.pi.data() ) ) )
-  return;  // a solution that cannot be read whole is left in the model
+     GRBgetdblattr( m , GRB_DBL_ATTR_RUNTIME , & kept.runtime ) )
+  return;
+
+ // a dual simplex stopped by the cutoff has the duals and no primal
+ // solution: what GUROBI does not have is kept as missing, NaN for the
+ // value and an empty vector, and is answered as GUROBI would answer
+ if( GRBgetdblattr( m , GRB_DBL_ATTR_OBJVAL , & kept.objval ) )
+  kept.objval = std::numeric_limits< double >::quiet_NaN();
+ if( GRBgetdblattrarray( m , GRB_DBL_ATTR_X , 0 , n , kept.x.data() ) )
+  kept.x.clear();
+ if( GRBgetdblattrarray( m , GRB_DBL_ATTR_RC , 0 , n , kept.rc.data() ) )
+  kept.rc.clear();
+ if( r && GRBgetdblattrarray( m , GRB_DBL_ATTR_PI , 0 , r ,
+                              kept.pi.data() ) )
+  kept.pi.clear();
+ if( kept.x.empty() && kept.pi.empty() && ( n || r ) )
+  return;  // a solve with nothing to keep is left in the model
 
  kept.objbound_err = GRBgetdblattr( m , GRB_DBL_ATTR_OBJBOUND ,
                                     & kept.objbound );
@@ -1234,9 +1248,11 @@ int GRBMILPSolver::guts_of_compute( void )
  if( ( sol_status == kInfeasible ) || ( sol_status == kUnbounded ) )
   compute_certificate( m_status );
 
- // an optimal LP, whose solution is all in X, Pi and RC, can do without the
- // workspace of GUROBI until the next solve [see free_workspace()]
- if( ( m_status == GRB_OPTIMAL ) && ( ! is_qp ) && ( numquadrows == 0 ) )
+ // an LP optimal or stopped by the cutoff, whose solution is all in X, Pi
+ // and RC, can do without the workspace of GUROBI until the next solve [see
+ // free_workspace()]
+ if( ( ( m_status == GRB_OPTIMAL ) || ( m_status == GRB_CUTOFF ) ) &&
+     ( ! is_qp ) && ( numquadrows == 0 ) )
   free_workspace();
 
  return( sol_status );
