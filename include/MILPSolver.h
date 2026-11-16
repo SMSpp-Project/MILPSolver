@@ -316,6 +316,17 @@ class MILPSolver : public CDASolver
    * written in the Block, compute() holds the Block under a write lock()
    * when the check is on. The default is 0. */
   dblKKTTol ,
+  /// integrality tolerance of a MIP
+  /**< How far from an integer value an integer Variable may be in a solution
+   * of a MIP, i.e., the integrality tolerance of the back-end:
+   * CPXPARAM_MIP_Tolerances_Integrality for CPXMILPSolver, IntFeasTol for
+   * GRBMILPSolver, mip_feasibility_tolerance for HiGHSMILPSolver and
+   * MSK_DPAR_MIO_TOL_ABS_RELAX_INT for MOSEKMILPSolver, each with its range
+   * and its default. A Solver whose back-end has no such tolerance, e.g.
+   * SCIPMILPSolver, which has a single feasibility tolerance for the rows
+   * and for the integrality, keeps the value and does nothing with it, and
+   * so do the Solver of continuous problems. The default is 1e-5. */
+  dblIntFeasTol ,
   /// First allowed new double parameter for derived classes
   dblLastAlgParMILP
   };
@@ -1607,6 +1618,9 @@ class MILPSolver : public CDASolver
   * compute() then checks the optimality conditions as with dblKKTTol, with
   * the larger of the two tolerances, and gives kError if they fail. */
  double check_tol = 0;
+
+ /// integrality tolerance, when the back-end has none (see dblIntFeasTol)
+ double int_feas_tol = 1e-5;
 
  /// the residuals of the last check [see get_kkt_residuals()]
  std::array< double , 3 > kkt_residuals = {

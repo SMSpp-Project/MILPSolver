@@ -4412,6 +4412,7 @@ int CPXMILPSolver::cpx_dbl_par_map( idx_type par ) const
   case( dblRAccSol ): return( CPXPARAM_MIP_Pool_RelGap );
   case( dblAAccSol ): return( CPXPARAM_MIP_Pool_AbsGap );
   case( dblFAccSol ): return( CPXPARAM_Simplex_Tolerances_Feasibility );
+  case( dblIntFeasTol ): return( CPXPARAM_MIP_Tolerances_Integrality );
   }
 
  if( ( par >= dblFirstCPLEXPar ) && ( par < dblLastAlgParCPXS ) )

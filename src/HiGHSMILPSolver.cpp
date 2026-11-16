@@ -2945,6 +2945,7 @@ std::string HiGHSMILPSolver::highs_dbl_par_map( idx_type par ) const
   case( dblRAccSol ): return( "NoPar" );
   case( dblAAccSol ): return( "NoPar" );
   case( dblFAccSol ): return( "primal_feasibility_tolerance" );
+  case( dblIntFeasTol ): return( "mip_feasibility_tolerance" );
   }
 
  if( ( par >= dblFirstHiGHSPar ) && ( par < dblLastAlgParHiGHS ) )

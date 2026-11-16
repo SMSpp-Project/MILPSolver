@@ -137,6 +137,7 @@ namespace SMSpp_di_unipi_it {
  *                   of MOSEK, MSK_DPAR_INTPNT_TOL_PFEAS,
  *                   MSK_DPAR_INTPNT_QO_TOL_PFEAS, MSK_DPAR_BASIS_TOL_X and
  *                   MSK_DPAR_MIO_TOL_FEAS, the first giving the value read
+ * - dblIntFeasTol = MSK_DPAR_MIO_TOL_ABS_RELAX_INT
  *
  * while dblUpCutOff and dblLwCutOff stop a MIP solve from the callback of
  * MOSEK as soon as the bound or the incumbent of the search reaches them

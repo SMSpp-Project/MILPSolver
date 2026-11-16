@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `dblIntFeasTol`, the integrality tolerance of a MIP, which is
+  `CPXPARAM_MIP_Tolerances_Integrality` for `CPXMILPSolver`, `IntFeasTol`
+  for `GRBMILPSolver`, `mip_feasibility_tolerance` for `HiGHSMILPSolver` and
+  `MSK_DPAR_MIO_TOL_ABS_RELAX_INT` for `MOSEKMILPSolver`; the Solver whose
+  back-end has none keep it and do nothing with it
+
 - `MOSEKMILPSolver` takes the rows with a quadratic Function, convex ones,
   which it refused: their linear part goes to the matrix of MOSEK, given
   by rows as `MILPSolver` keeps it then, and their quadratic part to the

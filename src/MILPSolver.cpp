@@ -3823,6 +3823,14 @@ void MILPSolver::set_par( idx_type par , double value )
   return;
   }
 
+ if( par == dblIntFeasTol ) {
+  if( std::isnan( value ) || ( value < 0 ) )
+   throw( std::invalid_argument(
+              "MILPSolver::set_par: dblIntFeasTol must be nonnegative" ) );
+  int_feas_tol = value;
+  return;
+  }
+
  CDASolver::set_par( par , value );
  }
 
@@ -3920,6 +3928,9 @@ double MILPSolver::get_dflt_dbl_par( idx_type par ) const
  if( par == dblKKTTol )
   return( 0 );
 
+ if( par == dblIntFeasTol )
+  return( 1e-5 );
+
  return( CDASolver::get_dflt_dbl_par( par ) );
  }
 
@@ -3992,6 +4003,9 @@ double MILPSolver::get_dbl_par( idx_type par ) const
 
  if( par == dblKKTTol )
   return( kkt_tol );
+
+ if( par == dblIntFeasTol )
+  return( int_feas_tol );
 
  return( CDASolver::get_dbl_par( par ) );
  }
@@ -4105,6 +4119,9 @@ Solver::idx_type MILPSolver::dbl_par_str2idx( const std::string & name ) const
  if( name == "dblKKTTol" )
   return( dblKKTTol );
 
+ if( name == "dblIntFeasTol" )
+  return( dblIntFeasTol );
+
  return( CDASolver::dbl_par_str2idx( name ) );
  }
 
@@ -4112,8 +4129,9 @@ Solver::idx_type MILPSolver::dbl_par_str2idx( const std::string & name ) const
 
 const std::string & MILPSolver::dbl_par_idx2str( idx_type idx ) const {
  static const std::vector< std::string > names = { "dblObjRemovalTol" ,
-						   "dblKKTTol" };
- if( ( idx >= dblObjRemovalTol ) && ( idx <= dblKKTTol ) )
+						   "dblKKTTol" ,
+						   "dblIntFeasTol" };
+ if( ( idx >= dblObjRemovalTol ) && ( idx <= dblIntFeasTol ) )
   return( names[ idx - dblObjRemovalTol ] );
 
  return( CDASolver::dbl_par_idx2str( idx ) );

@@ -2218,6 +2218,8 @@ std::vector< std::string > MOSEKMILPSolver::msk_dbl_par_map( idx_type par )
    return( v_str{ "MSK_DPAR_INTPNT_TOL_PFEAS" ,
 		  "MSK_DPAR_INTPNT_QO_TOL_PFEAS" , "MSK_DPAR_BASIS_TOL_X" ,
 		  "MSK_DPAR_MIO_TOL_FEAS" } );
+  case( dblIntFeasTol ):
+   return( v_str{ "MSK_DPAR_MIO_TOL_ABS_RELAX_INT" } );
   }
 
  if( ( par >= dblFirstMOSEKPar ) && ( par < dblLastAlgParMOSEKS ) )

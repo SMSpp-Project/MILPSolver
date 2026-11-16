@@ -5238,6 +5238,7 @@ std::string GRBMILPSolver::grb_dbl_par_map( idx_type par ) const
   case( dblRAccSol ): return( GRB_DBL_PAR_POOLGAP );
   case( dblAAccSol ): return( GRB_DBL_PAR_POOLGAPABS );
   case( dblFAccSol ): return( GRB_DBL_PAR_FEASIBILITYTOL );
+  case( dblIntFeasTol ): return( GRB_DBL_PAR_INTFEASTOL );
   }
 
  if( ( par >= dblFirstGUROBIPar ) && ( par < dblLastAlgParGRBS ) )
