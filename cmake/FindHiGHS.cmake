@@ -11,7 +11,7 @@
 #        HiGHS_FOUND         - True if headers are found                      #
 #        HiGHS_INCLUDE_DIRS  - Include directories                            #
 #        HiGHS_LIBRARIES     - Libraries to be linked                         #
-#        HiGHS_DLL           - The found runtime DLL (Windows only)           #
+#        HiGHS_DLL           - The found runtime DLL, where there is one      #
 #        HiGHS_VERSION       - Version number                                 #
 #                                                                             #
 #    This module reads hints about search locations from variables:           #
@@ -66,23 +66,10 @@ if (NOT "${HiGHS_INCLUDE_DIR}" STREQUAL
     unset(HiGHS_VERSION CACHE)
 endif ()
 
-# The compilers of MinGW (MSYS2) find it as on Unix, by its import library
-# (libhighs.dll.a), while MSVC needs the DLL too
-if (WIN32 AND NOT MINGW)
-    set(_HiGHS_DLL_PLATFORM TRUE)
-endif ()
-
 # Check if already in cache
-if (_HiGHS_DLL_PLATFORM)
-    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG
-            AND HiGHS_DLL AND HiGHS_DLL_DEBUG AND HiGHS_VERSION)
-        set(HiGHS_FOUND TRUE)
-    endif ()
-else ()
-    if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG
-            AND HiGHS_VERSION)
-        set(HiGHS_FOUND TRUE)
-    endif ()
+if (HiGHS_INCLUDE_DIR AND HiGHS_LIBRARY AND HiGHS_LIBRARY_DEBUG
+        AND HiGHS_VERSION)
+    set(HiGHS_FOUND TRUE)
 endif ()
 
 if (NOT HiGHS_FOUND)
@@ -95,66 +82,68 @@ if (NOT HiGHS_FOUND)
             DOC "HiGHS include directory.")
 
     # ----- Find the HiGHS library ------------------------------------------ #
-    if (NOT _HiGHS_DLL_PLATFORM)
-        find_library(HiGHS_LIBRARY
-                NAMES highs
-                PATHS ${HiGHS_ROOT}/lib
-                DOC "HiGHS library.")
+    # also where a build of HiGHS, conda and vcpkg put it, with the debug
+    # one apart where there is one, and the DLL where there is one: where
+    # the library is a DLL, the one found is its import library
+    set(_HiGHS_dirs ${HiGHS_ROOT}/lib ${HiGHS_ROOT}/build/lib/Release
+            $ENV{LIBRARY_LIB})
+    set(_HiGHS_debug_dirs ${HiGHS_ROOT}/debug/lib
+            ${HiGHS_ROOT}/build/lib/Debug)
+    set(_HiGHS_bins ${HiGHS_ROOT}/bin ${HiGHS_ROOT}/build/bin/Release
+            $ENV{LIBRARY_BIN})
+    set(_HiGHS_debug_bins ${HiGHS_ROOT}/debug/bin
+            ${HiGHS_ROOT}/build/bin/Debug)
+    if (VCPKG_INSTALLED_DIR)
+        set(_HiGHS_vcpkg ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET})
+        list(APPEND _HiGHS_dirs ${_HiGHS_vcpkg}/lib)
+        list(APPEND _HiGHS_debug_dirs ${_HiGHS_vcpkg}/debug/lib)
+        list(APPEND _HiGHS_bins ${_HiGHS_vcpkg}/bin)
+        list(APPEND _HiGHS_debug_bins ${_HiGHS_vcpkg}/debug/bin)
+        unset(_HiGHS_vcpkg)
+    endif ()
 
+    find_library(HiGHS_LIBRARY
+            NAMES highs
+            PATHS ${_HiGHS_dirs}
+            DOC "HiGHS library.")
+
+    find_library(HiGHS_LIBRARY_DEBUG
+            NAMES highs
+            PATHS ${_HiGHS_debug_dirs}
+            NO_DEFAULT_PATH
+            DOC "HiGHS debug library.")
+
+    # Release-only distributions (e.g. conda-forge) ship no debug build:
+    # fall back to the release library so a Release configure succeeds.
+    if (NOT HiGHS_LIBRARY_DEBUG)
         set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
                 CACHE FILEPATH "HiGHS debug library." FORCE)
-    else ()
-        find_library(HiGHS_LIBRARY
-                NAMES highs
-                PATHS
-                ${HiGHS_ROOT}/lib
-                ${HiGHS_ROOT}/build/lib/Release
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
-                $ENV{LIBRARY_LIB}
-                NO_DEFAULT_PATH
-                DOC "HiGHS library.")
-
-        find_library(HiGHS_LIBRARY_DEBUG
-                NAMES highs
-                PATHS
-                ${HiGHS_ROOT}/debug/lib
-                ${HiGHS_ROOT}/build/lib/Debug
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/lib
-                NO_DEFAULT_PATH
-                DOC "HiGHS debug library.")
-
-        # Release-only distributions (e.g. conda-forge) ship no debug build:
-        # fall back to the release library so a Release configure succeeds.
-        if (NOT HiGHS_LIBRARY_DEBUG)
-            set(HiGHS_LIBRARY_DEBUG ${HiGHS_LIBRARY}
-                    CACHE FILEPATH "HiGHS debug library." FORCE)
-        endif ()
-
-        # ----- Find the HiGHS runtime DLLs on Windows ---------------------- #
-        find_file(HiGHS_DLL
-                NAMES highs.dll libhighs.dll
-                PATHS
-                ${HiGHS_ROOT}/bin
-                ${HiGHS_ROOT}/build/bin/Release
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
-                $ENV{LIBRARY_BIN}
-                NO_DEFAULT_PATH
-                DOC "HiGHS runtime DLL.")
-
-        find_file(HiGHS_DLL_DEBUG
-                NAMES highs.dll libhighs.dll
-                PATHS
-                ${HiGHS_ROOT}debug/bin
-                ${HiGHS_ROOT}build/bin/Debug
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin
-                NO_DEFAULT_PATH
-                DOC "HiGHS debug runtime DLL.")
-
-        if (NOT HiGHS_DLL_DEBUG AND HiGHS_DLL)
-            set(HiGHS_DLL_DEBUG ${HiGHS_DLL}
-                    CACHE FILEPATH "HiGHS debug runtime DLL." FORCE)
-        endif ()
     endif ()
+
+    set(_HiGHS_dll highs${CMAKE_SHARED_LIBRARY_SUFFIX})
+    set(_HiGHS_dlls ${_HiGHS_dll} ${CMAKE_SHARED_LIBRARY_PREFIX}${_HiGHS_dll})
+    find_file(HiGHS_DLL
+            NAMES ${_HiGHS_dlls}
+            PATHS ${_HiGHS_bins}
+            NO_DEFAULT_PATH
+            DOC "HiGHS runtime DLL.")
+
+    find_file(HiGHS_DLL_DEBUG
+            NAMES ${_HiGHS_dlls}
+            PATHS ${_HiGHS_debug_bins}
+            NO_DEFAULT_PATH
+            DOC "HiGHS debug runtime DLL.")
+
+    if (NOT HiGHS_DLL_DEBUG AND HiGHS_DLL)
+        set(HiGHS_DLL_DEBUG ${HiGHS_DLL}
+                CACHE FILEPATH "HiGHS debug runtime DLL." FORCE)
+    endif ()
+    unset(_HiGHS_dirs)
+    unset(_HiGHS_debug_dirs)
+    unset(_HiGHS_bins)
+    unset(_HiGHS_debug_bins)
+    unset(_HiGHS_dll)
+    unset(_HiGHS_dlls)
 
     # ----- Parse the version ----------------------------------------------- #
     if (HiGHS_INCLUDE_DIR)
@@ -185,19 +174,13 @@ if (NOT HiGHS_FOUND)
     # REQUIRED_VARS should be cache entries and not output variables. See:
     # https://cmake.org/cmake/help/latest/module/
     # FindPackageHandleStandardArgs.html
-    if (_HiGHS_DLL_PLATFORM)
-        # The debug library/DLL are optional (they fall back to the release
-        # ones above), so they are deliberately kept out of REQUIRED_VARS.
-        find_package_handle_standard_args(
-                HiGHS
-                REQUIRED_VARS HiGHS_LIBRARY HiGHS_DLL HiGHS_INCLUDE_DIR
-                VERSION_VAR HiGHS_VERSION)
-    else ()
-        find_package_handle_standard_args(
-                HiGHS
-                REQUIRED_VARS HiGHS_LIBRARY HiGHS_INCLUDE_DIR
-                VERSION_VAR HiGHS_VERSION)
-    endif ()
+    # The debug library and the DLLs are optional: the former falls back
+    # to the release one, and a static build (e.g., a static vcpkg triplet)
+    # has no DLL, nor has a platform whose shared libraries are not DLLs
+    find_package_handle_standard_args(
+            HiGHS
+            REQUIRED_VARS HiGHS_LIBRARY HiGHS_INCLUDE_DIR
+            VERSION_VAR HiGHS_VERSION)
 endif ()
 
 # A found package keeps its version in the cache, with the include
@@ -212,11 +195,7 @@ endif ()
 # ----- Export the target --------------------------------------------------- #
 if (HiGHS_FOUND)
     set(HiGHS_INCLUDE_DIRS ${HiGHS_INCLUDE_DIR})
-    set(HiGHS_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ZLIB::ZLIB)
-
-    if (UNIX)
-        set(HiGHS_LIBRARIES ${HiGHS_LIBRARIES} dl)
-    endif ()
+    set(HiGHS_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ZLIB::ZLIB ${CMAKE_DL_LIBS})
 
     # If HiGHS was built with the HiPO interior point solver (HIPO is then
     # #define-d in its HConfig.h) it depends on a BLAS, which must be linked
@@ -233,8 +212,10 @@ if (HiGHS_FOUND)
     # From version 1.15, a static libhighs calls the functions of the extras
     # library of HiGHS, which is static too in such a build (shared, and
     # loaded at run time, otherwise) and must be linked explicitly, as the
-    # highs target of the upstream highs-config.cmake does.
-    if (UNIX AND HiGHS_LIBRARY MATCHES "\\${CMAKE_STATIC_LIBRARY_SUFFIX}$")
+    # highs target of the upstream highs-config.cmake does; an import
+    # library, which may have the suffix of a static one, comes with a DLL
+    if (NOT HiGHS_DLL AND
+            HiGHS_LIBRARY MATCHES "\\${CMAKE_STATIC_LIBRARY_SUFFIX}$")
         get_filename_component(_HiGHS_libdir "${HiGHS_LIBRARY}" DIRECTORY)
         set(_HiGHS_extras ${CMAKE_STATIC_LIBRARY_PREFIX}highs_extras)
         find_library(HiGHS_EXTRAS_LIBRARY
@@ -249,45 +230,37 @@ if (HiGHS_FOUND)
         unset(_HiGHS_extras)
     endif ()
 
+    # A DLL is imported with its import library, any other library as it is
     if (NOT TARGET HiGHS::HiGHS)
-        if (_HiGHS_DLL_PLATFORM)
+        if (HiGHS_DLL)
             add_library(HiGHS::HiGHS SHARED IMPORTED)
             set_target_properties(
                     HiGHS::HiGHS PROPERTIES
                     IMPORTED_IMPLIB "${HiGHS_LIBRARY}"
                     IMPORTED_IMPLIB_DEBUG "${HiGHS_LIBRARY_DEBUG}"
                     IMPORTED_LOCATION "${HiGHS_DLL}"
-                    IMPORTED_LOCATION_DEBUG "${HiGHS_DLL_DEBUG}"
-                    INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
-                    INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
+                    IMPORTED_LOCATION_DEBUG "${HiGHS_DLL_DEBUG}")
         else ()
             add_library(HiGHS::HiGHS UNKNOWN IMPORTED)
             set_target_properties(
                     HiGHS::HiGHS PROPERTIES
                     IMPORTED_LOCATION "${HiGHS_LIBRARY}"
-                    IMPORTED_LOCATION_DEBUG "${HiGHS_LIBRARY_DEBUG}"
-                    INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
-                    INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
+                    IMPORTED_LOCATION_DEBUG "${HiGHS_LIBRARY_DEBUG}")
         endif ()
+        set_target_properties(
+                HiGHS::HiGHS PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${HiGHS_INCLUDE_DIRS}"
+                INTERFACE_LINK_LIBRARIES "${HiGHS_LIBRARIES}")
     endif ()
 endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-if (_HiGHS_DLL_PLATFORM)
-    mark_as_advanced(HiGHS_INCLUDE_DIR
-            HiGHS_LIBRARY
-            HiGHS_LIBRARY_DEBUG
-            HiGHS_DLL
-            HiGHS_DLL_DEBUG
-            HiGHS_VERSION)
-else ()
-    mark_as_advanced(HiGHS_INCLUDE_DIR
-            HiGHS_LIBRARY
-            HiGHS_LIBRARY_DEBUG
-            HiGHS_VERSION)
-endif ()
-
-unset(_HiGHS_DLL_PLATFORM)
+mark_as_advanced(HiGHS_INCLUDE_DIR
+        HiGHS_LIBRARY
+        HiGHS_LIBRARY_DEBUG
+        HiGHS_DLL
+        HiGHS_DLL_DEBUG
+        HiGHS_VERSION)
 
 # --------------------------------------------------------------------------- #

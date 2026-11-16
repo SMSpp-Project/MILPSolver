@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- the library is kept in whoever links it by a source that calls its
+  `SMSpp_force_load_` function, the tests and the tools take the static
+  libraries whole by the `WHOLE_ARCHIVE` feature of CMake and copy the DLLs
+  next to them only where there are any, and the installed run-time path is
+  the one of `smspp_install_rpath()`, with no test on the system or on the
+  compiler [see `SMSppModule.cmake` of SMS++]; CMake 3.24 or later is needed
+
+- the batteries and the scripts that write the data are run by the `bash`
+  that `SMSpp_BASH` finds, with the testers named by `$<TARGET_FILE>`, on
+  every system
+
+- the symbols of the static OSQP are kept local where the linker can do it,
+  which is checked
+
+- the find modules of HiGHS, MOSEK and SCIP look in the directories of
+  every system and for the names of every platform, and import a DLL with
+  its import library where they find one, with no test on the system or on
+  the architecture; the one of SCIP keeps a `SCIP_ROOT` outside `/opt`,
+  and the one of PIPS-IPM++ puts the MPI libraries in a `--no-as-needed`
+  section where the linker has such sections, which is checked
+
+### Removed
+
+- `cmake/FindCPLEX.cmake` and `cmake/FindGUROBI.cmake`, the ones of the core
+  being used
+
 ## [0.12.0] - 2026-11-16
 
 ### Added

@@ -78,30 +78,28 @@ if (NOT DAQP_FOUND)
     endif ()
 
     # ----- Find the DAQP library ------------------------------------------- #
-    if (UNIX)
-        find_library(DAQP_LIBRARY
-                NAMES daqp
-                PATHS ${DAQP_ROOT}/lib
-                DOC "DAQP library.")
-    elseif (WIN32)
-        find_library(DAQP_LIBRARY
-                NAMES daqp
-                PATHS
-                ${DAQP_ROOT}/lib
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
-                $ENV{LIBRARY_LIB}
-                NO_DEFAULT_PATH
-                DOC "DAQP library.")
-
-        find_file(DAQP_DLL
-                NAMES daqp.dll libdaqp.dll
-                PATHS
-                ${DAQP_ROOT}/bin
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
-                $ENV{LIBRARY_BIN}
-                NO_DEFAULT_PATH
-                DOC "DAQP runtime DLL.")
+    # also where conda and vcpkg put it, and the DLL where there is one
+    set(_DAQP_dirs ${DAQP_ROOT}/lib $ENV{LIBRARY_LIB})
+    set(_DAQP_bins ${DAQP_ROOT}/bin $ENV{LIBRARY_BIN})
+    if (VCPKG_INSTALLED_DIR)
+        list(APPEND _DAQP_dirs
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib)
+        list(APPEND _DAQP_bins
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin)
     endif ()
+    find_library(DAQP_LIBRARY
+            NAMES daqp
+            PATHS ${_DAQP_dirs}
+            DOC "DAQP library.")
+    set(_DAQP_dll daqp${CMAKE_SHARED_LIBRARY_SUFFIX})
+    find_file(DAQP_DLL
+            NAMES ${_DAQP_dll} ${CMAKE_SHARED_LIBRARY_PREFIX}${_DAQP_dll}
+            PATHS ${_DAQP_bins}
+            NO_DEFAULT_PATH
+            DOC "DAQP runtime DLL.")
+    unset(_DAQP_dirs)
+    unset(_DAQP_bins)
+    unset(_DAQP_dll)
 
     # ----- Handle the standard arguments ----------------------------------- #
     # The following macro manages the QUIET and REQUIRED options passed to
@@ -109,8 +107,8 @@ if (NOT DAQP_FOUND)
     # set. REQUIRED_VARS should be cache entries and not output variables.
     # See:
     # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
-    # on Windows the DLL is not required: a static build (e.g., a static
-    # vcpkg triplet) has none, and the library is then a static one
+    # the DLL is not required: a static build (e.g., a static vcpkg
+    # triplet) has none, and the library is then a static one
     find_package_handle_standard_args(
             DAQP
             REQUIRED_VARS DAQP_LIBRARY DAQP_INCLUDE_DIR DAQP_EPS_PROX)
@@ -122,7 +120,7 @@ if (DAQP_FOUND)
     set(DAQP_LIBRARIES ${DAQP_LIBRARY})
 
     if (NOT TARGET DAQP::DAQP)
-        if (WIN32 AND DAQP_DLL)
+        if (DAQP_DLL)
             add_library(DAQP::DAQP SHARED IMPORTED)
             set_target_properties(
                     DAQP::DAQP PROPERTIES
@@ -141,10 +139,6 @@ endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-if (WIN32)
-    mark_as_advanced(DAQP_INCLUDE_DIR DAQP_LIBRARY DAQP_DLL)
-else ()
-    mark_as_advanced(DAQP_INCLUDE_DIR DAQP_LIBRARY)
-endif ()
+mark_as_advanced(DAQP_INCLUDE_DIR DAQP_LIBRARY DAQP_DLL)
 
 # --------------------------------------------------------------------------- #

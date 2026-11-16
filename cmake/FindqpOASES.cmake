@@ -96,22 +96,18 @@ if (NOT qpOASES_FOUND)
     endif ()
 
     # ----- Find the qpOASES library ---------------------------------------- #
-    if (UNIX)
-        find_library(qpOASES_LIBRARY
-                NAMES qpOASES
-                PATHS ${qpOASES_ROOT}
-                PATH_SUFFIXES lib lib64
-                DOC "qpOASES library.")
-    elseif (WIN32)
-        find_library(qpOASES_LIBRARY
-                NAMES qpOASES libqpOASES
-                PATHS
-                ${qpOASES_ROOT}/lib
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
-                $ENV{LIBRARY_LIB}
-                NO_DEFAULT_PATH
-                DOC "qpOASES library.")
+    # also where conda and vcpkg put it
+    set(_qpOASES_dirs ${qpOASES_ROOT}/lib ${qpOASES_ROOT}/lib64
+            $ENV{LIBRARY_LIB})
+    if (VCPKG_INSTALLED_DIR)
+        list(APPEND _qpOASES_dirs
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib)
     endif ()
+    find_library(qpOASES_LIBRARY
+            NAMES qpOASES libqpOASES
+            PATHS ${_qpOASES_dirs}
+            DOC "qpOASES library.")
+    unset(_qpOASES_dirs)
 
     # ----- Handle the standard arguments ----------------------------------- #
     # The following macro manages the QUIET and REQUIRED options passed to

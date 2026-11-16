@@ -221,7 +221,8 @@ if (NOT PIPS_FOUND)
     # find_package(). It also sets <PackageName>_FOUND if REQUIRED_VARS
     # are set.
     # REQUIRED_VARS should be cache entries and not output variables. See:
-    # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
+    # https://cmake.org/cmake/help/latest/module/
+    # FindPackageHandleStandardArgs.html
     set(_PIPS_REQUIRED_VARS
             PIPS_SOURCE_ROOT
             PIPS_LIBRARY
@@ -305,13 +306,19 @@ if (PIPS_FOUND)
         list(APPEND _PIPS_LINK_LIBRARIES "${PIPS_METIS_LIBRARY}")
     endif ()
 
-    if (PIPS_MPI_MPIFH_LIBRARY AND UNIX AND NOT APPLE)
-        # This is the CMake equivalent of the --no-as-needed section in
-        # makefile-libPIPS, needed by some shared MUMPS/OpenMPI combinations;
-        # the section restores the state it found rather than turning
-        # --as-needed on, which would drop from the link the libraries that
-        # follow and that a module keeps with --no-as-needed so that its
-        # classes register themselves in the factories
+    # This is the CMake equivalent of the --no-as-needed section in
+    # makefile-libPIPS, needed by some shared MUMPS/OpenMPI combinations,
+    # where the linker has such sections; the section restores the state it
+    # found rather than turning --as-needed on, which would drop from the
+    # link the libraries that follow and that a module keeps with
+    # --no-as-needed so that its classes register themselves in the
+    # factories
+    if (PIPS_MPI_MPIFH_LIBRARY)
+        include(CheckLinkerFlag)
+        check_linker_flag(CXX "LINKER:--push-state,--no-as-needed,--pop-state"
+                PIPS_LINKER_PUSH_STATE)
+    endif ()
+    if (PIPS_MPI_MPIFH_LIBRARY AND PIPS_LINKER_PUSH_STATE)
         list(APPEND _PIPS_LINK_LIBRARIES
                 -Wl,--push-state,--no-as-needed
                 "${PIPS_MPI_MPIFH_LIBRARY}"

@@ -75,8 +75,8 @@ set(PETSC_DIR @PETSC_DIR@)
 # ----- Requirements -------------------------------------------------------- #
 find_dependency(SMS++)
 
-# This is needed to find the custom modules we provide
-list(APPEND CMAKE_MODULE_PATH ${@modName@_CMAKE_DIR})
+# This is needed to find the custom modules we provide, and those of the core
+list(APPEND CMAKE_MODULE_PATH ${@modName@_CMAKE_DIR} ${SMSpp_CMAKE_DIR})
 
 if (MILPSolver_USE_SCIP)
     find_dependency(SCIP 7.0.0)
@@ -142,7 +142,7 @@ if (MILPSolver_USE_PERMON)
     find_dependency(PERMON)
 endif ()
 
-list(REMOVE_AT CMAKE_MODULE_PATH -1)
+list(REMOVE_AT CMAKE_MODULE_PATH -1 -2)
 
 # ----- Import target ------------------------------------------------------- #
 if (NOT TARGET @modNamespace@::@modName@)

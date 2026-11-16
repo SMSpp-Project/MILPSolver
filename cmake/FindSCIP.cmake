@@ -11,7 +11,7 @@
 #        SCIP_FOUND         - True if headers are found                       #
 #        SCIP_INCLUDE_DIRS  - Include directories                             #
 #        SCIP_LIBRARIES     - Libraries to be linked                          #
-#        SCIP_DLL           - The found runtime DLL (Windows only)            #
+#        SCIP_DLL           - The found runtime DLL, where there is one       #
 #        SCIP_VERSION       - Version number                                  #
 #                                                                             #
 #    This module reads hints about search locations from variables:           #
@@ -32,34 +32,17 @@
 # --------------------------------------------------------------------------- #
 include(FindPackageHandleStandardArgs)
 
-# ----- Find SCIP directories and lib suffixes ------------------------------ #
-# Based on the OS generate:
-# - a list of possible SCIP directories
-# - a list of possible lib suffixes to find the library
-
-if (UNIX)
-    if (APPLE)
-        # macOS (usually /Library)
-        set(SCIP_DIRS /Library)
-    else ()
-        # Other Unix-based systems (usually /opt)
-        set(SCIP_DIRS /opt)
-    endif ()
-elseif (WIN32)
-    # Windows (usually C:/Program Files)
-    set(SCIP_DIRS "C:/Program Files")
-    if (ARCH STREQUAL "x86")
-        set(SCIP_DIRS "C:/Program Files (x86)" ${SCIP_DIRS})
-    endif ()
-endif ()
-set(SCIP_LIB_PATH_SUFFIXES lib)
-
 # ----- Find the path to SCIP ----------------------------------------------- #
+# This takes the greatest scip* found where the installers put it (/opt,
+# /Library, C:/Program Files), of which only those of the system at hand
+# are there
 
-foreach (dir ${SCIP_DIRS})
+foreach (dir /opt /Library "C:/Program Files" "C:/Program Files (x86)")
     file(GLOB SCIP_DIRS "${dir}/scip*")
-    if (NOT SCIP_ROOT IN_LIST SCIP_DIRS)
-        message(STATUS "Specified SCIP: ${SCIP_ROOT} not found")
+    if (NOT IS_DIRECTORY "${SCIP_ROOT}")
+        if (NOT "${SCIP_ROOT}" STREQUAL "")
+            message(STATUS "Specified SCIP: ${SCIP_ROOT} not found")
+        endif ()
         list(SORT SCIP_DIRS)
         list(REVERSE SCIP_DIRS)
         if (SCIP_DIRS)
@@ -79,9 +62,8 @@ endforeach ()
 # https://cmake.org/cmake/help/latest/module/FindThreads.html
 find_package(Threads QUIET)
 
-if (UNIX)
-    find_package(TBB QUIET)
-endif ()
+# A static SCIP built with PaPILO needs TBB, which is linked where found
+find_package(TBB QUIET)
 
 # Drop the cached paths if one of them does not exist any more, so that
 # they are all searched again from the same place
@@ -111,14 +93,8 @@ if (NOT "${SCIP_INCLUDE_DIR}" STREQUAL
 endif ()
 
 # Check if already in cache
-if (WIN32)
-    if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_DLL AND SCIP_VERSION)
-        set(SCIP_FOUND TRUE)
-    endif ()
-else ()
-    if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_VERSION)
-        set(SCIP_FOUND TRUE)
-    endif ()
+if (SCIP_INCLUDE_DIR AND SCIP_LIBRARY AND SCIP_VERSION)
+    set(SCIP_FOUND TRUE)
 endif ()
 
 if (NOT SCIP_FOUND)
@@ -130,32 +106,39 @@ if (NOT SCIP_FOUND)
             DOC "SCIP include directory.")
 
     # ----- Find the SCIP library ------------------------------------------- #
+    # where the library is a DLL, the one found is its import library, and
+    # the DLL is in bin/
     find_library(SCIP_LIBRARY
             NAMES scip
             PATHS ${SCIP_ROOT}
-            PATH_SUFFIXES ${SCIP_LIB_PATH_SUFFIXES}
+            PATH_SUFFIXES lib
             DOC "SCIP library.")
 
-    # ----- Find the SCIP runtime DLL on Windows ---------------------------- #
-    if (WIN32)
-        find_file(SCIP_DLL
-                NAMES libscip.dll scip.dll
-                PATHS ${SCIP_ROOT}
-                PATH_SUFFIXES bin
-                DOC "SCIP runtime DLL.")
-    endif ()
+    set(_SCIP_dll scip${CMAKE_SHARED_LIBRARY_SUFFIX})
+    find_file(SCIP_DLL
+            NAMES lib${_SCIP_dll} ${_SCIP_dll}
+            PATHS ${SCIP_ROOT}
+            PATH_SUFFIXES bin
+            NO_DEFAULT_PATH
+            DOC "SCIP runtime DLL.")
+    unset(_SCIP_dll)
 
     # ----- Parse the version ----------------------------------------------- #
     if (SCIP_INCLUDE_DIR)
         file(STRINGS
                 "${SCIP_INCLUDE_DIR}/scip/config.h"
-                _SCIP_version_lines REGEX "#define SCIP_VERSION_(MAJOR|MINOR|PATCH)")
+                _SCIP_version_lines
+                REGEX "#define SCIP_VERSION_(MAJOR|MINOR|PATCH)")
 
-        string(REGEX REPLACE ".*SCIP_VERSION_MAJOR *\([0-9]*\).*" "\\1" _SCIP_version_major "${_SCIP_version_lines}")
-        string(REGEX REPLACE ".*SCIP_VERSION_MINOR *\([0-9]*\).*" "\\1" _SCIP_version_minor "${_SCIP_version_lines}")
-        string(REGEX REPLACE ".*SCIP_VERSION_PATCH *\([0-9]*\).*" "\\1" _SCIP_version_patch "${_SCIP_version_lines}")
+        string(REGEX REPLACE ".*SCIP_VERSION_MAJOR *\([0-9]*\).*" "\\1"
+                _SCIP_version_major "${_SCIP_version_lines}")
+        string(REGEX REPLACE ".*SCIP_VERSION_MINOR *\([0-9]*\).*" "\\1"
+                _SCIP_version_minor "${_SCIP_version_lines}")
+        string(REGEX REPLACE ".*SCIP_VERSION_PATCH *\([0-9]*\).*" "\\1"
+                _SCIP_version_patch "${_SCIP_version_lines}")
 
-        set(SCIP_VERSION "${_SCIP_version_major}.${_SCIP_version_minor}.${_SCIP_version_patch}")
+        string(CONCAT SCIP_VERSION "${_SCIP_version_major}."
+                "${_SCIP_version_minor}.${_SCIP_version_patch}")
         unset(_SCIP_version_lines)
         unset(_SCIP_version_major)
         unset(_SCIP_version_minor)
@@ -167,18 +150,14 @@ if (NOT SCIP_FOUND)
     # options passed to find_package(). It also sets <PackageName>_FOUND if
     # REQUIRED_VARS are set.
     # REQUIRED_VARS should be cache entries and not output variables. See:
-    # https://cmake.org/cmake/help/latest/module/FindPackageHandleStandardArgs.html
-    if (WIN32)
-        find_package_handle_standard_args(
-                SCIP
-                REQUIRED_VARS SCIP_LIBRARY SCIP_DLL SCIP_INCLUDE_DIR
-                VERSION_VAR SCIP_VERSION)
-    else ()
-        find_package_handle_standard_args(
-                SCIP
-                REQUIRED_VARS SCIP_LIBRARY SCIP_INCLUDE_DIR
-                VERSION_VAR SCIP_VERSION)
-    endif ()
+    # https://cmake.org/cmake/help/latest/module/
+    # FindPackageHandleStandardArgs.html
+    # The DLL is not required: a static build has none, nor has a platform
+    # whose shared libraries are not DLLs
+    find_package_handle_standard_args(
+            SCIP
+            REQUIRED_VARS SCIP_LIBRARY SCIP_INCLUDE_DIR
+            VERSION_VAR SCIP_VERSION)
 endif ()
 
 # A found package keeps its version in the cache, with the include
@@ -199,41 +178,34 @@ if (SCIP_FOUND)
         set(SCIP_LIBRARIES ${SCIP_LIBRARIES} TBB::tbb)
     endif ()
 
-    if (UNIX)
-        set(SCIP_LIBRARIES ${SCIP_LIBRARIES} dl)
-    endif ()
+    set(SCIP_LIBRARIES ${SCIP_LIBRARIES} ${CMAKE_DL_LIBS})
 
+    # A DLL is imported with its import library, any other library as it is
     if (NOT TARGET SCIP::SCIP)
-        if (WIN32)
+        if (SCIP_DLL)
             add_library(SCIP::SCIP SHARED IMPORTED)
             set_target_properties(
                     SCIP::SCIP PROPERTIES
                     IMPORTED_IMPLIB "${SCIP_LIBRARY}"
-                    IMPORTED_LOCATION "${SCIP_DLL}"
-                    INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIRS}"
-                    INTERFACE_LINK_LIBRARIES "${SCIP_LIBRARIES}")
+                    IMPORTED_LOCATION "${SCIP_DLL}")
         else ()
             add_library(SCIP::SCIP UNKNOWN IMPORTED)
             set_target_properties(
                     SCIP::SCIP PROPERTIES
-                    IMPORTED_LOCATION "${SCIP_LIBRARY}"
-                    INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIRS}"
-                    INTERFACE_LINK_LIBRARIES "${SCIP_LIBRARIES}")
+                    IMPORTED_LOCATION "${SCIP_LIBRARY}")
         endif ()
+        set_target_properties(
+                SCIP::SCIP PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${SCIP_INCLUDE_DIRS}"
+                INTERFACE_LINK_LIBRARIES "${SCIP_LIBRARIES}")
     endif ()
 endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-if (WIN32)
-    mark_as_advanced(SCIP_INCLUDE_DIR
-            SCIP_LIBRARY
-            SCIP_DLL
-            SCIP_VERSION)
-else ()
-    mark_as_advanced(SCIP_INCLUDE_DIR
-            SCIP_LIBRARY
-            SCIP_VERSION)
-endif ()
+mark_as_advanced(SCIP_INCLUDE_DIR
+        SCIP_LIBRARY
+        SCIP_DLL
+        SCIP_VERSION)
 
 # --------------------------------------------------------------------------- #

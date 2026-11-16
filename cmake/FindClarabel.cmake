@@ -74,39 +74,39 @@ if (NOT Clarabel_FOUND)
             DOC "Clarabel include directory.")
 
     # ----- Find the Clarabel library --------------------------------------- #
-    if (UNIX)
-        find_library(Clarabel_LIBRARY
-                NAMES clarabel_c
-                PATHS ${Clarabel_ROOT}/lib
-                DOC "Clarabel library.")
-    elseif (WIN32)
-        find_library(Clarabel_LIBRARY
-                NAMES clarabel_c clarabel_c.dll
-                PATHS
-                ${Clarabel_ROOT}/lib
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
-                $ENV{LIBRARY_LIB}
-                NO_DEFAULT_PATH
-                DOC "Clarabel library.")
-
+    # also where conda and vcpkg put it, and the DLL where there is one
+    set(_Clarabel_dirs ${Clarabel_ROOT}/lib $ENV{LIBRARY_LIB})
+    set(_Clarabel_bins ${Clarabel_ROOT}/bin ${Clarabel_ROOT}/lib
+            $ENV{LIBRARY_BIN})
+    if (VCPKG_INSTALLED_DIR)
+        list(APPEND _Clarabel_dirs
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib)
+        list(APPEND _Clarabel_bins
+                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin)
+    endif ()
+    find_library(Clarabel_LIBRARY
+            NAMES clarabel_c clarabel_c${CMAKE_SHARED_LIBRARY_SUFFIX}
+            PATHS ${_Clarabel_dirs}
+            DOC "Clarabel library.")
+    # the DLL, which a link with an import library has next to it
+    if (NOT Clarabel_LIBRARY MATCHES
+            "${CMAKE_SHARED_LIBRARY_SUFFIX}$")
         find_file(Clarabel_DLL
-                NAMES clarabel_c.dll
-                PATHS
-                ${Clarabel_ROOT}/bin
-                ${Clarabel_ROOT}/lib
-                ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
-                $ENV{LIBRARY_BIN}
+                NAMES clarabel_c${CMAKE_SHARED_LIBRARY_SUFFIX}
+                PATHS ${_Clarabel_bins}
                 NO_DEFAULT_PATH
                 DOC "Clarabel runtime DLL.")
     endif ()
+    unset(_Clarabel_dirs)
+    unset(_Clarabel_bins)
 
     # ----- Handle the standard arguments ----------------------------------- #
     # The following macro manages the QUIET and REQUIRED options passed to
     # find_package(). It also sets <PackageName>_FOUND if REQUIRED_VARS are
     # set. REQUIRED_VARS should be cache entries and not output variables.
     # See the FindPackageHandleStandardArgs module in the CMake manual.
-    # on Windows the DLL is not required: a static build has none, and the
-    # library is then a static one
+    # the DLL is not required: a static build has none, and the library is
+    # then a static one
     find_package_handle_standard_args(
             Clarabel
             REQUIRED_VARS Clarabel_LIBRARY Clarabel_INCLUDE_DIR)
@@ -118,7 +118,7 @@ if (Clarabel_FOUND)
     set(Clarabel_LIBRARIES ${Clarabel_LIBRARY})
 
     if (NOT TARGET Clarabel::Clarabel)
-        if (WIN32 AND Clarabel_DLL)
+        if (Clarabel_DLL)
             add_library(Clarabel::Clarabel SHARED IMPORTED)
             set_target_properties(
                     Clarabel::Clarabel PROPERTIES
@@ -133,14 +133,19 @@ if (Clarabel_FOUND)
                     INTERFACE_INCLUDE_DIRECTORIES "${Clarabel_INCLUDE_DIRS}")
         endif ()
 
-        # the Rust standard library in a static libclarabel_c needs these
+        # the Rust standard library in a static libclarabel_c needs these:
+        # the threads, the loader and those of the system libraries of Rust
+        # that the system has (m, or ws2_32, userenv, ntdll and bcrypt)
         if (Clarabel_LIBRARY MATCHES "${CMAKE_STATIC_LIBRARY_SUFFIX}$")
-            if (WIN32)
-                set(clarabelSysLibs ws2_32 userenv ntdll bcrypt)
-            else ()
-                find_package(Threads REQUIRED)
-                set(clarabelSysLibs Threads::Threads ${CMAKE_DL_LIBS} m)
-            endif ()
+            find_package(Threads REQUIRED)
+            set(clarabelSysLibs Threads::Threads ${CMAKE_DL_LIBS})
+            foreach (_lib m ws2_32 userenv ntdll bcrypt)
+                find_library(Clarabel_SYS_${_lib} ${_lib})
+                mark_as_advanced(Clarabel_SYS_${_lib})
+                if (Clarabel_SYS_${_lib})
+                    list(APPEND clarabelSysLibs ${_lib})
+                endif ()
+            endforeach ()
             set_property(TARGET Clarabel::Clarabel APPEND PROPERTY
                     INTERFACE_LINK_LIBRARIES ${clarabelSysLibs})
         endif ()
@@ -149,10 +154,6 @@ endif ()
 
 # Variables marked as advanced are not displayed in CMake GUIs, see:
 # https://cmake.org/cmake/help/latest/command/mark_as_advanced.html
-if (WIN32)
-    mark_as_advanced(Clarabel_INCLUDE_DIR Clarabel_LIBRARY Clarabel_DLL)
-else ()
-    mark_as_advanced(Clarabel_INCLUDE_DIR Clarabel_LIBRARY)
-endif ()
+mark_as_advanced(Clarabel_INCLUDE_DIR Clarabel_LIBRARY Clarabel_DLL)
 
 # --------------------------------------------------------------------------- #

@@ -12,19 +12,9 @@
 
 # The classes of the modules register themselves in the factories from
 # static objects, which nothing here names: a shared library is kept by
-# what its module asks of the linker [see the CMakeLists.txt of the
-# module], while an archive has to be taken whole.
-if (NOT BUILD_SHARED_LIBS)
-    if (MSVC)
-        add_link_options("/WHOLEARCHIVE" "/FORCE:MULTIPLE")
-    else () # Unix
-        if (APPLE)
-            add_link_options("-Wl,-all_load")
-        else ()
-            add_link_options("-Wl,--whole-archive,--allow-multiple-definition")
-        endif ()
-    endif ()
-endif ()
+# what its module asks of the linker, while an archive has to be taken
+# whole [see SMSppModule.cmake of SMS++].
+smspp_keep_modules()
 
 # Utility: build a test executable linked against MILPSolver, copying the
 # runtime DLLs next to it on Windows.
@@ -32,42 +22,16 @@ function(add_milp_test target_name source)
     add_executable(${target_name} ${source})
     target_link_libraries(${target_name} PRIVATE SMS++::MILPSolver)
 
-    if (WIN32 AND BUILD_SHARED_LIBS AND NOT DEFINED ENV{CONDA_BUILD})
-        # On Windows with shared libraries enabled copies all runtime DLL
-        # dependencies next to the executable in the build directory
-        # (POST_BUILD), using CMake's TARGET_RUNTIME_DLLS generator expression
-        add_custom_command(TARGET ${target_name} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_RUNTIME_DLLS:${target_name}>
-                $<TARGET_FILE_DIR:${target_name}>
-                COMMAND_EXPAND_LISTS
-                COMMENT "Copying runtime DLLs next to ${target_name}.exe")
-        # one link at a time, since two copies of the same DLL into a
-        # directory collide, and Ninja links in parallel
-        get_property(_pools GLOBAL PROPERTY JOB_POOLS)
-        if (NOT _pools MATCHES "smspp_runtime_dlls=")
-            set_property(GLOBAL APPEND PROPERTY JOB_POOLS smspp_runtime_dlls=1)
-        endif ()
-        set_property(TARGET ${target_name}
-                     PROPERTY JOB_POOL_LINK smspp_runtime_dlls)
-    endif ()
+    smspp_copy_runtime(${target_name})
 endfunction()
 
 # Utility: register a batch file as a ctest driving the given executable.
 function(add_batch_test exe batch)
-    if (UNIX)
-        add_test(NAME ${exe}/${batch}
-                 COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/${batch}
-                         ${CMAKE_CURRENT_BINARY_DIR}/${exe}
-                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    elseif (WIN32)
-        add_test(NAME ${exe}/${batch}
-                 # using Git for Windows that includes Git Bash
-                 COMMAND "C:/Program Files/Git/bin/bash.exe"
-                         "${CMAKE_CURRENT_SOURCE_DIR}/${batch}"
-                         "$<TARGET_FILE:${exe}>"
-                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    endif ()
+    add_test(NAME ${exe}/${batch}
+             COMMAND ${SMSpp_BASH}
+                     "${CMAKE_CURRENT_SOURCE_DIR}/${batch}"
+                     "$<TARGET_FILE:${exe}>"
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endfunction()
 
 # ----- test_cuts ----------------------------------------------------------- #
