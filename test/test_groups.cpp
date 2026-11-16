@@ -127,7 +127,7 @@ static bool solve( Shape shape , const std::string & solver_name )
    }
   case( eIrregular ): {
    auto v = new boost::multi_array< std::vector< ColVariable > , 2 >(
-                                                     boost::extents[ 1 ][ 2 ] );
+                                                    boost::extents[ 1 ][ 2 ] );
    (*v)[ 0 ][ 0 ].resize( 2 );
    (*v)[ 0 ][ 1 ].resize( 1 );
    auto c = new std::vector< std::vector< FRowConstraint > >( 2 );
@@ -162,11 +162,11 @@ static bool solve( Shape shape , const std::string & solver_name )
    }
   default: {
    auto v = new boost::multi_array< std::list< ColVariable > , 2 >(
-                                                     boost::extents[ 1 ][ 2 ] );
+                                                    boost::extents[ 1 ][ 2 ] );
    (*v)[ 0 ][ 0 ].resize( 2 );
    (*v)[ 0 ][ 1 ].resize( 1 );
    auto c = new boost::multi_array< std::list< FRowConstraint > , 2 >(
-                                                     boost::extents[ 2 ][ 1 ] );
+                                                    boost::extents[ 2 ][ 1 ] );
    (*c)[ 0 ][ 0 ].resize( 2 );
    (*c)[ 1 ][ 0 ].resize( 1 );
    x[ 0 ] = & (*v)[ 0 ][ 0 ].front();

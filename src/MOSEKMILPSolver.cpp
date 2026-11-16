@@ -40,7 +40,9 @@
 
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( MOSEK , MSK_VERSION_MAJOR ) , MSK_VERSION_MINOR ) , MSK_VERSION_REVISION ) , _maps.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( \
+         BOOST_PP_CAT( MOSEK , MSK_VERSION_MAJOR ) , MSK_VERSION_MINOR ) , \
+         MSK_VERSION_REVISION ) , _maps.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -229,12 +231,7 @@ void MOSEKMILPSolver::load_problem( void )
  MILPSolver::load_problem();
 
  // the problems MOSEKMILPSolver does not take are refused before anything
- // reaches the task: with quadratic rows MILPSolver stores the matrix by
- // rows, which would be misread below
- if( numquadrows > 0 )
-  throw( std::invalid_argument( "MOSEKMILPSolver::load_problem: "
-				"quadratic constraints are not supported" ) );
-
+ // reaches the task
  for( int j = 0 ; j < numcols ; ++j )
   if( ( xctype[ j ] == 'S' ) || ( xctype[ j ] == 'N' ) )
    throw( std::invalid_argument(
@@ -283,14 +280,22 @@ void MOSEKMILPSolver::load_problem( void )
   check( MSK_putvarboundslice( task , 0 , numcols , bk.data() , bl.data() ,
 			       bu.data() ) , "load_problem" );
 
-  // the matrix, by columns, as MILPSolver keeps it
-  std::vector< MSKint32t > ptre( numcols );
-  for( int j = 0 ; j < numcols ; ++j )
+  // the matrix as MILPSolver keeps it: by columns, or by rows if there
+  // are quadratic rows
+  const int nm = ( numquadrows > 0 ) ? numrows : numcols;
+  std::vector< MSKint32t > ptre( nm );
+  for( int j = 0 ; j < nm ; ++j )
    ptre[ j ] = matbeg[ j ] + matcnt[ j ];
-  if( ! matval.empty() )
-   check( MSK_putacolslice( task , 0 , numcols , matbeg.data() ,
-			    ptre.data() , matind.data() , matval.data() ) ,
-	  "load_problem" );
+  if( ! matval.empty() ) {
+   if( numquadrows > 0 )
+    check( MSK_putarowslice( task , 0 , numrows , matbeg.data() ,
+			     ptre.data() , matind.data() , matval.data() ) ,
+	   "load_problem" );
+   else
+    check( MSK_putacolslice( task , 0 , numcols , matbeg.data() ,
+			     ptre.data() , matind.data() , matval.data() ) ,
+	   "load_problem" );
+   }
 
   // the type of the columns
   std::vector< MSKint32t > cols( numcols );
@@ -339,6 +344,24 @@ void MOSEKMILPSolver::load_problem( void )
  // the quadratic part of the objective
  generate_qobj_hessian();
  pass_hessian();
+
+ // the quadratic part of each quadratic row: MILPSolver has the
+ // coefficient of x_i x_j once for each pair, while MOSEK takes the lower
+ // triangle of Q in 1/2 x' Q x, i.e., the same coefficient off the diagonal
+ // and twice it on the diagonal
+ for( int i = 0 ; ( numquadrows > 0 ) && ( i < numrows ) ; ++i ) {
+  if( q_part[ i ].empty() )
+   continue;
+  std::vector< MSKint32t > qi , qj;
+  std::vector< double > qv;
+  for( const auto & [ ij , v ] : q_part[ i ] ) {
+   qi.push_back( std::max( ij.first , ij.second ) );
+   qj.push_back( std::min( ij.first , ij.second ) );
+   qv.push_back( ( ij.first == ij.second ) ? 2 * v : v );
+   }
+  check( MSK_putqconk( task , i , qv.size() , qi.data() , qj.data() ,
+		       qv.data() ) , "load_problem" );
+  }
 
  if( use_custom_names ) {
   for( int j = 0 ; j < numcols ; ++j )
@@ -402,7 +425,52 @@ int MOSEKMILPSolver::guts_of_compute( void )
    }
 
  MSKrescodee trm = MSK_RES_OK;
- const MSKrescodee r = MSK_optimizetrm( task , & trm );
+ MSKrescodee r = MSK_optimizetrm( task , & trm );
+
+ // a convex objective with a singular Hessian that MOSEK refuses as not
+ // convex is solved again with the diagonal shifted [see HessianShift],
+ // toward positive semidefinite when minimizing and negative when
+ // maximizing; the Hessian goes back to what it was at the next solve
+ const auto refused = []( MSKrescodee res ) {
+  return( ( res == MSK_RES_ERR_OBJ_Q_NOT_PSD ) ||
+	  ( res == MSK_RES_ERR_OBJ_Q_NOT_NSD ) );
+  };
+ if( ( ! mip ) && refused( r ) && q_hessian_nnz ) {
+  double big = 0;
+  for( int j = 0 ; j < int( q_hessian.size() ) ; ++j )
+   for( const auto & e : q_hessian[ j ] )
+    big = std::max( big , std::abs( e.second ) );
+  const double sign = ( r == MSK_RES_ERR_OBJ_Q_NOT_NSD ) ? -1 : 1;
+  double shift = 0;
+  for( const double rel : HessianShift ) {
+   const double d = sign * rel * big - shift;
+   for( int j = 0 ; j < int( q_hessian.size() ) ; ++j )
+    add_to_hessian( j , j , d );
+   shift += d;
+   pass_hessian();
+   r = MSK_optimizetrm( task , & trm );
+   if( ! refused( r ) )
+    break;
+   }
+  for( int j = 0 ; j < int( q_hessian.size() ) ; ++j )
+   add_to_hessian( j , j , - shift );
+  }
+
+ // the iterations of the solve: simplex and interior point ones, those of
+ // the relaxations for a MIP
+ if( mip ) {
+  MSKint64t sim = 0 , ipm = 0;
+  MSK_getlintinf( task , MSK_LIINF_MIO_SIMPLEX_ITER , & sim );
+  MSK_getlintinf( task , MSK_LIINF_MIO_INTPNT_ITER , & ipm );
+  elapsed_iter += long( sim + ipm );
+  }
+ else {
+  MSKint32t prim = 0 , dual = 0 , ipm = 0;
+  MSK_getintinf( task , MSK_IINF_SIM_PRIMAL_ITER , & prim );
+  MSK_getintinf( task , MSK_IINF_SIM_DUAL_ITER , & dual );
+  MSK_getintinf( task , MSK_IINF_INTPNT_ITER , & ipm );
+  elapsed_iter += long( prim ) + dual + ipm;
+  }
 
  // the solution to read: the integer one of a MIP, the basic one if the
  // solve has produced one, which the simplex algorithms and the basis
@@ -880,9 +948,9 @@ void MOSEKMILPSolver::get_dual_direction( Configuration * dirc )
    }
   }
 
- // the multipliers of the columns, c - A' y as CPXdjfrompi() gives them,
- // or - A' y with intHomogeneousDirection, computed out of the matrix
- // rather than taken as slx - sux, so that they are those of y exactly
+ // the multipliers of the columns, - A' y, those of the ray of the
+ // homogeneous system, computed out of the matrix rather than taken as
+ // slx - sux, so that they are those of y exactly
  std::vector< double > dj( numcols , 0 );
  if( numcols > 0 ) {
   std::vector< MSKboundkeye > bk( numcols );
@@ -897,10 +965,6 @@ void MOSEKMILPSolver::get_dual_direction( Configuration * dirc )
        ( bk[ j ] == MSK_BK_FX ) )
     value -= bu[ j ] * sux[ j ];
    }
-
-  if( ! homogeneous_direction )
-   check( MSK_getcslice( task , 0 , numcols , dj.data() ) ,
-	  "get_dual_direction" );
 
   MSKint64t nnz = 0;
   check( MSK_getacolslicenumnz64( task , 0 , numcols , & nnz ) ,
@@ -2154,6 +2218,8 @@ std::vector< std::string > MOSEKMILPSolver::msk_dbl_par_map( idx_type par )
    return( v_str{ "MSK_DPAR_INTPNT_TOL_PFEAS" ,
 		  "MSK_DPAR_INTPNT_QO_TOL_PFEAS" , "MSK_DPAR_BASIS_TOL_X" ,
 		  "MSK_DPAR_MIO_TOL_FEAS" } );
+  case( dblIntFeasTol ):
+   return( v_str{ "MSK_DPAR_MIO_TOL_ABS_RELAX_INT" } );
   }
 
  if( ( par >= dblFirstMOSEKPar ) && ( par < dblLastAlgParMOSEKS ) )

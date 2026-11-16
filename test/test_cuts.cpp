@@ -81,6 +81,7 @@
 // #include "AbstractBlock.h"
 
 #include "BlockSolverConfig.h"
+#include "SMSTerminate.h"
 
 #include "test_common.h"
 
@@ -425,23 +426,6 @@ static bool SolveBoth( void )
  }  // end( SolveBoth )
 
 /*--------------------------------------------------------------------------*/
-/// Custom terminate function to print the exception message
-
-void smspp_terminate( void ) {
- std::cerr << "Uncaught exception in executing SMS++:\n";
- try {
-  std::rethrow_exception( std::current_exception() );
- }
- catch( const std::exception & e ) {
-  std::cerr << "\tException type: " << typeid( e ).name() << "\n";
-  std::cerr << "\tException message: " << e.what() << "\n";
- } catch( ... ) {
-  std::cerr << "\tUnknown exception" << std::endl;
- }
- std::abort(); // or exit(1)
-}
-
-/*--------------------------------------------------------------------------*/
 
 int main( int argc , char **argv )
 {
@@ -528,7 +512,8 @@ int main( int argc , char **argv )
  //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  #if( LOG_LEVEL >= 3 )
    NCCB.get_registered_solvers().front()->set_par(
-		                     MILPSolver::strOutputFile , "NCCBlock.lp" );
+		                     MILPSolver::strOutputFile ,
+				     "NCCBlock.lp" );
  #endif
 
  // first solver call - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

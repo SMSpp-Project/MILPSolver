@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <queue>
 #include <iostream>
 #include <map>
@@ -47,7 +48,9 @@
 // include the proper GUROBI parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( GRB , GRB_VERSION_MAJOR ) , GRB_VERSION_MINOR ) , GRB_VERSION_TECHNICAL ) , _maps.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( \
+         BOOST_PP_CAT( GRB , GRB_VERSION_MAJOR ) , GRB_VERSION_MINOR ) , \
+         GRB_VERSION_TECHNICAL ) , _maps.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -94,14 +97,22 @@ bool is_license_refusal( int status )
  * sessions open elsewhere as it allows. Nothing is wrong with the model, and
  * a single refusal would otherwise make the Solver fail, and with it a
  * computation that may have been running for hours, so the call is repeated
- * [see GRBoptTrials]; the returned value is that of the last attempt. */
+ * [see GRBoptTrials]; the returned value is that of the last attempt. The
+ * simplex and barrier iterations of the solve are added to iter. */
 
-int optimize( GRBmodel * model )
+int optimize( GRBmodel * model , long & iter )
 {
  for( unsigned int trial = 0 ; ; ) {
   int status = GRBoptimize( model );
-  if( ( ! is_license_refusal( status ) ) || ( ++trial >= GRBoptTrials ) )
+  if( ( ! is_license_refusal( status ) ) || ( ++trial >= GRBoptTrials ) ) {
+   double simplex = 0;
+   int barrier = 0;
+   if( ! GRBgetdblattr( model , GRB_DBL_ATTR_ITERCOUNT , & simplex ) )
+    iter += long( simplex );
+   if( ! GRBgetintattr( model , GRB_INT_ATTR_BARITERCOUNT , & barrier ) )
+    iter += barrier;
    return( status );
+   }
 
   if( trial == 1 )
    std::cerr << "GRBMILPSolver::compute: warning: the license service "
@@ -339,8 +350,11 @@ int GRBMILPSolver::sol_dbl_attr( const char * name , double * value ) const
  if( ! f_kept.valid )
   return( GRBgetdblattr( m , name , value ) );
 
- if( ! std::strcmp( name , GRB_DBL_ATTR_OBJVAL ) )
+ if( ! std::strcmp( name , GRB_DBL_ATTR_OBJVAL ) ) {
+  if( std::isnan( f_kept.objval ) )
+   return( GRB_ERROR_DATA_NOT_AVAILABLE );
   *value = f_kept.objval;
+  }
  else
   if( ! std::strcmp( name , GRB_DBL_ATTR_OBJBOUND ) ) {
    if( f_kept.objbound_err )
@@ -402,13 +416,23 @@ void GRBMILPSolver::free_workspace( void )
  kept.pi.resize( r );
  if( GRBgetintattr( m , GRB_INT_ATTR_STATUS , & kept.status ) ||
      GRBgetintattr( m , GRB_INT_ATTR_SOLCOUNT , & kept.solcount ) ||
-     GRBgetdblattr( m , GRB_DBL_ATTR_OBJVAL , & kept.objval ) ||
-     GRBgetdblattr( m , GRB_DBL_ATTR_RUNTIME , & kept.runtime ) ||
-     GRBgetdblattrarray( m , GRB_DBL_ATTR_X , 0 , n , kept.x.data() ) ||
-     GRBgetdblattrarray( m , GRB_DBL_ATTR_RC , 0 , n , kept.rc.data() ) ||
-     ( r && GRBgetdblattrarray( m , GRB_DBL_ATTR_PI , 0 , r ,
-                                kept.pi.data() ) ) )
-  return;  // a solution that cannot be read whole is left in the model
+     GRBgetdblattr( m , GRB_DBL_ATTR_RUNTIME , & kept.runtime ) )
+  return;
+
+ // a dual simplex stopped by the cutoff has the duals and no primal
+ // solution: what GUROBI does not have is kept as missing, NaN for the
+ // value and an empty vector, and is answered as GUROBI would answer
+ if( GRBgetdblattr( m , GRB_DBL_ATTR_OBJVAL , & kept.objval ) )
+  kept.objval = std::numeric_limits< double >::quiet_NaN();
+ if( GRBgetdblattrarray( m , GRB_DBL_ATTR_X , 0 , n , kept.x.data() ) )
+  kept.x.clear();
+ if( GRBgetdblattrarray( m , GRB_DBL_ATTR_RC , 0 , n , kept.rc.data() ) )
+  kept.rc.clear();
+ if( r && GRBgetdblattrarray( m , GRB_DBL_ATTR_PI , 0 , r ,
+                              kept.pi.data() ) )
+  kept.pi.clear();
+ if( kept.x.empty() && kept.pi.empty() && ( n || r ) )
+  return;  // a solve with nothing to keep is left in the model
 
  kept.objbound_err = GRBgetdblattr( m , GRB_DBL_ATTR_OBJBOUND ,
                                     & kept.objbound );
@@ -1037,7 +1061,7 @@ int GRBMILPSolver::guts_of_compute( void )
     }
   }
 
-  if( int status = optimize( updated_model() ) ) { //error
+  if( int status = optimize( updated_model() , elapsed_iter ) ) { //error
 
    sol_status = decode_grb_error( status );
    return( sol_status );
@@ -1068,7 +1092,7 @@ int GRBMILPSolver::guts_of_compute( void )
  restore_basis();
 
  const bool lp_cutoff = set_lp_cutoff();
- const int status = optimize( updated_model() );
+ const int status = optimize( updated_model() , elapsed_iter );
  if( lp_cutoff )
   reset_lp_cutoff();
 
@@ -1084,19 +1108,24 @@ int GRBMILPSolver::guts_of_compute( void )
  // bounds of the variables far beyond the tolerance (seen on an infeasible
  // one, which the primal simplex and the barrier tell infeasible): such an
  // answer is no solution, and the model is solved again from scratch with
- // the primal simplex
+ // the primal simplex; this only for a basic solution, since that of the
+ // barrier without crossover has none, and its MaxVio also holds the
+ // complementarity violation, which BarConvTol has already accepted
  if( m_status == GRB_OPTIMAL ) {
   auto menv = GRBgetenv( model );
   double vio = 0;
   double ftol = 1e-6;
+  int vbasis;
   GRBgetdblattr( model , GRB_DBL_ATTR_MAX_VIO , & vio );
   GRBgetdblparam( menv , GRB_DBL_PAR_FEASIBILITYTOL , & ftol );
-  if( vio > std::max( 1e-6 , 1e3 * ftol ) ) {
+  if( ( vio > std::max( 1e-6 , 1e3 * ftol ) ) &&
+      ( ! GRBgetintattrelement( model , GRB_INT_ATTR_VBASIS , 0 ,
+                                & vbasis ) ) ) {
    int method;
    GRBgetintparam( menv , GRB_INT_PAR_METHOD , & method );
    GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_PRIMAL );
    GRBreset( model , 0 );
-   const int st = optimize( updated_model() );
+   const int st = optimize( updated_model() , elapsed_iter );
    GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
    if( st ) {
     sol_status = decode_grb_error( st );
@@ -1119,7 +1148,7 @@ int GRBMILPSolver::guts_of_compute( void )
   int saved;
   GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , & saved );
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , 0 );
-  if( int status = optimize( updated_model() ) ) {
+  if( int status = optimize( updated_model() , elapsed_iter ) ) {
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
    sol_status = decode_grb_error( status );
    return( sol_status );
@@ -1131,14 +1160,84 @@ int GRBMILPSolver::guts_of_compute( void )
  // a simplex started from the basis of the previous solve may stop on
  // numerical troubles that a solve from scratch does not meet, e.g., on a
  // master of a cutting-plane method with a few hundred cuts: one more try
- // with no basis
- if( m_status == GRB_NUMERIC ) {
+ // with no basis. The same holds for a continuous QP that the simplex
+ // started from that basis calls infeasible, while a solve from scratch
+ // finds it optimal (the dual simplex of 13.0); not for an LP, whose every
+ // infeasible solve (e.g., a subproblem of a decomposition that asks for a
+ // feasibility cut) would be done twice, the second time with no basis,
+ // nor for a MIP, whose solve from scratch is a whole branch-and-bound.
+ // Only an optimal solution overturns the first answer: whatever else the
+ // solve from scratch says (e.g., that it stops on numerical troubles), the
+ // model stays infeasible, as the master problem of a bundle method with t
+ // so small that 1 / t is enormous
+ int is_mip = 0;
+ if( ( m_status == GRB_INFEASIBLE ) || ( m_status == GRB_NUMERIC ) )
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_IS_MIP , & is_mip );
+ if( ( m_status == GRB_NUMERIC ) ||
+     ( ( m_status == GRB_INFEASIBLE ) && ( ! is_mip ) && is_qp ) ) {
+  const int first = m_status;
   GRBreset( model , 0 );
-  if( int status = optimize( updated_model() ) ) {
+  if( int status = optimize( updated_model() , elapsed_iter ) ) {
    sol_status = decode_grb_error( status );
    return( sol_status );
    }
   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+  if( ( first == GRB_INFEASIBLE ) && ( m_status != GRB_OPTIMAL ) )
+   m_status = first;
+  }
+
+ // the presolve of a QCP turns its quadratic rows into second-order cones,
+ // and the barrier may stop on numerical troubles on the cones that it
+ // does not meet on the rows, e.g., on the SOCP of the AC network of a
+ // UCBlock at some Lagrangian multipliers: one more try without presolve
+ if( ( m_status == GRB_NUMERIC ) && ( ! is_mip ) && ( numquadrows > 0 ) ) {
+  int presolve = 0;
+  GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRESOLVE , & presolve );
+  if( presolve ) {
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRESOLVE , 0 );
+   GRBreset( model , 0 );
+   int status = optimize( updated_model() , elapsed_iter );
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRESOLVE , presolve );
+   if( status ) {
+    sol_status = decode_grb_error( status );
+    return( sol_status );
+    }
+   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+   }
+  }
+
+ // a continuous model on which the solve from scratch too stops on
+ // numerical troubles may still be solved with the highest numerical care,
+ // which costs too much to ask for at every solve (e.g., the dual simplex
+ // with NumericFocus 1 on an infeasible master of a cutting-plane method,
+ // which NumericFocus 3 proves infeasible): a last try with it
+ if( m_status == GRB_NUMERIC ) {
+  int saved = 3;
+  GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NUMERICFOCUS , & saved );
+  if( ( ! is_mip ) && ( saved < 3 ) ) {
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_NUMERICFOCUS , 3 );
+   GRBreset( model , 0 );
+   const int status = optimize( updated_model() , elapsed_iter );
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_NUMERICFOCUS , saved );
+   if( status ) {
+    sol_status = decode_grb_error( status );
+    return( sol_status );
+    }
+   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+   }
+  }
+
+ // a model that stops on numerical troubles also from scratch may still
+ // have a solution, e.g., the incumbent of a MIP: it is given as the one of
+ // a GRB_SUBOPTIMAL, i.e., with no accuracy promise and no bound attached
+ // to it [see get_lb() and get_ub()], as CPXMILPSolver does with a MIP that
+ // CPLEX stops for an error with an integer solution
+ int solcount = 0;
+ if( ( m_status == GRB_NUMERIC ) &&
+     ( ! GRBgetintattr( updated_model() , GRB_INT_ATTR_SOLCOUNT ,
+                        & solcount ) ) && ( solcount > 0 ) ) {
+  sol_status = kLowPrecision;
+  return( sol_status );
   }
 
  sol_status = decode_model_status( m_status );
@@ -1150,9 +1249,11 @@ int GRBMILPSolver::guts_of_compute( void )
  if( ( sol_status == kInfeasible ) || ( sol_status == kUnbounded ) )
   compute_certificate( m_status );
 
- // an optimal LP, whose solution is all in X, Pi and RC, can do without the
- // workspace of GUROBI until the next solve [see free_workspace()]
- if( ( m_status == GRB_OPTIMAL ) && ( ! is_qp ) && ( numquadrows == 0 ) )
+ // an LP optimal or stopped by the cutoff, whose solution is all in X, Pi
+ // and RC, can do without the workspace of GUROBI until the next solve [see
+ // free_workspace()]
+ if( ( ( m_status == GRB_OPTIMAL ) || ( m_status == GRB_CUTOFF ) ) &&
+     ( ! is_qp ) && ( numquadrows == 0 ) )
   free_workspace();
 
  return( sol_status );
@@ -1222,7 +1323,9 @@ void GRBMILPSolver::compute_certificate( int m_status )
  if( m_status == GRB_UNBOUNDED )
   GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_PRIMAL );
 
- optimize( updated_model() );
+ // a solve for the ray alone, not one of compute()
+ long ray_iter = 0;
+ optimize( updated_model() , ray_iter );
 
  GRBsetintparam( menv , GRB_INT_PAR_INFUNBDINFO , infunbd );
  GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
@@ -1345,7 +1448,6 @@ int GRBMILPSolver::decode_grb_error( int error )
   * without doing extensive tests. So we are implementing just the ones we
   * encounter as we go. */
  switch( error ) {
-  //case( GRB_ERROR_OUT_OF_MEMORY ):
   //case( GRB_ERROR_NULL_ARGUMENT ):
   //case( GRB_ERROR_INVALID_ARGUMENT ):
   //case( GRB_ERROR_UNKNOWN_ATTRIBUTE ):
@@ -1371,6 +1473,15 @@ int GRBMILPSolver::decode_grb_error( int error )
   //case( GRB_ERROR_UPDATEMODE_CHANGE ):
   //case( GRB_ERROR_MODEL_MODIFICATION ):
   //case( GRB_ERROR_TUNE_MODEL_TYPES ):
+
+  // the model does not fit in the memory the process may take: the Solver
+  // says that it failed, as below for the license service, rather than
+  // taking down the whole computation
+  case( GRB_ERROR_OUT_OF_MEMORY ):
+   std::cerr << "GRBMILPSolver::decode_grb_error: warning: GUROBI ran out "
+                "of memory [GUROBI error " << error
+             << "], the model was not solved" << std::endl;
+   return( kError );
 
   // these have nothing to do with the model that was being solved: the
   // license service is unreachable, or it refused the request, which
@@ -1432,9 +1543,17 @@ Solver::OFValue GRBMILPSolver::get_lb( void )
       GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NONCONVEX ,
                       &convexity );
 
+      // the solution of a model stopped on numerical troubles comes with
+      // no bound, as the OBJBOUND of a MIP cannot be trusted there
+      if( ( sol_status == kLowPrecision ) && ( m_status == GRB_NUMERIC ) ) {
+       lower_bound = -Inf< OFValue >();
+       break;
+       }
+
       if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) ) {
         // a sub-optimal solution (GRB_SUBOPTIMAL) bounds the optimum only
-        // from above: its value is no lower bound
+        // from above: its value is no lower bound, while the OBJBOUND of a
+        // sub-optimal MIP, below, still is one
         if( sol_status == kLowPrecision ) {
          lower_bound = -Inf< OFValue >();
          break;
@@ -1615,9 +1734,16 @@ Solver::OFValue GRBMILPSolver::get_ub( void )
      int convexity;
      GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_NONCONVEX , &convexity );
 
+     // as in get_lb(): no bound with a model stopped on numerical troubles
+     if( ( sol_status == kLowPrecision ) && ( m_status == GRB_NUMERIC ) ) {
+      upper_bound = Inf< OFValue >();
+      break;
+      }
+
      if( ( int_vars == 0 || relax_int_vars ) && ( convexity == 0 ) ) {
         // a sub-optimal solution (GRB_SUBOPTIMAL) bounds the optimum only
-        // from below: its value is no upper bound
+        // from below: its value is no upper bound, while the OBJBOUND of a
+        // sub-optimal MIP, below, still is one
         if( sol_status == kLowPrecision ) {
          upper_bound = Inf< OFValue >();
          break;
@@ -2186,22 +2312,11 @@ void GRBMILPSolver::get_dual_direction( Configuration * dirc )
   std::fill( y.begin() , y.end() , 0.0 );
   }
 
- // TEMP-PATCH: Farkas-consistent reduced costs dj = c - A' y (same as
- // CPXdjfrompi() in CPXMILPSolver): the RC attribute refers to the last
+ // the multipliers of the columns are - A' y, the ray of the homogeneous
+ // system, accumulated below from zero: the RC attribute refers to the last
  // simplex iterate w.r.t. the original objective and is unrelated to the
- // Farkas certificate.
- // with intHomogeneousDirection the multipliers of the columns are - A' y,
- // the ray of the homogeneous system, so the accumulation below starts from
- // zero instead of from the objective
- // [see MILPSolver::intHomogeneousDirection]
- if( homogeneous_direction )
-  std::fill( dj_grb.begin() , dj_grb.end() , 0.0 );
- else
-  if( GRBgetdblattrarray( updated_model() , GRB_DBL_ATTR_OBJ , 0 ,
-                          tot_grb_vars , dj_grb.data() ) )
-   throw( std::runtime_error(
-              "GRBMILPSolver::get_dual_direction: "
-              "unable to get objective coefficients querying GRB_OBJ" ) );
+ // Farkas certificate
+ std::fill( dj_grb.begin() , dj_grb.end() , 0.0 );
 
  {
   int nnz = 0;
@@ -5139,6 +5254,7 @@ std::string GRBMILPSolver::grb_dbl_par_map( idx_type par ) const
   case( dblRAccSol ): return( GRB_DBL_PAR_POOLGAP );
   case( dblAAccSol ): return( GRB_DBL_PAR_POOLGAPABS );
   case( dblFAccSol ): return( GRB_DBL_PAR_FEASIBILITYTOL );
+  case( dblIntFeasTol ): return( GRB_DBL_PAR_INTFEASTOL );
   }
 
  if( ( par >= dblFirstGUROBIPar ) && ( par < dblLastAlgParGRBS ) )

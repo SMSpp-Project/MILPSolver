@@ -145,8 +145,10 @@ namespace SMSpp_di_unipi_it
  * the two methods of the directions with write_var_solution() and
  * write_dual_solution(), to which they hand the Configuration they are
  * given: a SimpleConfiguration< std::vector< int > > listing sub-Blocks of
- * the Block, and -1 for the Block itself, has only that part of the solution
- * written, any other Configuration all of it [see write_var_solution()].
+ * the Block, and -1 for the Block itself, or the "meta" Configuration that
+ * names Blocks by classname() [see Solver::get_var_solution()], has only
+ * that part of the solution written, any other Configuration all of it [see
+ * write_var_solution()].
  *
  * The class defines also an interface that the derived classes should
  * implement to support Modification. The method process_modifications() is
@@ -252,26 +254,13 @@ class MILPSolver : public CDASolver
    * many passes to converge; reduce to limit the time spent in the
    * separation loop when fast (possibly weaker) bounds are acceptable. */
   intMaxCutPasses ,
-  /// the multipliers of the columns of a dual direction are homogeneous
-  /**< What get_dual_direction() writes as the multiplier of a column is, by
-   * default, the reduced cost \f$ c - A' y \f$: that is what the multiplier
-   * of a dual *point* is, and it is what whoever reads the duals of an
-   * optimum needs. A dual *direction*, though, is a ray of the homogeneous
-   * system, and the objective has no part in it: its column multipliers are
-   * \f$ - A' y \f$. The two differ on every column whose objective
-   * coefficient is not zero, which on a real model is most of them, and only
-   * the homogeneous ones describe the certificate.
-   *
-   * - intHomogeneousDirection == 0 [default]: get_dual_direction() writes
-   *   \f$ c - A' y \f$, as it has always done.
-   *
-   * - intHomogeneousDirection == 1: it writes \f$ - A' y \f$.
-   *
-   * get_dual_solution() is not affected either way. The derived classes that
-   * compute the multipliers themselves out of the duals honour the parameter
-   * [CPXMILPSolver, GRBMILPSolver and HiGHSMILPSolver]; SCIPMILPSolver asks
-   * its back-end for the Farkas coefficients, which are homogeneous to begin
-   * with, so there is nothing for it to do. */
+  /// no longer of any effect, the multipliers of a dual direction are - A' y
+  /**< get_dual_direction() writes as the multipliers of the columns those
+   * of the ray of the homogeneous system, \f$ - A' y \f$, and not the
+   * reduced costs \f$ c - A' y \f$ of a dual point, in which the Objective
+   * has a part that a certificate does not have. The parameter is accepted,
+   * whatever its value, and has no effect: its name stays only so that the
+   * configurations that set it are not refused. */
   intHomogeneousDirection ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
@@ -329,6 +318,17 @@ class MILPSolver : public CDASolver
    * written in the Block, compute() holds the Block under a write lock()
    * when the check is on. The default is 0. */
   dblKKTTol ,
+  /// integrality tolerance of a MIP
+  /**< How far from an integer value an integer Variable may be in a solution
+   * of a MIP, i.e., the integrality tolerance of the back-end:
+   * CPXPARAM_MIP_Tolerances_Integrality for CPXMILPSolver, IntFeasTol for
+   * GRBMILPSolver, mip_feasibility_tolerance for HiGHSMILPSolver and
+   * MSK_DPAR_MIO_TOL_ABS_RELAX_INT for MOSEKMILPSolver, each with its range
+   * and its default. A Solver whose back-end has no such tolerance, e.g.
+   * SCIPMILPSolver, which has a single feasibility tolerance for the rows
+   * and for the integrality, keeps the value and does nothing with it, and
+   * so do the Solver of continuous problems. The default is 1e-5. */
+  dblIntFeasTol ,
   /// First allowed new double parameter for derived classes
   dblLastAlgParMILP
   };
@@ -879,6 +879,18 @@ class MILPSolver : public CDASolver
  void set_Block( Block * block ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the kinds of Modification the MILPSolver reads: the abstract ones
+ /** The MILPSolver works on the abstract representation of the Block, and
+  * therefore it reads all the abstract kinds [see Solver::concerned_by()],
+  * the integrality of the Variable included (which is kept even when it is
+  * relaxed, since intRelaxIntVars may change): the physical Modification,
+  * which it has no use for, do not reach it. */
+
+ [[nodiscard]] Modification::ModConcern concerned_by( void ) const override {
+  return( Modification::eModAbst );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// compute() entry point shared by all the *MILPSolver derived classes
  /** The base compute() takes care of:
   *
@@ -932,9 +944,14 @@ class MILPSolver : public CDASolver
   * Block that its f_value lists are written: an index k >= 0 stands for the
   * k-th sub-Block of the Block, i.e., get_nested_Block( k ), together with
   * all its sub-Blocks, recursively, while -1 stands for the ColVariable of
-  * the Block itself, without those of its sub-Blocks. Any other
-  * Configuration, nullptr included, asks for the whole solution. An index
-  * that is neither -1 nor that of a sub-Block throws std::invalid_argument.
+  * the Block itself, without those of its sub-Blocks. If it is a
+  * SimpleConfiguration< std::map< std::string , Configuration * > >, the
+  * "meta" format of Solver::get_var_solution(), the Blocks it chooses by
+  * classname() are written as the Configuration they are mapped to says,
+  * which is read for that Block in the same way: positional, "meta" in its
+  * turn, or nullptr for all of it. Any other Configuration, nullptr
+  * included, asks for the whole solution. An index that is neither -1 nor
+  * that of a sub-Block throws std::invalid_argument.
   * The columns not asked for are skipped a group at a time, so writing a
   * part costs in proportion to the part rather than to the whole Block. */
 
@@ -1012,7 +1029,9 @@ class MILPSolver : public CDASolver
  /** The iterations that the back-end has made in the last compute(), all
   * its solves summed [see elapsed_iter], what an iteration is being the
   * back-end's own (e.g., a change of the working set for an active-set
-  * method); 0 for a back-end that does not count them. */
+  * method, the simplex and interior point iterations of an LP solver, those
+  * of the LP relaxations of a MIP); 0 for a back-end that does not count
+  * them. */
 
  [[nodiscard]] long get_elapsed_iterations( void ) const override {
   return( elapsed_iter );
@@ -1169,6 +1188,16 @@ class MILPSolver : public CDASolver
  bool selected_Blocks( Configuration * solc , const char * who ,
                        std::unordered_set< const Block * > & sel ) const;
 
+ /// adds to sel the part of \p block that \p solc asks for
+ /** \p top says whether \p block is the Block of the Solver, where a
+  * "meta" \p solc is visited from \p block itself, rather than one it has
+  * chosen already, where it is visited from its sub-Blocks [see
+  * selected_Blocks()]. */
+
+ void select_part( Block * block , Configuration * solc , bool top ,
+                   const char * who ,
+                   std::unordered_set< const Block * > & sel ) const;
+
 /*--------------------------------------------------------------------------*/
  /// the weight of the Objective whose Function is \p f
  /** Returns the factor by which the coefficients of \p f, the Function of
@@ -1194,6 +1223,64 @@ class MILPSolver : public CDASolver
   * by it whatever coefficient of a row they take out of a Modification. */
 
  double variable_weight( const Variable * var , const Constraint * con ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// the problem as a dense QP on its free part alone
+ /** The problem written for a back-end that takes H and A dense [see
+  * make_dense_qp()]: a column with equal bounds is not in it, its value
+  * going to the sides of the rows and to the linear term, nor is a row with
+  * both sides infinite (e.g., a relaxed one), or one with entries on fixed
+  * columns alone whose value is within its sides, so that the dense
+  * factorizations of the back-end are paid on the free part of the problem
+  * alone (e.g., in a hierarchical QP whose levels fix the slacks of the
+  * levels before them). If all the columns are fixed, all of them are in
+  * it, the back-ends needing at least one. */
+
+ struct DenseQP {
+  int n = 0;                     ///< number of columns of the QP
+  int m = 0;                     ///< number of rows of the QP
+  std::vector< int > col;        ///< the column of MILPSolver of each one
+  std::vector< int > row;        ///< the row of MILPSolver of each one
+  std::vector< int > pos;        ///< the column of the QP, or -1
+  std::vector< int > rpos;       ///< the row of the QP, or -1
+  std::vector< double > xfix;    ///< the value of each fixed column, or 0
+  std::vector< double > H;       ///< the n x n Hessian, row-major
+  std::vector< double > f;       ///< the linear term
+  double fconst = 0;             ///< the constant of the objective
+  std::vector< double > A;       ///< the m x n rows, row-major
+  std::vector< double > lb;      ///< the lower bounds of the columns
+  std::vector< double > ub;      ///< the upper bounds of the columns
+  std::vector< double > rl;      ///< the lower sides of the rows
+  std::vector< double > ru;      ///< the upper sides of the rows
+  };
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// writes the problem loaded as a DenseQP
+ /** The objective of the QP is \f$ \frac{1}{2} x^\top H x + f^\top x +
+  * f_0 \f$, \p sign times that of the problem (-1 to minimize the opposite
+  * of an objective to be maximized), and a side of \p inf or more in
+  * absolute value is written as \f$ \pm \f$ \p inf, the infinity of the
+  * back-end. */
+
+ void make_dense_qp( DenseQP & qp , int sign , double inf ) const;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the columns of MILPSolver out of those of a DenseQP
+
+ [[nodiscard]] std::vector< double > dense_qp_x( const DenseQP & qp ,
+                                                 const double * x ) const;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the reduced costs of the columns fixed in a DenseQP
+ /** Given the solution \p x and the multipliers \p pi of the rows, both on
+  * the columns and rows of MILPSolver, writes in \p rc, for each column
+  * that is not in \p qp, the multiplier of its bound, i.e., the component
+  * of \f$ \nabla f( x ) - A^\top \pi \f$ on it, f being the objective of
+  * the problem. */
+
+ void dense_qp_fixed_rc( const DenseQP & qp , const std::vector< double > & x ,
+                         const std::vector< double > & pi ,
+                         std::vector< double > & rc ) const;
 
 /*--------------------------------------------------------------------------*/
  /// MILPSolver handles a change of the weights of a sub-Block
@@ -1542,6 +1629,16 @@ class MILPSolver : public CDASolver
  /// tolerance of the check of the optimality conditions (see dblKKTTol)
  double kkt_tol = 0;
 
+ /// tolerance of the check of a solution that the back-end may have got wrong
+ /** Cleared by compute() before guts_of_compute(), and set by a derived
+  * class whose back-end has returned a solution that it does not trust:
+  * compute() then checks the optimality conditions as with dblKKTTol, with
+  * the larger of the two tolerances, and gives kError if they fail. */
+ double check_tol = 0;
+
+ /// integrality tolerance, when the back-end has none (see dblIntFeasTol)
+ double int_feas_tol = 1e-5;
+
  /// the residuals of the last check [see get_kkt_residuals()]
  std::array< double , 3 > kkt_residuals = {
   std::numeric_limits< double >::quiet_NaN() ,
@@ -1589,11 +1686,6 @@ class MILPSolver : public CDASolver
  * an inconsistency when a reduced cost is being stored during a call to
  * get_dual_solution() or get_dual_direction(). */
  bool throw_reduced_cost_exception;
-
- /** true if get_dual_direction() writes the homogeneous multipliers of the
-  * columns, - A' y, instead of the reduced costs c - A' y
-  * [see intHomogeneousDirection]. */
- bool homogeneous_direction = false;
 
  /** The value the dual objective takes along the unbounded dual direction
   * the last call to get_dual_direction() wrote in the Block, in the sign
@@ -1799,6 +1891,18 @@ class MILPSolver : public CDASolver
   * changed in place with the algorithm it has been asked to use. */
 
  virtual bool reload_on_modification( void ) { return( false ); }
+
+ /// whether the back-end changes the sides of a nonlinear row in place
+ /** A change of the Function of a row that is not a LinearFunction makes
+  * the problem be loaded again whole by every back-end, and so does a change
+  * of the sides of such a row (or its relaxation) unless this returns true,
+  * i.e., unless the back-end keeps the sides of these rows as those of the
+  * linear ones. */
+
+ virtual bool nonlinear_row_sides_in_place( void ) const
+ {
+  return( false );
+  }
 
  /// process all not-GroupModification (bulk of the work)
  void guts_of_process_modifications( const p_Mod mod );

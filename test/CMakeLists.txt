@@ -96,6 +96,13 @@ add_test(NAME test_quad_modify
          COMMAND test_quad_modify
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_quad_row_modify ------------------------------------------------ #
+
+add_milp_test(test_quad_row_modify test_quad_row_modify.cpp)
+add_test(NAME test_quad_row_modify
+         COMMAND test_quad_row_modify
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_qp ------------------------------------------------------------- #
 
 add_milp_test(test_qp test_qp.cpp)
@@ -171,6 +178,13 @@ add_test(NAME test_partial_solution
 add_milp_test(test_qcp_dual test_qcp_dual.cpp)
 add_test(NAME test_qcp_dual
          COMMAND test_qcp_dual
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ----- test_fail_feas ------------------------------------------------------ #
+
+add_milp_test(test_fail_feas test_fail_feas.cpp)
+add_test(NAME test_fail_feas
+         COMMAND test_fail_feas
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 # ----- test_dynamic -------------------------------------------------------- #

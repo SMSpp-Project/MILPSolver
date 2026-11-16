@@ -67,7 +67,9 @@ namespace SMSpp_di_unipi_it
  * typically solved many times with small changes, where an active-set
  * method is at its best, since the working set of the previous solution is
  * a good start for the next one (see intDAQPWarmStart); the iterations of
- * DAQP in the last compute() are given by get_elapsed_iterations().
+ * DAQP in the last compute() are given by get_elapsed_iterations(). DAQP
+ * is given the problem without its fixed columns and its free rows [see
+ * MILPSolver::DenseQP].
  *
  * The following restrictions apply:
  *
@@ -125,6 +127,9 @@ class DAQPMILPSolver : public MILPSolver
    * the versions of DAQP (up to 0.9) that have no elimination. */
   intDAQPEqReduction ,
   /// number of non-improving iterations after which DAQP declares cycling
+  /**< The value of cycle_tol in DAQPSettings: a solve that DAQP ends as
+   * cycling is repeated from scratch with 10 and then 100 times as many
+   * (at least 10 and 100), and the value is restored after. */
   intDAQPCycleTol ,
   /// first allowed new int parameter for derived classes
   intLastAlgParDAQP
@@ -299,6 +304,13 @@ class DAQPMILPSolver : public MILPSolver
 
  void free_workspace( void );
 
+ /// true if the rows and the bounds of the problem admit a point
+ /** Solves the problem with no linear term, which has a solution if and
+  * only if the rows and the bounds are feasible, H being positive
+  * semidefinite, on a workspace of its own. */
+
+ bool rows_feasible( void );
+
  /// true if the last solve has given a primal solution
 
  [[nodiscard]] bool solved( void ) const;
@@ -314,9 +326,7 @@ class DAQPMILPSolver : public MILPSolver
  int d_m = 0;                    ///< number of constraints, bounds included
  double d_sign = 1;              ///< -1 if a maximization was negated
 
- std::vector< double > d_H;      ///< dense Hessian, row-major
- std::vector< double > d_f;      ///< linear term
- std::vector< double > d_A;      ///< dense rows, row-major
+ DenseQP d_dq;                   ///< the problem [see make_dense_qp()]
  std::vector< double > d_bu;     ///< upper sides: bounds, then rows
  std::vector< double > d_bl;     ///< lower sides: bounds, then rows
  std::vector< int > d_sense;     ///< sense of each constraint
@@ -329,7 +339,7 @@ class DAQPMILPSolver : public MILPSolver
  bool d_loaded = false;          ///< true if the problem has changed
 
  std::vector< int > d_ws;        ///< working set of the previous solve
- int d_ws_n = -1;                ///< number of variables when d_ws was taken
+ int d_ws_n = -1;                ///< number of columns when d_ws was taken
 
  std::vector< double > d_x;      ///< primal solution
  std::vector< double > d_lam;    ///< multipliers, bounds then rows

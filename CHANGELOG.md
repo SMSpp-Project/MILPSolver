@@ -7,6 +7,236 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-16
+
+### Added
+
+- `dblIntFeasTol`, the integrality tolerance of a MIP, which is
+  `CPXPARAM_MIP_Tolerances_Integrality` for `CPXMILPSolver`, `IntFeasTol`
+  for `GRBMILPSolver`, `mip_feasibility_tolerance` for `HiGHSMILPSolver` and
+  `MSK_DPAR_MIO_TOL_ABS_RELAX_INT` for `MOSEKMILPSolver`; the Solver whose
+  back-end has none keep it and do nothing with it
+
+- `get_var_solution()`, `get_dual_solution()` and the directions of every
+  :MILPSolver read also the "meta" Configuration of
+  `Solver::get_var_solution()`, which chooses Blocks by `classname()`: each
+  Block chosen is written as the Configuration it is mapped to says, which
+  is read for that Block in the same way (positional, "meta" in its turn or
+  nullptr for all of it); `test_partial_solution` checks it on every
+  back-end
+
+- `MOSEKMILPSolver` takes the rows with a quadratic Function, convex ones,
+  which it refused: their linear part goes to the matrix of MOSEK, given
+  by rows as `MILPSolver` keeps it then, and their quadratic part to the
+  constraint by `MSK_putqconk()`
+
+- `PIQPMILPSolver` gives the certificates of the versions of PIQP after
+  0.6.4, which test them instead of the heuristic criterion: the ray of an
+  unbounded problem in `get_var_direction()` and the Farkas certificate of
+  an infeasible one in `get_dual_direction()`, with the sign of the other
+  `:MILPSolver`; their tolerances are the new `dblPIQPEpsPrimalInf` and
+  `dblPIQPEpsDualInf`, which are not used with PIQP 0.6.4
+
+- `PERMONMILPSolver`, the interface with PermonQP, the solvers of the
+  PERMON library (on PETSc) for large sparse convex QPs: the rows with two
+  different sides get a slack, the fixed variables an equality, and
+  PermonQP solves the problem with equalities and bounds by SMALXE (or by
+  MPGP when there are no rows); the multipliers of the rows are computed
+  from the stationarity condition, `dblFAccSol` and `dblPERMONRelTol` are
+  the absolute and relative tolerances and `intPERMONWarmStart` starts a
+  solve from the previous solution; it is built when
+  `MILPSolver_USE_PERMON` is ON and `FindPERMON` finds PERMON in
+  `PERMON_ROOT` and PETSc 3.22 or later in `PETSC_DIR` (makefiles:
+  `extlib/makefile-libPERMON`), and `test_qp`, `test_quad_modify` and
+  `test_stopped_bounds` run it with the other back-ends for convex QPs
+
+### Changed
+
+- `DAQPMILPSolver` and `QPOASESMILPSolver` do not give their solver the
+  columns with equal bounds, whose values go to the sides of the rows and
+  to the linear term, nor the rows with both sides infinite, so that the
+  dense factorizations are paid on the free part of the problem alone; the
+  problem is written by the new `MILPSolver::make_dense_qp()`, which both
+  use; on the hierarchical QPs of `HQPSolver`, whose levels fix the slacks
+  of the levels before them, a solve of DAQP is about 10 times as fast and
+  one of qpOASES about 6 times
+
+- `test_farkas` checks `PIQPMILPSolver` on the linear programs too, as PIQP
+  0.7.0 gives a certificate of their infeasibility (up to 0.6.4 it stops at
+  its iteration limit there): `PIQPMILPSolver` moves from `QPPar-farkas.txt`
+  to `LPPar-farkas.txt`, and the test reports, rather than fails, a
+  `:MILPSolver` that stops at a limit on those programs and states that it
+  has no certificate to give, as `PIQPMILPSolver` does with PIQP 0.6.4
+
+- `MILPSolver::concerned_by()` is `eModAbst`: the physical Modification of
+  the Block, which the MILPSolver has no use for, no longer reach it (nor
+  have a back-end that reloads the problem at each change do so for them)
+
+- `get_dual_direction()` writes as the multipliers of the columns those of
+  the ray, - A' y, which is what a Farkas certificate and the feasibility
+  cut of a Benders decomposition need, rather than c - A' y;
+  `intHomogeneousDirection` has no effect, and its name is still accepted
+  so that the configurations that set it are not refused
+
+- `HiGHSMILPSolver` checks the optimality conditions of a QP that HiGHS
+  declares optimal with a primal-dual objective error above 1e-3, at 1e-6
+  (or at `dblKKTTol` if larger), and returns `kError` only if they fail,
+  rather than in any case: HiGHS 1.15.1 gives such an error also on right
+  solutions, e.g., on the master problem of a proximal bundle with no cut
+
+- `test_farkas` also checks the ray of `PIQPMILPSolver` on the unbounded QP
+
+- `get_elapsed_iterations()` also counts the iterations of
+  `MOSEKMILPSolver`, `GRBMILPSolver`, `HiGHSMILPSolver` and
+  `SCIPMILPSolver` (the simplex and interior point ones, those of the LP
+  relaxations of a MIP), `PIQPMILPSolver` and `QPMADMILPSolver`, which gave
+  0
+
+### Fixed
+
+- `GRBMILPSolver` and `CPXMILPSolver` free the memory that the back-end
+  keeps also after a solve of an LP stopped by the cutoff, and not only
+  after an optimal one: there GUROBI has the duals and no primal solution,
+  so the duals, the reduced costs and the basis are kept, and the value and
+  the primal solution are answered as missing, as GUROBI answers them. On
+  the Benders decomposition of a PyPSA-Eur instance with 50 scenarios, with
+  the cutoff on the LP of every subproblem, the peak memory goes from 10.3
+  to 6.2 GB, the same as with no cutoff, with the same iterations;
+  `test_cutoff_status` solves the LP stopped by the cutoff again with no
+  change, i.e., from what the Solver has kept of it
+
+- `test_cuts` and `test_dynamic` use `smspp_terminate()` of the core, and the
+  `*_pars` tools, which are built also without SMS++, print that
+  `std::terminate()` was called with no exception and abort: all of them
+  crashed rethrowing the null exception, e.g., when the destructor of a
+  `std::thread` that can still be joined terminates, as when HiGHS cannot
+  start its threads
+
+- the installed module `smspp.milpsolver` could not be imported, since its
+  package gave the interface of the module the target of the library by its
+  name in the build tree, which an installed package does not have
+
+- a change of a row whose Function is not a `LinearFunction`, of its
+  coefficients or of its Variable, loads the problem again in every
+  `:MILPSolver`, which ignored it, and so does a change of its sides or its
+  relaxation, which threw in `CPXMILPSolver` and `GRBMILPSolver` and was
+  given to SCIP as that of a linear row, but in `MOSEKMILPSolver`, which
+  changes the sides in place; `test_quad_row_modify` checks the three changes
+
+- `CPXMILPSolver::has_dual_direction()` answers no on a problem with
+  quadratic rows without asking CPLEX for a Farkas certificate, which it
+  does not give there and whose request wrote "CPLEX Error 1031: Not
+  available for QCP" in its log (e.g., after each solve of the SOCP
+  formulation of a `SingleFlowDCRBlock`); `test_qcp_dual` looks for errors
+  in the log of CPLEX
+
+- `CPXMILPSolver` answers `kLowPrecision` rather than `kError` when CPLEX
+  stops a MIP for an error with an integer solution at hand
+  (`CPXMIP_FAIL_FEAS`), as it does for a continuous problem with a solution
+  not proved optimal: the solution and its value are there, the bound of
+  the search is not (e.g., the SOCP formulation of the `SingleFlowDCRBlock`
+  `topo/Garr201112_1`, whose incumbent is optimal), which the new
+  `test_fail_feas` solves
+
+- `GRBMILPSolver` answers `kLowPrecision` rather than `kError` on a MIP that
+  Gurobi stops on numerical troubles (`GRB_NUMERIC`), also from scratch,
+  with a solution at hand, as it does on a continuous model and as
+  `CPXMILPSolver` does: `get_lb()` and `get_ub()` give no bound of the
+  search then, as `CPXMILPSolver`, the `OBJBOUND` of a MIP not being one
+  that can be trusted, while a sub-optimal MIP (`GRB_SUBOPTIMAL`) keeps it,
+  as `test_fail_feas` checks
+
+- `OSQPMILPSolver`, `PIQPMILPSolver` and `ProxQPMILPSolver` print the log
+  of their solver when `intLogVerb` is positive, which they ignored, as
+  `MILPSolver` does not keep it
+
+- `QPOASESMILPSolver` repeats from scratch with the regularization of
+  qpOASES a solve that ends at the limit on the working set recalculations
+  when `intMaxIter` is not set, as qpOASES does when it cycles on a
+  singular H (the dual of an SVM with more samples than features), rather
+  than answering `kStopIter`
+
+- `DAQPMILPSolver` repeats from scratch with 10 and then 100 times as large
+  a `cycle_tol` a solve that DAQP ends as cycling, which with a singular H
+  it may do on a problem that it then solves (the dual of an SVM with more
+  samples than features, at small C), rather than answering `kError`
+
+- `MOSEKMILPSolver` solves a continuous QP whose convex Hessian is
+  singular, which MOSEK refuses as not convex (as it does on the dual of
+  SVMs with more samples than features) and with no parameter that turns
+  the check off: it solves again with the diagonal of the Hessian shifted
+  by 1e-12, 1e-10 and then 1e-8 times its largest entry, until MOSEK takes
+  it, and restores the Hessian for the next solve; the objective value
+  then holds the term of the shift
+
+- `DAQPMILPSolver` solves again with no working set a problem that the
+  solve started from the working set of the previous one ends as unbounded
+  or infeasible: DAQP 0.11 so ended after one iteration on master problems
+  of the battery of `MasterProblemBlock` whose components start empty,
+  which a solve from scratch finds optimal
+
+- `test_cutoff_status` takes the optimal value (`kOK`) as a right answer
+  also to a cutoff that the first solution reaches, since a Solver may find
+  and prove the optimum before its first check of the cutoffs: HiGHS 1.16
+  solves the knapsack of the test at the root node, and failed it
+
+- `GRBMILPSolver` answers `kError` when Gurobi runs out of memory, rather
+  than throwing an exception that takes down the whole computation
+
+- `GRBMILPSolver` makes a last try with `NumericFocus` 3 on a continuous
+  model on which the solve from scratch too stops on numerical troubles,
+  and then puts the previous value back: the dual simplex with
+  `NumericFocus` 1 stopped so on an infeasible master problem of the
+  battery of `MasterProblemBlock`, which `NumericFocus` 3 proves infeasible
+
+- `GRBMILPSolver` solves a continuous model again from scratch with the
+  primal simplex, when Gurobi calls it optimal with a `MaxVio` beyond the
+  tolerance, only if the solution has a basis: after the barrier without
+  crossover `MaxVio` also holds the complementarity violation, which
+  `BarConvTol` has already accepted, and the primal simplex that followed
+  threw a good solution away and did not end in a useful time on large LPs
+  (an LP of 500000 rows translated from PyPSA)
+
+- `GRBMILPSolver` solves again from scratch a continuous QP that Gurobi
+  calls infeasible, as it already did for a model that stops on numerical
+  troubles: the dual simplex of Gurobi 13.0, started from the basis of the
+  previous solve, calls infeasible a QP that a solve from scratch finds
+  optimal, as the dual master problem of a bundle method at its first cut
+  after the master with the bundle empty, on which `LagrangianDualSolver`
+  stopped with `kError` on a `UCBlock` translated from PyPSA; the model
+  stays infeasible unless the solve from scratch finds it optimal, whatever
+  else that solve says (e.g., that it stops on numerical troubles), as on
+  the master problem of a bundle method whose t is so small that 1 / t is
+  enormous. An LP is not solved again: every infeasible one would be solved
+  twice, the second time with no basis, and the feasibility cuts of a
+  decomposition on a sector-coupled network took ten times as long in its
+  first iterations
+
+- `GRBMILPSolver` solves once more without presolve a continuous model
+  with quadratic rows that stops on numerical troubles also from scratch,
+  and answers `kLowPrecision` rather than `kError` when a continuous model
+  that still does has a solution, which is then given as the one of a
+  sub-optimal solve, with no bound attached to it: the presolve of Gurobi
+  13.0 turns the quadratic rows of the SOCP of the AC network of a
+  `UCBlock` into second-order cones on which the barrier stops after 5
+  iterations at some Lagrangian multipliers, while without presolve it
+  solves the model in 27, and the `LagrangianDualSolver` evaluating every
+  component at each iteration stopped with `kError` on the first of them
+
+- `QPOASESMILPSolver` answers `kError` rather than `kUnbounded` when qpOASES
+  ends a solve as unbounded and `intQPOASESHessianType` is 1, i.e., H is
+  positive definite and the problem cannot be unbounded: qpOASES has only
+  found a projected H numerically singular, as on a level of a hierarchy of
+  `HQPBlock` with the lower levels in the model
+
+- `DAQPMILPSolver` answers `kUnbounded` rather than `kInfeasible` on a
+  problem that DAQP calls infeasible but whose rows and bounds admit a point
+  (the same problem with no linear term has a solution): with a singular H,
+  i.e., with the proximal-point iterations, DAQP takes a convex QP unbounded
+  below for an infeasible one, as the dual master problem of a bundle
+  method whose primal one is empty, on which `BundleSolver` stopped with an
+  error in the master problem
+
 ## [0.11.0] - 2026-11-04
 
 ### Added
@@ -1370,7 +1600,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First test release.
 
-[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.11.0...develop
+[Unreleased]: https://gitlab.com/smspp/milpsolver/-/compare/0.12.0...develop
+[0.12.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.11.0...0.12.0
 [0.11.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.10.0...0.11.0
 [0.10.0]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.1...0.10.0
 [0.9.1]: https://gitlab.com/smspp/milpsolver/-/compare/0.9.0...0.9.1

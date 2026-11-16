@@ -80,7 +80,8 @@
 // include the proper CPLEX parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX , CPX_VERSION ) , _maps.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX , \
+         CPX_VERSION ) , _maps.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -663,9 +664,10 @@ int CPXMILPSolver::guts_of_compute( void )
  else
   sol_status = decode_lqp_status( stat );
 
- // an optimal LP, whose solution is all in x, pi and dj, can do without the
- // memory CPLEX keeps after a solve until the next one
- if( ( stat == CPX_STAT_OPTIMAL ) &&
+ // an LP optimal or stopped by the cutoff, whose solution is all in x, pi
+ // and dj, can do without the memory CPLEX keeps after a solve until the
+ // next one
+ if( ( ( stat == CPX_STAT_OPTIMAL ) || ( sol_status == kCutOff ) ) &&
      ( CPXgetprobtype( env , lp ) == CPXPROB_LP ) )
   free_workspace();
 
@@ -885,7 +887,9 @@ int CPXMILPSolver::decode_mip_status( int status )
    // Deterministic time limit exceeded; no integer solution.
    return( kStopTime );
   case( CPXMIP_FAIL_FEAS ):
-   // Terminated because of an error, but integer solution exists.
+   // Terminated because of an error, but integer solution exists: it is
+   // given with no accuracy promise attached, as that of CPX_STAT_NUM_BEST
+   return( kLowPrecision );
   case( CPXMIP_FAIL_FEAS_NO_TREE ):
    // Out of memory, no tree available, integer solution exists.
   case( CPXMIP_FAIL_INFEAS ):
@@ -1908,6 +1912,11 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
 
 bool CPXMILPSolver::has_dual_direction( void )
 {
+ // CPLEX gives no Farkas certificate of a problem with quadratic rows, and
+ // asking for one writes an error in its log
+ if( numquadrows > 0 )
+  return( false );
+
  std::vector< double > y( numrows , 0 );
  double proof = 0;
  return( ! bool( CPXdualfarkas( env , lp , y.data() , & proof ) ) );
@@ -1939,14 +1948,6 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
  // [see MILPSolver::f_dual_direction_value]
  f_dual_direction_value = proof;
 
- // the second output of CPXdualfarkas is the value the dual objective takes
- // along the certificate, in the sign convention of y, which here is the one
- // of CPXgetpi and is therefore left alone: for min 0 s.t. x >= 2 , x <= -3
- // with x free, y is ( 1 , -1 ) and the value is 5 = y' b, the same number
- // Gurobi reports once its own y is flipped
- // [see MILPSolver::f_dual_direction_value]
- f_dual_direction_value = proof;
-
  // CPXdjfrompi computes reduced costs from dual values
  // dj = c - A'y
 
@@ -1955,11 +1956,10 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
              "CPXMILPSolver::get_dual_direction: "
              "an error occurred in CPXdjfrompi()" ) );
 
- // with intHomogeneousDirection the multipliers of the columns are - A' y,
- // the ray of the homogeneous system, and what CPXdjfrompi() gives is
- // c - A' y, so the objective is taken back out
- // [see MILPSolver::intHomogeneousDirection]
- if( homogeneous_direction ) {
+ // the multipliers of the columns are - A' y, the ray of the homogeneous
+ // system, and what CPXdjfrompi() gives is c - A' y, so the objective is
+ // taken back out
+ {
   std::vector< double > cobj( numcols , 0 );
   if( CPXgetobj( env , lp , cobj.data() , 0 , numcols - 1 ) )
    throw( std::runtime_error(
@@ -4414,6 +4414,7 @@ int CPXMILPSolver::cpx_dbl_par_map( idx_type par ) const
   case( dblRAccSol ): return( CPXPARAM_MIP_Pool_RelGap );
   case( dblAAccSol ): return( CPXPARAM_MIP_Pool_AbsGap );
   case( dblFAccSol ): return( CPXPARAM_Simplex_Tolerances_Feasibility );
+  case( dblIntFeasTol ): return( CPXPARAM_MIP_Tolerances_Integrality );
   }
 
  if( ( par >= dblFirstCPLEXPar ) && ( par < dblLastAlgParCPXS ) )

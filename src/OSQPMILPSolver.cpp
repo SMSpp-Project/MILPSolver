@@ -362,6 +362,7 @@ int OSQPMILPSolver::guts_of_compute( void )
  d_settings.time_limit = ( d_max_time < Inf< double >() ) ?
   std::max( d_max_time , std::numeric_limits< double >::min() ) :
   OSQP_dflt.time_limit;
+ d_settings.verbose = ( log_verbosity > 0 );
 
  const bool ws = d_warm_start && ( d_x.size() == std::size_t( d_n ) ) &&
                  ( d_y.size() == std::size_t( d_m ) );
@@ -678,16 +679,13 @@ void OSQPMILPSolver::get_dual_direction( Configuration * dirc )
   if( d_row_pos[ i ] >= 0 )
    pi[ i ] = - d_cert[ d_row_pos[ i ] ];
 
- // the multipliers of the columns, c - A' y, or - A' y with
- // intHomogeneousDirection, computed out of the matrix so that they are
- // those of y exactly
+ // the multipliers of the columns, - A' y, those of the ray of the
+ // homogeneous system, computed out of the matrix so that they are those
+ // of y exactly
  std::vector< double > dj( d_n , 0 );
- for( OSQPInt j = 0 ; j < d_n ; ++j ) {
-  if( ! homogeneous_direction )
-   dj[ j ] = objective[ j ];
+ for( OSQPInt j = 0 ; j < d_n ; ++j )
   for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
    dj[ j ] -= matval[ k ] * pi[ matind[ k ] ];
-  }
 
  f_dual_direction_value = value;
 
@@ -702,6 +700,7 @@ void OSQPMILPSolver::set_par( idx_type par , int value )
 {
  switch( par ) {
   case( intMaxIter ): d_max_iter = std::max( value , 1 );    return;
+  case( intLogVerb ): log_verbosity = value;                return;
   case( intOSQPWarmStart ):  d_warm_start = bool( value );   return;
   case( intOSQPPolishing ):  d_settings.polishing = bool( value ); return;
   case( intOSQPPolishRefineIter ):
@@ -793,6 +792,7 @@ int OSQPMILPSolver::get_int_par( idx_type par ) const
 {
  switch( par ) {
   case( intMaxIter ):              return( d_max_iter );
+  case( intLogVerb ):              return( log_verbosity );
   case( intOSQPWarmStart ):        return( d_warm_start );
   case( intOSQPPolishing ):        return( d_settings.polishing );
   case( intOSQPPolishRefineIter ): return( d_settings.polish_refine_iter );

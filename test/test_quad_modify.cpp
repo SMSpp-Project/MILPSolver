@@ -10,12 +10,12 @@
  *
  * is loaded with ( a0 , b0 ), a and b are changed by
  * QuadFunction::modify_term() and the problem is solved again, and the value
- * is compared with that of a fresh Solver of the same type loaded with the new
- * coefficients. Each :MILPSolver among CPXMILPSolver, GRBMILPSolver,
+ * is compared with that of a fresh Solver of the same type loaded with the
+ * new coefficients. Each :MILPSolver among CPXMILPSolver, GRBMILPSolver,
  * MOSEKMILPSolver, SCIPMILPSolver, HiGHSMILPSolver, DAQPMILPSolver,
  * QPOASESMILPSolver, ClarabelMILPSolver, ProxQPMILPSolver, PIQPMILPSolver,
- * OSQPMILPSolver, QPMADMILPSolver, QuadProgMILPSolver and HPIPMMILPSolver
- * that is not in the factory is skipped.
+ * OSQPMILPSolver, QPMADMILPSolver, QuadProgMILPSolver, HPIPMMILPSolver and
+ * PERMONMILPSolver that is not in the factory is skipped.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -98,11 +98,12 @@ int main( void )
  int failures = 0;
 
  for( const std::string name :
-       { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" ,
-         "SCIPMILPSolver" , "HiGHSMILPSolver" , "DAQPMILPSolver" ,
-         "QPOASESMILPSolver" , "ClarabelMILPSolver" , "ProxQPMILPSolver" ,
-         "PIQPMILPSolver" , "OSQPMILPSolver" , "QPMADMILPSolver" ,
-         "QuadProgMILPSolver" , "HPIPMMILPSolver" } ) {
+      { "CPXMILPSolver" , "GRBMILPSolver" , "MOSEKMILPSolver" ,
+	"SCIPMILPSolver" ,
+	"HiGHSMILPSolver" , "DAQPMILPSolver" , "QPOASESMILPSolver" ,
+	"ClarabelMILPSolver" , "ProxQPMILPSolver" , "PIQPMILPSolver" ,
+	"OSQPMILPSolver" , "QPMADMILPSolver" , "QuadProgMILPSolver" ,
+	"HPIPMMILPSolver" , "PERMONMILPSolver" } ) {
   Solver * s;
   try {
    s = Solver::new_Solver( name );

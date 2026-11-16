@@ -105,12 +105,21 @@ void process_args( int argc , char ** argv )
 
 /*--------------------------------------------------------------------------*/
 
-/// Custom terminate function to print the exception message
+/// Custom terminate function to print the exception message, if any
 
 void smspp_terminate( void ) {
+ // std::terminate() is also called with no exception, e.g. by the
+ // destructor of a std::thread that can still be joined, and rethrowing the
+ // null exception_ptr is undefined behaviour
+ const auto ep = std::current_exception();
+ if( ! ep ) {
+  std::cerr << "std::terminate() called with no exception in SMS++"
+            << std::endl;
+  std::abort();
+ }
  std::cerr << "Uncaught exception in executing SMS++:\n";
  try {
-  std::rethrow_exception( std::current_exception() );
+  std::rethrow_exception( ep );
  }
  catch( const std::exception & e ) {
   std::cerr << "\tException type: " << typeid( e ).name() << "\n";
@@ -288,7 +297,8 @@ int main( int argc , char ** argv )
   << " CPXMILPSolver::CPLEX_to_SMSpp_int_pars{" << std::endl
   << " {" << std::endl;
  for( const auto & i : int_parameters ) {
-  maps_file << "  { " << i.second << ", intFirstCPLEXPar + " << i.first << " },"
+  maps_file << "  { " << i.second << ", intFirstCPLEXPar + " << i.first <<
+    " },"
             << std::endl;
  }
  maps_file
@@ -301,7 +311,8 @@ int main( int argc , char ** argv )
   << " CPXMILPSolver::CPLEX_to_SMSpp_dbl_pars{" << std::endl
   << " {" << std::endl;
  for( const auto & i : dbl_parameters ) {
-  maps_file << "  { " << i.second << ", dblFirstCPLEXPar + " << i.first << " },"
+  maps_file << "  { " << i.second << ", dblFirstCPLEXPar + " << i.first <<
+    " },"
             << std::endl;
  }
  maps_file
@@ -314,7 +325,8 @@ int main( int argc , char ** argv )
   << " CPXMILPSolver::CPLEX_to_SMSpp_str_pars{" << std::endl
   << " {" << std::endl;
  for( const auto & i : str_parameters ) {
-  maps_file << "  { " << i.second << ", strFirstCPLEXPar + " << i.first << " },"
+  maps_file << "  { " << i.second << ", strFirstCPLEXPar + " << i.first <<
+    " },"
             << std::endl;
  }
  maps_file

@@ -47,7 +47,9 @@
 
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( HiGHS , HIGHS_VERSION_MAJOR ) , HIGHS_VERSION_MINOR ) , HIGHS_VERSION_PATCH ) , _maps.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( \
+         BOOST_PP_CAT( HiGHS , HIGHS_VERSION_MAJOR ) , \
+         HIGHS_VERSION_MINOR ) , HIGHS_VERSION_PATCH ) , _maps.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
@@ -357,7 +359,20 @@ int HiGHSMILPSolver::run_highs( void )
   highs_scheduler_threads = threads;
   }
 
- return( Highs_run( highs ) );
+ const HighsInt status = Highs_run( highs );
+
+ // the iterations of the run, of every algorithm it has used
+ for( const char * info : { "simplex_iteration_count" ,
+			    "ipm_iteration_count" ,
+			    "crossover_iteration_count" ,
+			    "qp_iteration_count" } ) {
+  HighsInt it = 0;
+  if( ( Highs_getIntInfoValue( highs , info , & it ) == kHighsStatusOk ) &&
+      ( it > 0 ) )
+   elapsed_iter += it;
+  }
+
+ return( status );
 
  }  // end( HiGHSMILPSolver::run_highs )
 
@@ -696,18 +711,16 @@ int HiGHSMILPSolver::guts_of_compute( void )
  if( qp_iter_set )
   Highs_setIntOptionValue( highs , "qp_iteration_limit" , qp_iter );
 
- // an optimal QP whose primal and dual values do not agree has not been
- // solved, e.g., an unbounded one that the active set has stopped at a
- // finite point [see QPWorkaround]
+ // an optimal QP whose primal and dual values do not agree may not have
+ // been solved, e.g., an unbounded one that the active set has stopped at a
+ // finite point, or have been solved with a wrong dual value: compute()
+ // checks the optimality conditions of the solution [see QPWorkaround]
  if( qp_help && ( m_status == kHighsModelStatusOptimal ) ) {
   double pd_error = 0;
   if( ( Highs_getDoubleInfoValue( highs , "primal_dual_objective_error" ,
 				  & pd_error ) == kHighsStatusOk ) &&
-      ( pd_error > QPObjectiveError ) ) {
-   if( lp_cutoff )
-    reset_lp_cutoff();
-   return( sol_status = kError );
-   }
+      ( pd_error > QPObjectiveError ) )
+   check_tol = QPCheckTol;
   }
 
  if( qp_help && ( ! definite( m_status ) ) )
@@ -1263,9 +1276,8 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
  // dual objective takes along it is left unset and has_dual_direction_value()
  // reports that this Solver does not have it
 
- // the multipliers of the columns are those of the ray, c - A' y as
- // CPXdjfrompi() gives them, or - A' y with intHomogeneousDirection
- // [see MILPSolver::intHomogeneousDirection]
+ // the multipliers of the columns are those of the ray of the homogeneous
+ // system, - A' y
  if( ncol > 0 ) {
   const HighsInt nnz = Highs_getNumNz( highs );
   std::vector< double > cost( ncol ) , lb( ncol ) , ub( ncol ) , val( nnz );
@@ -1283,7 +1295,7 @@ void HiGHSMILPSolver::get_dual_direction( Configuration * dirc )
    double aty = 0;
    for( HighsInt k = start[ j ] ; k < end ; ++k )
     aty += val[ k ] * y[ index[ k ] ];
-   dj[ j ] = ( homogeneous_direction ? 0 : cost[ j ] ) - aty;
+   dj[ j ] = - aty;
    }
   }
 
@@ -2933,6 +2945,7 @@ std::string HiGHSMILPSolver::highs_dbl_par_map( idx_type par ) const
   case( dblRAccSol ): return( "NoPar" );
   case( dblAAccSol ): return( "NoPar" );
   case( dblFAccSol ): return( "primal_feasibility_tolerance" );
+  case( dblIntFeasTol ): return( "mip_feasibility_tolerance" );
   }
 
  if( ( par >= dblFirstHiGHSPar ) && ( par < dblLastAlgParHiGHS ) )

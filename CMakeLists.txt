@@ -68,6 +68,7 @@ option(MILPSolver_USE_qpmad "Whether MILPSolver will use qpmad or not." ON)
 option(MILPSolver_USE_quadprog
         "Whether MILPSolver will use quadprog or not." ON)
 option(MILPSolver_USE_HPIPM "Whether MILPSolver will use HPIPM or not." ON)
+option(MILPSolver_USE_PERMON "Whether MILPSolver will use PERMON or not." ON)
 
 # A lot of debug prints
 #if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -237,6 +238,17 @@ if (MILPSolver_USE_HPIPM)
     find_package(HPIPM)
     if (NOT HPIPM_FOUND)
         set(MILPSolver_USE_HPIPM OFF)
+    endif ()
+endif ()
+
+if (MILPSolver_USE_PERMON)
+    # Needed for PERMONMILPSolver
+    # PERMON installs no CMake or pkg-config file: FindPERMON finds it in
+    # PERMON_ROOT, and PETSc (3.22 or later) by its pkg-config file in
+    # PETSC_DIR [see FindPERMON.cmake]
+    find_package(PERMON)
+    if (NOT PERMON_FOUND)
+        set(MILPSolver_USE_PERMON OFF)
     endif ()
 endif ()
 
@@ -459,6 +471,12 @@ if (MILPSolver_USE_HPIPM)
     target_link_libraries(${modName} PUBLIC HPIPM::HPIPM)
 endif ()
 
+if (MILPSolver_USE_PERMON)
+    message(STATUS "MILPSolver: PERMON found, configuring PERMONMILPSolver")
+    target_sources(${modName} PRIVATE src/PERMONMILPSolver.cpp)
+    target_link_libraries(${modName} PUBLIC PERMON::PERMON)
+endif ()
+
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
@@ -486,17 +504,32 @@ if (SMSpp_BUILD_MODULE)
     target_compile_features(${modName}_module PUBLIC cxx_std_20)
     # the interface takes the include paths and the definitions of the
     # library, but not its compile options (e.g., the -fopenmp of a source,
-    # which no header needs), so that it agrees with the module it imports
+    # which no header needs), so that it agrees with the module it imports;
+    # the installed package takes them from the installed library, whose
+    # target of this name is not there, and gives the include paths as -I
+    # options, before which CMake puts no prefix of the package
+    set(_inc $<TARGET_PROPERTY:${modName},INTERFACE_INCLUDE_DIRECTORIES>)
+    set(_def $<TARGET_PROPERTY:${modName},INTERFACE_COMPILE_DEFINITIONS>)
     target_include_directories(${modName}_module PRIVATE
-            $<TARGET_PROPERTY:${modName},INTERFACE_INCLUDE_DIRECTORIES>)
+            $<BUILD_INTERFACE:${_inc}>)
     target_compile_definitions(${modName}_module PRIVATE
-            $<TARGET_PROPERTY:${modName},INTERFACE_COMPILE_DEFINITIONS>)
+            $<BUILD_INTERFACE:${_def}>)
+    set(_lib ${modNamespace}::${modName})
+    set(_inc $<TARGET_PROPERTY:${_lib},INTERFACE_INCLUDE_DIRECTORIES>)
+    set(_def $<TARGET_PROPERTY:${_lib},INTERFACE_COMPILE_DEFINITIONS>)
+    target_compile_options(${modName}_module PRIVATE
+            $<INSTALL_INTERFACE:$<LIST:TRANSFORM,${_inc},PREPEND,-I>>)
+    target_compile_definitions(${modName}_module PRIVATE
+            $<INSTALL_INTERFACE:${_def}>)
+    unset(_lib)
+    unset(_inc)
+    unset(_def)
     target_link_libraries(${modName}_module PUBLIC $<LINK_ONLY:${modName}>
             ${modNamespace}::SMS++_module)
     # the interface takes the header and the names of a backend only if it
     # is there [see the #if in src/MILPSolver.cppm]
     foreach (backend CPLEX SCIP GUROBI HiGHS PIPS DAQP qpOASES Clarabel MOSEK
-             ProxQP PIQP OSQP qpmad quadprog HPIPM)
+             ProxQP PIQP OSQP qpmad quadprog HPIPM PERMON)
         if (MILPSolver_USE_${backend})
             target_compile_definitions(${modName}_module PRIVATE
                     MILPSolver_MODULE_${backend})
@@ -628,6 +661,12 @@ if (MILPSolver_USE_HPIPM)
     install(DIRECTORY include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
             FILES_MATCHING PATTERN "HPIPM*")
+endif ()
+
+if (MILPSolver_USE_PERMON)
+    install(DIRECTORY include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${modNamespace}
+            FILES_MATCHING PATTERN "PERMON*")
 endif ()
 
 # Install the auto-generated configuration header (see above).

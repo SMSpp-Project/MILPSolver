@@ -4,13 +4,17 @@
 /** @file
  * Checks that get_var_solution() and get_dual_solution() of each :MILPSolver
  * of the build write the part of the solution that a
- * SimpleConfiguration< std::vector< int > > asks for, and nothing else
- * [see MILPSolver::write_var_solution()]. The Block is
+ * SimpleConfiguration< std::vector< int > >, or a "meta" one naming Blocks
+ * by classname(), asks for, and nothing else [see
+ * MILPSolver::write_var_solution()]. The Block is
  *
  *     R    z , z <= 4
  *     |- A    a , a <= 3 , and the dynamic row a + a1 <= 4
  *     |  `- A1    a1 , a1 <= 2
  *     `- B    b , b <= 1 , and the dynamic column d in [ 0 , 6 ]
+ *
+ * where R and A are AbstractBlock and A1 and B are LeafBlock, an
+ * AbstractBlock with a classname() of its own defined here.
  *
  * with every other Variable in [ 0 , 10 ] by a BoxConstraint of its Block
  * and the Objective of each Block maximizing its Variable (d with
@@ -25,6 +29,12 @@
  * - { 1 , -1 }, the two together;
  * - { }, nothing at all;
  * - a SimpleConfiguration< int >, which does not select and gives all;
+ * - { LeafBlock : nullptr }, A1 and B, below A that is not chosen;
+ * - { AbstractBlock : { -1 } } and { AbstractBlock : { 1 } }, R chosen and
+ *   read with its positional Configuration;
+ * - { AbstractBlock : { LeafBlock : nullptr } }, R chosen and its "meta"
+ *   Configuration visited from its sub-Blocks, again A1 and B;
+ * - { NoSuchBlock : nullptr }, nothing, and { * : nullptr }, all;
  *
  * and each time what is asked for has to be the reference and what is not
  * has to be still the sentinel. Finally { 2 } and { -2 } have to throw
@@ -46,6 +56,7 @@
 #include <cmath>
 #include <iostream>
 #include <list>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -68,6 +79,17 @@
 using namespace SMSpp_di_unipi_it;
 
 /*--------------------------------------------------------------------------*/
+/// an AbstractBlock with a classname() of its own, for the "meta" format
+
+class LeafBlock : public AbstractBlock {
+ public:
+ explicit LeafBlock( Block * father = nullptr ) : AbstractBlock( father ) {}
+ SMSpp_insert_in_factory_h;
+ };
+
+SMSpp_insert_in_factory_cpp_1( LeafBlock );
+
+/*--------------------------------------------------------------------------*/
 
 static constexpr double SENTINEL = -77;
 
@@ -76,7 +98,7 @@ struct Problem {
  AbstractBlock * root;
  std::vector< ColVariable * > vars;          ///< z , a , a1 , b , d
  std::vector< Constraint * > cons;           ///< rows and bounds
- std::vector< char > var_of , con_of;        ///< 'R' , 'A' , 'B'
+ std::vector< char > var_of , con_of;        ///< 'R' , 'A' , 'C' , 'B'
  };
 
 /*--------------------------------------------------------------------------*/
@@ -123,15 +145,15 @@ static Problem make_problem( void )
  Problem pb;
  pb.root = new AbstractBlock;
  auto A = new AbstractBlock( pb.root );
- auto A1 = new AbstractBlock( A );
- auto B = new AbstractBlock( pb.root );
+ auto A1 = new LeafBlock( A );
+ auto B = new LeafBlock( pb.root );
  pb.root->add_nested_Block( A );
  pb.root->add_nested_Block( B );
  A->add_nested_Block( A1 );
 
  add_item( pb , pb.root , 'R' , 4 , "z" );
  auto a = add_item( pb , A , 'A' , 3 , "a" );
- auto a1 = add_item( pb , A1 , 'A' , 2 , "a1" );
+ auto a1 = add_item( pb , A1 , 'C' , 2 , "a1" );
  add_item( pb , B , 'B' , 1 , "b" );
 
  // the dynamic row of A , which binds: a + a1 <= 4 < 3 + 2
@@ -258,7 +280,7 @@ int main( void )
    std::cout << name << ": no solution to start from" << std::endl;
 
   const std::vector< std::pair< std::vector< int > , std::string > > parts =
-   { { { 0 } , "A" } , { { 1 } , "B" } , { { -1 } , "R" } ,
+   { { { 0 } , "AC" } , { { 1 } , "B" } , { { -1 } , "R" } ,
      { { 1 , -1 } , "BR" } , { { } , "" } };
 
   for( const auto & [ idx , asked ] : parts ) {
@@ -280,11 +302,42 @@ int main( void )
    overwrite( pb );
    solver->get_var_solution( & all );
    solver->get_dual_solution( & all );
-   if( ! check( pb , "RAB" , x , y ) ) {
+   if( ! check( pb , "RACB" , x , y ) ) {
     std::cout << name << ": not all with a SimpleConfiguration< int >"
               << std::endl;
     ok = false;
     }
+   }
+
+  // the "meta" format: the Blocks chosen by classname()
+  if( ok ) {
+   using Meta = SimpleConfiguration< std::map< std::string ,
+                                               Configuration * > >;
+   SimpleConfiguration< std::vector< int > > own( { -1 } ) , second( { 1 } );
+   Meta leaves( { { "LeafBlock" , nullptr } } );
+   const std::vector< std::pair< std::map< std::string , Configuration * > ,
+                                 std::string > > metas =
+    { { { { "LeafBlock" , nullptr } } , "CB" } ,
+      { { { "AbstractBlock" , & own } } , "R" } ,
+      { { { "AbstractBlock" , & second } } , "B" } ,
+      { { { "AbstractBlock" , & leaves } } , "CB" } ,
+      { { { "NoSuchBlock" , nullptr } } , "" } ,
+      { { { "*" , nullptr } } , "RACB" } };
+
+   for( const auto & [ map , asked ] : metas ) {
+    Meta solc( map );
+    overwrite( pb );
+    solver->get_var_solution( & solc );
+    solver->get_dual_solution( & solc );
+    solc.f_value.clear();  // the Configuration in it are not its own
+    if( ! check( pb , asked , x , y ) ) {
+     std::cout << name << ": wrong \"meta\" part for \"" << asked << "\""
+               << std::endl;
+     ok = false;
+     break;
+     }
+    }
+   leaves.f_value.clear();
    }
 
   for( int k : { 2 , -2 } ) {

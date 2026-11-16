@@ -49,7 +49,8 @@
 // Include the proper CPLEX parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX, CPX_VERSION ), _defs.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( CPX, CPX_VERSION ), \
+         _defs.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -907,12 +908,12 @@ class CPXMILPSolver : public MILPSolver {
  void reset_lp_cutoff( void );
 
  /// keeps the solution and the basis, and replaces the problem by a copy
- /** Called after each solve of an LP ending optimal: the solution, the
-  * duals, the reduced costs and the basis are kept, and the problem is
-  * replaced by a copy of itself, which has none of the memory CPLEX keeps
-  * after a solve (several times that of the problem itself) and the next
-  * solve, which starts from the kept basis, does not need. If CPLEX cannot
-  * copy the problem, nothing changes. */
+ /** Called after each solve of an LP ending optimal or stopped by the
+  * cutoff: the solution, the duals, the reduced costs and the basis are
+  * kept, and the problem is replaced by a copy of itself, which has none of
+  * the memory CPLEX keeps after a solve (several times that of the problem
+  * itself) and the next solve, which starts from the kept basis, does not
+  * need. If CPLEX cannot copy the problem, nothing changes. */
 
  void free_workspace( void );
 

@@ -36,7 +36,9 @@
 // Include the proper MOSEK parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( MOSEK , MSK_VERSION_MAJOR ) , MSK_VERSION_MINOR ) , MSK_VERSION_REVISION ) , _defs.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( \
+         BOOST_PP_CAT( MOSEK , MSK_VERSION_MAJOR ) , MSK_VERSION_MINOR ) , \
+         MSK_VERSION_REVISION ) , _defs.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -55,8 +57,9 @@ namespace SMSpp_di_unipi_it {
 /// class for solving MILP and convex MIQP problems via MOSEK
 /** The MOSEKMILPSolver class derives from MILPSolver and extends the base
  * class to solve, using the Optimizer API for C of MOSEK, the problems with
- * linear constraints and a linear or convex quadratic objective, with or
- * without integer Variable, i.e., LP, QP, MILP and MIQP.
+ * linear or convex quadratic constraints and a linear or convex quadratic
+ * objective, with or without integer Variable, i.e., LP, QP, QCQP and their
+ * mixed-integer versions.
  *
  * The MOSEKMILPSolver can be registered to any kind of Block (assuming that
  * it contains such a formulation): it uses the base class to build the
@@ -81,9 +84,16 @@ namespace SMSpp_di_unipi_it {
  * solve. A non-convex \f$ Q \f$ makes the solve fail, MOSEK being a convex
  * solver.
  *
- * Constraints with a quadratic Function are not supported, and neither are
- * semi-continuous or semi-integer columns: load_problem() throws
- * std::invalid_argument if the Block has any. MOSEK has no callback through
+ * A row with a quadratic Function (a QuadFunction or a DQuadFunction),
+ * \f$ l \leq a^\top x + x^\top Q x \leq u \f$, is given to MOSEK with its
+ * linear part in the matrix and the lower triangle of \f$ 2 Q \f$ as its
+ * quadratic part; MOSEK takes it only if it is convex, i.e., \f$ Q \f$
+ * positive semidefinite with \f$ l = - \infty \f$ (or negative
+ * semidefinite with \f$ u = + \infty \f$), and the solve fails otherwise.
+ * As in MILPSolver, a problem with quadratic rows is loaded again when rows
+ * or columns come or go. Semi-continuous and semi-integer columns are not
+ * supported: load_problem() throws std::invalid_argument if the Block has
+ * any. MOSEK has no callback through
  * which user cuts or lazy constraints can be given to the branch-and-bound,
  * hence a MIP solve with intCutSepPar asking for separation throws
  * std::invalid_argument as well; with intRelaxIntVars == 2 the separation
@@ -127,6 +137,7 @@ namespace SMSpp_di_unipi_it {
  *                   of MOSEK, MSK_DPAR_INTPNT_TOL_PFEAS,
  *                   MSK_DPAR_INTPNT_QO_TOL_PFEAS, MSK_DPAR_BASIS_TOL_X and
  *                   MSK_DPAR_MIO_TOL_FEAS, the first giving the value read
+ * - dblIntFeasTol = MSK_DPAR_MIO_TOL_ABS_RELAX_INT
  *
  * while dblUpCutOff and dblLwCutOff stop a MIP solve from the callback of
  * MOSEK as soon as the bound or the incumbent of the search reaches them
@@ -249,8 +260,7 @@ class MOSEKMILPSolver : public MILPSolver {
   * which has \f$ y_i \geq 0 \f$ on a row whose lower side is used and
   * \f$ y_i \leq 0 \f$ on one whose upper side is, as the Farkas
   * certificates of the other :MILPSolver; those of the columns are
-  * \f$ c - A^\top y \f$, or \f$ - A^\top y \f$ with
-  * intHomogeneousDirection [see MILPSolver]. The value of the
+  * \f$ - A^\top y \f$. The value of the
   * certificate, \f$ (l^c)^\top s_l^c - (u^c)^\top s_u^c + (l^x)^\top s_l^x
   * - (u^x)^\top s_u^x \f$ over the finite sides, is recorded as well [see
   * MILPSolver::get_dual_direction_value()]. */
@@ -423,6 +433,20 @@ class MOSEKMILPSolver : public MILPSolver {
 
  protected:
 
+ /// the shifts of the diagonal of a refused Hessian [see guts_of_compute()]
+ /** A convex quadratic objective whose Hessian is singular, e.g., the
+  * Gram matrix X X^T of more samples than features, may be refused by the
+  * check of convexity of MOSEK, whose Cholesky factorization takes the
+  * rounding for a negative eigenvalue, and which no parameter turns off
+  * (MOSEK 12 at least). Then the model is solved again with the diagonal of
+  * the Hessian shifted by these multiples of its largest absolute entry, one
+  * after the other until MOSEK takes it, and the Hessian goes back to what
+  * it was at the next solve. The solution is that of the shifted model, and
+  * its value has the term of the shift, which these multiples keep below
+  * the tolerances of the interior point method. */
+ static constexpr std::array< double , 3 > HessianShift = { 1e-12 , 1e-10 ,
+                                                             1e-8 };
+
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED METHODS OF THE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
@@ -445,6 +469,12 @@ class MOSEKMILPSolver : public MILPSolver {
 
  /// handles a Constraint Modification
  void const_modification( const ConstraintMod * mod ) override;
+
+ /// the sides of a quadratic row are those of a linear one in MOSEK
+ bool nonlinear_row_sides_in_place( void ) const override
+ {
+  return( true );
+  }
 
  /// handles a bound (OneVarConstraint) Modification
  void bound_modification( const OneVarConstraintMod * mod ) override;

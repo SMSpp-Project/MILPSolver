@@ -6,7 +6,8 @@
 # infeasibility with a simplex method and without presolve, which would
 # prove the infeasibility with no dual basis to build a ray from; HiGHS
 # is attached twice, with the simplex method and with the interior point
-# method (LPCfg-farkas-HiGHS.txt and LPCfg-farkas-HiGHS-ipm.txt)
+# method (LPCfg-farkas-HiGHS.txt and LPCfg-farkas-HiGHS-ipm.txt), and
+# PIQP, whose certificate needs a version after 0.6.4, with its defaults
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16,7 +17,7 @@ BlockSolverConfig     # exact type of the Configuration object
 
 1  # the BlockSolverConfig is a "differential" one: values are being set
 
-8  # number of (the names of) Solver in this BlockSolverConfig
+9  # number of (the names of) Solver in this BlockSolverConfig
 # now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
 CPXMILPSolver       # name of Solver, if it is in the build
 GRBMILPSolver       # name of Solver, if it is in the build
@@ -26,8 +27,9 @@ HiGHSMILPSolver     # name of Solver, if it is in the build
 HiGHSMILPSolver     # name of Solver, if it is in the build
 ClarabelMILPSolver  # name of Solver, if it is in the build
 OSQPMILPSolver      # name of Solver, if it is in the build
+PIQPMILPSolver      # name of Solver, if it is in the build
 
-8  # number of ComputeConfig in this BlockSolverConfig
+9  # number of ComputeConfig in this BlockSolverConfig
 
 # now all the ComputeConfig
 # the ComputeConfig of CPXMILPSolver - - - - - - - - - - - - - - - - - - - -
@@ -279,6 +281,10 @@ intLogVerb               0
 
 # pointer to the "extra" Configuration
 *  # [none]
+
+# the ComputeConfig of PIQPMILPSolver - - - - - - - - - - - - - - - - - - - -
+
+*  # none: the defaults
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - -  END LPPar-farkas.txt - - - - - - - - - - - - - -

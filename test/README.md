@@ -92,6 +92,19 @@ Three testers for the `MILPSolver` module, each registered as a separate
   that take quadratic rows (`LPPar-qcp.txt`), CPLEX and Gurobi have to solve
   it, SCIP is skipped if it gives no duals of them.
 
+- `test_quad_row_modify` verifies that each `:MILPSolver` of the build that
+  takes quadratic rows solves right a small problem with one of them after a
+  change of its coefficients, of its right-hand side and of its Variable,
+  against the same problem loaded anew.
+
+- `test_fail_feas` verifies that a `:MILPSolver` whose solver ends a MIP
+  with a solution and no accuracy promise answers `kLowPrecision` with that
+  solution: `CPXMILPSolver` when CPLEX stops the search for an error
+  (`CPXMIP_FAIL_FEAS`, `fail-feas.lp` with `MILPCfg-fail-feas.txt`), and
+  `GRBMILPSolver` when Gurobi ends it as sub-optimal, keeping the bound of
+  the search (`grb-suboptimal.lp` with `MILPCfg-grb-suboptimal.txt`); both
+  are the SOCP formulation of a delay-constrained routing problem.
+
 - `test_qp` verifies what each `:MILPSolver` of the build does with small
   quadratic models whose optimum is known: a convex QP with a separable and
   a non-separable objective, minimized and (its opposite) maximized, with

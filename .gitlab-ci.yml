@@ -11,7 +11,7 @@ include:
     file: /ci/style.yml
 
 default:
-  image: registry.gitlab.com/smspp/smspp-project
+  image: ghcr.io/smspp-project/smspp-project:latest
 
 cache:
   key: ${CI_PROJECT_PATH_SLUG}-${CI_COMMIT_REF_SLUG}

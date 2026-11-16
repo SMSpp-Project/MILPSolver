@@ -43,7 +43,9 @@
 // Include the proper Gurobi parameter mapping
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
-#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( GRB , GRB_VERSION_MAJOR ) , GRB_VERSION_MINOR ) , GRB_VERSION_TECHNICAL ) , _defs.h ) )
+#include BOOST_PP_STRINGIZE( BOOST_PP_CAT( BOOST_PP_CAT( BOOST_PP_CAT( \
+         BOOST_PP_CAT( GRB , GRB_VERSION_MAJOR ) , GRB_VERSION_MINOR ) , \
+         GRB_VERSION_TECHNICAL ) , _defs.h ) )
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- NAMESPACE ----------------------------------*/
@@ -784,12 +786,13 @@ void add_mip_starts(
 
 /*--------------------------------------------------------------------------*/
  /// keeps the solution and the basis, and replaces the model by a copy
- /** Called after each solve of a continuous model ending optimal: the
-  * attributes of the solution and the basis are kept, and the model is
-  * replaced by a copy of itself, with no workspace, since the one GUROBI
-  * keeps after a solve takes several times the memory of the model and the
-  * next solve, which starts from the kept basis, does not need it. If
-  * GUROBI cannot copy the model, nothing changes. */
+ /** Called after each solve of a continuous model ending optimal or
+  * stopped by the cutoff: the attributes of the solution that GUROBI has
+  * (at the cutoff the duals, and no primal solution) and the basis are
+  * kept, and the model is replaced by a copy of itself, with no workspace,
+  * since the one GUROBI keeps after a solve takes several times the memory
+  * of the model and the next solve, which starts from the kept basis, does
+  * not need it. If GUROBI cannot copy the model, nothing changes. */
 
  void free_workspace( void );
 

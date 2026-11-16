@@ -109,12 +109,21 @@ void process_args( int argc , char ** argv )
 
 /*--------------------------------------------------------------------------*/
 
-/// Custom terminate function to print the exception message
+/// Custom terminate function to print the exception message, if any
 
 void smspp_terminate( void ) {
+ // std::terminate() is also called with no exception, e.g. by the
+ // destructor of a std::thread that can still be joined, and rethrowing the
+ // null exception_ptr is undefined behaviour
+ const auto ep = std::current_exception();
+ if( ! ep ) {
+  std::cerr << "std::terminate() called with no exception in SMS++"
+            << std::endl;
+  std::abort();
+ }
  std::cerr << "Uncaught exception in executing SMS++:\n";
  try {
-  std::rethrow_exception( std::current_exception() );
+  std::rethrow_exception( ep );
  }
  catch( const std::exception & e ) {
   std::cerr << "\tException type: " << typeid( e ).name() << "\n";
@@ -144,7 +153,8 @@ int main( int argc , char ** argv )
  // }
 
  std::string HiGHS_VERSION =
-  std::to_string( HIGHS_VERSION_MAJOR ) + std::to_string( HIGHS_VERSION_MINOR ) +
+  std::to_string( HIGHS_VERSION_MAJOR ) +
+  std::to_string( HIGHS_VERSION_MINOR ) +
   std::to_string( HIGHS_VERSION_PATCH );
 
  std::string defs_filename = "HiGHS" + HiGHS_VERSION + "_defs.h";
@@ -176,7 +186,8 @@ int main( int argc , char ** argv )
   std::cout << "HiGHS_VERSION is " << HiGHS_VERSION << std::endl;
  }
 
- for( int i = 0 ; Highs_getOptionName( highsenv , i , &name ) == kHighsStatusOk ;
+ for( int i = 0 ;
+      Highs_getOptionName( highsenv , i , &name ) == kHighsStatusOk ;
              ++i ) {
 
   if( strlen( name ) == 0 ) {

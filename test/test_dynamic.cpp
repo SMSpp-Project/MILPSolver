@@ -128,6 +128,7 @@
 #include <random>
 
 #include "AbstractBlock.h"
+#include "SMSTerminate.h"
 
 #include "BlockSolverConfig.h"
 
@@ -544,7 +545,8 @@ static void RemoveFRow( AbstractBlock & AB , const Subset & sbst )
  for( auto ind : sbst ) {
   itxd = std::next( itxd , ind - prev );
   #if CONTROL_RANGED
-    auto itcontrol = std::next( bound_ranged->begin() , nsvar + ind - n_removed );
+    auto itcontrol = std::next( bound_ranged->begin() ,
+				nsvar + ind - n_removed );
     bound_ranged->erase( itcontrol );
   #endif
   ++n_removed;
@@ -757,7 +759,7 @@ bool CompareSolution(double d1, double d2)
 {
     double diff = std::abs(d1 - d2);
     double scale = std::max(1.0, std::max(std::abs(d1), std::abs(d2)));
-    return diff >= 2e-6 * scale;
+    return( diff >= 2e-6 * scale );
 }
 
 bool allEqual( std::vector< double > const & v )
@@ -797,7 +799,7 @@ static bool SolveAll( void )
   std::vector< double > foLP( num_slvr );
 
   for( int j = 0 ; j < num_slvr ; ++j , ++itslvr ) {
-    // solve the LPBlock with the j^th solvers- - - - - - - - - - - - - - - - - - 
+    // solve the LPBlock with the j^th solvers- - - - - - - - - - - - - - - -
 
     Solver * slvrLP = *itslvr;
     #if DETACH_LP
@@ -805,7 +807,8 @@ static bool SolveAll( void )
      LPBlock->register_Solver( slvrLP , true );  // push it to the front
     #endif
     rtrnLP[ j ] = slvrLP->compute( false );
-    hsLP[ j ] = ( ( rtrnLP[j] >= Solver::kOK ) && ( rtrnLP[ j ] < Solver::kError ) )
+    hsLP[ j ] = ( ( rtrnLP[j] >= Solver::kOK ) &&
+		  ( rtrnLP[ j ] < Solver::kError ) )
                 || ( rtrnLP[ j ] == Solver::kLowPrecision );
     foLP[ j ] = hsLP[ j ] ? ( convex ? slvrLP->get_ub() : slvrLP->get_lb() )
                       : ( convex ? INF : -INF );
@@ -855,23 +858,6 @@ static bool SolveAll( void )
   exit( 1 );
   }
  }
-
-/*--------------------------------------------------------------------------*/
-/// Custom terminate function to print the exception message
-
-void smspp_terminate( void ) {
- std::cerr << "Uncaught exception in executing SMS++:\n";
- try {
-  std::rethrow_exception( std::current_exception() );
- }
- catch( const std::exception & e ) {
-  std::cerr << "\tException type: " << typeid( e ).name() << "\n";
-  std::cerr << "\tException message: " << e.what() << "\n";
- } catch( ... ) {
-  std::cerr << "\tUnknown exception" << std::endl;
- }
- std::abort(); // or exit(1)
-}
 
 /*--------------------------------------------------------------------------*/
 
@@ -1320,12 +1306,14 @@ int main( int argc , char **argv )
    if( ! LPbnd->empty() ) {
     #if HAVE_CONSTRAINTS == 1
      LPBlock->add_dynamic_constraints(
-	   *(LPBlock->get_dynamic_constraint< FRowConstraint >( "xbnd" )) , *LPbnd );
+	   *(LPBlock->get_dynamic_constraint< FRowConstraint >( "xbnd" )) ,
+	   *LPbnd );
     #endif
     
     #if HAVE_CONSTRAINTS == 2
      LPBlock->add_dynamic_constraints(
-	   *(LPBlock->get_dynamic_constraint< BoxConstraint >( "xbnd" )) , *LPbnd );
+	   *(LPBlock->get_dynamic_constraint< BoxConstraint >( "xbnd" )) ,
+	   *LPbnd );
     #endif
     }
 
@@ -1429,10 +1417,10 @@ int main( int argc , char **argv )
      PANIC( nvar + 1 == ci.get_num_active_var() );
     }
 
-  // change ranged constraint rhs and lhs - - - - - - - - - - - - - - - - - - - -
+  // change ranged constraint rhs and lhs - - - - - - - - - - - - - - - - - -
 
-  // in order to avoid strange behaviour, we don't want that the bounds on variables
-  // added in the current loop changes
+  // in order to avoid strange behaviour, we don't want that the bounds on
+  // variables added in the current loop changes
   Index n_oldranged = nranged - added_ndvar;
   if( ( wchg & 128 ) && ( dis( rg ) <= p_change ) )
    if( Index tochange = Index( dis( rg ) * n_oldranged ) ) {
@@ -1447,7 +1435,8 @@ int main( int argc , char **argv )
      // the variables can now only be active in the associated frow
      // constraint, if any: exploit this to identify the frow constraint
      // and remove it
-     ChangeFRow( *LPBlock , Range( strt , stp ) , ( rep % ( SKIP_BEAT + 1 ) != 0 ) );
+     ChangeFRow( *LPBlock , Range( strt , stp ) ,
+		 ( rep % ( SKIP_BEAT + 1 ) != 0 ) );
      }
     else {  // in the other 50% of the cases, do a sparse change
      LOG1( "(s) - " );

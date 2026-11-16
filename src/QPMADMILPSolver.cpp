@@ -220,6 +220,7 @@ int QPMADMILPSolver::guts_of_compute( void )
  try {
   ret = d_qp->solver.solve( x , d_qp->Hf , h , lb , ub , A , lbA , ubA ,
 			    param );
+  elapsed_iter += long( d_qp->solver.getNumberOfInequalityIterations() );
   }
  catch( std::runtime_error & e ) {
   // qpmad throws if H has no Cholesky factorization, or if it finds the

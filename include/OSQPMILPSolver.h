@@ -284,8 +284,9 @@ class OSQPMILPSolver : public MILPSolver
  * Besides those of MILPSolver and those of OSQP above, the standard
  * intMaxIter (the iteration limit of OSQP, none by default rather than the
  * 4000 of OSQP, which do not suffice to many Linear Programs), dblMaxTime
- * (its time limit) and dblFAccSol (its absolute tolerance on the primal
- * and dual residuals) are handled.
+ * (its time limit), dblFAccSol (its absolute tolerance on the primal and
+ * dual residuals) and intLogVerb (its log on stdout if positive) are
+ * handled.
  * @{ */
 
  void set_par( idx_type par , int value ) override;

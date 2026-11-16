@@ -41,10 +41,15 @@
  *
  * The solvers that state they have no certificate to give are reported and
  * skipped, that being a legitimate answer: the infeasibility may have been
- * proved by the presolve, with no dual basis to build a ray from. HiGHS is
- * the exception, as it computes a certificate whenever it has none at hand:
- * it is in LPPar-farkas.txt with the simplex method and with the interior
- * point method, and has to give one with both.
+ * proved by the presolve, with no dual basis to build a ray from. So are
+ * those that stop at a limit on the infeasible instance and state that they
+ * have no certificate, as a solver whose infeasibility criterion is a
+ * heuristic one does (PIQPMILPSolver with a PIQP up to 0.6.4): having
+ * proved nothing, they have nothing to give, while any other status of the
+ * infeasible instance is a failure. HiGHS is the exception, as it computes
+ * a certificate whenever it has none at hand: it is in LPPar-farkas.txt
+ * with the simplex method and with the interior point method, and has to
+ * give one with both.
  *
  * Two more properties are checked on a second program, the same one with the
  * third row made two-sided and the two variables given an explicit box, so
@@ -62,9 +67,8 @@
  * infeasibility certificate is a statement about the constraint system alone,
  * so giving the same program two different Objectives must leave the ray
  * unchanged up to the positive factor each solver is free to scale it by.
- * This is checked only where the Solver knows intHomogeneousDirection, the
- * parameter that asks for the multipliers of the ray, \f$ - A' y \f$, rather
- * than the reduced costs of an optimal dual point, \f$ c - A' y \f$.
+ * The multipliers of the columns are those of the ray, \f$ - A' y \f$, and
+ * not the reduced costs of an optimal dual point, \f$ c - A' y \f$.
  *
  * Finally, the unbounded side of the same interface is checked on a convex
  * QP whose Hessian is singular,
@@ -81,7 +85,9 @@
  * :MILPSolver there that LPPar-farkas.txt does not have, which do not detect
  * the infeasibility of the linear programs above (ProxQPMILPSolver, whose
  * dense backend stops at its iteration limit on them), are only checked on
- * this QP.
+ * this QP. PIQPMILPSolver, in LPPar-farkas.txt, gives the certificates
+ * with a PIQP after 0.6.4, while 0.6.4 stops at its iteration limit on the
+ * infeasible programs and is reported as above.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -549,7 +555,22 @@ int main( void )
 
   status = solver->compute();
 
-  if( status != Solver::kInfeasible ) {
+  // a solve stopped at a limit has proved nothing: it is a legitimate
+  // answer if the Solver states that it has no certificate to give
+  const bool stopped = ( status == Solver::kStopIter ) ||
+                       ( status == Solver::kStopTime );
+  bool stopped_has = false;
+  if( stopped && ( ! must ) )
+   try {
+    auto cda = dynamic_cast< CDASolver * >( solver );
+    stopped_has = cda && cda->has_dual_direction();
+    }
+   catch( const std::exception & ) { stopped_has = true; }
+
+  if( stopped && ( ! must ) && ( ! stopped_has ) )
+   std::cout << " stops before proving the instance infeasible (status "
+             << status << ") and has no certificate to give" << std::endl;
+  else if( status != Solver::kInfeasible ) {
    std::cout << " does not report the instance as infeasible (status "
              << status << ")" << std::endl;
    all_passed = false;
@@ -666,59 +687,34 @@ int main( void )
    else
     std::cout << " -> OK";
 
-   /* The multipliers of a ray are tied to one another: with the homogeneous
-    * ones asked for, the multiplier of the bound of each column is minus the
-    * combination of the rows through that column. In the sign convention the
-    * Constraints carry (they hold the multipliers negated) this reads
+   /* The multipliers of a ray are tied to one another: the multiplier of
+    * the bound of each column is minus the combination of the rows through
+    * that column. In the sign convention the Constraints carry (they hold
+    * the multipliers negated) this reads
     *
     *     b_j + sum_i a_ij d_i = 0
     *
     * which holds whichever of the rays the solver happens to return, and is
     * what the reduced costs of an optimal dual point, c - A' y, do not
     * satisfy: the Objective has no part in a certificate. */
-   const auto par = solver->int_par_str2idx( "intHomogeneousDirection" );
-   if( par >= Inf< Solver::idx_type >() )
-    std::cout << ", the columns are not checked, this Solver has no"
-	      << " intHomogeneousDirection";
-   else {
-    // a Solver that cannot produce them says so rather than taking the
-    // parameter and going on, which is a legitimate answer and not a failure
-    bool asked = true;
-    try { solver->set_par( par , 1 ); }
-    catch( const std::exception & ) {
-     asked = false;
-     std::cout << ", the columns are not checked, this Solver refuses the"
-	       << " homogeneous direction";
+   {
+    // the coefficient of column j in row i, as build_boxed() states them
+    static const double a[ 3 ][ 2 ] = { { 2 , 1 } , { 1 , 2 } , { 1 , 1 } };
+
+    double worst = 0;
+    for( std::size_t j = 0 ; j < 2 ; ++j ) {
+     double sum = ray[ 3 + j ];
+     for( std::size_t i = 0 ; i < 3 ; ++i )
+      sum += a[ i ][ j ] * ray[ i ];
+     worst = std::max( worst , std::abs( sum ) );
      }
 
-    if( asked ) {
-     std::vector< double > hray;
-     double hvalue = 0;
-
-     if( ! ray_of( 1.0 , hray , hvalue ) )
-      std::cout << ", the columns are not checked, no certificate with it";
-     else {
-      // the coefficient of column j in row i, as build_boxed() states them
-      static const double a[ 3 ][ 2 ] = { { 2 , 1 } , { 1 , 2 } , { 1 , 1 } };
-
-      double worst = 0;
-      for( std::size_t j = 0 ; j < 2 ; ++j ) {
-       double sum = hray[ 3 + j ];
-       for( std::size_t i = 0 ; i < 3 ; ++i )
-	sum += a[ i ][ j ] * hray[ i ];
-       worst = std::max( worst , std::abs( sum ) );
-       }
-
-      if( worst > 1e-6 ) {
-       std::cout << ", the columns are off by " << worst << " -> KO";
-       all_passed = false;
-       }
-      else
-       std::cout << ", the columns are the ray's -> OK";
-      }
-
-     solver->set_par( par , 0 );
+    if( worst > 1e-6 ) {
+     std::cout << ", the columns are off by " << worst << " -> KO";
+     all_passed = false;
      }
+    else
+     std::cout << ", the columns are the ray's -> OK";
     }
 
    std::cout << std::endl;

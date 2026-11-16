@@ -23,11 +23,16 @@
  * or r4 taken from another row (the linear rows of the back-end not being
  * those of the Block when a quadratic row has no linear part) is an error.
  *
+ * The problem being feasible, none of them may have a dual direction
+ * either, and asking for it is no error: a back-end whose log is in a file
+ * [see strLogFileName] must have written no error there, as CPLEX does when
+ * it is asked for a Farkas certificate of a problem with quadratic rows.
+ *
  * The :MILPSolver are those of LPPar-qcp.txt that the build has, i.e., the
  * ones that take quadratic rows; one that gives no duals of them is said so
  * and skipped, except CPXMILPSolver and GRBMILPSolver, which have to solve
- * the problem. The test fails if one of them does not, or if any gives a
- * wrong dual.
+ * the problem. The test fails if one of them does not, if any gives a
+ * wrong dual or a dual direction, or if a log has an error in it.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -39,6 +44,8 @@
 /*--------------------------------------------------------------------------*/
 
 #include <cmath>
+#include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <set>
 #include <string>
@@ -157,6 +164,18 @@ int main( void )
 
  const std::set< std::string > must = { "CPXMILPSolver" , "GRBMILPSolver" };
 
+ // the logs of the back-ends that their ComputeConfig put in a file, which
+ // they append to: what this run writes is what follows their current end,
+ // read once the Solver are gone and the back-ends have written all of it
+ std::vector< std::pair< std::string , std::streamoff > > logs;
+ for( auto cc : bsc->get_SolverConfigs() )
+  if( cc )
+   for( const auto & [ par , log ] : cc->str_pars )
+    if( ( par == "strLogFileName" ) && ( ! log.empty() ) ) {
+     std::ifstream in( log , std::ios::ate );
+     logs.emplace_back( log , in ? std::streamoff( in.tellg() ) : 0 );
+     }
+
  auto pb = make_problem();
  bsc->apply( pb.block );
  bsc->clear();  // kept, clear()-ed, for the final cleanup
@@ -202,8 +221,14 @@ int main( void )
    if( ! close( d , sign * MuStar[ j ] , 1e-4 ) )
     ok = false;
    }
-  std::cout << " (" << sign << " times 1 0.5 2 1 3)"
-            << ( ok ? " -> OK" : " -> KO" ) << std::endl;
+  std::cout << " (" << sign << " times 1 0.5 2 1 3)";
+
+  if( solver->has_dual_direction() ) {
+   std::cout << ", a dual direction";
+   ok = false;
+   }
+
+  std::cout << ( ok ? " -> OK" : " -> KO" ) << std::endl;
   if( ! ok )
    ++failures;
   }
@@ -211,6 +236,20 @@ int main( void )
  bsc->apply( pb.block );
  delete bsc;
  delete pb.block;
+
+ // the errors of the back-ends, e.g., those of the queries made after the
+ // solve, which the Solver answer without them
+ for( const auto & [ log , start ] : logs ) {
+  std::ifstream in( log );
+  in.seekg( start );
+  for( std::string line ; std::getline( in , line ) ; )
+   if( line.find( "Error" ) != std::string::npos ) {
+    std::cout << log << ": \"" << line << "\" -> KO" << std::endl;
+    ++failures;
+    }
+  in.close();
+  std::remove( log.c_str() );
+  }
 
  return( failures ? 1 : 0 );
  }
