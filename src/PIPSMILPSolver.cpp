@@ -446,9 +446,9 @@ Solver::OFValue PIPSMILPSolver::get_ub( void )
 
 void PIPSMILPSolver::apply_thread_budget( void ) const
 {
- // Zero leaves the current environment/runtime settings unchanged. The
- // parameter may be set before MPI is initialized, so query the communicator
- // here, after set_Block() initialized MPI, rather than in set_par().
+ // Zero leaves the current runtime settings unchanged. The parameter may
+ // be set before MPI is initialized, so query the communicator here, after
+ // set_Block() initialized MPI, rather than in set_par().
  if( max_threads == 0 )
   return;
 
@@ -456,23 +456,15 @@ void PIPSMILPSolver::apply_thread_budget( void ) const
  if( MPI_Comm_size( MPI_COMM_WORLD , & n_proc ) != MPI_SUCCESS || n_proc < 1 )
   throw( std::runtime_error(
                        "PIPSMILPSolver: cannot get MPI process count" ) );
- // A smaller budget would give zero threads per rank: leave both the
- // environment and the OpenMP runtime unchanged instead.
+ // A smaller budget would give zero threads per rank: leave the OpenMP
+ // runtime unchanged instead.
  if( max_threads < n_proc )
   return;
 
- const int threads_per_process = max_threads / n_proc;
- const auto value = std::to_string( threads_per_process );
-#ifdef _WIN32
- const int error = _putenv_s( "OMP_NUM_THREADS" , value.c_str() );
-#else
- const int error = setenv( "OMP_NUM_THREADS" , value.c_str() , 1 );
-#endif
- if( error )
-  throw( std::runtime_error( "PIPSMILPSolver: cannot set OMP_NUM_THREADS" ) );
-
- // OpenMP need not reread environment variables after program startup.
- omp_set_num_threads( threads_per_process );
+ // PIPS-IPM++ and its linear solvers take the number of threads from
+ // omp_get_max_threads(), which the OpenMP runtime reads from the
+ // environment only at startup, hence the runtime is told directly
+ omp_set_num_threads( max_threads / n_proc );
 }
 
 /*--------------------------------------------------------------------------*/

@@ -259,17 +259,18 @@ class PIPSMILPSolver : public MILPSolver
   *   PIPS option has the opposite meaning).
   *
   * intMaxThread is stored locally as a total OpenMP thread budget across
-  * MPI_COMM_WORLD. A positive value sets OMP_NUM_THREADS and the OpenMP
-  * runtime to floor(intMaxThread / number_of_MPI_processes) before loading
-  * the PIPS model and before each solve. The default, 0, and positive
-  * budgets smaller than the process count leave the current environment
-  * and runtime settings unchanged (they do not undo an earlier positive
+  * MPI_COMM_WORLD. A positive value sets the number of threads of the
+  * OpenMP runtime [see omp_set_num_threads()] to floor(intMaxThread /
+  * number_of_MPI_processes) before loading the PIPS model and before each
+  * solve, in the thread that calls them, from which PIPS-IPM++ takes it;
+  * the environment (OMP_NUM_THREADS) is not changed. The default, 0, and
+  * positive budgets smaller than the process count leave the current
+  * runtime settings unchanged (they do not undo an earlier positive
   * setting). Negative values are rejected. All ranks must use the same
   * budget. This sets the requested OpenMP team size; runtime limits can
   * reduce the actual size.
   * It does not change the number of MPI processes or control non-OpenMP
-  * thread pools. The environment is process-global and must not be changed
-  * concurrently by different Solver instances.
+  * thread pools.
   *
   * Any other parameter is handled by the base class; in particular,
   * parameters that have no PIPS counterpart (say, dblUpCutOff and

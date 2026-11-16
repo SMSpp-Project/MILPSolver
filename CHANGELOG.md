@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the one of PIPS-IPM++ puts the MPI libraries in a `--no-as-needed`
   section where the linker has such sections, which is checked
 
+- the tool `pips_pars` tells a file from a directory by
+  `std::filesystem` instead of the POSIX `stat()`, so that it builds with
+  every compiler
+
+- `intMaxThread` of `PIPSMILPSolver` gives the threads to the OpenMP
+  runtime only, by `omp_set_num_threads()`, from which PIPS-IPM++ takes
+  them, and no longer writes `OMP_NUM_THREADS` in the environment, which
+  needed a call of its own on each system
+
 ### Removed
 
 - `cmake/FindCPLEX.cmake` and `cmake/FindGUROBI.cmake`, the ones of the core

@@ -28,6 +28,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -35,7 +36,6 @@
 #include <set>
 #include <stdexcept>
 #include <string>
-#include <sys/stat.h>
 #include <vector>
 #include <getopt.h>
 
@@ -64,9 +64,8 @@ std::string get_filename( const std::string & fullpath )
 /// Checks whether a regular file exists
 bool file_exists( const std::string & filename )
 {
- struct stat buffer;
- return( stat( filename.c_str() , &buffer ) == 0 &&
-         S_ISREG( buffer.st_mode ) );
+ std::error_code ec;
+ return( std::filesystem::is_regular_file( filename , ec ) );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -74,8 +73,8 @@ bool file_exists( const std::string & filename )
 /// Checks whether a directory exists
 bool dir_exists( const std::string & dirname )
 {
- struct stat buffer;
- return( stat( dirname.c_str() , &buffer ) == 0 && S_ISDIR( buffer.st_mode ) );
+ std::error_code ec;
+ return( std::filesystem::is_directory( dirname , ec ) );
 }
 
 /*--------------------------------------------------------------------------*/
