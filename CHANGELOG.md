@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- the new event `eProgress` of `MILPSolver` is called while a MIP search
+  runs, each time its incumbent or its bound changes, and `get_progress()`
+  gives them with the nodes so far and the time since the start of
+  `compute()`: `HiGHSMILPSolver` calls it from its MIP callback, which is
+  set also when a handler is there, `SCIPMILPSolver` from its event handler
+  at each new incumbent and each node solved; nothing is done when no
+  handler is set
+
 ### Changed
 
 - the library is kept in whoever links it by a source that calls its
@@ -43,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `cmake/FindCPLEX.cmake` and `cmake/FindGUROBI.cmake`, the ones of the core
   being used
+
+### Fixed
+
+- the MIP callback of `HiGHSMILPSolver` takes an infinite cutoff as none:
+  an infinite bound of the search, which HiGHS gives once it has proven the
+  problem infeasible, no longer reaches it and stops the solve as if a
+  cutoff had been met, which made an infeasible MIP end with `kCutOff`
+  whenever the callback was set for another reason
 
 ## [0.12.0] - 2026-11-16
 

@@ -592,6 +592,11 @@ class SCIPMILPSolver : public MILPSolver
   * primal bound, and the best solution of SCIP otherwise. */
  bool cutoff_reached( SCIP_SOL * sol = nullptr );
 
+ /// gives the bounds of SCIP to the handlers of eProgress
+ /** The incumbent is \p sol as in cutoff_reached(), the nodes those of
+  * SCIP so far [see MILPSolver::progress()]. */
+ void scip_progress( SCIP_SOL * sol = nullptr );
+
  friend class SCIPMILPSolver_CutOff;
 
 /*--------------------------------------------------------------------------*/

@@ -2143,6 +2143,24 @@ void MILPSolver::scan_objective( const FRealObjective * obj , double w )
  }
 
 /*--------------------------------------------------------------------------*/
+
+void MILPSolver::progress( double incumbent , double bound , long nodes )
+{
+ std::lock_guard< std::mutex > guard( f_progress_mutex );
+ // NaN at the start of compute(), so that the first state is always given
+ if( ( incumbent == f_progress.incumbent ) && ( bound == f_progress.bound ) )
+  return;
+ f_progress.incumbent = incumbent;
+ f_progress.bound = bound;
+ f_progress.nodes = nodes;
+ f_progress.time = std::chrono::duration< double >(
+		    std::chrono::steady_clock::now() -
+		    f_progress_start ).count();
+ for( auto & ev : v_events[ eProgress ] )
+  ev();
+ }
+
+/*--------------------------------------------------------------------------*/
 /*----------------------------- MODIFICATIONS ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -2195,6 +2213,11 @@ int MILPSolver::compute( bool changedvars )
  f_cutoff_stop = false;
  elapsed_iter = 0;
  check_tol = 0;
+ if( follows_progress() ) {  // nothing known yet [see progress()]
+  f_progress = { std::numeric_limits< double >::quiet_NaN() ,
+		 std::numeric_limits< double >::quiet_NaN() , -1 , 0 };
+  f_progress_start = std::chrono::steady_clock::now();
+  }
  int sts = guts_of_compute();
 
  // a run that the callback interrupted at a cutoff stopped where it was asked

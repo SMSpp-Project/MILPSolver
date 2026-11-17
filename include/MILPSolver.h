@@ -70,6 +70,8 @@
 
 #include <atomic>
 
+#include <chrono>
+
 #include <cmath>
 
 #include <cstddef>
@@ -79,6 +81,8 @@
 #include <limits>
 
 #include <map>
+
+#include <mutex>
 
 #include <typeinfo>
 
@@ -378,7 +382,9 @@ class MILPSolver : public CDASolver
 /** @name Constructor and destructor
  * @{ */
 
- MILPSolver( void ) : CDASolver() , throw_reduced_cost_exception( 0 ) {}
+ MILPSolver( void ) : CDASolver() , throw_reduced_cost_exception( 0 ) {
+  v_events.resize( e_last_event_type_MILPS );
+  }
 
 /*--------------------------------------------------------------------------*/
 
@@ -1038,6 +1044,46 @@ class MILPSolver : public CDASolver
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the events of MILPSolver, on top of those of ThinComputeInterface
+
+ enum event_type_MILPS {
+  eProgress = e_last_event_type ,  ///< the incumbent or the bound moves
+                                   /**< Called, by the back-ends that can,
+   * each time the incumbent or the bound of a MIP search changes, while it
+   * runs, get_progress() telling them; the handler runs within a callback
+   * of the back-end, possibly from one of its threads but never two at a
+   * time, and what it returns is not read. HiGHSMILPSolver and
+   * SCIPMILPSolver call it; when no handler is set, nothing is done. */
+  e_last_event_type_MILPS          ///< first new event of derived classes
+  };
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the events supported: those of ThinComputeInterface and eProgress
+
+ [[nodiscard]] EventID max_event_number( void ) const override {
+  return( e_last_event_type_MILPS );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the state of a MIP search, as given to the handlers of eProgress
+
+ struct Progress {
+  double incumbent;  ///< the value of the incumbent, +-INF if none
+  double bound;      ///< the bound on the optimal value, +-INF if none
+  long nodes;        ///< the nodes of the search so far, -1 if not known
+  double time;       ///< the seconds since the start of compute()
+  };
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// the state being given to the handlers of eProgress
+ /** The values are in the sense of the problem and with the constant of
+  * the objective, as get_lb() and get_ub() give them. */
+
+ [[nodiscard]] const Progress & get_progress( void ) const {
+  return( f_progress );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// the residuals of the last check of the optimality conditions
  /** The primal residual, the dual residual and the gap of the solution
  * returned by the last compute() [see dblKKTTol], NaN for those that were
@@ -1178,6 +1224,21 @@ class MILPSolver : public CDASolver
 /*--------------------------------------------------------------------------*/
 /*------------------------- PROTECTED METHODS ------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+ /// true if eProgress has a handler, i.e., if progress() is to be called
+
+ [[nodiscard]] bool follows_progress( void ) const {
+  return( ! v_events[ eProgress ].empty() );
+  }
+
+ /// gives the handlers of eProgress the state of the search, if it changed
+ /** To be called by the callbacks of a derived class with the incumbent and
+  * the bound of the search, in the sense of the problem and with the
+  * constant of the objective, and the nodes so far (-1 if not known); the
+  * handlers are called only if the incumbent or the bound differ from those
+  * they had last [see eProgress]. */
+
+ void progress( double incumbent , double bound , long nodes );
 
  /// the Block of #v_BFS whose solution solc asks for
  /** Returns false if \p solc asks for the whole solution, otherwise true and
@@ -1718,6 +1779,15 @@ class MILPSolver : public CDASolver
   * clears it before the solve and reads it after, giving kCutOff rather
   * than the error status of an interrupted run. */
  std::atomic< bool > f_cutoff_stop = false;
+
+ /// the state given to eProgress [see get_progress()]
+ Progress f_progress{ 0 , 0 , -1 , 0 };
+
+ /// the start of the current compute(), for Progress::time
+ std::chrono::steady_clock::time_point f_progress_start;
+
+ /// serializes the calls of progress() from the threads of the back-end
+ std::mutex f_progress_mutex;
 
  int int_vars{};           ///< Number of integer variables
  int static_vars{};        ///< Number of static variables

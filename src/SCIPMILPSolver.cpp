@@ -75,7 +75,8 @@ SMSpp_insert_in_factory_cpp_0( SCIPMILPSolver );
 /** At each new incumbent and at each solved node, it asks the
  * SCIPMILPSolver whether its bounds have reached a cutoff [see
  * SCIPMILPSolver::cutoff_reached()], and if so it interrupts SCIP, whose
- * status is then SCIP_STATUS_USERINTERRUPT. */
+ * status is then SCIP_STATUS_USERINTERRUPT; it also gives the bounds to
+ * the handlers of eProgress, if any [see SCIPMILPSolver::scip_progress()]. */
 
 class SMSpp_di_unipi_it::SCIPMILPSolver_CutOff : public scip::ObjEventhdlr
 {
@@ -102,6 +103,8 @@ class SMSpp_di_unipi_it::SCIPMILPSolver_CutOff : public scip::ObjEventhdlr
   const auto sol = ( SCIPeventGetType( event ) &
                      SCIP_EVENTTYPE_BESTSOLFOUND ) ?
                    SCIPeventGetSol( event ) : nullptr;
+  if( f_solver->follows_progress() )
+   f_solver->scip_progress( sol );
   if( f_solver->cutoff_reached( sol ) )
    SCIP_CALL( SCIPinterruptSolve( scip ) );
   return( SCIP_OKAY );
@@ -628,6 +631,17 @@ static Solver::OFValue scip_bound( SCIP * scip , double b , double c )
  if( SCIPisInfinity( scip , - b ) )
   return( - Inf< Solver::OFValue >() );
  return( b + c );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void SCIPMILPSolver::scip_progress( SCIP_SOL * sol )
+{
+ progress( scip_bound( scip , sol ? SCIPgetSolOrigObj( scip , sol )
+                                  : SCIPgetPrimalbound( scip ) ,
+                       constant_value ) ,
+           scip_bound( scip , SCIPgetDualbound( scip ) , constant_value ) ,
+           long( SCIPgetNNodes( scip ) ) );
  }
 
 /*--------------------------------------------------------------------------*/

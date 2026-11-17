@@ -564,7 +564,7 @@ int HiGHSMILPSolver::guts_of_compute( void )
  // MILPSolver::compute() that runs the cut separation loop around this
  // method
  if( ( int_vars > 0 ) && ( relax_int_vars != 2 ) ) {  // the MIP case- - - - -
-  if( ( CutSepPar & 7 ) ||
+  if( ( CutSepPar & 7 ) || follows_progress() ||
       ( UpCutOff < Inf< double >() ) || ( LwCutOff > - Inf< double >() ) ) {
    // the callback has to be set
    Highs_setCallback( highs,  & HiGHSMILPSolver_callback, this );
@@ -2738,8 +2738,14 @@ int HiGHSMILPSolver::callback( const int callback_type,
 
     if( bndv <= - 1e+75 )
      bndv = - Inf< double >();
+    else
+     if( bndv >= 1e+75 )  // the search has proven the problem infeasible
+      bndv = Inf< double >();
 
-    if( ( bndv >= up_cut_off() ) || ( solv <= lw_cut_off() ) ) {
+    // an infinite cutoff is none, which an infinite bound does not reach
+    if( ( ( up_cut_off() < Inf< double >() ) && ( bndv >= up_cut_off() ) ) ||
+        ( ( lw_cut_off() > - Inf< double >() ) &&
+          ( solv <= lw_cut_off() ) ) ) {
      f_cutoff_stop = true;
      data_in->user_interrupt = 1;
      }
@@ -2751,12 +2757,19 @@ int HiGHSMILPSolver::callback( const int callback_type,
 
     if( bndv >= 1e+75 )
      bndv = Inf< double >();
+    else
+     if( bndv <= - 1e+75 )  // the search has proven the problem infeasible
+      bndv = - Inf< double >();
 
-    if( ( solv >= up_cut_off() ) || ( bndv <= lw_cut_off() ) ) {
+    if( ( ( up_cut_off() < Inf< double >() ) && ( solv >= up_cut_off() ) ) ||
+        ( ( lw_cut_off() > - Inf< double >() ) &&
+          ( bndv <= lw_cut_off() ) ) ) {
      f_cutoff_stop = true;
      data_in->user_interrupt = 1;
      }
     }
+   if( follows_progress() )
+    progress( solv , bndv , long( data_out->mip_node_count ) );
    break;
   case( kHighsCallbackMipImprovingSolution ):
    // a feasible solution has been found- - - - - - - - - - - - - - - - - - -
