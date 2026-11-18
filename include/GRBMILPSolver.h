@@ -35,6 +35,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include <mutex>
+#include <unordered_map>
 
 #include <gurobi_c.h>
 
@@ -808,14 +809,23 @@ void add_mip_starts(
 /*--------------------------------------------------------------------------*/
  /// the objective coefficients of the given columns, read in one call
  /** Reads the linear coefficient of the Objective for each of the given
-  * columns, in one call and therefore bringing the model up to date once
-  * rather than once per column: a coefficient that has to be changed by a
-  * delta has to be read first, and reading one at a time inside the loop
-  * flushes the pending changes as many times as there are columns [see
+  * columns, in one call: a coefficient that has to be changed by a delta
+  * has to be read first. GUROBI shows the coefficients as of the last
+  * update, over which those written since are laid [see f_pending_obj], so
+  * that a stream of changes to the Objective, each reading what it changes,
+  * costs no update; the model is updated only if a column asked for has
+  * been added since, as it has no coefficient to show until then [see
   * updated_model()]. */
 
  void get_obj_coefficients( std::vector< int > & idxs ,
                             std::vector< double > & vals ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// writes the objective coefficients of the given columns
+ /** Every linear coefficient of the Objective is written by this, which
+  * records it in f_pending_obj until the next update. */
+
+ void set_obj_coefficients( int n , const int * idxs , const double * vals );
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- PROTECTED FIELDS OF THE CLASS -----------------------*/
@@ -845,6 +855,9 @@ void add_mip_starts(
 
  /// true if the model has changes GUROBI has not digested yet
  mutable bool f_model_dirty = false;
+
+ /// the objective coefficients written since the last update, by column
+ mutable std::unordered_map< int , double > f_pending_obj;
 
  bool f_callback_set;  // true if the callback has been set
 

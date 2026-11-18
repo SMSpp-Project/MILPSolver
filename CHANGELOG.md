@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `GRBMILPSolver` reads the objective coefficients that a `Modification`
+  changes by a delta as of the last update of the model, with those written
+  since laid over them, and updates the model only for a column added since:
+  a stream of changes to the objective, such as those of the master of a
+  bundle method, no longer costs an update each
+
 - the library is kept in whoever links it by a source that calls its
   `SMSpp_force_load_` function, the tests and the tools take the static
   libraries whole by the `WHOLE_ARCHIVE` feature of CMake and copy the DLLs

@@ -31,6 +31,7 @@
 #include <queue>
 #include <iostream>
 #include <map>
+#include <numeric>
 #include <thread>
 
 #include <LinearFunction.h>
@@ -303,10 +304,45 @@ void GRBMILPSolver::get_obj_coefficients( std::vector< int > & idxs ,
  if( idxs.empty() )
   return;
 
- GRBgetdblattrlist( updated_model() , GRB_DBL_ATTR_OBJ , int( idxs.size() ) ,
+ // the number of columns as of the last update: one added since has no
+ // coefficient to show until the model is updated
+ int nv = 0;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , & nv );
+ if( std::any_of( idxs.begin() , idxs.end() ,
+                  [ nv ]( int i ) { return( i >= nv ); } ) )
+  updated_model();
+
+ GRBgetdblattrlist( model , GRB_DBL_ATTR_OBJ , int( idxs.size() ) ,
                     idxs.data() , vals.data() );
 
+ if( ! f_pending_obj.empty() )
+  for( std::size_t i = 0 ; i < idxs.size() ; ++i )
+   if( auto it = f_pending_obj.find( idxs[ i ] ) ;
+       it != f_pending_obj.end() )
+    vals[ i ] = it->second;
+
  }  // end( GRBMILPSolver::get_obj_coefficients )
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::set_obj_coefficients( int n , const int * idxs ,
+                                          const double * vals )
+{
+ if( n <= 0 )
+  return;
+
+ if( int status = GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , n ,
+                                     const_cast< int * >( idxs ) ,
+                                     const_cast< double * >( vals ) ) )
+  throw( std::runtime_error( "GRBMILPSolver::set_obj_coefficients: "
+                             "GRBsetdblattrlist returned with status " +
+                             std::to_string( status ) ) );
+
+ for( int i = 0 ; i < n ; ++i )
+  f_pending_obj[ idxs[ i ] ] = vals[ i ];
+ f_model_dirty = true;
+
+ }  // end( GRBMILPSolver::set_obj_coefficients )
 
 /*--------------------------------------------------------------------------*/
 
@@ -315,6 +351,7 @@ GRBmodel * GRBMILPSolver::updated_model( void ) const
  if( f_model_dirty ) {
   f_model_dirty = false;
   GRBupdatemodel( model );
+  f_pending_obj.clear();
   // a changed model has no solution, the kept one included
   f_kept.valid = false;
   }
@@ -936,6 +973,7 @@ void GRBMILPSolver::load_problem( void )
              "GRBupdatemodel returned with status " +
              std::to_string( status ) ) );
  f_model_dirty = false;
+ f_pending_obj.clear();
 
  // the slacks of the free rows, which exist only now, are freed; both the
  // rows and the map are in increasing order of the row
@@ -2907,9 +2945,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     nval[ i ] += delta[ i ];
 
    if( ! cidx.empty() ) {
-    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() ,
-                      nval.data() );
-    f_model_dirty = true;
+    set_obj_coefficients( int( cidx.size() ) , cidx.data() , nval.data() );
     }
    return;
   }
@@ -2949,13 +2985,8 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( std::size_t i = 0 ; i < nval.size() ; ++i )
     nval[ i ] += delta[ i ];
 
-   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() ,
-                      nval.data() );
+   set_obj_coefficients( int( cidx.size() ) , cidx.data() , nval.data() );
 
-   // flush the pending attribute changes: attribute queries only see the
-   // model as of the last update, so a later read-modify-write of the same
-   // coefficients would otherwise fetch stale values and lose this change
-   f_model_dirty = true;
    return;
    }
 
@@ -3037,13 +3068,8 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     add_qp_term( model , cidxs[ i ] , cidxs[ i ] , qdelta[ i ] );
     }
 
-   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidxs.size() ,
-                      cidxs.data() , nval.data());
+   set_obj_coefficients( int( cidxs.size() ) , cidxs.data() , nval.data() );
 
-   // flush the pending attribute changes: attribute queries only see the
-   // model as of the last update, so a later read-modify-write of the same
-   // coefficients would otherwise fetch stale values and lose this change
-   f_model_dirty = true;
    return;
    }
   else if( auto modls =
@@ -3087,10 +3113,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
     add_qp_term( model , cidx[ i ] , cidx[ i ] , qdelta[ i ] );
     }
 
-   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , cidx.size() , cidx.data() ,
-                      nval.data());
-
-   f_model_dirty = true;
+   set_obj_coefficients( int( cidx.size() ) , cidx.data() , nval.data() );
    return;
    }
   else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
@@ -3138,13 +3161,9 @@ void GRBMILPSolver::set_linear_objective( const std::vector< double > & obj )
 {
  if( obj.empty() )
   return;
- if( int status = GRBsetdblattrarray( model , GRB_DBL_ATTR_OBJ , 0 ,
-				      int( obj.size() ) ,
-				      const_cast< double * >( obj.data() ) ) )
-  throw( std::runtime_error( "GRBMILPSolver::set_linear_objective: "
-			     "GRBsetdblattrarray returned with status " +
-			     std::to_string( status ) ) );
- f_model_dirty = true;
+ std::vector< int > idxs( obj.size() );
+ std::iota( idxs.begin() , idxs.end() , 0 );
+ set_obj_coefficients( int( obj.size() ) , idxs.data() , obj.data() );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -3375,9 +3394,8 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
    values.assign( indices.size() , 0.0 );
 
   if( ! indices.empty() ) {
-   GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() ,
-                     indices.data() , values.data() );
-   f_model_dirty = true;
+   set_obj_coefficients( int( indices.size() ) , indices.data() ,
+                         values.data() );
    }
   return;
   }
@@ -3435,10 +3453,8 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     // TODO: BUilt a specific Modification to include non-diagonal terms
     // to be set to 0.
     }
-    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
-    indices.data() , values.data() );
-
-    f_model_dirty = true;
+    set_obj_coefficients( int( indices.size() ) , indices.data() ,
+                          values.data() );
     return;
   }
 
@@ -3529,10 +3545,8 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
         values.push_back( 0 );
       }
     }
-    GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
-    indices.data() , values.data() );
-
-    f_model_dirty = true;
+    set_obj_coefficients( int( indices.size() ) , indices.data() ,
+                          values.data() );
     return;
   }
 
@@ -3579,10 +3593,8 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     add_qp_term( model , indices[ k ] , indices[ k ] , nqval );
    }
 
-  GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , indices.size() , 
-    indices.data() , values.data() );
-
-  f_model_dirty = true;
+  set_obj_coefficients( int( indices.size() ) , indices.data() ,
+                        values.data() );
   return;
  }
 
@@ -3870,6 +3882,7 @@ void GRBMILPSolver::add_dynamic_constraints(
 
  GRBupdatemodel( model );
  f_model_dirty = false;
+ f_pending_obj.clear();
 
  }  // end( GRBMILPSolver::add_dynamic_constraints )
 
@@ -3995,6 +4008,7 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 
  GRBupdatemodel( model );
  f_model_dirty = false;
+ f_pending_obj.clear();
 
  // NOTE: at the moment there is no need of checking the quadratic structures,
  // as we only allow quadratic static constraints. Hence, all the modification
@@ -4026,6 +4040,7 @@ void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
 
  GRBupdatemodel( model );
  f_model_dirty = false;
+ f_pending_obj.clear();
 
  // NOTE: at the moment there is no need of checking the quadratic structures,
  // as we only allow quadratic static constraints. Hence, all the modification
@@ -4109,8 +4124,7 @@ bool GRBMILPSolver::add_columns( const std::vector< Variable * > & vars ,
    }
 
  if( ! oidx.empty() )
-  GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , oidx.size() , oidx.data() ,
-                     oval.data() );
+  set_obj_coefficients( int( oidx.size() ) , oidx.data() , oval.data() );
 
  f_model_dirty = true;
 
@@ -4287,8 +4301,7 @@ bool GRBMILPSolver::change_coefficients(
    oval.push_back( el.second );
    }
 
-  GRBsetdblattrlist( model , GRB_DBL_ATTR_OBJ , oidx.size() , oidx.data() ,
-                     oval.data() );
+  set_obj_coefficients( int( oidx.size() ) , oidx.data() , oval.data() );
   }
 
  f_model_dirty = true;
