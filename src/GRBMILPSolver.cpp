@@ -304,22 +304,28 @@ void GRBMILPSolver::get_obj_coefficients( std::vector< int > & idxs ,
  if( idxs.empty() )
   return;
 
- // the number of columns as of the last update: one added since has no
- // coefficient to show until the model is updated
- int nv = 0;
- GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , & nv );
- if( std::any_of( idxs.begin() , idxs.end() ,
-                  [ nv ]( int i ) { return( i >= nv ); } ) )
-  updated_model();
+ // the coefficients written since the last update, those of the columns
+ // added since included, come from f_pending_obj; only the others are read
+ // from the model, which has them as of the last update
+ std::vector< int > ridx;
+ std::vector< std::size_t > rpos;
+ for( std::size_t i = 0 ; i < idxs.size() ; ++i )
+  if( auto it = f_pending_obj.find( idxs[ i ] ) ;
+      it != f_pending_obj.end() )
+   vals[ i ] = it->second;
+  else {
+   ridx.push_back( idxs[ i ] );
+   rpos.push_back( i );
+   }
 
- GRBgetdblattrlist( model , GRB_DBL_ATTR_OBJ , int( idxs.size() ) ,
-                    idxs.data() , vals.data() );
+ if( ridx.empty() )
+  return;
 
- if( ! f_pending_obj.empty() )
-  for( std::size_t i = 0 ; i < idxs.size() ; ++i )
-   if( auto it = f_pending_obj.find( idxs[ i ] ) ;
-       it != f_pending_obj.end() )
-    vals[ i ] = it->second;
+ std::vector< double > rval( ridx.size() );
+ GRBgetdblattrlist( model , GRB_DBL_ATTR_OBJ , int( ridx.size() ) ,
+                    ridx.data() , rval.data() );
+ for( std::size_t k = 0 ; k < ridx.size() ; ++k )
+  vals[ rpos[ k ] ] = rval[ k ];
 
  }  // end( GRBMILPSolver::get_obj_coefficients )
 
@@ -349,9 +355,7 @@ void GRBMILPSolver::set_obj_coefficients( int n , const int * idxs ,
 GRBmodel * GRBMILPSolver::updated_model( void ) const
 {
  if( f_model_dirty ) {
-  f_model_dirty = false;
-  GRBupdatemodel( model );
-  f_pending_obj.clear();
+  update_now();
   // a changed model has no solution, the kept one included
   f_kept.valid = false;
   }
@@ -359,6 +363,49 @@ GRBmodel * GRBMILPSolver::updated_model( void ) const
  return( model );
 
  }  // end( GRBMILPSolver::updated_model )
+
+/*--------------------------------------------------------------------------*/
+
+int GRBMILPSolver::update_now( void ) const
+{
+ const int status = GRBupdatemodel( model );
+ f_model_dirty = false;
+ f_pending_obj.clear();
+ f_new_cols = f_new_rows = 0;
+ return( status );
+
+ }  // end( GRBMILPSolver::update_now )
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::sync_additions( void )
+{
+ if( f_new_cols || f_new_rows )
+  update_now();
+
+ }  // end( GRBMILPSolver::sync_additions )
+
+/*--------------------------------------------------------------------------*/
+
+int GRBMILPSolver::num_cols( void ) const
+{
+ int nv = 0;
+ GRBgetintattr( model , GRB_INT_ATTR_NUMVARS , & nv );
+ return( nv + f_new_cols );
+
+ }  // end( GRBMILPSolver::num_cols )
+
+/*--------------------------------------------------------------------------*/
+
+int GRBMILPSolver::new_col( void )
+{
+ const int j = num_cols();
+ ++f_new_cols;
+ f_pending_obj[ j ] = 0;
+ f_model_dirty = true;
+ return( j );
+
+ }  // end( GRBMILPSolver::new_col )
 
 /*--------------------------------------------------------------------------*/
 
@@ -966,14 +1013,12 @@ void GRBMILPSolver::load_problem( void )
       }
   }
 
- status = GRBupdatemodel( model );
+ status = update_now();
  if( status != 0 )
   throw( std::runtime_error(
              "GRBMILPSolver::load_problem: "
              "GRBupdatemodel returned with status " +
              std::to_string( status ) ) );
- f_model_dirty = false;
- f_pending_obj.clear();
 
  // the slacks of the free rows, which exist only now, are freed; both the
  // rows and the map are in increasing order of the row
@@ -2672,8 +2717,7 @@ void GRBMILPSolver::make_free_row( int index )
   // a new slack with coefficient 1, as that of a ranged row [see
   // const_modification()]; its column is the last one, and the map stays
   // sorted by it
-  f_model_dirty = true;
-  GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMVARS , & idx_aux_var );
+  idx_aux_var = new_col();
   GRBaddvar( model , 0 , nullptr , nullptr , 0.0 , -GRB_INFINITY ,
              GRB_INFINITY , GRB_CONTINUOUS , nullptr );
   double one = 1.0;
@@ -2799,8 +2843,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
      // UB = rngval). Add that slack, give it a +1 coefficient in this row,
      // and record the ( constraint , aux var ) pair so that the solution and
      // dual extraction keep skipping the slack column.
-     f_model_dirty = true;
-     GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMVARS , & idx_aux_var );
+     idx_aux_var = new_col();
      GRBaddvar( model , 0 , nullptr , nullptr , 0.0 , 0.0 , rngval ,
                 GRB_CONTINUOUS , nullptr );
      double one = 1.0;
@@ -3728,6 +3771,7 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
      ( ( con_lhs == -Inf< double >() ) && ( con_rhs == Inf< double >() ) ) ) {
   GRBaddconstr( model , rmatind.size() , rmatind.data() ,
                 rmatval.data() , GRB_EQUAL , 0.0 , nullptr );
+  ++f_new_rows;
   f_model_dirty = true;
   make_free_row( grb_index_of_linear_constraint( con ) );
   return;
@@ -3758,23 +3802,21 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
   GRBaddconstr( model , rmatind.size() , rmatind.data() ,
                 rmatval.data() , sense , rhs , nullptr );
  else {
-  GRBaddrangeconstr( updated_model() , rmatind.size() , rmatind.data() ,
-                     rmatval.data() , lhs , rhs , nullptr );
   // record the row -> auxiliary slack column pairing; see GRBMILPSolver.h
   // for the role of map_rng_con_aux_var in ranged-row bookkeeping. The aux
-  // var column is read from the model ( it is the last one, as
-  // GRBaddrangeconstr appends it ) rather than derived from
+  // var column is the last one, as GRBaddrangeconstr appends it, counted
+  // from the model [see num_cols()] rather than derived from
   // numcols + n_ranged_con, which is fragile once the column layout has
   // been perturbed by deletions or runtime conversions
-  f_model_dirty = true;
-  int aux_idx;
-  GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMVARS , & aux_idx );
-  --aux_idx;
+  const int aux_idx = new_col();
+  GRBaddrangeconstr( model , rmatind.size() , rmatind.data() ,
+                     rmatval.data() , lhs , rhs , nullptr );
   // the new aux var has the largest column index, so the map stays sorted
   // ascending by .second when the entry is appended at the back
   map_rng_con_aux_var.push_back( { numrows - 1 , aux_idx } );
   }
 
+ ++f_new_rows;
  f_model_dirty = true;
 
  }  // end( GRBMILPSolver::add_dynamic_constraint )
@@ -3880,9 +3922,10 @@ void GRBMILPSolver::add_dynamic_constraints(
                            "GRBaddconstrs returned status " ) +
               std::to_string( rc ) ) );
 
- GRBupdatemodel( model );
- f_model_dirty = false;
- f_pending_obj.clear();
+ // GUROBI takes the new rows as soon as they are added, so the update is
+ // left to the first read [see updated_model()]
+ f_new_rows += n;
+ f_model_dirty = true;
 
  }  // end( GRBMILPSolver::add_dynamic_constraints )
 
@@ -3912,11 +3955,13 @@ void GRBMILPSolver::add_dynamic_variable( const ColVariable * var )
   else
    new_ctype = GRB_CONTINUOUS;   // Continuous
 
- // update the GUROBI problem
- GRBaddvar( model , 0 , nullptr , nullptr , 0.0 , 
+ // update the GUROBI problem; the new column starts with a zero cost,
+ // recorded as written since the last update, so that its coefficient can
+ // be read and changed without updating the model [see
+ // get_obj_coefficients()]
+ new_col();
+ GRBaddvar( model , 0 , nullptr , nullptr , 0.0 ,
             bd[ 0 ] , bd[ 1 ] , new_ctype , nullptr );
- 
- f_model_dirty = true;
 
  }  // end( GRBMILPSolver::add_dynamic_variable )
 
@@ -3952,63 +3997,77 @@ void GRBMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 
 void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 {
- int index = index_of_dynamic_constraint( con );
- if( index == Inf< int >() )
-  throw( std::runtime_error(
-             "GRBMILPSolver::remove_dynamic_constraint: "
-             "dynamic constraint not found" ) );
-
- int n_ranged_con = map_rng_con_aux_var.size();
- if( n_ranged_con != 0 ) {
-  // find if con is a ranged constraint. the whole map is scanned (rather than
-  // only the dynamic tail starting at last_static_rng_con + 1) because a
-  // constraint converted from non-ranged to ranged at runtime records a
-  // low ( static ) row index but its aux var sits at the end of the columns,
-  // so its map entry may not be ordered by .first
-  auto it_rng = std::find_if( map_rng_con_aux_var.begin(),
-      map_rng_con_aux_var.end(),
-      [&index]( std::pair< int , int > const& elem ) {
-      return( elem.first == index );
-    });
-  // 0 isn't a ranged constraint
-  bool is_rng = ( it_rng != map_rng_con_aux_var.end() );
-
-  // The element ( index , aux_var ) has to be removed from the map and also
-  // the auxiliary variable has to be removed from the Gurobi model
-  if( is_rng ) {
-    int index_aux_var = (*it_rng).second;
-    GRBdelvars( model , 1 , &index_aux_var );
-    map_rng_con_aux_var.erase( it_rng );
-    map_rng_con_aux_var.shrink_to_fit();
-
-    // deleting the aux column shifts every higher column down by one: the map
-    // is kept sorted by .second, so decrease the aux var index of all the
-    // entries whose column comes after the removed one
-    for( auto & elem : map_rng_con_aux_var )
-      if( elem.second > index_aux_var )
-        --elem.second;
-  }
-
-  // deleting the constraint row shifts every higher row down by one. the map
-  // is not necessarily sorted by .first ( see above ), hence each entry whose
-  // row comes after the removed one is decreased individually
-  for( auto & elem : map_rng_con_aux_var )
-    if( elem.first > index )
-      --elem.first;
+ remove_dynamic_constraints( { con } );
  }
 
- GRBdelconstrs( model , 1 , &index );
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::remove_dynamic_constraints(
+                         const std::vector< const FRowConstraint * > & cons )
+{
+ if( cons.empty() )
+  return;
+
+ // a row or a column added since the last update is not one GUROBI can
+ // delete yet [see sync_additions()]
+ sync_additions();
+
+ // the rows to delete and the slacks of those that are ranged, all with
+ // the indices of the model as it is now
+ std::vector< int > rows;
+ rows.reserve( cons.size() );
+ std::vector< int > cols;
+ for( auto * con : cons ) {
+  int index = index_of_dynamic_constraint( con );
+  if( index == Inf< int >() )
+   throw( std::runtime_error(
+              "GRBMILPSolver::remove_dynamic_constraints: "
+              "dynamic constraint not found" ) );
+  rows.push_back( index );
+  // the map is scanned whole, as a row converted to ranged at runtime has a
+  // low row index and its slack at the end of the columns, so it is not
+  // ordered by .first
+  auto it_rng = std::find_if( map_rng_con_aux_var.begin() ,
+                              map_rng_con_aux_var.end() ,
+                              [ index ]( const std::pair< int , int > & e ) {
+                               return( e.first == index );
+                               } );
+  if( it_rng != map_rng_con_aux_var.end() )
+   cols.push_back( it_rng->second );
+  }
+
+ std::sort( rows.begin() , rows.end() );
+ std::sort( cols.begin() , cols.end() );
+
+ // the entries of the deleted rows go, and every other row and slack moves
+ // down by as many deleted ones as come before it; the order of the map,
+ // by .second, is kept
+ auto below = []( const std::vector< int > & v , int i ) {
+  return( int( std::lower_bound( v.begin() , v.end() , i ) - v.begin() ) );
+  };
+ std::erase_if( map_rng_con_aux_var ,
+                [ & rows ]( const std::pair< int , int > & e ) {
+                 return( std::binary_search( rows.begin() , rows.end() ,
+                                             e.first ) );
+                 } );
+ for( auto & elem : map_rng_con_aux_var ) {
+  elem.first -= below( rows , elem.first );
+  elem.second -= below( cols , elem.second );
+  }
+
+ if( ! cols.empty() )
+  GRBdelvars( model , int( cols.size() ) , cols.data() );
+ GRBdelconstrs( model , int( rows.size() ) , rows.data() );
 
  /* Gurobi queues a deletion like any other change: until the model is
   * updated the row indices it accepts are still the ones before it, while
-  * the dictionaries above have been renumbered already, so every later
-  * index-based write would land one row off, and the shift accumulates.
-  * Deferring the update is what makes a stream of changes cheap, but a
-  * deletion is rare and cannot be deferred. */
+  * the dictionaries are renumbered below, so every later index-based write
+  * would land off by the rows deleted before it. Deferring the update is
+  * what makes a stream of changes cheap, but a deletion cannot be
+  * deferred; deleting the rows of a Modification at once costs one update
+  * instead of one for each. */
 
- GRBupdatemodel( model );
- f_model_dirty = false;
- f_pending_obj.clear();
+ update_now();
 
  // NOTE: at the moment there is no need of checking the quadratic structures,
  // as we only allow quadratic static constraints. Hence, all the modification
@@ -4016,39 +4075,58 @@ void GRBMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
  // indices.
 
  // call the method of MILPSolver to update the dictionaries (only)
- MILPSolver::remove_dynamic_constraint( con );
- }
+ for( auto * con : cons )
+  MILPSolver::remove_dynamic_constraint( con );
+
+ }  // end( GRBMILPSolver::remove_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
 
 void GRBMILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
- // true Gurobi column of the variable, with the aux var columns skipped
- int index = grb_index_of_dynamic_variable( var );
+ remove_dynamic_variables( { var } );
+ }
 
- // deleting that column shifts every higher column down by one: the map is
- // kept sorted by .second, so decrease the aux var index of all the entries
- // whose column comes after the removed one
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::remove_dynamic_variables(
+                            const std::vector< const ColVariable * > & vars )
+{
+ if( vars.empty() )
+  return;
+
+ sync_additions();  // [see remove_dynamic_constraints()]
+
+ // true Gurobi columns of the variables, with the aux var columns skipped,
+ // all with the indices of the model as it is now
+ std::vector< int > cols;
+ cols.reserve( vars.size() );
+ for( auto * var : vars )
+  cols.push_back( grb_index_of_dynamic_variable( var ) );
+ std::sort( cols.begin() , cols.end() );
+
+ // every slack moves down by as many deleted columns as come before it,
+ // which keeps the map sorted by .second
  for( auto & elem : map_rng_con_aux_var )
-  if( elem.second > index )
-   --elem.second;
+  elem.second -= int( std::lower_bound( cols.begin() , cols.end() ,
+                                        elem.second ) - cols.begin() );
 
- GRBdelvars( model , 1 , &index );
+ GRBdelvars( model , int( cols.size() ) , cols.data() );
 
  // a queued deletion leaves the column indices as they were, so it is made
- // effective here [see remove_dynamic_constraint()]
+ // effective here [see remove_dynamic_constraints()]
 
- GRBupdatemodel( model );
- f_model_dirty = false;
- f_pending_obj.clear();
+ update_now();
 
  // NOTE: at the moment there is no need of checking the quadratic structures,
  // as we only allow quadratic static constraints. Hence, all the modification
  // done to dynamic variables do not impact the quadratic indices.
 
  // call the method of MILPSolver to update the dictionaries (only)
- MILPSolver::remove_dynamic_variable( var );
- }
+ for( auto * var : vars )
+  MILPSolver::remove_dynamic_variable( var );
+
+ }  // end( GRBMILPSolver::remove_dynamic_variables )
 
 /*--------------------------------------------------------------------------*/
 

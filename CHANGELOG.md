@@ -7,13 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `MILPSolver::remove_dynamic_constraints()` and
+  `MILPSolver::remove_dynamic_variables()`, which remove all the rows or
+  columns of a `Modification` at once, by default one by one
+
 ### Changed
 
 - `GRBMILPSolver` reads the objective coefficients that a `Modification`
   changes by a delta as of the last update of the model, with those written
-  since laid over them, and updates the model only for a column added since:
-  a stream of changes to the objective, such as those of the master of a
-  bundle method, no longer costs an update each
+  since laid over them, a column added since starting with a zero cost
+  recorded among the latter, and adds rows and columns without updating the
+  model, counting the index of a new column instead of reading it; only a
+  deletion updates the model, before it if rows or columns have been added
+  since, and once for all the rows or columns that a `Modification`
+  removes: a stream of changes to the model, such as those of the master of
+  a bundle method, no longer costs an update each
 
 - the library is kept in whoever links it by a source that calls its
   `SMSpp_force_load_` function, the tests and the tools take the static

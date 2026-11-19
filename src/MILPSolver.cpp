@@ -3389,10 +3389,13 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
    f_reset = true;
    return;
    }
+  std::vector< const FRowConstraint * > rows;
+  rows.reserve( tmod->removed().size() );
   for( const auto & i : tmod->removed() )
    if( ! erase_from_cut_pool( & i ) )  // a row of the pool is not in the
-    remove_dynamic_constraint( & i );  // model
+    rows.push_back( & i );             // model
 
+  remove_dynamic_constraints( rows );
   return;
   }
 
@@ -3414,9 +3417,12 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
 
  if( auto tmod = dynamic_cast< const BlockModRmv< ColVariable > * >( mod
 								    ) ) {
+  std::vector< const ColVariable * > cols;
+  cols.reserve( tmod->removed().size() );
   for( const auto & i : tmod->removed() )
-   remove_dynamic_variable( &i );
+   cols.push_back( & i );
 
+  remove_dynamic_variables( cols );
   return;
   }
 

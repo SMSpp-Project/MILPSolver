@@ -2294,8 +2294,29 @@ class MILPSolver : public CDASolver
  /// removes a single dynamic constraint
  virtual void remove_dynamic_constraint( const FRowConstraint * con );
 
+ /// removes several dynamic constraints at once
+ /** The rows of a BlockModRmv< FRowConstraint > are handed over here in
+  * one go, so that a back-end that has to do something costly after a
+  * deletion (as GUROBI, which has to update the model) does it once; the
+  * default removes them one by one, and the result is the same as that of
+  * remove_dynamic_constraint() applied to each, in any order. */
+ virtual void remove_dynamic_constraints(
+                       const std::vector< const FRowConstraint * > & cons ) {
+  for( auto * con : cons )
+   remove_dynamic_constraint( con );
+  }
+
  /// removes a single dynamic variable
  virtual void remove_dynamic_variable( const ColVariable * var );
+
+ /// removes several dynamic variables at once
+ /** As remove_dynamic_constraints(), for the columns of a
+  * BlockModRmv< ColVariable >. */
+ virtual void remove_dynamic_variables(
+                          const std::vector< const ColVariable * > & vars ) {
+  for( auto * var : vars )
+   remove_dynamic_variable( var );
+  }
 
  /// removes a single dynamic bound
  virtual void remove_dynamic_bound( const OneVarConstraint * con );

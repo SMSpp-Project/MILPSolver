@@ -715,8 +715,16 @@ void add_mip_starts(
  /// removes a single dynamic FRowConstraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
 
+ /// removes the given dynamic FRowConstraint, with one update
+ void remove_dynamic_constraints(
+            const std::vector< const FRowConstraint * > & cons ) override;
+
  /// removes a single dynamic ColVariable
  void remove_dynamic_variable( const ColVariable * var ) override;
+
+ /// removes the given dynamic ColVariable, with one update
+ void remove_dynamic_variables(
+            const std::vector< const ColVariable * > & vars ) override;
 
  /// removes a single dynamic bound (OneVarConstraint)
  void remove_dynamic_bound( const OneVarConstraint * con ) override;
@@ -767,9 +775,38 @@ void add_mip_starts(
   * changes has to set it again afterwards, because the read consumes the
   * mark. A deletion is the one change that cannot be deferred at all: the
   * indices GUROBI accepts are the ones before it until the model is
-  * updated, so the three methods deleting a row or a column update on the
-  * spot and clear the mark [see remove_dynamic_constraint()]. */
+  * updated, so the methods deleting rows or columns update on the spot,
+  * once for all those of a Modification, and clear the mark [see
+  * remove_dynamic_constraints()]. Rows and columns are instead added
+  * without an update, since GUROBI (with its default UpdateMode) takes them
+  * at once for any further change, and the index of a new column is
+  * counted rather than read [see num_cols()]. */
  GRBmodel * updated_model( void ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// updates the model, whether or not it has changes, and clears the marks
+ /** Returns the status of GRBupdatemodel(). */
+ int update_now( void ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// updates the model if rows or columns have been added since the last
+ /// update, as a deletion has to see them
+ void sync_additions( void );
+
+/*--------------------------------------------------------------------------*/
+ /// the number of columns, those added since the last update included
+ /** GUROBI shows the number of columns as of the last update, to which
+  * those added since are summed [see f_new_cols]; since every deletion
+  * updates the model, there are no pending ones to subtract. */
+ int num_cols( void ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// records the column about to be added and returns its index
+ /** To be called right before the GUROBI call adding a single column, or a
+  * ranged row with its slack: the column is the last one, its cost is 0,
+  * and it is recorded in f_pending_obj, so that its coefficient can be read
+  * and changed without updating the model. */
+ int new_col( void );
 
 /*--------------------------------------------------------------------------*/
  /// an attribute of the solution, from the model or from what was kept
@@ -813,9 +850,9 @@ void add_mip_starts(
   * has to be read first. GUROBI shows the coefficients as of the last
   * update, over which those written since are laid [see f_pending_obj], so
   * that a stream of changes to the Objective, each reading what it changes,
-  * costs no update; the model is updated only if a column asked for has
-  * been added since, as it has no coefficient to show until then [see
-  * updated_model()]. */
+  * costs no update. A column added since the last update has no
+  * coefficient GUROBI can show, so its zero cost is recorded there as soon
+  * as it is added [see new_col()], and it is never read from the model. */
 
  void get_obj_coefficients( std::vector< int > & idxs ,
                             std::vector< double > & vals ) const;
@@ -858,6 +895,12 @@ void add_mip_starts(
 
  /// the objective coefficients written since the last update, by column
  mutable std::unordered_map< int , double > f_pending_obj;
+
+ /// the number of columns added since the last update
+ mutable int f_new_cols = 0;
+
+ /// the number of rows added since the last update
+ mutable int f_new_rows = 0;
 
  bool f_callback_set;  // true if the callback has been set
 
