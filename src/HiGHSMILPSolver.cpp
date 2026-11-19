@@ -569,8 +569,7 @@ int HiGHSMILPSolver::guts_of_compute( void )
    // the callback has to be set
    Highs_setCallback( highs,  & HiGHSMILPSolver_callback, this );
 
-   // Enable basic Callback type during MIP to check UB/LB
-   Highs_startCallback( highs , kHighsCallbackMipLogging );
+   // the interrupt checks the cutoffs, and is the only one always needed
    Highs_startCallback( highs , kHighsCallbackMipInterrupt );
    f_callback_set = true;
 
@@ -581,10 +580,14 @@ int HiGHSMILPSolver::guts_of_compute( void )
 
    if( CutSepPar & 4 )  // we do lazy constraint separation
     Highs_startCallback( highs , kHighsCallbackMipImprovingSolution );
+   else  // which a previous solve may have asked for
+    Highs_stopCallback( highs , kHighsCallbackMipImprovingSolution );
    }
   else
-   if( f_callback_set )  // the callback was set
+   if( f_callback_set ) {  // the callback was set, and is no longer needed
+    Highs_setCallback( highs , nullptr , nullptr );
     f_callback_set = false;
+    }
   }
  else
   // continuous case (LP): no MIP callback even if CutSepPar > 0; when
@@ -1681,11 +1684,12 @@ bool HiGHSMILPSolver::change_coefficients(
 
   if( dynamic_cast< const Objective * >( obs ) ) {
    // Objective deltas describe queued changes, not the live Function state.
+   const double w = objective_weight( lf );  // as one by one
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
     if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
      ocols.push_back( idx );
-     odeltas.push_back( modl->delta()[ i ] );
+     odeltas.push_back( w * modl->delta()[ i ] );
      }
     }
 
@@ -1974,11 +1978,14 @@ void HiGHSMILPSolver::objective_function_modification(
    // (potentially) a sum of terms, recomputing them would require fetching
    // back all the terms, while the delta() can just be applied to the sum
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
-    if( *( idxit++ ) < Inf< Index >() ) {
-     cidx.push_back( index_of_variable(
-                   static_cast< const ColVariable * >( modl->vars()[ i ] ) ) );
-     delta.push_back( w * modl->delta()[ i ] );
-     }
+    if( *( idxit++ ) < Inf< Index >() )
+     // a Variable no longer in the model has no column to change
+     if( auto c = index_of_variable(
+                   static_cast< const ColVariable * >( modl->vars()[ i ] ) ) ;
+         c < Inf< int >() ) {
+      cidx.push_back( c );
+      delta.push_back( w * modl->delta()[ i ] );
+      }
 
    change_obj_costs( cidx , delta , true );
    return;
@@ -2049,8 +2056,10 @@ void HiGHSMILPSolver::objective_function_modification(
    auto dcoeffit = delta_coeff->begin();
 
    for( auto v : *vars ) {
-    if( *( idxit++ ) < Inf< Index >() ) {
-     auto c = index_of_variable( static_cast< const ColVariable * >( v ) );
+    auto c = *( idxit++ ) < Inf< Index >() ?
+     index_of_variable( static_cast< const ColVariable * >( v ) ) :
+     Inf< int >();
+    if( c < Inf< int >() ) {  // [see the linear case above]
      cidx.push_back( c );
      delta.push_back( w * std::get< 0 >( *dcoeffit ) );
      add_to_hessian( c , c , 2 * w * std::get< 1 >( *dcoeffit ) );

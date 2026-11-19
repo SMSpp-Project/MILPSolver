@@ -2490,11 +2490,12 @@ bool CPXMILPSolver::change_coefficients(
   if( dynamic_cast< const Objective * >( obs ) ) {
    // Objective deltas describe the state at issuance, even if a later
    // queued modification has already removed the Variable from the Function.
+   const double w = objective_weight( lf );  // as one by one
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
     if( auto idx = cpx_index_of_variable( var ) ; idx < Inf< int >() ) {
      ocols.push_back( idx );
-     odeltas.push_back( modl->delta()[ i ] );
+     odeltas.push_back( w * modl->delta()[ i ] );
      }
     }
 
@@ -3386,14 +3387,14 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
       CPXgetobj( env , lp , &oldval , idx , idx );
       CPXgetqpcoef( env , lp , idx , idx , &oldqval );
 
-      indices.push_back( idx );
-      double nqval;
+      // a Variable that is not (any longer) in the Function changes nothing,
+      // and the two vectors stay of the same length
       if( auto cidx = dqf->is_active( var ) ; cidx < nav ) {
+        indices.push_back( idx );
         values.push_back( oldval + w * modq->coeff()[ i ].first );
-        nqval = oldqval + w * 2 * modq->coeff()[ i ].second;
+        CPXchgqpcoef( env , lp , idx , idx ,
+                      oldqval + w * 2 * modq->coeff()[ i ].second );
       }
-
-    CPXchgqpcoef( env , lp , idx , idx , nqval ); 
     }
   }
 
@@ -3715,9 +3716,11 @@ void CPXMILPSolver::add_dynamic_variable( const ColVariable * var )
   else
    new_ctype = 'C';   // Continuous
 
-  if( was_mip )       // and it was a MIP before
-   // set the ctype for the one variable
-   CPXchgctype( env , lp , 1 , & idx , & new_ctype );
+  if( was_mip ) {     // and it was a MIP before
+   // set the ctype for the one variable, a new one being continuous
+   if( new_ctype != 'C' )
+    CPXchgctype( env , lp , 1 , & idx , & new_ctype );
+   }
   else {              // it was not a MIP before
    // the first integer variable is added
    // all ctype values must be [ re ]added to the problem
@@ -4246,7 +4249,7 @@ void CPXMILPSolver::add_mip_starts(
 
  // Prepare CPLEX structures
  int nzcnt = 0;
- std::vector< int > beg( nzcnt, 0); // where the values of a mip start begin
+ std::vector< int > beg( nstarts , 0 );  // where each MIP start begins
  std::vector< int > idxs;
  std::vector< double > val;
 
@@ -4275,13 +4278,14 @@ void CPXMILPSolver::add_mip_starts(
     idxs.push_back( idx + count );
     }
    }
-
-  // Call specific CPLEX function
-  if( CPXaddmipstarts( env , lp , nstarts , nzcnt , beg.data() , 
-              idxs.data() , val.data() , NULL , NULL ) )
-   throw( std::runtime_error(
-              "CPXMILPSolver: unable to add specific MIP starts" ) );
   }
+
+ // all the starts at once
+ if( nstarts &&
+     CPXaddmipstarts( env , lp , nstarts , nzcnt , beg.data() ,
+                      idxs.data() , val.data() , nullptr , nullptr ) )
+  throw( std::runtime_error(
+             "CPXMILPSolver::add_mip_starts: unable to add the MIP starts" ) );
  }
 
 /*--------------------------------------------------------------------------*/

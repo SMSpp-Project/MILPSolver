@@ -2930,9 +2930,11 @@ void MILPSolver::var_modification( const VariableMod * mod )
 {
  auto var = static_cast< const ColVariable * >( mod->variable() );
 
- // update the number of integer variables
- if( ColVariable::is_integer( mod->old_state() ) !=
-     ColVariable::is_integer( mod->new_state() ) ) {
+ // update the number of integer variables, which a relaxation does not
+ // count [see load_problem()]
+ if( ( ! relax_int_vars ) &&
+     ( ColVariable::is_integer( mod->old_state() ) !=
+       ColVariable::is_integer( mod->new_state() ) ) ) {
   if( ColVariable::is_integer( mod->new_state() ) )
    ++int_vars;
   else
@@ -3534,7 +3536,7 @@ void MILPSolver::add_dynamic_variable( const ColVariable * var )
 
  // update the counters
  ++numcols;
- if( var->is_integer() )
+ if( var->is_integer() && ( ! relax_int_vars ) )
   ++int_vars;
 
  // update the LB/UB vectors (if any): a Variable may come already fixed
@@ -3695,7 +3697,7 @@ void MILPSolver::remove_dynamic_variable( const ColVariable * var )
 
  // update the counters
  --numcols;
- if( var->is_integer() )
+ if( var->is_integer() && ( ! relax_int_vars ) )
   --int_vars;
 
  // update the bound vectors, if any

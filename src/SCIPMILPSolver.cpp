@@ -563,12 +563,10 @@ int SCIPMILPSolver::guts_of_compute( void )
   }
 
  // an optimal LP can do without the transformed problem until the next
- // solve, which builds it again in any case
- const auto nonzero = []( double d ) { return( d != 0 ); };
+ // solve, which builds it again in any case; a quadratic Objective is the
+ // constraint obj_aux_con, the arrays of the base being freed at load
  if( ( SCIPgetStatus( scip ) == SCIP_STATUS_OPTIMAL ) && ( int_vars == 0 ) &&
-     ( numquadrows == 0 ) &&
-     std::none_of( q_objective.begin() , q_objective.end() , nonzero ) &&
-     std::none_of( ndq_objective.begin() , ndq_objective.end() , nonzero ) )
+     ( numquadrows == 0 ) && ( ! obj_aux_con ) )
   free_workspace();
 
  return( sol_status );
@@ -3259,7 +3257,7 @@ void SCIPMILPSolver::create_new_qobj( std::vector< int > & qidx1 ,
   #if SCIP_VERSION < 800
     SCIP_CALL_ABORT( SCIPcreateConsBasicQuadratic( scip , & con ,
         name.c_str() , 1 , & linvar , & lincoef , qvar1.size() , qvar1.data() ,
-        qvar2.data() , qcoeffs.data() , con_lhs , con_rhs ) );
+        qvar2.data() , qcoeff.data() , con_lhs , con_rhs ) );
   #else
     SCIP_CALL_ABORT( SCIPcreateConsBasicQuadraticNonlinear( scip , & con ,
         name.c_str() , 1 , & linvar , & lincoef , qvar1.size() , qvar1.data() ,

@@ -1399,11 +1399,12 @@ bool MOSEKMILPSolver::change_coefficients(
 
   if( dynamic_cast< const Objective * >( obs ) ) {
    // the deltas describe queued changes, not the live Function state
+   const double w = objective_weight( lf );  // as one by one
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
     if( auto idx = index_of_variable( var ) ; idx < Inf< int >() ) {
      ocols.push_back( idx );
-     odeltas.push_back( modl->delta()[ i ] );
+     odeltas.push_back( w * modl->delta()[ i ] );
      }
     }
 
@@ -1609,11 +1610,14 @@ void MOSEKMILPSolver::objective_function_modification(
    std::vector< double > delta;
    auto idxit = idxs.begin();
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i )
-    if( *( idxit++ ) < Inf< Index >() ) {
-     cidx.push_back( index_of_variable(
-                   static_cast< const ColVariable * >( modl->vars()[ i ] ) ) );
-     delta.push_back( w * modl->delta()[ i ] );
-     }
+    if( *( idxit++ ) < Inf< Index >() )
+     // a Variable no longer in the model has no column to change
+     if( auto c = index_of_variable(
+                   static_cast< const ColVariable * >( modl->vars()[ i ] ) ) ;
+         c < Inf< int >() ) {
+      cidx.push_back( c );
+      delta.push_back( w * modl->delta()[ i ] );
+      }
 
    change_obj_costs( cidx , delta , true );
    return;
@@ -1674,8 +1678,10 @@ void MOSEKMILPSolver::objective_function_modification(
 
    for( auto v : *vars ) {
     const auto i = *( idxit++ );
-    if( i < Inf< Index >() ) {
-     auto c = index_of_variable( static_cast< const ColVariable * >( v ) );
+    auto c = i < Inf< Index >() ?
+     index_of_variable( static_cast< const ColVariable * >( v ) ) :
+     Inf< int >();
+    if( c < Inf< int >() ) {  // [see the linear case above]
      cidx.push_back( c );
      delta.push_back( w * std::get< 0 >( *dcoeffit ) );
      // the diagonal takes the value that the Function has, not the delta:

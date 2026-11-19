@@ -78,8 +78,8 @@ QPMADMILPSolver::~QPMADMILPSolver() = default;
 void QPMADMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( what );
- d_qp->factored = false;
- d_factH.clear();
+ // the factor of H is kept: a Modification loads the problem again, and the
+ // factor is reused if H comes out the same [see compute()]
  d_n = d_nc = 0;
  d_status = kError;
  }

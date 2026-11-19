@@ -4248,18 +4248,20 @@ bool GRBMILPSolver::change_coefficients(
  std::vector< double > qdeltas;
 
  // a change of the terms of a diagonal quadratic Function carries the two
- // deltas together, and only the Objective can hold one here
+ // deltas together, and only the Objective can hold one here; both are
+ // scaled by the weight of the Objective, as one by one
  auto quadratic = [ & ]( c_Vec_p_Var & vars , const Subset & idxs ,
-                         c_v_coeff_pair & delta ) {
+                         c_v_coeff_pair & delta , double w ) {
   auto dit = delta.begin();
   for( Block::Index i = 0 ; i < vars.size() ; ++i )
    if( idxs[ i ] < Inf< Index >() ) {
     auto var = static_cast< const ColVariable * >( vars[ i ] );
-    auto col = grb_index_of_variable( var );
-    ocols.push_back( col );
-    odeltas.push_back( std::get< 0 >( *dit ) );
-    qcols.push_back( col );
-    qdeltas.push_back( std::get< 1 >( *dit ) );
+    if( auto col = grb_index_of_variable( var ) ; col < Inf< int >() ) {
+     ocols.push_back( col );
+     odeltas.push_back( w * std::get< 0 >( *dit ) );
+     qcols.push_back( col );
+     qdeltas.push_back( w * std::get< 1 >( *dit ) );
+     }
     ++dit;
     }
   };
@@ -4273,7 +4275,7 @@ bool GRBMILPSolver::change_coefficients(
 
    quadratic( modq->vars() ,
               qf->map_index( modq->vars() , modq->range() ) ,
-              modq->delta() );
+              modq->delta() , objective_weight( qf ) );
    continue;
    }
 
@@ -4285,7 +4287,7 @@ bool GRBMILPSolver::change_coefficients(
 
    quadratic( modq->vars() ,
               qf->map_index( modq->vars() , modq->subset() ) ,
-              modq->delta() );
+              modq->delta() , objective_weight( qf ) );
    continue;
    }
 
@@ -4325,12 +4327,14 @@ bool GRBMILPSolver::change_coefficients(
    }
 
   if( dynamic_cast< const Objective * >( obs ) ) {
-   // Objective deltas describe queued changes, not the live Function state.
+   // Objective deltas describe queued changes, not the live Function state;
+   // they are scaled by the weight of the Objective, as one by one
+   const double w = objective_weight( lf );
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
     if( auto idx = grb_index_of_variable( var ) ; idx < Inf< int >() ) {
      ocols.push_back( idx );
-     odeltas.push_back( modl->delta()[ i ] );
+     odeltas.push_back( w * modl->delta()[ i ] );
      }
     }
 
@@ -5216,14 +5220,12 @@ void GRBMILPSolver::add_mip_starts(
   // Set the number of the MIP start provided
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_STARTNUMBER , i );
 
-  // Loop over each provided value
-  for( int j = 0; j < varidxs[ i ].size(); ++j ) {
-    // Retrieve correct index of variable
-    int new_idx = grb_index_of_variable( varidxs[ i ][ j ] );
-
-    GRBsetdblattrelement( model , GRB_DBL_ATTR_START , new_idx ,
-                          varvalues[ i ][ j ] );
-   }
+  // the values of the start in one call, at the GUROBI indices
+  std::vector< int > idx( varidxs[ i ].size() );
+  for( std::size_t j = 0 ; j < idx.size() ; ++j )
+   idx[ j ] = grb_index_of_variable( varidxs[ i ][ j ] );
+  GRBsetdblattrlist( model , GRB_DBL_ATTR_START , int( idx.size() ) ,
+                     idx.data() , varvalues[ i ].data() );
   }
  // the model has changed, GUROBI will digest it at the first read
  f_model_dirty = true;

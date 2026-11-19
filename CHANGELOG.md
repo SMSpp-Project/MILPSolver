@@ -60,6 +60,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cmake/FindCPLEX.cmake` and `cmake/FindGUROBI.cmake`, the ones of the core
   being used
 
+### Fixed
+
+- a change of the Objective of a weighted Block inside a channel is
+  multiplied by the weight of the `Objective` in `CPXMILPSolver`,
+  `GRBMILPSolver`, `HiGHSMILPSolver` and `MOSEKMILPSolver`, as one by one;
+  the dynamic integer columns and a change of integrality are not counted
+  among the integer ones when `intRelaxIntVars` relaxes them, which made
+  `CPXMILPSolver` solve the relaxation as a MIP; `CPXMILPSolver` adds the MIP
+  starts in one call, without writing past an empty vector, and
+  `HiGHSMILPSolver` gives the number of values of the start, not the number
+  of starts; a `DQuadFunction` Modification on a `ColVariable` no longer in
+  the model changes nothing in `CPXMILPSolver`, `HiGHSMILPSolver` and
+  `MOSEKMILPSolver`; `QPMADMILPSolver` and `QuadProgMILPSolver` keep the
+  factor of H when the problem is loaded again, so that it is reused if H
+  is the same; `SCIPMILPSolver` frees the transformed problem of an LP only,
+  not of a QP, and builds with SCIP before 8; `HiGHSMILPSolver` removes its
+  callback from a MIP that no longer needs it
+
 ## [0.12.0] - 2026-11-16
 
 ### Added

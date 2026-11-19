@@ -73,8 +73,8 @@ SMSpp_insert_in_factory_cpp_0( QuadProgMILPSolver );
 void QuadProgMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( what );
- d_factored = false;
- d_factH.clear();
+ // the factor of H is kept: a Modification loads the problem again, and the
+ // factor is reused if H comes out the same [see compute()]
  d_n = d_nc = d_meq = 0;
  d_status = kError;
  }
