@@ -9,9 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `MILPSolver::remove_dynamic_constraints()` and
-  `MILPSolver::remove_dynamic_variables()`, which remove all the rows or
-  columns of a `Modification` at once, by default one by one
+- `MILPSolver::remove_dynamic_constraints()`,
+  `MILPSolver::remove_dynamic_variables()` and
+  `MILPSolver::add_dynamic_variables()`, which remove or add all the rows or
+  columns of a `Modification` at once, by default one by one, and which
+  `CPXMILPSolver`, `GRBMILPSolver`, `HiGHSMILPSolver`, `MOSEKMILPSolver` and
+  `SCIPMILPSolver` make each one call of their own
+
+- `MILPSolver::updates_in_place()`, which a back-end that loads its problem
+  again for any `Modification` answers true when it can take a change of the
+  linear costs, of the bounds, of the sides or of the sense in place:
+  `OSQPMILPSolver`, `DAQPMILPSolver`, `QPOASESMILPSolver`, `PIQPMILPSolver`,
+  `ProxQPMILPSolver`, `ClarabelMILPSolver`, `HPIPMMILPSolver`,
+  `QPMADMILPSolver`, `QuadProgMILPSolver` and `PERMONMILPSolver` give such
+  a change to the update of their library, which keeps the factorization or
+  the warm start, and a `Modification` that changes nothing in the model no
+  longer loads it again
 
 ### Changed
 
@@ -24,6 +37,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   since, and once for all the rows or columns that a `Modification`
   removes: a stream of changes to the model, such as those of the master of
   a bundle method, no longer costs an update each
+
+- `MILPSolver` executes the changes of the data issued one by one, outside
+  a channel, by kind in one operation of the back-end, as it does inside a
+  group, and the rows added by `Modification` that follow one another in one
+  call; the dictionaries of the dynamic rows and columns are updated once
+  for all those added or removed together, in O(n + k log k) rather than
+  O(k n), the type of a `Modification` is found once for each dynamic type
+  rather than by a chain of `dynamic_cast`, and the column groups of many
+  `Variable` are read by hash
+
+- `CPXMILPSolver` keeps the basis of a solve in step with the rows and the
+  columns added and removed since, reads the costs it changes by a range,
+  and finds the columns and the rows of a model with quadratic rows by a
+  binary search; `GRBMILPSolver` finds the column of a `ColVariable` among
+  the auxiliary ones by a binary search; `HiGHSMILPSolver` adds the columns
+  of a group with one call instead of one for each entry, keeps a copy of the
+  costs instead of reading them back, and no longer gives HiGHS the whole
+  Hessian when columns are added or removed; `MOSEKMILPSolver` gives MOSEK
+  only the entries of the Hessian that change, and `SCIPMILPSolver` finds a
+  quadratic term of the Objective by hash, checks the convexity only when
+  the quadratic part changes, changes the weights in place instead of
+  loading the problem again, and creates each row whole
 
 - the library is kept in whoever links it by a source that calls its
   `SMSpp_force_load_` function, the tests and the tools take the static
@@ -76,7 +111,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   factor of H when the problem is loaded again, so that it is reused if H
   is the same; `SCIPMILPSolver` frees the transformed problem of an LP only,
   not of a QP, and builds with SCIP before 8; `HiGHSMILPSolver` removes its
-  callback from a MIP that no longer needs it
+  callback from a MIP that no longer needs it; the cost of the columns of a
+  group is scaled by the weight of the `Objective`; `GRBMILPSolver` gives
+  back to the slack of a free row its lower bound when the row gets a
+  finite side in a group, and `CPXMILPSolver` gives CPLEX an entry that a
+  group changes twice once, with the value written last; `SCIPMILPSolver`
+  changes the side of the constraint of a quadratic Objective with its
+  sense, and `CPXMILPSolver` and `SCIPMILPSolver` add a dynamic row with no
+  `Function` as an empty one, so that the rows stay in step with the
+  dictionaries
 
 ## [0.12.0] - 2026-11-16
 

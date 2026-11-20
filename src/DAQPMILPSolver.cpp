@@ -30,6 +30,8 @@
 
 #include "DAQPMILPSolver.h"
 
+#include <daqp/utils.h>
+
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- USING -----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -135,6 +137,15 @@ void DAQPMILPSolver::load_problem( void )
    }
   }
 
+ make_data();
+ f_changed = 0;
+
+ }  // end( DAQPMILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+void DAQPMILPSolver::make_data( void )
+{
  d_sign = ( objsense == -1 ) ? -1 : 1;  // DAQP minimizes
 
  // the fixed columns and the free rows are not given to DAQP
@@ -142,23 +153,58 @@ void DAQPMILPSolver::load_problem( void )
  const int n = d_n = d_dq.n;
  d_m = n + d_dq.m;
 
- // the sides: the bounds first, then the rows; a fixed variable and an
- // equality row are constraints that DAQP keeps active
- d_bl = d_dq.lb;
- d_bl.insert( d_bl.end() , d_dq.rl.begin() , d_dq.rl.end() );
- d_bu = d_dq.ub;
- d_bu.insert( d_bu.end() , d_dq.ru.begin() , d_dq.ru.end() );
- d_fixed.assign( d_m , 0 );
- for( int i = 0 ; i < d_m ; ++i )
-  if( d_bl[ i ] == d_bu[ i ] )
-   d_fixed[ i ] = DAQP_ACTIVE | DAQP_IMMUTABLE;
+ make_sides();
 
  d_x.assign( n , 0 );
  d_lam.assign( d_m , 0 );
  d_loaded = true;
  d_exitflag = 0;
 
- }  // end( DAQPMILPSolver::load_problem )
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void DAQPMILPSolver::make_sides( void )
+{
+ // the sides: the bounds first, then the rows; a fixed variable and an
+ // equality row are constraints that DAQP keeps active
+ d_bl.resize( d_m );
+ d_bu.resize( d_m );
+ std::copy( d_dq.lb.begin() , d_dq.lb.end() , d_bl.begin() );
+ std::copy( d_dq.rl.begin() , d_dq.rl.end() , d_bl.begin() + d_n );
+ std::copy( d_dq.ub.begin() , d_dq.ub.end() , d_bu.begin() );
+ std::copy( d_dq.ru.begin() , d_dq.ru.end() , d_bu.begin() + d_n );
+ d_fixed.assign( d_m , 0 );
+ for( int i = 0 ; i < d_m ; ++i )
+  if( d_bl[ i ] == d_bu[ i ] )
+   d_fixed[ i ] = DAQP_ACTIVE | DAQP_IMMUTABLE;
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void DAQPMILPSolver::update_data( void )
+{
+ // the columns or the rows of the QP change: it is made again, and DAQP
+ // set up again from the working set on the old ones
+ if( ! refresh_dense_qp( d_dq ) ) {
+  free_workspace();
+  make_data();
+  return;
+  }
+
+ // the same QP with new vectors, written where d_qp points to; the
+ // workspace keeps its factorization and its working set, unless the
+ // constraints that the problem fixes are not the same
+ const auto fixed = d_fixed;
+ make_sides();
+ if( ( fixed != d_fixed ) || ( ! d_has_work ) )
+  d_loaded = true;
+ if( d_loaded )
+  return;
+
+ if( daqp_update_ldp( DAQP_UPDATE_v | DAQP_UPDATE_d , & d_work , & d_qp ) < 0 )
+  d_loaded = true;
+ }
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR SOLVING THE MODEL -----------------------*/
@@ -166,6 +212,12 @@ void DAQPMILPSolver::load_problem( void )
 
 int DAQPMILPSolver::guts_of_compute( void )
 {
+ // the data changed in place since the last solve [see updates_in_place()]
+ if( f_changed ) {
+  update_data();
+  f_changed = 0;
+  }
+
  // a solve started from the working set of the previous one may end
  // unbounded or infeasible on a problem that a solve from scratch finds
  // optimal (DAQP 0.11 after one iteration, on a master problem of a

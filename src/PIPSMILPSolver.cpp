@@ -707,69 +707,6 @@ void PIPSMILPSolver::get_dual_solution( Configuration * solc )
 
 /*--------------------------------------------------------------------------*/
 
-void PIPSMILPSolver::var_modification( const VariableMod * )
-{
- f_reset = true;
-}
-
-/*--------------------------------------------------------------------------*/
-
-void PIPSMILPSolver::objective_modification( const ObjectiveMod * )
-{
- f_reset = true;
-}
-
-/*--------------------------------------------------------------------------*/
-
-void PIPSMILPSolver::const_modification( const ConstraintMod * )
-{
- f_reset = true;
-}
-
-/*--------------------------------------------------------------------------*/
-
-void PIPSMILPSolver::bound_modification( const OneVarConstraintMod * )
-{
- f_reset = true;
-}
-
-/*--------------------------------------------------------------------------*/
-
-void PIPSMILPSolver::objective_function_modification( const FunctionMod * )
-{
- f_reset = true;
-}
-
-/*--------------------------------------------------------------------------*/
-
-void PIPSMILPSolver::constraint_function_modification( const FunctionMod * )
-{
- f_reset = true;
-}
-
-/*--------------------------------------------------------------------------*/
-
-void PIPSMILPSolver::objective_fvars_modification( const FunctionModVars * )
-{
- f_reset = true;
-}
-
-/*--------------------------------------------------------------------------*/
-
-void PIPSMILPSolver::constraint_fvars_modification( const FunctionModVars * )
-{
- f_reset = true;
-}
-
-/*--------------------------------------------------------------------------*/
-
-void PIPSMILPSolver::dynamic_modification( const BlockModAD * )
-{
- f_reset = true;
-}
-
-/*--------------------------------------------------------------------------*/
-
 std::string PIPSMILPSolver::pips_int_par_map( idx_type par ) const
 {
  switch( par ) {

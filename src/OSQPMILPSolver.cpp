@@ -162,6 +162,48 @@ void OSQPMILPSolver::load_problem( void )
 				"variables are only supported if relaxed "
 				"(intRelaxIntVars)" ) );
 
+ make_data();
+ const OSQPInt n = d_n;
+
+ // the solution of the previous problem, if any, moved to the columns and
+ // rows that are still there [see previous_column_index()], the new ones
+ // at 0, so that it is the warm start of the next solve also if columns or
+ // rows have been added or removed
+ if( ( prev_n > 0 ) && ( d_x.size() == std::size_t( prev_n ) ) &&
+     ( d_y.size() == std::size_t( prev_m ) ) &&
+     ( prev_row_pos.size() == std::size_t( previous_sizes().second ) ) &&
+     ( prev_box_pos.size() == std::size_t( prev_n ) ) ) {
+  std::vector< double > x( n , 0 ) , y( d_m , 0 );
+  for( OSQPInt j = 0 ; j < n ; ++j )
+   if( const int pj = previous_column_index( j ) ; pj >= 0 ) {
+    x[ j ] = d_x[ pj ];
+    if( ( d_box_pos[ j ] >= 0 ) && ( prev_box_pos[ pj ] >= 0 ) )
+     y[ d_box_pos[ j ] ] = d_y[ prev_box_pos[ pj ] ];
+    }
+  for( int i = 0 ; i < numrows ; ++i )
+   if( const int pi = previous_row_index( i ) ; pi >= 0 )
+    if( ( d_row_pos[ i ] >= 0 ) && ( prev_row_pos[ pi ] >= 0 ) )
+     y[ d_row_pos[ i ] ] = d_y[ prev_row_pos[ pi ] ];
+  d_x = std::move( x );
+  d_y = std::move( y );
+  }
+ else
+  if( ( d_x.size() != std::size_t( n ) ) ||
+      ( d_y.size() != std::size_t( d_m ) ) ) {
+   d_x.clear();
+   d_y.clear();
+   }
+
+ d_loaded = true;
+ d_status = -1;
+ f_changed = 0;
+
+ }  // end( OSQPMILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+void OSQPMILPSolver::make_data( void )
+{
  const OSQPInt n = numcols;
  d_n = n;
  d_sign = ( objsense == -1 ) ? -1 : 1;  // OSQP minimizes
@@ -169,9 +211,7 @@ void OSQPMILPSolver::load_problem( void )
  // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
  // 1/2 x' P x + q' x with P_jj = 2 q_j and P_ij = P_ji = ndq_k, of which
  // OSQP takes the upper triangle
- d_q.resize( n );
- for( OSQPInt j = 0 ; j < n ; ++j )
-  d_q[ j ] = d_sign * objective[ j ];
+ make_q();
 
  // ( column , row , value ) of the upper triangle of P
  std::vector< std::tuple< OSQPInt , OSQPInt , double > > trp;
@@ -211,58 +251,8 @@ void OSQPMILPSolver::load_problem( void )
  for( OSQPInt j = 0 ; j < n ; ++j )
   d_Pp[ j + 1 ] += d_Pp[ j ];
 
- // the sides of the rows, with the infinite ones at OSQP_INFTY: those with
- // no finite side are left out, all the others are the first rows of A
- d_row_pos.resize( numrows );
- d_l.clear();
- d_u.clear();
- for( int i = 0 ; i < numrows ; ++i ) {
-  double lo , hi;
-  switch( sense[ i ] ) {
-   case( 'L' ): lo = - Inf< double >();
-                hi = rhs[ i ];
-                break;
-   case( 'G' ): lo = rhs[ i ];
-                hi = Inf< double >();
-                break;
-   case( 'E' ): lo = hi = rhs[ i ];
-                break;
-   case( 'R' ): if( rngval[ i ] > 0 ) {
-                 lo = rhs[ i ];
-                 hi = rhs[ i ] + rngval[ i ];
-                 }
-                else {
-                 lo = rhs[ i ] + rngval[ i ];
-                 hi = rhs[ i ];
-                 }
-                break;
-   default:
-    throw( std::invalid_argument( "OSQPMILPSolver::load_problem: row " +
-				  std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
-   }
-  lo = std::max( lo , - OSQP_INFTY );
-  hi = std::min( hi , OSQP_INFTY );
-  if( ( lo <= - OSQP_INFTY ) && ( hi >= OSQP_INFTY ) )
-   d_row_pos[ i ] = -1;
-  else {
-   d_row_pos[ i ] = d_l.size();
-   d_l.push_back( lo );
-   d_u.push_back( hi );
-   }
-  }
-
- // the bounds: a unit row for each variable with a finite one
- d_box_pos.assign( n , -1 );
- for( OSQPInt j = 0 ; j < n ; ++j ) {
-  const double lo = std::max( double( lb[ j ] ) , - OSQP_INFTY );
-  const double hi = std::min( double( ub[ j ] ) , OSQP_INFTY );
-  if( ( lo > - OSQP_INFTY ) || ( hi < OSQP_INFTY ) ) {
-   d_box_pos[ j ] = d_l.size();
-   d_l.push_back( lo );
-   d_u.push_back( hi );
-   }
-  }
+ // the sides of the rows and the bounds of the variables
+ make_sides( d_row_pos , d_box_pos , d_l , d_u );
  d_m = d_l.size();
 
  // A, by columns, from those of MILPSolver
@@ -293,39 +283,97 @@ void OSQPMILPSolver::load_problem( void )
   d_Ap[ j + 1 ] += d_Ap[ j ];
   }
 
- // the solution of the previous problem, if any, moved to the columns and
- // rows that are still there [see previous_column_index()], the new ones
- // at 0, so that it is the warm start of the next solve also if columns or
- // rows have been added or removed
- if( ( prev_n > 0 ) && ( d_x.size() == std::size_t( prev_n ) ) &&
-     ( d_y.size() == std::size_t( prev_m ) ) &&
-     ( prev_row_pos.size() == std::size_t( previous_sizes().second ) ) &&
-     ( prev_box_pos.size() == std::size_t( prev_n ) ) ) {
-  std::vector< double > x( n , 0 ) , y( d_m , 0 );
-  for( OSQPInt j = 0 ; j < n ; ++j )
-   if( const int pj = previous_column_index( j ) ; pj >= 0 ) {
-    x[ j ] = d_x[ pj ];
-    if( ( d_box_pos[ j ] >= 0 ) && ( prev_box_pos[ pj ] >= 0 ) )
-     y[ d_box_pos[ j ] ] = d_y[ prev_box_pos[ pj ] ];
-    }
-  for( int i = 0 ; i < numrows ; ++i )
-   if( const int pi = previous_row_index( i ) ; pi >= 0 )
-    if( ( d_row_pos[ i ] >= 0 ) && ( prev_row_pos[ pi ] >= 0 ) )
-     y[ d_row_pos[ i ] ] = d_y[ prev_row_pos[ pi ] ];
-  d_x = std::move( x );
-  d_y = std::move( y );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void OSQPMILPSolver::make_q( void )
+{
+ d_q.resize( d_n );
+ for( OSQPInt j = 0 ; j < d_n ; ++j )
+  d_q[ j ] = d_sign * objective[ j ];
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void OSQPMILPSolver::make_sides( std::vector< OSQPInt > & row_pos ,
+				 std::vector< OSQPInt > & box_pos ,
+				 std::vector< OSQPFloat > & l ,
+				 std::vector< OSQPFloat > & u ) const
+{
+ // the sides of the rows, with the infinite ones at OSQP_INFTY: those with
+ // no finite side are left out, all the others are the first rows of A
+ row_pos.resize( numrows );
+ l.clear();
+ u.clear();
+ for( int i = 0 ; i < numrows ; ++i ) {
+  double lo , hi;
+  row_sides( i , lo , hi );
+  lo = std::max( lo , - OSQP_INFTY );
+  hi = std::min( hi , OSQP_INFTY );
+  if( ( lo <= - OSQP_INFTY ) && ( hi >= OSQP_INFTY ) )
+   row_pos[ i ] = -1;
+  else {
+   row_pos[ i ] = l.size();
+   l.push_back( lo );
+   u.push_back( hi );
+   }
+  }
+
+ // the bounds: a unit row for each variable with a finite one
+ box_pos.assign( numcols , -1 );
+ for( int j = 0 ; j < numcols ; ++j ) {
+  const double lo = std::max( double( lb[ j ] ) , - OSQP_INFTY );
+  const double hi = std::min( double( ub[ j ] ) , OSQP_INFTY );
+  if( ( lo > - OSQP_INFTY ) || ( hi < OSQP_INFTY ) ) {
+   box_pos[ j ] = l.size();
+   l.push_back( lo );
+   u.push_back( hi );
+   }
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void OSQPMILPSolver::update_data( void )
+{
+ // a new sense changes P as well, new sides that change which rows are in
+ // A change A: the data are made again, and given to OSQP as after a
+ // reload of the problem
+ const bool vec = ( ! d_loaded ) && ( ! d_setup ) && d_solver;
+ const bool sides = f_changed & ( kBounds | kSides );
+ if( sides ) {
+  std::vector< OSQPInt > row_pos , box_pos;
+  std::vector< OSQPFloat > l , u;
+  make_sides( row_pos , box_pos , l , u );
+  if( ( f_changed & kSense ) || ( row_pos != d_row_pos ) ||
+      ( box_pos != d_box_pos ) ) {
+   make_data();
+   d_loaded = true;
+   return;
+   }
+  d_l = std::move( l );
+  d_u = std::move( u );
   }
  else
-  if( ( d_x.size() != std::size_t( n ) ) ||
-      ( d_y.size() != std::size_t( d_m ) ) ) {
-   d_x.clear();
-   d_y.clear();
+  if( f_changed & kSense ) {
+   make_data();
+   d_loaded = true;
+   return;
    }
 
- d_loaded = true;
- d_status = -1;
+ if( f_changed & kObj )
+  make_q();
 
- }  // end( OSQPMILPSolver::load_problem )
+ // the solver of OSQP keeps its factorization, unless the update fails,
+ // and then all the data are given to it again
+ if( vec && osqp_update_data_vec( d_solver ,
+				  ( f_changed & kObj ) ? d_q.data()
+						       : OSQP_NULL ,
+				  sides ? d_l.data() : OSQP_NULL ,
+				  sides ? d_u.data() : OSQP_NULL ) != 0 )
+  d_loaded = true;
+ }
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR SOLVING THE MODEL -----------------------*/
@@ -333,6 +381,12 @@ void OSQPMILPSolver::load_problem( void )
 
 int OSQPMILPSolver::guts_of_compute( void )
 {
+ // the data changed in place since the last solve [see updates_in_place()]
+ if( f_changed ) {
+  update_data();
+  f_changed = 0;
+  }
+
  d_iter_limit = false;
  d_fval = 0;
  d_cert.clear();

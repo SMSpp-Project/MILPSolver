@@ -80,6 +80,10 @@
 
 #include <map>
 
+#include <span>
+
+#include <type_traits>
+
 #include <typeinfo>
 
 #include <unordered_map>
@@ -435,7 +439,9 @@ class MILPSolver : public CDASolver
   * - 1 clears the constraint matrix, xctype the column/row names
   * - 2 clears the OF related vectors (objective and q_objective)
   * - 4 clears rhs, rngval and sense
-  * - 8 clears lb and ub.
+  * - 8 clears lb and ub
+  * - 16 keeps the memory of the cleared vectors, which are otherwise
+  *   given back.
   *
   * To clear everything, use what = 15.
   *
@@ -1225,6 +1231,14 @@ class MILPSolver : public CDASolver
  double variable_weight( const Variable * var , const Constraint * con ) const;
 
 /*--------------------------------------------------------------------------*/
+ /// the sides of a row of the problem loaded
+ /** Writes in \p lo and \p hi the lower and the upper side of the row
+  * \p i, out of sense, rhs and rngval, - Inf< double >() and Inf< double >()
+  * standing for a missing one. */
+
+ void row_sides( int i , double & lo , double & hi ) const;
+
+/*--------------------------------------------------------------------------*/
  /// the problem as a dense QP on its free part alone
  /** The problem written for a back-end that takes H and A dense [see
   * make_dense_qp()]: a column with equal bounds is not in it, its value
@@ -1252,6 +1266,8 @@ class MILPSolver : public CDASolver
   std::vector< double > ub;      ///< the upper bounds of the columns
   std::vector< double > rl;      ///< the lower sides of the rows
   std::vector< double > ru;      ///< the upper sides of the rows
+  int sign = 1;                  ///< the sign it has been made with
+  double inf = 0;                ///< the infinity it has been made with
   };
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -1263,6 +1279,40 @@ class MILPSolver : public CDASolver
   * back-end. */
 
  void make_dense_qp( DenseQP & qp , int sign , double inf ) const;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// writes again the vectors of a DenseQP after a change in place
+ /** Writes again f, fconst, lb, ub, rl and ru of \p qp, made by
+  * make_dense_qp() on the problem loaded, out of the data changed in place
+  * since then [see updates_in_place()], in O( nonzeros + columns + rows ),
+  * leaving H and A as they are. Returns false, changing nothing, if the
+  * columns or the rows in \p qp would not be the same (e.g., a column
+  * becomes fixed or stops being so, a row has both sides infinite or stops
+  * having them) or if the sense of the Objective has changed: \p qp is
+  * then to be made again. */
+
+ bool refresh_dense_qp( DenseQP & qp ) const;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// writes the columns and the rows of a DenseQP
+ /** Writes xfix, pos, col, n, rpos, row and m of \p qp, whose inf is set,
+  * and, for each row of MILPSolver, its sides \p rl and \p ru and their
+  * part \p shift on the fixed columns [see make_dense_qp()]. */
+
+ void dense_qp_layout( DenseQP & qp , std::vector< double > & shift ,
+                       std::vector< double > & rl ,
+                       std::vector< double > & ru ) const;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// writes the objective, the bounds and the sides of a DenseQP
+ /** Writes f, fconst, lb, ub, rl and ru of \p qp, whose columns and rows
+  * are those written by dense_qp_layout() together with \p shift, \p rl
+  * and \p ru, and H as well if \p hessian is true. */
+
+ void dense_qp_vectors( DenseQP & qp , const std::vector< double > & shift ,
+                        const std::vector< double > & rl ,
+                        const std::vector< double > & ru ,
+                        bool hessian ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// the columns of MILPSolver out of those of a DenseQP
@@ -1439,6 +1489,14 @@ class MILPSolver : public CDASolver
  std::vector< int > v_prev_row;  ///< previous index of each row, or -1
  int prev_numcols = 0;           ///< columns of the previous problem
  int prev_numrows = 0;           ///< rows of the previous problem
+
+ /// the batches of batch_leaf(), and the Modification they point into
+ std::vector< const FunctionMod * > f_bfmods;
+ std::vector< const OneVarConstraintMod * > f_bbmods;
+ std::vector< const RowConstraintMod * > f_brmods;
+ std::vector< const VariableMod * > f_bvmods;
+ std::vector< const FRowConstraint * > f_brows;
+ std::vector< sp_Mod > f_held;
 
  /// the bounds of a variable beyond the one in svar_to_bound/dvar_to_bound
  std::unordered_map< const ColVariable * ,
@@ -1823,30 +1881,42 @@ class MILPSolver : public CDASolver
                std::vector< FRowConstraint * > & active_constraints ) const;
 
  /// the dynamic_cast of \p i to T *, made once per dynamic type
- /** Gives what dynamic_cast< T * >( \p i ) gives. The active stuff of a
-  * ColVariable is taken to an FRowConstraint or to a OneVarConstraint for
-  * each ColVariable that is loaded, and a dynamic_cast in a hierarchy with
-  * multiple inheritance spread over shared libraries compares the names of
-  * the types, which a large problem pays tens of millions of times; what
-  * the cast gives only depends on the dynamic type of the object, so it is
-  * made the first time a type is seen, and the offset from the active
-  * stuff to the object of the cast (the same for all the objects of a
-  * type, which have the same layout) is kept in a table of the thread,
-  * keyed by the std::type_info of the type. */
+ /** The active stuff of a ColVariable is taken to an FRowConstraint or to
+  * a OneVarConstraint for each ColVariable that is loaded, which a large
+  * problem does tens of millions of times [see memo_cast()]. */
  template< class T >
  static T * cast_active( ThinVarDepInterface * i ) {
+  return( memo_cast< T * >( i ) );
+  }
+
+ /// dynamic_cast< P >( \p p ), made once per dynamic type of * \p p
+ /** What dynamic_cast< P >( \p p ) gives, P being a pointer type, with
+  * the cast made only the first time a dynamic type is seen: the answer
+  * depends on that type alone, and the offset from \p p to the object of
+  * the cast (the same for all the objects of a type, which have the same
+  * layout) is kept in a table of the thread, keyed by its std::type_info.
+  * A type defined later, e.g., a Modification of some :Block, is cast for
+  * real the first time, so that the hierarchy is followed exactly as by
+  * dynamic_cast. The hierarchy of B must have no virtual base, through
+  * which the offset may differ from one object to another. */
+ template< class P , class B >
+ static P memo_cast( B * p ) {
+  using T = std::remove_pointer_t< P >;
+  if( ! p )
+   return( nullptr );
   // PTRDIFF_MIN if the cast fails
   static thread_local std::unordered_map< const std::type_info * ,
 					  std::ptrdiff_t > cache;
-  auto [ it , fresh ] = cache.try_emplace( & typeid( * i ) , PTRDIFF_MIN );
+  auto [ it , fresh ] = cache.try_emplace( & typeid( * p ) , PTRDIFF_MIN );
   if( fresh )
-   if( auto * t = dynamic_cast< T * >( i ) )
-    it->second = reinterpret_cast< char * >( t ) -
-                 reinterpret_cast< char * >( i );
+   if( auto * t = dynamic_cast< T * >( p ) )
+    it->second = reinterpret_cast< const char * >( t ) -
+                 reinterpret_cast< const char * >( p );
   if( it->second == PTRDIFF_MIN )
    return( nullptr );
-  return( reinterpret_cast< T * >( reinterpret_cast< char * >( i ) +
-				   it->second ) );
+  return( reinterpret_cast< T * >(
+            const_cast< char * >( reinterpret_cast< const char * >( p ) ) +
+            it->second ) );
   }
 
  /// gets the active bounds for the specified variable
@@ -1892,6 +1962,46 @@ class MILPSolver : public CDASolver
 
  virtual bool reload_on_modification( void ) { return( false ); }
 
+ /// whether the data of a problem loaded again whole change in place
+ /** Only asked if reload_on_modification() returns true. If this returns
+  * true as well, a Modification that only changes data of the problem,
+  * i.e., the linear part or the constant of the Objective through a
+  * C05FunctionModLin or a shift, the bounds of a column, the sides of a
+  * linear row or the sense of the Objective, is applied in place to
+  * objective, lb, ub, rhs, rngval, sense and objsense, and f_changed says
+  * which of them have changed [see modification_in_place()]; any other one
+  * has the problem loaded again whole. */
+
+ virtual bool updates_in_place( void ) const { return( false ); }
+
+ /// the kinds of data that a Modification changes in place
+ enum changed_data {
+  kObj = 1 ,     ///< the linear part of the Objective
+  kBounds = 2 ,  ///< the bounds of the columns
+  kSides = 4 ,   ///< the sides of the rows
+  kSense = 8 ,   ///< the sense of the Objective
+  kAll = 15      ///< all of them, as after load_problem()
+  };
+
+ /// the data changed in place since the back-end has last read them
+ /** A bitwise OR of changed_data: load_problem() sets it to kAll, each
+  * Modification applied in place [see updates_in_place()] adds its kind,
+  * and the back-end clears it once it has given the changes to its
+  * solver. */
+
+ unsigned int f_changed = 0;
+
+ /// applies \p mod in place, if it can be
+ /** Returns true if \p mod changes nothing in the problem (e.g., it comes
+  * from an excluded sub-Block, it is about an excluded Objective, it is a
+  * PolyhedralFunctionMod or a kind of Modification that MILPSolver does not
+  * act upon), or if updates_in_place() is true and \p mod only changes data
+  * of the problem, which are then changed in place and added to
+  * f_changed; returns false if the problem has to be loaded again whole.
+  * A GroupModification is so if all its sub-Modification are. */
+
+ bool modification_in_place( const Modification * mod );
+
  /// whether the back-end changes the sides of a nonlinear row in place
  /** A change of the Function of a row that is not a LinearFunction makes
   * the problem be loaded again whole by every back-end, and so does a change
@@ -1932,6 +2042,36 @@ class MILPSolver : public CDASolver
   * @return true if the group has been executed, false to take it apart */
 
  virtual bool process_group_modification( const GroupModification * gmod );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// collects a change of a datum in the batch of its kind
+ /** A C05FunctionModLin, a OneVarConstraintMod, a VariableMod or a
+  * RowConstraintMod is added to the batch of its kind, to be executed by
+  * flush_batch() with the others in one operation of the back-end [see
+  * change_coefficients()], and a PolyhedralFunctionMod is dropped; the
+  * answer is false for anything else, which closes the batch. */
+ bool batch_leaf( const Modification * mod );
+
+ /// executes the batches collected by batch_leaf()
+ void flush_batch( void );
+
+ /// collects the rows of a BlockModAdd< FRowConstraint >
+ /** The linear rows added by \p mod, but those of the cut pool, are added
+  * to the batch of the rows, to be given to the back-end together with
+  * those of the BlockModAdd that follow it [see flush_rows()]; the batch of
+  * the data is executed first. The answer is false if \p mod is not such a
+  * Modification, or if it is to be dealt with on its own because the
+  * problem has or gets a row that is not linear. */
+ bool batch_rows( const Modification * mod );
+
+ /// adds the rows collected by batch_rows() in one operation
+ void flush_rows( void );
+
+ /// executes the batch of the bounds only [see batch_leaf()]
+ void flush_bounds( void );
+
+ /// executes the batch of the Variable only [see batch_leaf()]
+ void flush_variables( void );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// adds the whole column of each of the given Variable in one operation
@@ -2288,6 +2428,17 @@ class MILPSolver : public CDASolver
  /// adds a single new dynamic variable
  virtual void add_dynamic_variable( const ColVariable * var );
 
+ /// adds several dynamic variables at once
+ /** The columns of a BlockModAdd< ColVariable > are handed over here in one
+  * go, so that a back-end can add them with one call; the default adds them
+  * one by one, and the result is the same as that of add_dynamic_variable()
+  * applied to each, in the order of \p vars. */
+ virtual void add_dynamic_variables(
+                          const std::vector< const ColVariable * > & vars ) {
+  for( auto * var : vars )
+   add_dynamic_variable( var );
+  }
+
  /// adds a single new dynamic bound
  virtual void add_dynamic_bound( const OneVarConstraint * con );
 
@@ -2320,6 +2471,34 @@ class MILPSolver : public CDASolver
 
  /// removes a single dynamic bound
  virtual void remove_dynamic_bound( const OneVarConstraint * con );
+
+/*--------------------------------------------------------------------------*/
+ /// records dynamic rows added at the end, in the order given
+ /** What MILPSolver::add_dynamic_constraint() does for one row, for all of
+  * \p cons at once: the dictionaries are merged in one pass, so that adding
+  * k rows to n costs O( n + k log k ) rather than O( k n ). A back-end adding
+  * several rows calls this once instead of add_dynamic_constraint() for
+  * each. */
+ void register_dynamic_constraints(
+                              std::span< const FRowConstraint * const > cons );
+
+ /// records dynamic columns added at the end, in the order given
+ /** As register_dynamic_constraints(), for the columns. */
+ void register_dynamic_variables(
+                                 std::span< const ColVariable * const > vars );
+
+ /// forgets dynamic rows removed together
+ /** What MILPSolver::remove_dynamic_constraint() does for one row, for all
+  * of \p cons at once: the survivors are renumbered in one pass, so that
+  * removing k rows of n costs O( n log k ) rather than O( k n ). The indices
+  * of \p cons are those before the removal, in any order. */
+ void forget_dynamic_constraints(
+                              std::span< const FRowConstraint * const > cons );
+
+ /// forgets dynamic columns removed together
+ /** As forget_dynamic_constraints(), for the columns. */
+ void forget_dynamic_variables(
+                                 std::span< const ColVariable * const > vars );
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PRIVATE FIELDS OF THE CLASS ------------------------*/
@@ -2369,6 +2548,16 @@ class MILPSolver : public CDASolver
  /// fills the dictionaries and the matrix with one FRowConstraint
 
  void scan_constraint( const FRowConstraint & con , Index & row );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// writes the bounds of the column \p col of \p var in lb and ub
+
+ void read_column_bounds( const ColVariable & var , int col );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// writes the sides of the row \p row of \p con in sense, rhs, rngval
+
+ void read_row_sides( const FRowConstraint & con , int row );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** Scans a static ColVariable to found the associated bound and fills the

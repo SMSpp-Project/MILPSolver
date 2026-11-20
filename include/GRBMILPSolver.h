@@ -712,6 +712,10 @@ void add_mip_starts(
  /// adds a single new dynamic ColVariable
  void add_dynamic_variable( const ColVariable * var ) override;
 
+ /// adds the given dynamic ColVariable with one call
+ void add_dynamic_variables(
+            const std::vector< const ColVariable * > & vars ) override;
+
  /// removes a single dynamic FRowConstraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
 
@@ -901,6 +905,16 @@ void add_mip_starts(
 
  /// the number of rows added since the last update
  mutable int f_new_rows = 0;
+
+ /// a_i - i for the GUROBI columns a_0 < a_1 < ... of the auxiliary
+ /// variables, ranged and quadratic, valid if f_aux_valid
+ mutable std::vector< int > f_aux_shift;
+ mutable bool f_aux_valid = false;
+
+ /// for each static row, the number of quadratic rows with no linear part
+ /// before it, valid if f_qskip_valid
+ mutable std::vector< int > f_qskip;
+ mutable bool f_qskip_valid = false;
 
  bool f_callback_set;  // true if the callback has been set
 

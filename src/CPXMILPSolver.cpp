@@ -176,6 +176,7 @@ void CPXMILPSolver::clear_problem( unsigned int what )
  f_kept = KeptSolution();
  f_cstat.clear();
  f_rstat.clear();
+ f_farkas_status = -1;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -189,7 +190,9 @@ void CPXMILPSolver::load_problem( void )
  cpx_quad_var_aux.clear();
  cpx_quad_con_aux.clear();
  cpx_idx_aux_qvar.clear();
+ cpx_qrows_nolin.clear();
  f_inverted_rows.clear();
+ f_farkas_status = -1;
 
  if( lp )
   CPXfreeprob( env , & lp );
@@ -362,6 +365,9 @@ void CPXMILPSolver::load_problem( void )
           cpx_rhs[ i ] , sense[ i ] , NULL , NULL , 
           qidx1.data() , qidx2.data() , qcoeff.data() , 
           name );
+
+        // a row that has no linear row in CPLEX
+        cpx_qrows_nolin.push_back( i );
       }
       else{
         // Case where q is not null
@@ -530,8 +536,10 @@ int CPXMILPSolver::guts_of_compute( void )
  // (when intRelaxIntVars == 2) are all handled by MILPSolver::compute().
  // This method is only responsible for the actual CPLEX call.
 
- // what free_workspace() kept is the solution of the previous solve
+ // what free_workspace() kept is the solution of the previous solve, and
+ // so is the Farkas certificate read last
  f_kept.valid = false;
+ f_farkas_status = -1;
 
  // short-circuit: any FRowConstraint with lhs > rhs makes the problem
  // structurally infeasible (see f_inverted_rows documentation)
@@ -735,16 +743,123 @@ void CPXMILPSolver::restore_basis( void )
 
  const int n = CPXgetnumcols( env , lp );
  const int r = CPXgetnumrows( env , lp );
- if( ( std::size_t( n ) < cstat.size() ) ||
-     ( std::size_t( r ) < rstat.size() ) )
+ if( ( std::size_t( n ) != cstat.size() ) ||
+     ( std::size_t( r ) != rstat.size() ) )
   return;
 
- cstat.resize( n , CPX_AT_LOWER );
- rstat.resize( r , CPX_BASIC );
+ // a deleted row whose slack was nonbasic, or a deleted column that was
+ // basic, leaves a number of basic statuses other than that of the rows:
+ // the slacks of the last rows make it up, and CPLEX repairs the basis if
+ // it comes out singular; if it cannot be made up, the solve starts cold
+ int nb = int( std::count( cstat.begin() , cstat.end() , CPX_BASIC ) +
+               std::count( rstat.begin() , rstat.end() , CPX_BASIC ) );
+ for( int i = r ; ( nb != r ) && ( i-- > 0 ) ; )
+  if( ( nb > r ) == ( rstat[ i ] == CPX_BASIC ) ) {
+   if( nb > r ) {
+    rstat[ i ] = CPX_AT_LOWER;
+    --nb;
+    }
+   else {
+    rstat[ i ] = CPX_BASIC;
+    ++nb;
+    }
+   }
+ if( nb != r )
+  return;
+
+ // a basis CPLEX refuses leaves the problem with none, i.e., the solve
+ // starts cold, which is all there is to do about it
  CPXcopybase( env , lp , n ? cstat.data() : nullptr ,
               r ? rstat.data() : nullptr );
 
  }  // end( CPXMILPSolver::restore_basis )
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::basis_add( int k , const std::vector< double > & lb ,
+                               const std::vector< double > & ub )
+{
+ if( f_cstat.empty() && f_rstat.empty() )  // no basis is kept
+  return;
+
+ f_rstat.insert( f_rstat.end() , k , CPX_BASIC );
+
+ for( std::size_t i = 0 ; i < lb.size() ; ++i )
+  if( lb[ i ] > -CPX_INFBOUND )
+   f_cstat.push_back( CPX_AT_LOWER );
+  else
+   f_cstat.push_back( ub[ i ] < CPX_INFBOUND ? CPX_AT_UPPER
+                                             : CPX_FREE_SUPER );
+
+ }  // end( CPXMILPSolver::basis_add )
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::basis_del( const std::vector< int > & del , bool rows )
+{
+ if( f_cstat.empty() && f_rstat.empty() )  // no basis is kept
+  return;
+
+ // one pass, del being sorted
+ auto & stat = rows ? f_rstat : f_cstat;
+ std::size_t w = 0;
+ for( std::size_t i = 0 , d = 0 ; i < stat.size() ; ++i )
+  if( ( d < del.size() ) && ( int( i ) == del[ d ] ) )
+   ++d;
+  else
+   stat[ w++ ] = stat[ i ];
+ stat.resize( w );
+
+ }  // end( CPXMILPSolver::basis_del )
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::dual_farkas( void )
+{
+ if( f_farkas_status < 0 ) {
+  f_farkas_y.assign( numrows , 0 );
+  f_farkas_proof = 0;
+  f_farkas_status = CPXdualfarkas( env , lp , f_farkas_y.data() ,
+                                   & f_farkas_proof );
+  }
+
+ return( f_farkas_status );
+
+ }  // end( CPXMILPSolver::dual_farkas )
+
+/*--------------------------------------------------------------------------*/
+
+std::vector< double > CPXMILPSolver::get_obj_coefficients(
+                                        const std::vector< int > & idx ) const
+{
+ std::vector< double > val( idx.size() );
+ if( idx.empty() )
+  return( val );
+
+ // a call costs much more than a coefficient, so the whole range is read
+ // unless it is far larger than the columns asked for
+ const auto [ mn , mx ] = std::minmax_element( idx.begin() , idx.end() );
+ const int lo = *mn;
+ const int hi = *mx;
+ if( std::size_t( hi - lo ) < 32 * idx.size() ) {
+  std::vector< double > range( hi - lo + 1 );
+  if( CPXgetobj( env , lp , range.data() , lo , hi ) )
+   throw( std::runtime_error(
+              "CPXMILPSolver::get_obj_coefficients: "
+              "an error occurred in CPXgetobj()" ) );
+  for( std::size_t i = 0 ; i < idx.size() ; ++i )
+   val[ i ] = range[ idx[ i ] - lo ];
+  }
+ else
+  for( std::size_t i = 0 ; i < idx.size() ; ++i )
+   if( CPXgetobj( env , lp , & val[ i ] , idx[ i ] , idx[ i ] ) )
+    throw( std::runtime_error(
+               "CPXMILPSolver::get_obj_coefficients: "
+               "an error occurred in CPXgetobj()" ) );
+
+ return( val );
+
+ }  // end( CPXMILPSolver::get_obj_coefficients )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1892,12 +2007,18 @@ void CPXMILPSolver::get_dual_solution( Configuration * solc )
              "unable to get reduced costs with CPXgetdj()"
 			     ) );
 
- // Now remove all dual values for auxiliary variables (supposed sorted).
- int count = 0;
- for( auto idx : cpx_idx_aux_qvar ) {
-  dj.erase( dj.begin() + idx - count );
-  ++count;
- }
+ // the reduced costs of the auxiliary columns go, in one pass over dj,
+ // their indices being sorted
+ {
+  std::size_t w = 0;
+  for( std::size_t j = 0 , a = 0 ; j < dj.size() ; ++j )
+   if( ( a < cpx_idx_aux_qvar.size() ) &&
+       ( int( j ) == cpx_idx_aux_qvar[ a ] ) )
+    ++a;
+   else
+    dj[ w++ ] = dj[ j ];
+  dj.resize( w );
+  }
 
  if( dj.size() != numcols )
    throw( std::runtime_error(
@@ -1917,16 +2038,13 @@ bool CPXMILPSolver::has_dual_direction( void )
  if( numquadrows > 0 )
   return( false );
 
- std::vector< double > y( numrows , 0 );
- double proof = 0;
- return( ! bool( CPXdualfarkas( env , lp , y.data() , & proof ) ) );
+ return( ! dual_farkas() );
  }
 
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::get_dual_direction( Configuration * dirc )
 {
- std::vector< double > y( numrows , 0 );
  std::vector< double > dj( numcols , 0 );
 
  // CPXdualfarkas gives a Farkas certificate y so that:
@@ -1934,11 +2052,12 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
  //   If it is a <= constraint then y[ i ] <= 0 holds;
  //   If it is a >= constraint then y[ i ] >= 0 holds.
 
- double proof = 0;
- if( CPXdualfarkas( env , lp , y.data() , & proof ) )
+ // read once for has_dual_direction() too [see dual_farkas()]
+ if( dual_farkas() )
   throw( std::runtime_error(
              "CPXMILPSolver::get_dual_direction: "
              "an error occurred in CPXdualfarkas()" ) );
+ const auto & y = f_farkas_y;
 
  // the second output of CPXdualfarkas is the value the dual objective takes
  // along the certificate, in the sign convention of y, which here is the one
@@ -1946,7 +2065,7 @@ void CPXMILPSolver::get_dual_direction( Configuration * dirc )
  // with x free, y is ( 1 , -1 ) and the value is 5 = y' b, the same number
  // Gurobi reports once its own y is flipped
  // [see MILPSolver::f_dual_direction_value]
- f_dual_direction_value = proof;
+ f_dual_direction_value = f_farkas_proof;
 
  // CPXdjfrompi computes reduced costs from dual values
  // dj = c - A'y
@@ -1982,30 +2101,37 @@ void CPXMILPSolver::write_lp( const std::string & filename )
 
 /*--------------------------------------------------------------------------*/
 
+int CPXMILPSolver::cpx_skip_aux( int idx ) const
+{
+ // the auxiliary columns of the quadratic rows, sorted, come before the
+ // column of index idx as long as cpx_idx_aux_qvar[ k ] < idx + k, i.e.,
+ // cpx_idx_aux_qvar[ k ] - k < idx, which holds for a prefix of them, the
+ // left side being nondecreasing: the column moves past as many as that
+ int lo = 0;
+ int hi = int( cpx_idx_aux_qvar.size() );
+ while( lo < hi ) {
+  const int mid = ( lo + hi ) / 2;
+  if( cpx_idx_aux_qvar[ mid ] - mid < idx )
+   lo = mid + 1;
+  else
+   hi = mid;
+  }
+
+ return( idx + lo );
+ }
+
+/*--------------------------------------------------------------------------*/
+
 int CPXMILPSolver::cpx_index_of_variable( const ColVariable * var ) const
 {
  auto idx = index_of_variable( var );
  if( idx == Inf< int >() )
   return( idx );
 
- bool is_qcp = ( numquadrows > 0 );
- 
- if( is_qcp ) {
-  // Simply "jump" quadratic constraints auxiliary variables
-  // We can use the cpx_idx_aux_qvar vector, containing all the indices
-  // of auxiliary variables already sorted.
-  int count = 0;
-  while( ( count < int( cpx_idx_aux_qvar.size() ) ) &&
-          ( cpx_idx_aux_qvar[ count ] < idx ) ) {
-    ++idx;
-    ++count;
-  }
+ return( cpx_skip_aux( idx ) );
  }
 
-  return( idx );
- }
-
- /*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 int CPXMILPSolver::cpx_index_of_dynamic_variable( const ColVariable * var )
  const
@@ -2014,23 +2140,7 @@ int CPXMILPSolver::cpx_index_of_dynamic_variable( const ColVariable * var )
  if( idx == Inf< int >() )
   return( idx );
 
- bool is_qcp = ( numquadrows > 0 );
- 
- if( is_qcp ) {
-  // Simply "jump" quadratic constraints auxiliary variables
-  // We can use the cpx_idx_aux_qvar vector, containing all the indices
-  // of auxiliary variables already sorted.
-  // note that the check that there still is one has to come first, or the
-  // vector is read past its end
-  int count = 0;
-  while( ( count < int( cpx_idx_aux_qvar.size() ) ) &&
-         ( cpx_idx_aux_qvar[ count ] < idx ) ) {
-    ++idx;
-    ++count;
-  }
- }
-
-  return( idx );
+ return( cpx_skip_aux( idx ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2056,19 +2166,11 @@ int CPXMILPSolver::cpx_index_of_linear_constraint(
                "tried to retrieve index of quadratic constraint "
       "with cpx_index_of_linear_constraint() method." ) );
 
-  // Simply "jump" quadratic constraints 
-  // NOTE: if the quadratic constraint has a linear part (see
-  // CPXMILPSolver.h:631) we are building also linear constraint. Thus, we
-  // will need to "jump" only quadratic constraint without a linear part,
-  // i.e. for which an auxiliary variable has not been built.
-  auto new_idx = idx;
-  for( int j = 0 ; j < idx ; j++ ) {
-    if( is_quad_row( j ) && ( cpx_quad_var_aux[ j ] == -1 ) ) {
-      // Quadratic constraint without linear part
-      new_idx--;
-    }
-   }
-  return( new_idx );
+  // a quadratic row with a linear part has a linear row in CPLEX too [see
+  // load_problem()], so only those with none are skipped
+  return( idx - int( std::lower_bound( cpx_qrows_nolin.begin() ,
+                                       cpx_qrows_nolin.end() , idx ) -
+                     cpx_qrows_nolin.begin() ) );
   }
  }
 
@@ -2357,34 +2459,15 @@ bool CPXMILPSolver::add_columns( const std::vector< Variable * > & vars ,
  if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
   return( false );
 
- // The shared reader filters costs using current Function membership.
- // Rebuild them from the addition payloads so a later queued removal does
- // not suppress an earlier objective contribution in this CPLEX batch.
- std::fill( cost.begin() , cost.end() , 0.0 );
- for( const auto & submod : gmod->sub_Modifications() ) {
-  auto modl =
-   dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
-  if( ( ! modl ) ||
-      ( ! dynamic_cast< const Objective * >(
-                                      modl->function()->get_Observer() ) ) )
-   continue;
-
-  for( Index i = 0 ; i < modl->vars().size() ; ++i ) {
-   auto it = std::find( vars.begin() , vars.end() , modl->vars()[ i ] );
-   if( it == vars.end() )  // this group is not just adding the listed columns
-    return( false );       // nothing has been written yet
-   cost[ std::distance( vars.begin() , it ) ] += modl->coeff()[ i ];
-   }
-  }
-
- // the columns themselves, each born empty with its bounds and its type,
- // exactly as it is when the Modification arrive one by one
+ // the columns themselves, each born empty with its bounds, its type and
+ // its cost, all in one call
+ std::vector< const ColVariable * > cvars( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  cvars[ i ] = static_cast< const ColVariable * >( vars[ i ] );
+ add_dynamic_variables( cvars , cost );
  std::vector< int > vidx( vars.size() );
- for( Index i = 0 ; i < vars.size() ; ++i ) {
-  auto var = static_cast< const ColVariable * >( vars[ i ] );
-  add_dynamic_variable( var );
-  vidx[ i ] = cpx_index_of_variable( var );
-  }
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  vidx[ i ] = cpx_index_of_variable( cvars[ i ] );
 
  // the entries of all the columns together, in one call
  std::vector< int > rows , cols;
@@ -2407,17 +2490,6 @@ bool CPXMILPSolver::add_columns( const std::vector< Variable * > & vars ,
   CPXchgcoeflist( env , lp , rows.size() , rows.data() , cols.data() ,
                   vals.data() );
 
- std::vector< int > oidx;
- std::vector< double > oval;
- for( Index i = 0 ; i < vars.size() ; ++i )
-  if( cost[ i ] != 0 ) {  // the column is born with a zero cost
-   oidx.push_back( vidx[ i ] );
-   oval.push_back( cost[ i ] );
-   }
-
- if( ! oidx.empty() )
-  CPXchgobj( env , lp , oidx.size() , oidx.data() , oval.data() );
-
  return( true );
 
  }  // end( CPXMILPSolver::add_columns )
@@ -2429,8 +2501,10 @@ bool CPXMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
 {
  // deleting the column takes its coefficients away with it, so not one of
  // the rows it appears in is touched
- for( auto v : vars )
-  remove_dynamic_variable( static_cast< const ColVariable * >( v ) );
+ std::vector< const ColVariable * > cvars( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  cvars[ i ] = static_cast< const ColVariable * >( vars[ i ] );
+ remove_dynamic_variables( cvars );
 
  return( true );
 
@@ -2505,34 +2579,54 @@ bool CPXMILPSolver::change_coefficients(
   return( false );  // a Function of something this Solver does not have
   }
 
- if( ! rows.empty() )
-  CPXchgcoeflist( env , lp , rows.size() , rows.data() , cols.data() ,
-                  vals.data() );
+ if( ! rows.empty() ) {
+  // CPLEX wants each ( row , column ) once, and an entry the group changes
+  // more than once keeps the value written last, as one by one
+  std::vector< int > ord( rows.size() );
+  std::iota( ord.begin() , ord.end() , 0 );
+  std::stable_sort( ord.begin() , ord.end() , [ & ]( int a , int b ) {
+   return( ( rows[ a ] < rows[ b ] ) ||
+           ( ( rows[ a ] == rows[ b ] ) && ( cols[ a ] < cols[ b ] ) ) );
+   } );
+  std::vector< int > r , c;
+  std::vector< double > v;
+  r.reserve( ord.size() );
+  c.reserve( ord.size() );
+  v.reserve( ord.size() );
+  for( auto i : ord )
+   if( ( ! r.empty() ) && ( r.back() == rows[ i ] ) &&
+       ( c.back() == cols[ i ] ) )
+    v.back() = vals[ i ];  // a later one in the group
+   else {
+    r.push_back( rows[ i ] );
+    c.push_back( cols[ i ] );
+    v.push_back( vals[ i ] );
+    }
+  CPXchgcoeflist( env , lp , r.size() , r.data() , c.data() , v.data() );
+  }
 
  if( ! ocols.empty() ) {
-  // the old cost of a column is read once for the whole group, and the
-  // deltas of a column the group touches more than once are summed: the
-  // result is the one the Modification give one at a time, where each of
-  // them reads back what the previous one has written
-  std::map< int , double > newval;
-  for( Block::Index i = 0 ; i < ocols.size() ; ++i ) {
-   auto it = newval.find( ocols[ i ] );
-   if( it == newval.end() ) {
-    double oldval;
-    CPXgetobj( env , lp , & oldval , ocols[ i ] , ocols[ i ] );
-    newval[ ocols[ i ] ] = oldval + odeltas[ i ];
-    }
-   else
-    it->second += odeltas[ i ];
-   }
+  // the old costs are read together, once for each column, and the deltas
+  // of a column the group touches more than once are summed in the order of
+  // the group: the result is the one the Modification give one at a time,
+  // where each of them reads back what the previous one has written
+  std::vector< int > ord( ocols.size() );
+  std::iota( ord.begin() , ord.end() , 0 );
+  std::stable_sort( ord.begin() , ord.end() , [ & ocols ]( int a , int b ) {
+   return( ocols[ a ] < ocols[ b ] );
+   } );
 
   std::vector< int > oidx;
-  std::vector< double > oval;
-  oidx.reserve( newval.size() );
-  oval.reserve( newval.size() );
-  for( const auto & el : newval ) {
-   oidx.push_back( el.first );
-   oval.push_back( el.second );
+  oidx.reserve( ord.size() );
+  for( auto i : ord )
+   if( oidx.empty() || ( oidx.back() != ocols[ i ] ) )
+    oidx.push_back( ocols[ i ] );
+
+  auto oval = get_obj_coefficients( oidx );
+  for( std::size_t p = 0 , j = 0 ; p < ord.size() ; ++p ) {
+   if( ocols[ ord[ p ] ] != oidx[ j ] )
+    ++j;
+   oval[ j ] += odeltas[ ord[ p ] ];
    }
 
   CPXchgobj( env , lp , oidx.size() , oidx.data() , oval.data() );
@@ -2777,15 +2871,20 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
     if( auto vidx = cpx_index_of_variable( var ) ; vidx < Inf< int >() ) {
-     double oldval;
-     CPXgetobj( env , lp , &oldval , vidx , vidx );
      cidx.push_back( vidx );
-     nval.push_back( oldval + w * modl->delta()[ i ] );
+     nval.push_back( w * modl->delta()[ i ] );
      }
     }
 
-   if( ! cidx.empty() )
-    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
+   if( cidx.empty() )
+    return;
+
+   // the old coefficients, all read before any is written
+   auto oldval = get_obj_coefficients( cidx );
+   for( std::size_t j = 0 ; j < cidx.size() ; ++j )
+    nval[ j ] += oldval[ j ];
+
+   CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
    }
 
@@ -2817,20 +2916,20 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
 
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     int vidx = cpx_index_of_variable( var );
-     *(cidxit++) = vidx;
-      
-     // Retrieve old coefficient
-     double oldval;
-     CPXgetobj( env , lp , &oldval , vidx , vidx );
-
-     // Update new coefficient
-     *(nvit++) = oldval + w * modl->delta()[ i ];
+     *(cidxit++) = cpx_index_of_variable( var );
+     *(nvit++) = w * modl->delta()[ i ];
      }
    }
 
    // a Variable no longer in the Function has no entry
    cidx.resize( std::distance( cidx.begin() , cidxit ) );
+   nval.resize( cidx.size() );
+
+   // the old coefficients, all read before any is written
+   auto oldval = get_obj_coefficients( cidx );
+   for( std::size_t j = 0 ; j < cidx.size() ; ++j )
+    nval[ j ] += oldval[ j ];
+
    CPXchgobj( env , lp , cidx.size() , cidx.data() , nval.data() );
    return;
    }
@@ -2897,11 +2996,8 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      int cidx = cpx_index_of_variable( dynamic_cast< ColVariable * >( v ) );
      *(cidxit++) = cidx;
       
-     // Retrieve old linear coefficient
-     double oldlinval;
-     CPXgetobj( env , lp , &oldlinval , cidx , cidx );
-     // Update new linear coefficient
-     *(nvit++) = oldlinval + w * std::get< 0 >( dc );
+     // the delta of the linear coefficient, the old one being read later
+     *(nvit++) = w * std::get< 0 >( dc );
 
      // Retrieve old quadratic coefficient
      double oldqval;
@@ -2925,6 +3021,11 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
    nval.resize( nsz );
+
+   // the old linear coefficients, all read before any is written
+   auto oldval = get_obj_coefficients( cidx );
+   for( std::size_t j = 0 ; j < cidx.size() ; ++j )
+    nval[ j ] += oldval[ j ];
 
    CPXchgobj( env , lp , nsz , cidx.data() , nval.data() );
    return;
@@ -2957,11 +3058,8 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
      int cidx = cpx_index_of_variable( dynamic_cast< ColVariable * >( v ) );
      *(cidxit++) = cidx;
       
-     // Retrieve old linear coefficient
-     double oldlinval;
-     CPXgetobj( env , lp , &oldlinval , cidx , cidx );
-     // Update new linear coefficient
-     *(nvit++) = oldlinval + w * std::get< 0 >( dc );
+     // the delta of the linear coefficient, the old one being read later
+     *(nvit++) = w * std::get< 0 >( dc );
 
      // Retrieve old quadratic coefficient
      double oldqval;
@@ -2985,6 +3083,11 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    auto nsz = std::distance( nval.begin() , nvit );
    cidx.resize( nsz );
    nval.resize( nsz );
+
+   // the old linear coefficients, all read before any is written
+   auto oldval = get_obj_coefficients( cidx );
+   for( std::size_t j = 0 ; j < cidx.size() ; ++j )
+    nval[ j ] += oldval[ j ];
 
    CPXchgobj( env , lp , nsz , cidx.data() , nval.data() );
    return;
@@ -3245,34 +3348,35 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // tolerance with an absolute floor, not a test of Function membership;
   // genuine contributions below this threshold are also rounded to zero.
 
+  // Do not inspect current Function membership: additions and removals
+  // must be applied in their queued order, even after later model changes.
+  // Without a delta (a removal with no coefficient information) the whole
+  // objective coefficient is zeroed.
   for( Block::Index i = 0 ; i < nv ; ++i ) {
    auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
    if( auto idx = cpx_index_of_variable( var ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
-    if( ! delta ) {
-     // Legacy removal: no coefficient information is available. Preserve
-     // the previous policy of zeroing the whole objective coefficient.
-     values.push_back( 0.0 );
-     continue;
-     }
+    values.push_back( delta ? w * ( *delta )[ i ] : 0.0 );
+    }
+   }
 
-    double oldval;
-    CPXgetobj( env , lp , &oldval , idx , idx );
-    const double change = w * ( *delta )[ i ];
-    double newval = oldval + change;
+  if( delta && ( ! indices.empty() ) ) {
+   // the old coefficients, all read before any is written
+   auto oldval = get_obj_coefficients( indices );
+   for( std::size_t j = 0 ; j < indices.size() ; ++j ) {
+    const double change = values[ j ];
+    double newval = oldval[ j ] + change;
 
     if( ! mod->added() ) {
-     const double scale = std::max( { 1.0 , std::abs( oldval ) ,
+     const double scale = std::max( { 1.0 , std::abs( oldval[ j ] ) ,
                                            std::abs( change ) } );
      if( std::isfinite( newval ) &&
          ( std::abs( newval ) <= obj_removal_tol * scale ) )
       newval = 0.0;
      }
 
-    // Do not inspect current Function membership: additions and removals
-    // must be applied in their queued order, even after later model changes.
-    values.push_back( newval );
+    values[ j ] = newval;
     }
    }
 
@@ -3381,22 +3485,25 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     auto var = static_cast< const ColVariable * >( mod->vars()[ i ] );
 
     if( auto idx = cpx_index_of_variable( var ) ; idx < Inf< int >() ) {
-      // Retrieve old coefficients
-      double oldval;
-      double oldqval;
-      CPXgetobj( env , lp , &oldval , idx , idx );
-      CPXgetqpcoef( env , lp , idx , idx , &oldqval );
-
       // a Variable that is not (any longer) in the Function changes nothing,
       // and the two vectors stay of the same length
       if( auto cidx = dqf->is_active( var ) ; cidx < nav ) {
+        double oldqval;
+        CPXgetqpcoef( env , lp , idx , idx , &oldqval );
+
+        // the delta of the linear coefficient, the old one being read later
         indices.push_back( idx );
-        values.push_back( oldval + w * modq->coeff()[ i ].first );
+        values.push_back( w * modq->coeff()[ i ].first );
         CPXchgqpcoef( env , lp , idx , idx ,
                       oldqval + w * 2 * modq->coeff()[ i ].second );
       }
     }
   }
+
+  // the old linear coefficients, all read before any is written
+  auto oldval = get_obj_coefficients( indices );
+  for( std::size_t j = 0 ; j < indices.size() ; ++j )
+   values[ j ] += oldval[ j ];
 
   CPXchgobj( env , lp , indices.size() , indices.data() , values.data() );
   return;
@@ -3492,91 +3599,8 @@ void CPXMILPSolver::dynamic_modification( const BlockModAD * mod )
 
 void CPXMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
 {
- // call the method of MILPSolver to update the dictionaries (only)
- MILPSolver::add_dynamic_constraint( con );
-
- auto f = con->get_function();
- if( ! f )
-  return;
- auto lf = dynamic_cast< const LinearFunction * >( f );
- if( ! lf )
-  throw( std::invalid_argument(
-            "CPXMILPSolver::add_dynamic_constraint: "
-            "the FRowConstraint is not linear" ) );
-
- const int nzcnt = lf->get_num_active_var();
- std::array< int , 2 > rmatbeg = { 0 , nzcnt };
- std::vector< int > rmatind;
- rmatind.reserve( nzcnt );
- std::vector< double > rmatval;
- rmatval.reserve( nzcnt );
-
- // gather the row in CSR form via the shared base-class helper
- scatter_lf_to_csr( lf ,
-                    [ this ]( const ColVariable * v ) {
-                     return( cpx_index_of_variable( v ) );
-                     } ,
-                    rmatind , rmatval );
-
- // decode the (lhs, rhs) pair into the CPLEX sense-and-rhs format.
- // Inverted rows (lhs > rhs) get encoded as a feasible equality at
- // con_rhs and recorded in f_inverted_rows; compute() short-circuits
- // to kInfeasible while the row stays in this state. See the
- // f_inverted_rows documentation for the rationale
- auto con_lhs = con->get_lhs();
- auto con_rhs = con->get_rhs();
- double rhs , rngval;
- char sense;
- bool inverted = false;
-
- if( con_lhs > con_rhs ) {
-  inverted = true;
-  sense = 'E';
-  rhs = con_rhs;
-  }
- else
-  if( con_lhs == con_rhs ) {
-   sense = 'E';
-   rhs = con_rhs;
-   }
-  else
-   if( con_lhs == -Inf< double >() ) {
-    sense = 'L';
-    rhs = con_rhs;
-    }
-   else
-    if( con_rhs == Inf< double >() ) {
-     sense = 'G';
-     rhs = con_lhs;
-     }
-    else {
-     sense = 'R';
-     rhs = con_lhs;
-     rngval = con_rhs - con_lhs;
-     }
-
- rhs = cpx_bound( rhs );
-
- // push the row into the CPLEX model. The CPXaddrows signature is
- // (env, lp, ccnt = 0, rcnt = 1, nzcnt, rhs, sense, rmatbeg, rmatind,
- //  rmatval, colname, rowname); ccnt = 0 means no new column is
- // introduced together with the row, which is the typical bundle-cut
- // insertion scenario
- CPXaddrows( env , lp , 0 , 1 , int( rmatind.size() ) , & rhs , & sense ,
-             rmatbeg.data() , rmatind.data() , rmatval.data() ,
-             nullptr , nullptr );
- if( sense == 'R' ) {
-  // the constraint has just been added at the end of the row list,
-  // so its CPLEX index is numrows - 1 (numrows has already been
-  // bumped by the MILPSolver::add_dynamic_constraint call above)
-  int index = numrows - 1;
-  CPXchgrngval( env , lp , 1 , & index , & rngval );
-  }
-
- if( inverted )
-  f_inverted_rows.insert( con );
-
- }  // end( CPXMILPSolver::add_dynamic_constraint )
+ add_dynamic_constraints( { con } );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -3586,67 +3610,49 @@ void CPXMILPSolver::add_dynamic_constraints(
  if( cons.empty() )
   return;
 
- // collect the rows that fit the batch path (equality / one-sided
- // inequality, lhs <= rhs) into a CSR-flavoured (rmatbeg, rmatind,
- // rmatval, sense, rhs) tuple, and route the remaining ranged rows or
- // inverted rows through the single-row fallback. Inverted rows (lhs
- // > rhs) need the f_inverted_rows bookkeeping that add_dynamic_constraint
- // performs row by row; ranged rows need the separate CPXchgrngval
- // post-step. Both are uncommon in the typical MasterProblemBlock
- // master and routing them one by one keeps CPXaddrows free of the
- // per-row exceptions while still amortising the API overhead of the
- // common case (cuts pushed by PolyhedralFunctionBlock as a single
- // batched BlockModAdd<FRowConstraint>)
+ // the rows in CSR form, with the sense and the rhs of each, the positions
+ // and the ranges of the ranged ones and the inverted ones
  std::vector< const FRowConstraint * > batch;
- std::vector< const FRowConstraint * > singles;
  batch.reserve( cons.size() );
- for( auto * c : cons ) {
-  if( ! c )
-   continue;
-  auto con_lhs = c->get_lhs();
-  auto con_rhs = c->get_rhs();
-  const bool inverted = con_lhs > con_rhs;
-  const bool ranged = ( ! inverted ) && ( con_lhs != con_rhs ) &&
-                      ( con_lhs > -Inf< double >() ) &&
-                      ( con_rhs < Inf< double >() );
-  if( inverted || ranged )
-   singles.push_back( c );
-  else
-   batch.push_back( c );
-  }
-
- for( auto * c : singles )
-  add_dynamic_constraint( c );
-
- if( batch.empty() )
-  return;
-
- const int n = int( batch.size() );
  std::vector< int > rmatbeg;
- rmatbeg.reserve( n );
+ rmatbeg.reserve( cons.size() );
  std::vector< int > rmatind;
  std::vector< double > rmatval;
  std::vector< char > sense;
- sense.reserve( n );
+ sense.reserve( cons.size() );
  std::vector< double > rhs;
- rhs.reserve( n );
+ rhs.reserve( cons.size() );
+ std::vector< int > rngidx;
+ std::vector< double > rngval;
+ std::vector< const FRowConstraint * > inverted;
 
  const auto idx_of = [ this ]( const ColVariable * v ) {
                       return( cpx_index_of_variable( v ) );
                       };
 
- for( auto * c : batch ) {
-  auto lf = dynamic_cast< const LinearFunction * >( c->get_function() );
-  if( ! lf )
-   throw( std::invalid_argument(
-             "CPXMILPSolver::add_dynamic_constraints: "
-             "the FRowConstraint is not linear" ) );
-  rmatbeg.push_back( int( rmatind.size() ) );
-  scatter_lf_to_csr( lf , idx_of , rmatind , rmatval );
+ for( auto * c : cons ) {
+  if( ! c )
+   continue;
 
+  // a row with no Function is an empty one
+  rmatbeg.push_back( int( rmatind.size() ) );
+  if( auto f = c->get_function() ) {
+   auto lf = dynamic_cast< const LinearFunction * >( f );
+   if( ! lf )
+    throw( std::invalid_argument(
+              "CPXMILPSolver::add_dynamic_constraints: "
+              "the FRowConstraint is not linear" ) );
+   scatter_lf_to_csr( lf , idx_of , rmatind , rmatval );
+   }
+
+  // the (lhs, rhs) pair in the sense-and-rhs format of CPLEX; a row with
+  // lhs > rhs is a feasible equality at rhs, and compute() short-circuits
+  // to kInfeasible while it stays so [see f_inverted_rows]
   auto con_lhs = c->get_lhs();
   auto con_rhs = c->get_rhs();
-  if( con_lhs == con_rhs ) {
+  if( con_lhs >= con_rhs ) {
+   if( con_lhs > con_rhs )
+    inverted.push_back( c );
    sense.push_back( 'E' );
    rhs.push_back( con_rhs );
    }
@@ -3655,29 +3661,53 @@ void CPXMILPSolver::add_dynamic_constraints(
     sense.push_back( 'L' );
     rhs.push_back( con_rhs );
     }
-   else {
-    sense.push_back( 'G' );
-    rhs.push_back( con_lhs );
-    }
+   else
+    if( con_rhs == Inf< double >() ) {
+     sense.push_back( 'G' );
+     rhs.push_back( con_lhs );
+     }
+    else {
+     sense.push_back( 'R' );
+     rhs.push_back( con_lhs );
+     rngidx.push_back( int( batch.size() ) );
+     rngval.push_back( con_rhs - con_lhs );
+     }
+
+  rhs.back() = cpx_bound( rhs.back() );
+  batch.push_back( c );
   }
- const int nnz = int( rmatind.size() );
 
- // update the dictionaries (only) for every batched row, in the same
- // order they appear in the CSR layout. This mirrors the dictionary
- // refresh that the base MILPSolver::add_dynamic_constraint does on
- // the single-row path before delegating to the derived solver's
- // back-end call
- for( auto * c : batch )
-  MILPSolver::add_dynamic_constraint( c );
+ if( batch.empty() )
+  return;
 
- const int rc = CPXaddrows( env , lp , 0 , n , nnz , rhs.data() ,
-                            sense.data() , rmatbeg.data() , rmatind.data() ,
-                            rmatval.data() , nullptr , nullptr );
+ const int n = int( batch.size() );
+ const int first = CPXgetnumrows( env , lp );
+
+ // the dictionaries of all the rows at once, in the order of the CSR layout
+ // [see MILPSolver::register_dynamic_constraints()]
+ register_dynamic_constraints( batch );
+
+ const int rc = CPXaddrows( env , lp , 0 , n , int( rmatind.size() ) ,
+                            rhs.data() , sense.data() , rmatbeg.data() ,
+                            rmatind.data() , rmatval.data() ,
+                            nullptr , nullptr );
  if( rc )
   throw( std::runtime_error(
               std::string( "CPXMILPSolver::add_dynamic_constraints: "
                            "CPXaddrows returned status " ) +
               std::to_string( rc ) ) );
+
+ // the ranges, the new rows being at the end
+ if( ! rngidx.empty() ) {
+  for( auto & i : rngidx )
+   i += first;
+  CPXchgrngval( env , lp , int( rngidx.size() ) , rngidx.data() ,
+                rngval.data() );
+  }
+
+ f_inverted_rows.insert( inverted.begin() , inverted.end() );
+
+ basis_add( n );
 
  }  // end( CPXMILPSolver::add_dynamic_constraints )
 
@@ -3685,80 +3715,85 @@ void CPXMILPSolver::add_dynamic_constraints(
 
 void CPXMILPSolver::add_dynamic_variable( const ColVariable * var )
 {
- bool was_mip = int_vars > 0;  // was a MIP before the change
-
- // call the method of MILPSolver to update dictionaries (and int_vars)
- MILPSolver::add_dynamic_variable( var );
-
- bool is_mip = int_vars > 0;  // is a MIP after the change
-
- // get the bounds
- auto bd = CPXMILPSolver::get_problem_bounds( *var );
- fix_bounds( *var , bd );  // a Variable may come already fixed
-
- // update the CPLEX problem
- CPXaddcols( env , lp , 1 , 0 , nullptr , nullptr , nullptr , nullptr,
-	     & bd[ 0 ] , & bd[ 1 ] , nullptr );
-
- // update problem type, if necessary
- if( is_mip ) {       // the problem is a MIP
-  //!! int idx = index_of_dynamic_variable( var );
-  // the variable has just been inserted at the end
-  int idx = numcols - 1;
-
-  char new_ctype;     // get the new variable type
-  if( var->is_integer() && ( ! relax_int_vars ) ) {
-   if( var->is_unitary() && var->is_positive() )
-    new_ctype = 'B';  // Binary
-   else
-    new_ctype = 'I';  // Integer
-   }
-  else
-   new_ctype = 'C';   // Continuous
-
-  if( was_mip ) {     // and it was a MIP before
-   // set the ctype for the one variable, a new one being continuous
-   if( new_ctype != 'C' )
-    CPXchgctype( env , lp , 1 , & idx , & new_ctype );
-   }
-  else {              // it was not a MIP before
-   // the first integer variable is added
-   // all ctype values must be [ re ]added to the problem
-   switch( CPXgetprobtype( env, lp ) ) {
-    case( CPXPROB_LP ): CPXchgprobtype( env , lp , CPXPROB_MILP ); break;
-    case( CPXPROB_QP ): CPXchgprobtype( env , lp , CPXPROB_MIQP ); break;
-    default:
-     throw( std::runtime_error(
-                "CPXMILPSolver: wrong CPLEX problem type" ) );
-    }
-
-   // all variables are continuous
-   std::vector< char > ctype( numcols , 'C' );
-   ctype[ idx ] = new_ctype;  // save the one that just became binary
-   CPXcopyctype( env , lp , ctype.data() );
-   }
-  }
- else                 // it is not a MIP
-  if( was_mip ) {     // but was so
-   // the last integer variable was removed, make the problem continuous
-   switch( CPXgetprobtype( env , lp ) ) {
-    case( CPXPROB_LP ):
-    case( CPXPROB_QP ):   break;  // this should not happe, but ...
-    case( CPXPROB_MILP ):
-    case( CPXPROB_FIXEDMILP ): CPXchgprobtype( env , lp , CPXPROB_LP ); break;
-    case( CPXPROB_MIQP ):
-    case( CPXPROB_FIXEDMIQP ): CPXchgprobtype( env , lp , CPXPROB_QP ); break;
-    default:
-     throw( std::runtime_error(
-                "CPXMILPSolver: wrong CPLEX problem type" ) );
-    }
-   }
-  // else do nothing, the problem stays continuous
-
- }  // end( CPXMILPSolver::add_dynamic_variable )
+ add_dynamic_variables( { var } );
+ }
 
 /*--------------------------------------------------------------------------*/
 
+void CPXMILPSolver::add_dynamic_variables(
+                            const std::vector< const ColVariable * > & vars )
+{
+ add_dynamic_variables( vars , std::vector< double >() );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::add_dynamic_variables(
+                            const std::vector< const ColVariable * > & vars ,
+                            const std::vector< double > & obj )
+{
+ if( vars.empty() )
+  return;
+
+ const bool was_mip = int_vars > 0;  // was a MIP before the change
+
+ // the dictionaries, the counters and the bounds of all the columns at once
+ register_dynamic_variables( vars );
+
+ const bool is_mip = int_vars > 0;  // is a MIP after the change
+
+ // the columns, each born empty with its bounds and its type
+ const int k = int( vars.size() );
+ const int first = CPXgetnumcols( env , lp );
+ std::vector< double > lbs( k ) , ubs( k );
+ std::vector< char > types( k );
+ for( int i = 0 ; i < k ; ++i ) {
+  auto var = vars[ i ];
+  auto bd = CPXMILPSolver::get_problem_bounds( *var );
+  fix_bounds( *var , bd );  // a Variable may come already fixed
+  lbs[ i ] = bd[ 0 ];
+  ubs[ i ] = bd[ 1 ];
+  if( var->is_integer() && ( ! relax_int_vars ) )
+   types[ i ] = ( var->is_unitary() && var->is_positive() ) ? 'B' : 'I';
+  else
+   types[ i ] = 'C';
+  }
+
+ // all in one call; the types go with them only if the problem is a MIP
+ // already, as they would make it one
+ const int rc = CPXnewcols( env , lp , k , obj.empty() ? nullptr : obj.data() ,
+                            lbs.data() , ubs.data() ,
+                            was_mip ? types.data() : nullptr , nullptr );
+ if( rc )
+  throw( std::runtime_error(
+              std::string( "CPXMILPSolver::add_dynamic_variables: "
+                           "CPXnewcols returned status " ) +
+              std::to_string( rc ) ) );
+
+ basis_add( 0 , lbs , ubs );
+
+ // adding columns does not make a MIP continuous, so the type of the
+ // problem changes only if the first integer columns come
+ if( was_mip || ( ! is_mip ) )
+  return;
+
+ switch( CPXgetprobtype( env, lp ) ) {
+  case( CPXPROB_LP ): CPXchgprobtype( env , lp , CPXPROB_MILP ); break;
+  case( CPXPROB_QP ): CPXchgprobtype( env , lp , CPXPROB_MIQP ); break;
+  default:
+   throw( std::runtime_error(
+              "CPXMILPSolver::add_dynamic_variables: "
+              "wrong CPLEX problem type" ) );
+  }
+
+ // all the ctype values are given, the old columns being continuous
+ std::vector< char > ctype( first , 'C' );
+ ctype.insert( ctype.end() , types.begin() , types.end() );
+ CPXcopyctype( env , lp , ctype.data() );
+
+ }  // end( CPXMILPSolver::add_dynamic_variables )
+
+/*--------------------------------------------------------------------------*/
 void CPXMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 {
  // no point in calling the method of MILPSolver, as it does nothing
@@ -3788,38 +3823,117 @@ void CPXMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 
 void CPXMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 {
- int index = index_of_dynamic_constraint( con );
- if( index == Inf< int >() )
-  throw( std::runtime_error(
-             "CPXMILPSolver::remove_dynamic_constraint: "
-             "dynamic constraint not found" ) );
+ remove_dynamic_constraints( { con } );
+ }
 
- CPXdelrows( env , lp , index , index );
+/*--------------------------------------------------------------------------*/
 
- f_inverted_rows.erase( con );
+namespace {
+
+/// deletes the sorted and distinct rows or columns del with one call
+/** One CPXdel[ rows | cols ]() if they are contiguous, else one
+ * CPXdelset[ rows | cols ]() with the mask of the n there are. */
+
+void cpx_del( CPXCENVptr env , CPXLPptr lp , const std::vector< int > & del ,
+              int n , bool rows )
+{
+ if( del.back() - del.front() + 1 == int( del.size() ) ) {
+  if( rows )
+   CPXdelrows( env , lp , del.front() , del.back() );
+  else
+   CPXdelcols( env , lp , del.front() , del.back() );
+  return;
+  }
+
+ std::vector< int > mask( n , 0 );
+ for( auto i : del )
+  mask[ i ] = 1;
+ if( rows )
+  CPXdelsetrows( env , lp , mask.data() );
+ else
+  CPXdelsetcols( env , lp , mask.data() );
+ }
+
+}  // end( anonymous namespace )
+
+/*--------------------------------------------------------------------------*/
+
+void CPXMILPSolver::remove_dynamic_constraints(
+                         const std::vector< const FRowConstraint * > & cons )
+{
+ if( cons.empty() )
+  return;
+
+ // the rows to delete, with the indices of the model as it is now
+ std::vector< int > rows;
+ rows.reserve( cons.size() );
+ for( auto * con : cons ) {
+  int index = index_of_dynamic_constraint( con );
+  if( index == Inf< int >() )
+   throw( std::runtime_error(
+              "CPXMILPSolver::remove_dynamic_constraints: "
+              "dynamic constraint not found" ) );
+  rows.push_back( index );
+  }
+ std::sort( rows.begin() , rows.end() );
+ rows.erase( std::unique( rows.begin() , rows.end() ) , rows.end() );
+
+ cpx_del( env , lp , rows , CPXgetnumrows( env , lp ) , true );
+
+ for( auto * con : cons )
+  f_inverted_rows.erase( con );
+
+ basis_del( rows , true );
+
+ // NOTE: the quadratic structures need no update, as a problem with
+ // quadratic rows is loaded again rather than changed [see
+ // MILPSolver::dynamic_modification()]
 
  // call the method of MILPSolver to update the dictionaries (only)
- MILPSolver::remove_dynamic_constraint( con );
- }
+ forget_dynamic_constraints( cons );
+
+ }  // end( CPXMILPSolver::remove_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
 
 void CPXMILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
- int index = index_of_dynamic_variable( var );
- if( index == Inf< int >() )
-  throw( std::runtime_error(
-             "CPXMILPSolver::remove_dynamic_variable: "
-             "dynamic variable not found" ) );
-
- CPXdelcols( env , lp , index , index );
-
- // call the method of MILPSolver to update the dictionaries (only)
- MILPSolver::remove_dynamic_variable( var );
+ remove_dynamic_variables( { var } );
  }
 
 /*--------------------------------------------------------------------------*/
 
+void CPXMILPSolver::remove_dynamic_variables(
+                            const std::vector< const ColVariable * > & vars )
+{
+ if( vars.empty() )
+  return;
+
+ // the CPLEX columns of the variables, with the auxiliary ones skipped, all
+ // with the indices of the model as it is now
+ std::vector< int > cols;
+ cols.reserve( vars.size() );
+ for( auto * var : vars ) {
+  int index = cpx_index_of_dynamic_variable( var );
+  if( index == Inf< int >() )
+   throw( std::runtime_error(
+              "CPXMILPSolver::remove_dynamic_variables: "
+              "dynamic variable not found" ) );
+  cols.push_back( index );
+  }
+ std::sort( cols.begin() , cols.end() );
+ cols.erase( std::unique( cols.begin() , cols.end() ) , cols.end() );
+
+ cpx_del( env , lp , cols , CPXgetnumcols( env , lp ) , false );
+
+ basis_del( cols , false );
+
+ // call the method of MILPSolver to update the dictionaries (only)
+ forget_dynamic_variables( vars );
+
+ }  // end( CPXMILPSolver::remove_dynamic_variables )
+
+/*--------------------------------------------------------------------------*/
 void CPXMILPSolver::remove_dynamic_bound( const OneVarConstraint * con )
 {
  // no point in calling the method of MILPSolver, as it does nothing

@@ -79,9 +79,12 @@ namespace SMSpp_di_unipi_it
  *   (see dblQuadProgReg), in which case the regularized problem is solved;
  *   as a consequence, an unbounded problem is never told as such;
  *
- * - quadprog has no warm start of the active set: whenever a Modification is
- *   received the problem is loaded again whole from the Block [see
- *   MILPSolver::reload_on_modification()], and each solve starts from the
+ * - quadprog has no warm start of the active set: a Modification that
+ *   changes the linear part of the Objective, the bounds of the variables
+ *   or the sides of the rows changes these data in place [see
+ *   MILPSolver::updates_in_place()], and any other one has the problem
+ *   loaded again whole from the Block [see
+ *   MILPSolver::reload_on_modification()]; each solve starts from the
  *   unconstrained minimum, but if \f$ H \f$ has not changed the inverse of
  *   its Cholesky factor is not computed again (see intQuadProgReuseFactor);
  *
@@ -267,9 +270,13 @@ class QuadProgMILPSolver : public MILPSolver
 
  int guts_of_compute( void ) override;
 
- /// quadprog has no problem to change: it is always loaded again
+ /// the problem is loaded again on a Modification that changes more than data
 
  bool reload_on_modification( void ) override { return( true ); }
+
+ /// the data are changed in place [see guts_of_compute()]
+
+ bool updates_in_place( void ) const override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE PART --------------------------------*/
@@ -284,6 +291,21 @@ class QuadProgMILPSolver : public MILPSolver
  /// true if the last solve has given a primal solution
 
  [[nodiscard]] bool solved( void ) const { return( d_status == kOK ); }
+
+ /// writes the problem out of that of MILPSolver
+
+ void make_data( void );
+
+ /// writes the linear term d_h out of the Objective of MILPSolver
+
+ void make_h( void );
+
+ /// writes the constraints of quadprog out of the bounds and the rows
+ /** Unless \p all, only d_b is written if the constraints are the same as
+  * before, i.e., no bound or side has become or stopped being finite and
+  * no bound or row has become or stopped being an equality. */
+
+ void make_constraints( bool all );
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PRIVATE FIELDS -------------------------------*/

@@ -145,7 +145,8 @@ HPIPMMILPSolver::~HPIPMMILPSolver() = default;
 void HPIPMMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( what );
- d_hp->reset();
+ if( ! ( what & 16u ) )  // the memory of HPIPM is kept for a reload
+  d_hp->reset();
  d_n = d_nc = 0;
  d_status = kError;
  }
@@ -172,6 +173,30 @@ void HPIPMMILPSolver::load_problem( void )
 				"variables are only supported if relaxed "
 				"(intRelaxIntVars)" ) );
 
+ make_data();
+ f_changed = 0;
+ const int n = d_n;
+
+ d_x.assign( n , 0 );
+
+ d_has_guess = false;
+ d_guess_x.clear();
+ if( had && ( px.size() == std::size_t( previous_sizes().first ) ) ) {
+  d_guess_x.assign( n , 0 );
+  for( int j = 0 ; j < n ; ++j )
+   if( const int pj = previous_column_index( j ) ; pj >= 0 )
+    d_guess_x[ j ] = px[ pj ];
+  d_has_guess = true;
+  }
+ d_y.assign( n + d_nc , 0 );
+ d_status = kError;
+
+ }  // end( HPIPMMILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+void HPIPMMILPSolver::make_data( void )
+{
  const int n = numcols;
  d_n = n;
  d_nc = numrows;
@@ -179,9 +204,7 @@ void HPIPMMILPSolver::load_problem( void )
 
  // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
  // 1/2 x' H x + h' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k
- d_h.assign( n , 0 );
- for( int j = 0 ; j < n ; ++j )
-  d_h[ j ] = d_sign * objective[ j ];
+ make_h();
 
  d_H.assign( std::size_t( n ) * n , 0 );
  for( int j = 0 ; j < n ; ++j )
@@ -205,51 +228,36 @@ void HPIPMMILPSolver::load_problem( void )
    d_A[ std::size_t( matind[ k ] ) * n + j ] += matval[ k ];
 
  // the bounds of the variables, then the sides of the rows
- d_lb.assign( lb.begin() , lb.begin() + n );
- d_ub.assign( ub.begin() , ub.begin() + n );
+ make_bounds();
+ make_sides();
+ }
 
+/*--------------------------------------------------------------------------*/
+
+void HPIPMMILPSolver::make_h( void )
+{
+ d_h.resize( d_n );
+ for( int j = 0 ; j < d_n ; ++j )
+  d_h[ j ] = d_sign * objective[ j ];
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void HPIPMMILPSolver::make_bounds( void )
+{
+ d_lb.assign( lb.begin() , lb.begin() + d_n );
+ d_ub.assign( ub.begin() , ub.begin() + d_n );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void HPIPMMILPSolver::make_sides( void )
+{
  d_lbA.resize( d_nc );
  d_ubA.resize( d_nc );
  for( int i = 0 ; i < d_nc ; ++i )
-  switch( sense[ i ] ) {
-   case( 'L' ): d_lbA[ i ] = - Inf< double >();
-                d_ubA[ i ] = rhs[ i ];
-                break;
-   case( 'G' ): d_lbA[ i ] = rhs[ i ];
-                d_ubA[ i ] = Inf< double >();
-                break;
-   case( 'E' ): d_lbA[ i ] = d_ubA[ i ] = rhs[ i ];
-                break;
-   case( 'R' ): if( rngval[ i ] > 0 ) {
-                 d_lbA[ i ] = rhs[ i ];
-                 d_ubA[ i ] = rhs[ i ] + rngval[ i ];
-                 }
-                else {
-                 d_lbA[ i ] = rhs[ i ] + rngval[ i ];
-                 d_ubA[ i ] = rhs[ i ];
-                 }
-                break;
-   default:
-    throw( std::invalid_argument( "HPIPMMILPSolver::load_problem: row " +
-				  std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
-   }
-
- d_x.assign( n , 0 );
-
- d_has_guess = false;
- d_guess_x.clear();
- if( had && ( px.size() == std::size_t( previous_sizes().first ) ) ) {
-  d_guess_x.assign( n , 0 );
-  for( int j = 0 ; j < n ; ++j )
-   if( const int pj = previous_column_index( j ) ; pj >= 0 )
-    d_guess_x[ j ] = px[ pj ];
-  d_has_guess = true;
-  }
- d_y.assign( n + d_nc , 0 );
- d_status = kError;
-
- }  // end( HPIPMMILPSolver::load_problem )
+  row_sides( i , d_lbA[ i ] , d_ubA[ i ] );
+ }
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR SOLVING THE MODEL -----------------------*/
@@ -257,6 +265,21 @@ void HPIPMMILPSolver::load_problem( void )
 
 int HPIPMMILPSolver::guts_of_compute( void )
 {
+ // the data changed in place since the last solve [see updates_in_place()],
+ // which are given to HPIPM below together with all the others; a new
+ // sense changes H as well
+ if( f_changed & kSense )
+  make_data();
+ else {
+  if( f_changed & kObj )
+   make_h();
+  if( f_changed & kBounds )
+   make_bounds();
+  if( f_changed & kSides )
+   make_sides();
+  }
+ f_changed = 0;
+
  d_fval = 0;
 
  // with no variable, the problem is feasible if and only if each row admits

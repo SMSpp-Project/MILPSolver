@@ -121,6 +121,13 @@ double msk_side( double v )
  return( std::clamp( v , - MSK_INFINITY , MSK_INFINITY ) );
  }
 
+/*--------------------------------------------------------------------------*/
+
+// the most entries of the Hessian given one by one with MSK_putqobjij(),
+// which costs more for each entry than MSK_putqobj() does
+
+constexpr std::size_t MaxHessianDirty = 16;
+
 }  // end( anonymous namespace )
 
 /*--------------------------------------------------------------------------*/
@@ -221,6 +228,8 @@ void MOSEKMILPSolver::clear_problem( unsigned int what )
  q_hessian.clear();
  q_hessian_nnz = 0;
  f_hessian_changed = false;
+ f_hessian_full = false;
+ f_hessian_dirty.clear();
  f_soltype = MSK_SOL_ITR;
  }
 
@@ -447,6 +456,7 @@ int MOSEKMILPSolver::guts_of_compute( void )
    for( int j = 0 ; j < int( q_hessian.size() ) ; ++j )
     add_to_hessian( j , j , d );
    shift += d;
+   f_hessian_full = true;
    pass_hessian();
    r = MSK_optimizetrm( task , & trm );
    if( ! refused( r ) )
@@ -454,6 +464,7 @@ int MOSEKMILPSolver::guts_of_compute( void )
    }
   for( int j = 0 ; j < int( q_hessian.size() ) ; ++j )
    add_to_hessian( j , j , - shift );
+  f_hessian_full = true;
   }
 
  // the iterations of the solve: simplex and interior point ones, those of
@@ -886,13 +897,9 @@ void MOSEKMILPSolver::get_dual_solution( Configuration * solc )
  // y is slc - suc, and the reduced cost slx - sux: A' y + slx - sux = c
  // (+ Q x) for both senses of the objective
  std::vector< double > rc( numcols , 0 );
- if( numcols > 0 ) {
-  std::vector< double > sux( numcols , 0 );
-  check( MSK_getslx( task , f_soltype , rc.data() ) , "get_dual_solution" );
-  check( MSK_getsux( task , f_soltype , sux.data() ) , "get_dual_solution" );
-  for( int j = 0 ; j < numcols ; ++j )
-   rc[ j ] -= sux[ j ];
-  }
+ if( numcols > 0 )
+  check( MSK_getreducedcosts( task , f_soltype , 0 , numcols , rc.data() ) ,
+	 "get_dual_solution" );
 
  MILPSolver::write_dual_solution( pi , rc , solc );
  }
@@ -1271,34 +1278,16 @@ bool MOSEKMILPSolver::add_columns( const std::vector< Variable * > & vars ,
  if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
   return( false );
 
- // the initial objective coefficients carried by the additions are used
- // even if a later queued Modification has removed a Variable from its
- // Function
- std::fill( cost.begin() , cost.end() , 0.0 );
- for( const auto & submod : gmod->sub_Modifications() ) {
-  auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >(
-                                                             submod.get() );
-  if( ( ! modl ) ||
-      ( ! dynamic_cast< const Objective * >(
-                                      modl->function()->get_Observer() ) ) )
-   continue;
-
-  for( Index i = 0 ; i < modl->vars().size() ; ++i ) {
-   auto it = std::find( vars.begin() , vars.end() , modl->vars()[ i ] );
-   if( it == vars.end() )
-    return( false );
-   cost[ std::distance( vars.begin() , it ) ] += modl->coeff()[ i ];
-   }
-  }
-
  // the columns themselves, each born empty with its bounds and its type,
- // exactly as it is when the Modification arrive one by one
+ // exactly as it is when the Modification arrive one by one, appended at
+ // the end in the order of vars
+ std::vector< const ColVariable * > cvars( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  cvars[ i ] = static_cast< const ColVariable * >( vars[ i ] );
+ const int first = numcols;
+ add_dynamic_variables( cvars );
  std::vector< int > vidx( vars.size() );
- for( Index i = 0 ; i < vars.size() ; ++i ) {
-  auto var = static_cast< const ColVariable * >( vars[ i ] );
-  add_dynamic_variable( var );
-  vidx[ i ] = index_of_variable( var );
-  }
+ std::iota( vidx.begin() , vidx.end() , first );
 
  // the entries, all in one call
  std::vector< MSKint32t > subi , subj;
@@ -1339,8 +1328,10 @@ bool MOSEKMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
 {
  // deleting the column takes its coefficients away with it, so not one of
  // the rows it appears in is touched
- for( auto v : vars )
-  remove_dynamic_variable( static_cast< const ColVariable * >( v ) );
+ std::vector< const ColVariable * > cvars( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  cvars[ i ] = static_cast< const ColVariable * >( vars[ i ] );
+ remove_dynamic_variables( cvars );
 
  return( true );
 
@@ -1902,14 +1893,11 @@ void MOSEKMILPSolver::objective_fvars_modification(
    for( auto v : mod->vars() )
     if( auto idx = index_of_variable( static_cast< const ColVariable * >( v ) )
         ; idx < Inf< int >() ) {
-     for( int j = 0 ; j <= idx ; ++j )
-      set_hessian( idx , j , 0 );
-     for( int i = idx + 1 ; i < int( q_hessian.size() ) ; ++i )
-      set_hessian( i , idx , 0 );
      indices.push_back( idx );
      values.push_back( 0 );
      }
 
+   zero_hessian_vars( indices );
    change_obj_costs( indices , values , false );
    return;
    }
@@ -2073,9 +2061,8 @@ void MOSEKMILPSolver::add_dynamic_constraints(
  if( rows.empty() )
   return;
 
- // update the dictionaries (only) for every row
- for( auto * c : rows )
-  MILPSolver::add_dynamic_constraint( c );
+ // the dictionaries of all the rows at once
+ register_dynamic_constraints( rows );
 
  MSKint32t first = 0;
  MSK_getnumcon( task , & first );
@@ -2097,24 +2084,52 @@ void MOSEKMILPSolver::add_dynamic_constraints(
 
 void MOSEKMILPSolver::add_dynamic_variable( const ColVariable * var )
 {
- // call the method of MILPSolver to update dictionaries (and int_vars)
- MILPSolver::add_dynamic_variable( var );
+ add_dynamic_variables( { var } );
+ }
 
- auto bd = get_problem_bounds( *var );
- fix_bounds( *var , bd );  // a Variable may come already fixed
+/*--------------------------------------------------------------------------*/
 
- // the column is born with no entry and a zero cost
- check( MSK_appendvars( task , 1 ) , "add_dynamic_variable" );
- const int j = numcols - 1;
- put_var_bound( j , bd );
- check( MSK_putvartype( task , j , var_type( var ) ) ,
-	"add_dynamic_variable" );
+void MOSEKMILPSolver::add_dynamic_variables(
+                            const std::vector< const ColVariable * > & vars )
+{
+ if( vars.empty() )
+  return;
 
- // the column is born with no quadratic term, but a quadratic part that is
- // there is given again with one more column
+ // the columns are appended at the end of the task, in the order of vars,
+ // which is the one the dictionaries give them
+ const MSKint32t first = numcols;
+ register_dynamic_variables( vars );
+
+ const MSKint32t k = vars.size();
+ std::vector< MSKboundkeye > bk( k );
+ std::vector< double > bl( k ) , bu( k );
+ std::vector< MSKint32t > isub;
+ for( MSKint32t i = 0 ; i < k ; ++i ) {
+  auto var = vars[ i ];
+  auto bd = get_problem_bounds( *var );
+  fix_bounds( *var , bd );  // a Variable may come already fixed
+  bk[ i ] = bound_key( bd[ 0 ] , bd[ 1 ] );
+  bl[ i ] = msk_side( bd[ 0 ] );
+  bu[ i ] = msk_side( bd[ 1 ] );
+  if( var_type( var ) == MSK_VAR_TYPE_INT )
+   isub.push_back( first + i );
+  }
+
+ // the columns are born continuous, with no entry and a zero cost
+ check( MSK_appendvars( task , k ) , "add_dynamic_variables" );
+ check( MSK_putvarboundslice( task , first , first + k , bk.data() ,
+			      bl.data() , bu.data() ) ,
+	"add_dynamic_variables" );
+ if( ! isub.empty() ) {
+  std::vector< MSKvariabletypee > type( isub.size() , MSK_VAR_TYPE_INT );
+  check( MSK_putvartypelist( task , isub.size() , isub.data() ,
+			     type.data() ) , "add_dynamic_variables" );
+  }
+
+ // the columns are born with no quadratic term
  q_hessian.resize( numcols );
 
- }  // end( MOSEKMILPSolver::add_dynamic_variable )
+ }  // end( MOSEKMILPSolver::add_dynamic_variables )
 
 /*--------------------------------------------------------------------------*/
 
@@ -2140,36 +2155,77 @@ void MOSEKMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 
 void MOSEKMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 {
- int index = index_of_dynamic_constraint( con );
- if( index == Inf< int >() )
-  throw( std::runtime_error( "MOSEKMILPSolver::remove_dynamic_constraint: "
-			     "dynamic constraint not found" ) );
-
- MSKint32t sub = index;
- check( MSK_removecons( task , 1 , & sub ) , "remove_dynamic_constraint" );
-
- // call the method of MILPSolver to update the dictionaries (only)
- MILPSolver::remove_dynamic_constraint( con );
+ remove_dynamic_constraints( { con } );
  }
+
+/*--------------------------------------------------------------------------*/
+
+void MOSEKMILPSolver::remove_dynamic_constraints(
+                         const std::vector< const FRowConstraint * > & cons )
+{
+ if( cons.empty() )
+  return;
+
+ // the rows to delete, with the indices of the task as it is now
+ std::vector< MSKint32t > sub;
+ sub.reserve( cons.size() );
+ for( auto * con : cons ) {
+  int index = index_of_dynamic_constraint( con );
+  if( index == Inf< int >() )
+   throw( std::runtime_error( "MOSEKMILPSolver::remove_dynamic_constraints: "
+			      "dynamic constraint not found" ) );
+  sub.push_back( index );
+  }
+ std::sort( sub.begin() , sub.end() );
+ sub.erase( std::unique( sub.begin() , sub.end() ) , sub.end() );
+
+ check( MSK_removecons( task , sub.size() , sub.data() ) ,
+	"remove_dynamic_constraints" );
+
+ // the dictionaries (only), all at once
+ forget_dynamic_constraints( cons );
+
+ }  // end( MOSEKMILPSolver::remove_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
 
 void MOSEKMILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
- int index = index_of_dynamic_variable( var );
- if( index == Inf< int >() )
-  throw( std::runtime_error( "MOSEKMILPSolver::remove_dynamic_variable: "
-			     "dynamic variable not found" ) );
-
- MSKint32t sub = index;
- check( MSK_removevars( task , 1 , & sub ) , "remove_dynamic_variable" );
-
- // MOSEK takes the column away from its quadratic part, the copy follows
- remove_hessian_column( index );
-
- // call the method of MILPSolver to update the dictionaries (only)
- MILPSolver::remove_dynamic_variable( var );
+ remove_dynamic_variables( { var } );
  }
+
+/*--------------------------------------------------------------------------*/
+
+void MOSEKMILPSolver::remove_dynamic_variables(
+                            const std::vector< const ColVariable * > & vars )
+{
+ if( vars.empty() )
+  return;
+
+ // the columns to delete, with the indices of the task as it is now
+ std::vector< int > del;
+ del.reserve( vars.size() );
+ for( auto * var : vars ) {
+  int index = index_of_dynamic_variable( var );
+  if( index == Inf< int >() )
+   throw( std::runtime_error( "MOSEKMILPSolver::remove_dynamic_variables: "
+			      "dynamic variable not found" ) );
+  del.push_back( index );
+  }
+ std::sort( del.begin() , del.end() );
+ del.erase( std::unique( del.begin() , del.end() ) , del.end() );
+
+ std::vector< MSKint32t > sub( del.begin() , del.end() );
+ check( MSK_removevars( task , sub.size() , sub.data() ) ,
+	"remove_dynamic_variables" );
+
+ // MOSEK takes the columns away from its quadratic part, the copy follows
+ remove_hessian_columns( del );
+
+ // the dictionaries (only), all at once
+ forget_dynamic_variables( vars );
+
+ }  // end( MOSEKMILPSolver::remove_dynamic_variables )
 
 /*--------------------------------------------------------------------------*/
 
@@ -2761,6 +2817,8 @@ void MOSEKMILPSolver::generate_qobj_hessian( void )
 {
  q_hessian.assign( numcols , {} );
  q_hessian_nnz = 0;
+ f_hessian_full = true;
+ f_hessian_dirty.clear();
 
  // the diagonal first, so that each column is born ordered, then the terms
  // x_i x_j, i != j, that MILPSolver keeps in the three parallel vectors;
@@ -2807,7 +2865,7 @@ void MOSEKMILPSolver::add_to_hessian( int i , int j , double delta )
   ++q_hessian_nnz;
   }
 
- f_hessian_changed = true;
+ mark_hessian( i , j );
 
  }  // end( MOSEKMILPSolver::add_to_hessian )
 
@@ -2824,7 +2882,10 @@ void MOSEKMILPSolver::set_hessian( int i , int j , double value )
                               return( e.first < r );
                               } );
 
+ // an entry that keeps its value, absence being zero, changes nothing
  if( ( it != col.end() ) && ( it->first == i ) ) {
+  if( it->second == value )
+   return;
   if( value == 0 ) {
    col.erase( it );
    --q_hessian_nnz;
@@ -2839,45 +2900,123 @@ void MOSEKMILPSolver::set_hessian( int i , int j , double value )
   ++q_hessian_nnz;
   }
 
- f_hessian_changed = true;
+ mark_hessian( i , j );
 
  }  // end( MOSEKMILPSolver::set_hessian )
 
 /*--------------------------------------------------------------------------*/
 
-void MOSEKMILPSolver::remove_hessian_column( int c )
+void MOSEKMILPSolver::mark_hessian( int i , int j )
 {
- if( c >= int( q_hessian.size() ) )
+ f_hessian_changed = true;
+ if( f_hessian_full )
   return;
 
- if( q_hessian_nnz == 0 ) {  // nothing to renumber
-  q_hessian.erase( q_hessian.begin() + c );
+ // past a few entries, the whole Hessian is given in one call
+ if( f_hessian_dirty.size() >= MaxHessianDirty ) {
+  f_hessian_full = true;
+  f_hessian_dirty.clear();
   return;
   }
 
- // the terms of the column go with it, the ones of the row are found in the
- // columns before it, and every index past c moves back by one; MOSEK does
- // the same on its own copy, which therefore needs not be given again
- q_hessian_nnz -= q_hessian[ c ].size();
- q_hessian.erase( q_hessian.begin() + c );
+ f_hessian_dirty.emplace_back( i , j );
+ }
 
+/*--------------------------------------------------------------------------*/
+
+void MOSEKMILPSolver::zero_hessian_vars( std::vector< int > idx )
+{
+ if( idx.empty() || ( q_hessian_nnz == 0 ) )
+  return;
+
+ std::sort( idx.begin() , idx.end() );
+ idx.erase( std::unique( idx.begin() , idx.end() ) , idx.end() );
+
+ // the column of each index goes whole, its row is found in the columns
+ // before it
  for( int j = 0 ; j < int( q_hessian.size() ) ; ++j ) {
   auto & col = q_hessian[ j ];
-  if( col.empty() || ( col.back().first < c ) )
+  if( col.empty() )
    continue;
-  auto it = std::lower_bound( col.begin() , col.end() , c ,
-                              []( const auto & e , int r ) {
-                               return( e.first < r );
-                               } );
-  if( ( it != col.end() ) && ( it->first == c ) ) {
-   it = col.erase( it );
-   --q_hessian_nnz;
-   }
-  for( ; it != col.end() ; ++it )
-   --( it->first );
+  const bool all = std::binary_search( idx.begin() , idx.end() , j );
+  if( ( ! all ) && ( col.back().first < idx.front() ) )
+   continue;
+  std::size_t w = 0;
+  for( std::size_t r = 0 ; r < col.size() ; ++r )
+   if( all ||
+       std::binary_search( idx.begin() , idx.end() , col[ r ].first ) ) {
+    mark_hessian( col[ r ].first , j );
+    --q_hessian_nnz;
+    }
+   else
+    col[ w++ ] = col[ r ];
+  col.resize( w );
   }
 
- }  // end( MOSEKMILPSolver::remove_hessian_column )
+ }  // end( MOSEKMILPSolver::zero_hessian_vars )
+
+/*--------------------------------------------------------------------------*/
+
+void MOSEKMILPSolver::remove_hessian_columns( const std::vector< int > & del )
+{
+ if( del.empty() )
+  return;
+
+ // the number of elements of del smaller than i, and whether i is in it
+ const auto below = [ & del ]( int i ) {
+  return( int( std::lower_bound( del.begin() , del.end() , i ) -
+               del.begin() ) );
+  };
+ const auto gone = [ & del , & below ]( int i ) {
+  const auto b = below( i );
+  return( ( b < int( del.size() ) ) && ( del[ b ] == i ) );
+  };
+
+ // the terms of the removed columns go with them, those of their rows are
+ // found in the columns before them, and every other index moves back by
+ // as many removed ones as come before it; MOSEK does the same on its own
+ // copy, which therefore needs not be given again
+ std::size_t w = 0 , d = 0;
+ for( std::size_t j = 0 ; j < q_hessian.size() ; ++j ) {
+  auto & col = q_hessian[ j ];
+  if( ( d < del.size() ) && ( int( j ) == del[ d ] ) ) {
+   q_hessian_nnz -= col.size();
+   ++d;
+   continue;
+   }
+  if( ( ! col.empty() ) && ( col.back().first >= del.front() ) ) {
+   std::size_t cw = 0;
+   for( std::size_t r = 0 ; r < col.size() ; ++r ) {
+    const int i = col[ r ].first;
+    const int b = below( i );
+    if( ( b < int( del.size() ) ) && ( del[ b ] == i ) ) {
+     --q_hessian_nnz;
+     continue;
+     }
+    col[ cw ].first = i - b;
+    col[ cw++ ].second = col[ r ].second;
+    }
+   col.resize( cw );
+   }
+  if( w != j )
+   q_hessian[ w ] = std::move( col );
+  ++w;
+  }
+ q_hessian.resize( w );
+
+ // the entries still to be given follow the columns
+ if( ! f_hessian_full ) {
+  std::erase_if( f_hessian_dirty ,
+                 [ & gone ]( const std::pair< int , int > & e ) {
+                  return( gone( e.first ) || gone( e.second ) );
+                  } );
+  for( auto & e : f_hessian_dirty ) {
+   e.first -= below( e.first );
+   e.second -= below( e.second );
+   }
+  }
+
+ }  // end( MOSEKMILPSolver::remove_hessian_columns )
 
 /*--------------------------------------------------------------------------*/
 
@@ -2887,6 +3026,30 @@ void MOSEKMILPSolver::pass_hessian( void )
   return;
 
  f_hessian_changed = false;
+
+ // a few changed entries are given one by one, with their present value,
+ // zero for one that is gone
+ if( ! f_hessian_full ) {
+  std::sort( f_hessian_dirty.begin() , f_hessian_dirty.end() );
+  f_hessian_dirty.erase( std::unique( f_hessian_dirty.begin() ,
+				      f_hessian_dirty.end() ) ,
+			 f_hessian_dirty.end() );
+  for( const auto & [ i , j ] : f_hessian_dirty ) {
+   const auto & col = q_hessian[ j ];
+   auto it = std::lower_bound( col.begin() , col.end() , i ,
+                               []( const auto & e , int r ) {
+                                return( e.first < r );
+                                } );
+   const double v = ( ( it != col.end() ) && ( it->first == i ) )
+                    ? it->second : 0;
+   check( MSK_putqobjij( task , i , j , v ) , "pass_hessian" );
+   }
+  f_hessian_dirty.clear();
+  return;
+  }
+
+ f_hessian_full = false;
+ f_hessian_dirty.clear();
 
  // MOSEK wants the triplets of the lower triangle, which is what q_hessian
  // holds column by column

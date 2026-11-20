@@ -28,6 +28,7 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -80,10 +81,17 @@ namespace SMSpp_di_unipi_it
  *   accepted if relaxed via intRelaxIntVars;
  *
  * - Clarabel has no warm start, and changing the loaded problem in place
- *   only covers the values of a fixed structure: whenever a Modification
- *   is received the problem is loaded again whole from the Block [see
- *   MILPSolver::reload_on_modification()], and each solve starts from
- *   scratch;
+ *   only covers the values of a fixed structure: the solver of Clarabel is
+ *   kept between two solves, a Modification that changes the linear part
+ *   of the Objective, the bounds of the variables or the sides of the rows
+ *   is given to it as new \f$ q \f$ and \f$ b \f$ [see
+ *   MILPSolver::updates_in_place()], unless a side gets or loses its
+ *   finiteness or a constraint becomes or stops being an equality, and any
+ *   other one has the problem loaded again whole from the Block [see
+ *   MILPSolver::reload_on_modification()]; each solve starts from
+ *   scratch, and the presolve of Clarabel, which would forbid the changes
+ *   in place, is disabled (the infinite sides that it removes are not
+ *   given to Clarabel anyway);
  *
  * - the value of the solution is computed from it rather than taken from
  *   Clarabel, and both get_lb() and get_ub() return it;
@@ -139,7 +147,7 @@ class ClarabelMILPSolver : public MILPSolver
 /*--------------------------------------------------------------------------*/
  /// destructor
 
- ~ClarabelMILPSolver() override = default;
+ ~ClarabelMILPSolver() override;
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
@@ -261,9 +269,13 @@ class ClarabelMILPSolver : public MILPSolver
 
  int guts_of_compute( void ) override;
 
- /// Clarabel does not change a problem in place: it is always loaded again
+ /// the problem is loaded again on a Modification that changes more than data
 
  bool reload_on_modification( void ) override { return( true ); }
+
+ /// the data are changed in place [see update_data()]
+
+ bool updates_in_place( void ) const override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE PART --------------------------------*/
@@ -278,6 +290,31 @@ class ClarabelMILPSolver : public MILPSolver
  /// true if the last solve has given a primal solution
 
  [[nodiscard]] bool solved( void ) const;
+
+ /// writes the problem in the format of Clarabel out of that of MILPSolver
+
+ void make_data( void );
+
+ /// writes the linear term q out of the Objective of MILPSolver
+
+ void make_q( void );
+
+ /// writes the rows of A of each constraint [see d_up], and b
+ /** \p meq is the number of rows of the zero cone, which come first. */
+
+ void make_sides( std::vector< int > & up , std::vector< int > & lo ,
+                  std::vector< double > & b , int & meq ) const;
+
+ /// gives Clarabel the data changed in place [see MILPSolver::f_changed]
+ /** The new q and b are given to the solver of Clarabel already set up if
+  * the rows of A are the same; otherwise, or if the sense has changed, the
+  * data are made again and Clarabel set up again. */
+
+ void update_data( void );
+
+ /// releases the solver of Clarabel
+
+ void free_solver( void );
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PRIVATE FIELDS -------------------------------*/
@@ -312,7 +349,10 @@ class ClarabelMILPSolver : public MILPSolver
  std::vector< int > d_up;        ///< row of the upper side
  std::vector< int > d_lo;        ///< row of the lower side
 
- bool d_loaded = false;          ///< true if the problem has been loaded
+ bool d_loaded = false;          ///< true if d_solver is not up to date
+
+ void * d_solver = nullptr;      ///< the solver of Clarabel, if any
+ std::array< double , 8 > d_key{};  ///< the settings it has been made with
 
  std::vector< double > d_x;      ///< primal solution, or unbounded ray
  std::vector< double > d_z;      ///< multipliers of the rows of A, or ray

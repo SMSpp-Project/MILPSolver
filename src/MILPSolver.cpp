@@ -118,8 +118,14 @@ void MILPSolver::set_Block( Block * block )
 void MILPSolver::clear_problem( unsigned int what )
 {
  // clear() keeps the capacity, i.e., a second copy of the model next to the
- // one of the back-end for as long as the Solver lives: it is given back
- auto release = []( auto & v ) { v.clear(); v.shrink_to_fit(); };
+ // one of the back-end for as long as the Solver lives: it is given back,
+ // unless the vectors are about to be filled again [see load_problem()]
+ const bool keep = what & 16u;
+ auto release = [ keep ]( auto & v ) {
+  v.clear();
+  if( ! keep )
+   v.shrink_to_fit();
+  };
 
  if( what & 1u ) {
   release( matbeg );
@@ -177,8 +183,9 @@ void MILPSolver::load_problem( void )
   if( auto con = constraint_with_index( i ) )
    old_row.emplace( con , i );
 
- // Clean any left-up structures
- clear_problem( 15 );
+ // Clean any left-up structures, keeping their memory for the new ones
+ clear_problem( 31 );
+ f_changed = kAll;
 
  // all the dynamic Constraint of the Block are read as rows, those of the
  // pool as well
@@ -1262,10 +1269,7 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
   throw( std::invalid_argument(
              "MILPSolver::scan_variable: the provided variable is empty" ) );
 
- auto bd = MILPSolver::get_problem_bounds( var );
- fix_bounds( var , bd );
- lb[ col ] = bd[ 0 ];
- ub[ col ] = bd[ 1 ];
+ read_column_bounds( var , col );
 
  if( var.is_integer() && ( ! relax_int_vars ) ) {
   ++int_vars;
@@ -1545,6 +1549,24 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
    }
   }
 
+ read_row_sides( con , row );
+ ++row;
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::read_column_bounds( const ColVariable & var , int col )
+{
+ auto bd = MILPSolver::get_problem_bounds( var );
+ fix_bounds( var , bd );
+ lb[ col ] = bd[ 0 ];
+ ub[ col ] = bd[ 1 ];
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::read_row_sides( const FRowConstraint & con , int row )
+{
  /* We need to define the sense of the constraint.
   * In SMS++ FRowConstraints are defined as:
   * LHS <= ( some function from Variables to reals ) <= RHS
@@ -1552,6 +1574,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
  auto con_lhs = con.get_lhs();
  auto con_rhs = con.get_rhs();
+ rngval[ row ] = 0;
 
  if( con.is_relaxed() ) {  // a relaxed constraint becomes: function >= -Inf
   sense[ row ] = 'L';
@@ -1581,7 +1604,6 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
     rhs[ row ] = con_lhs;
     rngval[ row ] = con_rhs - con_lhs;
     }
-  ++row;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -1866,8 +1888,41 @@ double MILPSolver::variable_weight( const Variable * var ,
 
 /*--------------------------------------------------------------------------*/
 
-void MILPSolver::make_dense_qp( DenseQP & qp , int sign , double inf ) const
+void MILPSolver::row_sides( int i , double & lo , double & hi ) const
 {
+ switch( sense[ i ] ) {
+  case( 'L' ): lo = - Inf< double >();
+               hi = rhs[ i ];
+               break;
+  case( 'G' ): lo = rhs[ i ];
+               hi = Inf< double >();
+               break;
+  case( 'E' ): lo = hi = rhs[ i ];
+               break;
+  case( 'R' ): if( rngval[ i ] > 0 ) {
+                lo = rhs[ i ];
+                hi = rhs[ i ] + rngval[ i ];
+                }
+               else {
+                lo = rhs[ i ] + rngval[ i ];
+                hi = rhs[ i ];
+                }
+               break;
+  default:
+   throw( std::invalid_argument( "MILPSolver::row_sides: row " +
+				 std::to_string( i ) + " has sense " +
+				 std::string( 1 , sense[ i ] ) ) );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::dense_qp_layout( DenseQP & qp ,
+				  std::vector< double > & shift ,
+				  std::vector< double > & rl ,
+				  std::vector< double > & ru ) const
+{
+ const double inf = qp.inf;
  auto side = [ inf ]( double v ) {
   return( v >= inf ? inf : ( v <= - inf ? - inf : v ) );
   };
@@ -1888,11 +1943,11 @@ void MILPSolver::make_dense_qp( DenseQP & qp , int sign , double inf ) const
    qp.pos[ j ] = j;
    qp.col.push_back( j );
    }
- const int n = qp.n = qp.col.size();
+ qp.n = qp.col.size();
 
  // the part of each row on the fixed columns, and whether the row has
  // entries on the others
- std::vector< double > shift( numrows , 0 );
+ shift.assign( numrows , 0 );
  std::vector< char > used( numrows , 0 );
  for( int j = 0 ; j < numcols ; ++j )
   for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
@@ -1902,32 +1957,15 @@ void MILPSolver::make_dense_qp( DenseQP & qp , int sign , double inf ) const
     shift[ matind[ k ] ] += matval[ k ] * qp.xfix[ j ];
 
  // the sides of each row, and the rows that are in the QP
- std::vector< double > rl( numrows ) , ru( numrows );
+ rl.resize( numrows );
+ ru.resize( numrows );
  qp.row.clear();
  qp.rpos.assign( numrows , -1 );
  for( int i = 0 ; i < numrows ; ++i ) {
-  switch( sense[ i ] ) {
-   case( 'L' ): rl[ i ] = - inf;
-                ru[ i ] = side( rhs[ i ] );
-                break;
-   case( 'G' ): rl[ i ] = side( rhs[ i ] );
-                ru[ i ] = inf;
-                break;
-   case( 'E' ): rl[ i ] = ru[ i ] = rhs[ i ];
-                break;
-   case( 'R' ): if( rngval[ i ] > 0 ) {
-                 rl[ i ] = side( rhs[ i ] );
-                 ru[ i ] = side( rhs[ i ] + rngval[ i ] );
-                 }
-                else {
-                 rl[ i ] = side( rhs[ i ] + rngval[ i ] );
-                 ru[ i ] = side( rhs[ i ] );
-                 }
-                break;
-   default:
-    throw( std::invalid_argument( "MILPSolver::make_dense_qp: row " +
-				  std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
+  row_sides( i , rl[ i ] , ru[ i ] );
+  if( sense[ i ] != 'E' ) {
+   rl[ i ] = side( rl[ i ] );
+   ru[ i ] = side( ru[ i ] );
    }
   if( ( rl[ i ] <= - inf ) && ( ru[ i ] >= inf ) )
    continue;
@@ -1937,20 +1975,40 @@ void MILPSolver::make_dense_qp( DenseQP & qp , int sign , double inf ) const
   qp.rpos[ i ] = qp.row.size();
   qp.row.push_back( i );
   }
- const int m = qp.m = qp.row.size();
+ qp.m = qp.row.size();
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::dense_qp_vectors( DenseQP & qp ,
+				   const std::vector< double > & shift ,
+				   const std::vector< double > & rl ,
+				   const std::vector< double > & ru ,
+				   bool hessian ) const
+{
+ const int n = qp.n;
+ const int m = qp.m;
+ const int sign = qp.sign;
+ const double inf = qp.inf;
+ auto side = [ inf ]( double v ) {
+  return( v >= inf ? inf : ( v <= - inf ? - inf : v ) );
+  };
 
  // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
  // 1/2 x' H x + f' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k; the term
  // H_ij x_i x_j / 2 of an entry on a fixed column goes to the linear term,
  // or to the constant if both columns are fixed
  qp.f.assign( n , 0 );
- qp.H.assign( std::size_t( n ) * n , 0 );
+ if( hessian )
+  qp.H.assign( std::size_t( n ) * n , 0 );
  qp.fconst = 0;
  auto add_H = [ & ]( int i , int j , double h ) {
   const int pi = qp.pos[ i ];
   const int pj = qp.pos[ j ];
-  if( ( pi >= 0 ) && ( pj >= 0 ) )
-   qp.H[ std::size_t( pi ) * n + pj ] += h;
+  if( ( pi >= 0 ) && ( pj >= 0 ) ) {
+   if( hessian )
+    qp.H[ std::size_t( pi ) * n + pj ] += h;
+   }
   else if( pi >= 0 )
    qp.f[ pi ] += h * qp.xfix[ j ] / 2;
   else if( pj >= 0 )
@@ -1979,15 +2037,6 @@ void MILPSolver::make_dense_qp( DenseQP & qp , int sign , double inf ) const
    }
   }
 
- // the rows, dense and row-major, from the columns of MILPSolver
- qp.A.assign( std::size_t( m ) * n , 0 );
- for( int k = 0 ; k < n ; ++k ) {
-  const int j = qp.col[ k ];
-  for( int h = matbeg[ j ] ; h < matbeg[ j ] + matcnt[ j ] ; ++h )
-   if( const int r = qp.rpos[ matind[ h ] ] ; r >= 0 )
-    qp.A[ std::size_t( r ) * n + k ] += matval[ h ];
-  }
-
  // the bounds of the columns, and the sides of the rows less their part
  // on the fixed columns
  qp.lb.resize( n );
@@ -2004,6 +2053,46 @@ void MILPSolver::make_dense_qp( DenseQP & qp , int sign , double inf ) const
   qp.rl[ r ] = ( rl[ i ] <= - inf ) ? - inf : rl[ i ] - shift[ i ];
   qp.ru[ r ] = ( ru[ i ] >= inf ) ? inf : ru[ i ] - shift[ i ];
   }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::make_dense_qp( DenseQP & qp , int sign , double inf ) const
+{
+ qp.sign = sign;
+ qp.inf = inf;
+ std::vector< double > shift , rl , ru;
+ dense_qp_layout( qp , shift , rl , ru );
+ dense_qp_vectors( qp , shift , rl , ru , true );
+
+ // the rows, dense and row-major, from the columns of MILPSolver
+ const int n = qp.n;
+ qp.A.assign( std::size_t( qp.m ) * n , 0 );
+ for( int k = 0 ; k < n ; ++k ) {
+  const int j = qp.col[ k ];
+  for( int h = matbeg[ j ] ; h < matbeg[ j ] + matcnt[ j ] ; ++h )
+   if( const int r = qp.rpos[ matind[ h ] ] ; r >= 0 )
+    qp.A[ std::size_t( r ) * n + k ] += matval[ h ];
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool MILPSolver::refresh_dense_qp( DenseQP & qp ) const
+{
+ if( f_changed & kSense )  // H changes sign
+  return( false );
+
+ DenseQP lay;
+ lay.inf = qp.inf;
+ std::vector< double > shift , rl , ru;
+ dense_qp_layout( lay , shift , rl , ru );
+ if( ( lay.pos != qp.pos ) || ( lay.rpos != qp.rpos ) )
+  return( false );
+
+ qp.xfix = std::move( lay.xfix );
+ dense_qp_vectors( qp , shift , rl , ru , false );
+ return( true );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2287,13 +2376,16 @@ void MILPSolver::process_modifications( void )
   * otherwise the generic cases will intercept the more specialized ones. */
 
  // a back-end that is not reliable on a problem changed in place has it
- // loaded again whole as soon as a Modification is pending
+ // loaded again whole as soon as a Modification changes more than data
+ // that it updates in place [see modification_in_place()]
  if( reload_on_modification() ) {
-  if( pop() ) {
-   f_reset = false;
-   load_problem();
-   mod_clear();
-   }
+  while( auto mod = pop() )
+   if( ! modification_in_place( mod.get() ) ) {
+    f_reset = false;
+    load_problem();
+    mod_clear();
+    break;
+    }
   return;
   }
 
@@ -2310,21 +2402,59 @@ void MILPSolver::process_modifications( void )
  for( ; ; )                 // process all the Modification loop
   if( auto mod = pop() ) {  // get next Modification, if any
    auto pmod = mod.get();   // down to regular Modification *
-   if( auto wmod = dynamic_cast< const BlockWeightMod * >( pmod ) ) {
+   if( auto wmod = memo_cast< const BlockWeightMod * >( pmod ) ) {
     if( ! is_excluded( const_cast< Block * >( wmod->get_Block() ) ) )
      weights.push_back( mod );
     continue;
     }
 
-   // an NBModification, which changes the whole problem: reload everything
-   if( dynamic_cast< const NBModification * >( pmod ) ) {
+   // an NBModification, which changes the whole problem: reload everything,
+   // the batches collected so far included
+   if( memo_cast< const NBModification * >( pmod ) ) {
+    f_bfmods.clear();
+    f_bbmods.clear();
+    f_brmods.clear();
+    f_bvmods.clear();
+    f_brows.clear();
+    f_held.clear();
     f_reset = false;
     load_problem();
     mod_clear();            // all the remaining Modification must be ignored
     break;                  // all done
     }
 
-   guts_of_process_modifications( pmod );  // process the Modification
+   /* A change of a datum is collected with the ones that follow it, as
+    * inside a group [see process_group_modification()], so that a stream
+    * of them issued one by one, as a bundle method or a decomposition
+    * does, is executed by kind in one operation of the back-end; anything
+    * else closes the batch, which keeps the order between a change of a
+    * datum and a change of the structure the datum lives in. */
+   const bool mine =
+    ( ! is_excluded( const_cast< Block * >( pmod->get_Block() ) ) ) &&
+    ( ! touches_excluded_objective( pmod ) );
+
+   /* Rows added by Modification that follow one another, as the cuts of
+    * the components of a decomposition, are added together; the batch of
+    * the data and that of the rows never coexist, so that a change of a
+    * datum is executed with the rows it may be about already there. */
+   if( mine && batch_rows( pmod ) ) {
+    f_held.push_back( mod );
+    continue;
+    }
+
+   if( mine && ( ! memo_cast< const GroupModification * >( pmod ) ) ) {
+    flush_rows();
+    if( batch_leaf( pmod ) ) {
+     f_held.push_back( mod );  // the batch points into it
+     continue;
+     }
+    }
+
+   flush_rows();
+   flush_batch();
+   f_held.clear();
+   if( ! f_reset )
+    guts_of_process_modifications( pmod );  // process the Modification
 
    if( f_reset ) {
     f_reset = false;
@@ -2334,6 +2464,15 @@ void MILPSolver::process_modifications( void )
     }
    }
   else {                    // no more Modification to process
+   flush_rows();
+   flush_batch();
+   f_held.clear();
+   if( f_reset ) {
+    f_reset = false;
+    load_problem();         // reload everything
+    mod_clear();
+    break;
+    }
    for( const auto & mod : weights ) {
     weight_modification( static_cast< const BlockWeightMod * >( mod.get() ) );
     if( f_reset ) {
@@ -2354,6 +2493,157 @@ void MILPSolver::process_modifications( void )
 
 /*--------------------------------------------------------------------------*/
 
+bool MILPSolver::modification_in_place( const Modification * mod )
+{
+ if( dynamic_cast< const NBModification * >( mod ) )
+  return( false );
+
+ // what comes from a sub-Block to be ignored changes nothing
+ if( is_excluded( const_cast< Block * >( mod->get_Block() ) ) )
+  return( true );
+
+ if( auto gm = dynamic_cast< const GroupModification * >( mod ) ) {
+  for( const auto & submod : gm->sub_Modifications() )
+   if( ! modification_in_place( submod.get() ) )
+    return( false );
+  return( true );
+  }
+
+ // nor does a change of an Objective to be ignored, nor a
+ // PolyhedralFunctionMod [see batch_leaf()]
+ if( touches_excluded_objective( mod ) ||
+     dynamic_cast< const PolyhedralFunctionMod * >( mod ) )
+  return( true );
+
+ // nor a change of a Function that is neither that of the Objective nor
+ // that of a row, nor of a Constraint that is neither a bound nor a row
+ auto fm = dynamic_cast< const FunctionMod * >( mod );
+ auto fvm = dynamic_cast< const FunctionModVars * >( mod );
+ const Function * f = fm ? fm->function() : ( fvm ? fvm->function()
+                                                   : nullptr );
+ const bool of_obj = f &&
+  dynamic_cast< const Objective * >( f->get_Observer() );
+ if( f && ( ! of_obj ) &&
+     ( ! dynamic_cast< const FRowConstraint * >( f->get_Observer() ) ) )
+  return( true );
+
+ auto cm = dynamic_cast< const ConstraintMod * >( mod );
+ auto bm = dynamic_cast< const OneVarConstraintMod * >( mod );
+ auto row = cm ? dynamic_cast< const FRowConstraint * >( cm->constraint() )
+               : nullptr;
+ if( cm && ( ! bm ) && ( ! row ) )
+  return( true );
+
+ // nor any kind that MILPSolver does not act upon
+ auto vm = dynamic_cast< const VariableMod * >( mod );
+ auto om = dynamic_cast< const ObjectiveMod * >( mod );
+ if( ( ! f ) && ( ! cm ) && ( ! vm ) && ( ! om ) &&
+     ( ! dynamic_cast< const BlockWeightMod * >( mod ) ) &&
+     ( ! dynamic_cast< const BlockModAD * >( mod ) ) )
+  return( true );
+
+ if( ! updates_in_place() )
+  return( false );
+
+ // the sense of the Objective, the same in all the Block that have a say
+ // on it [see load_problem()]
+ if( om ) {
+  int sns = 0;
+  for( auto qb : v_BFS ) {
+   if( is_objective_excluded( qb ) )
+    continue;
+   int sb = 0;
+   switch( qb->get_objective_sense() ) {
+    case( Objective::eMax ): sb = -1; break;
+    case( Objective::eMin ): sb = 1;
+    }
+   if( ! sb )
+    continue;
+   if( sns && ( sb != sns ) )  // mixed, which load_problem() rejects
+    return( false );
+   sns = sb;
+   }
+  if( ! sns )
+   sns = 1;
+  if( sns != objsense ) {
+   objsense = sns;
+   f_changed |= kSense;
+   }
+  return( true );
+  }
+
+ // the bounds of a column, which a VariableMod changes as well when it
+ // fixes or frees the Variable; the integrality of a column changes the
+ // problem, unless it is relaxed
+ auto bounds = [ this ]( const Variable * v ) {
+  auto var = dynamic_cast< const ColVariable * >( v );
+  const int j = var ? index_of_variable( var ) : -1;
+  if( ( j < 0 ) || ( j >= numcols ) )
+   return( false );
+  read_column_bounds( *var , j );
+  f_changed |= kBounds;
+  return( true );
+  };
+
+ if( vm ) {
+  if( ( ! relax_int_vars ) &&
+      ( ColVariable::is_integer( vm->old_state() ) ||
+        ColVariable::is_integer( vm->new_state() ) ) )
+   return( false );
+  return( bounds( vm->variable() ) );
+  }
+
+ if( bm )
+  return( bounds( static_cast< const OneVarConstraint * >(
+				   bm->constraint() )->get_active_var( 0 ) ) );
+
+ // the sides of a linear row
+ if( row ) {
+  if( row->get_function() &&
+      ( ! dynamic_cast< const LinearFunction * >( row->get_function() ) ) )
+   return( false );
+  const int i = index_of_constraint( row );
+  if( ( i < 0 ) || ( i >= numrows ) )
+   return( false );
+  read_row_sides( *row , i );
+  f_changed |= kSides;
+  return( true );
+  }
+
+ // the linear part of the Objective, by the differences that the
+ // C05FunctionModLin carries, since a column may be in many Objective,
+ // and its constant, by the shift of a C05FunctionMod of nothing else
+ if( fm && of_obj &&
+     ( dynamic_cast< const LinearFunction * >( f ) ||
+       dynamic_cast< const DQuadFunction * >( f ) ) ) {
+  const double w = objective_weight( f );
+  if( auto modl = dynamic_cast< const C05FunctionModLin * >( fm ) ) {
+   for( Index k = 0 ; k < modl->vars().size() ; ++k ) {
+    auto var = dynamic_cast< const ColVariable * >( modl->vars()[ k ] );
+    const int j = var ? index_of_variable( var ) : -1;
+    if( ( j < 0 ) || ( j >= numcols ) )
+     return( false );
+    objective[ j ] += w * modl->delta()[ k ];
+    }
+   f_changed |= kObj;
+   return( true );
+   }
+
+  if( ( typeid( *fm ) == typeid( C05FunctionMod ) ) &&
+      ( static_cast< const C05FunctionMod * >( fm )->type() ==
+	C05FunctionMod::NothingChanged ) && std::isfinite( fm->shift() ) ) {
+   constant_value += w * fm->shift();
+   return( true );
+   }
+  }
+
+ // anything else changes the structure, the matrix or the quadratic part
+ return( false );
+
+ }  // end( MILPSolver::modification_in_place )
+
+/*--------------------------------------------------------------------------*/
+
 void MILPSolver::guts_of_process_modifications( const p_Mod mod )
 {
  // silently drop Modification originating from a sub-Block the user has
@@ -2366,7 +2656,7 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
  // for a GroupModification, first ask whether the whole of it is one single
  // operation of the back-end [see process_group_modification()]; only if it
  // is not, re-dispatch itself to all the sub-Modification
- if( auto gm = dynamic_cast< const GroupModification * >( mod ) ) {
+ if( auto gm = memo_cast< const GroupModification * >( mod ) ) {
   // DEBUG_LOG( "GroupModification containing:" << std::endl );
   // a group touching an Objective to be ignored is never one operation,
   // since its pieces about that Objective are dropped below
@@ -2386,26 +2676,28 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
  // Function or, for most back-ends, of the sides, is not made in place
  // [see nonlinear_row_sides_in_place()]: the problem is loaded again
  auto nonlinear_row = []( const Constraint * con ) {
-  auto row = dynamic_cast< const FRowConstraint * >( con );
+  auto row = memo_cast< const FRowConstraint * >( con );
   return( row && row->get_function() &&
-	  ( ! dynamic_cast< const LinearFunction * >( row->get_function() ) ) );
+	  ( ! memo_cast< const LinearFunction * >( row->get_function() ) ) );
   };
 
- if( auto fm = dynamic_cast< const FunctionMod * >( mod ) )
+ if( auto fm = memo_cast< const FunctionMod * >( mod ) )
   if( ( ! is_of( fm->function() ) ) && nonlinear_row(
-	   dynamic_cast< const Constraint * >( fm->function()->get_Observer() ) ) ) {
+	   memo_cast< const Constraint * >(
+	     fm->function()->get_Observer() ) ) ) {
    f_reset = true;
    return;
    }
 
- if( auto fvm = dynamic_cast< const FunctionModVars * >( mod ) )
+ if( auto fvm = memo_cast< const FunctionModVars * >( mod ) )
   if( ( ! is_of( fvm->function() ) ) && nonlinear_row(
-	  dynamic_cast< const Constraint * >( fvm->function()->get_Observer() ) ) ) {
+	  memo_cast< const Constraint * >(
+	    fvm->function()->get_Observer() ) ) ) {
    f_reset = true;
    return;
    }
 
- if( auto cm = dynamic_cast< const ConstraintMod * >( mod ) )
+ if( auto cm = memo_cast< const ConstraintMod * >( mod ) )
   if( ( ! nonlinear_row_sides_in_place() ) &&
       nonlinear_row( cm->constraint() ) ) {
    f_reset = true;
@@ -2413,32 +2705,32 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
    }
 
  // for all other Modification, dispatch the appropriate virtual method
- if( auto vm = dynamic_cast< const VariableMod * >( mod ) ) {
+ if( auto vm = memo_cast< const VariableMod * >( mod ) ) {
   var_modification( vm );
   return;
   }
 
- if( auto om = dynamic_cast< const ObjectiveMod * >( mod ) ) {
+ if( auto om = memo_cast< const ObjectiveMod * >( mod ) ) {
   objective_modification( om );
   return;
   }
 
- if( auto bm = dynamic_cast< const OneVarConstraintMod * >( mod ) ) {
+ if( auto bm = memo_cast< const OneVarConstraintMod * >( mod ) ) {
   bound_modification( bm );
   return;
   }
 
- if( auto tmod = dynamic_cast< const RowConstraintMod * >( mod ) ) {
+ if( auto tmod = memo_cast< const RowConstraintMod * >( mod ) ) {
   const_modification( tmod );
   return;
   }
 
- if( auto cm = dynamic_cast< const ConstraintMod * >( mod ) ) {
+ if( auto cm = memo_cast< const ConstraintMod * >( mod ) ) {
   const_modification( cm );
   return;
   }
 
- if( auto fm = dynamic_cast< const FunctionMod * >( mod ) ) {
+ if( auto fm = memo_cast< const FunctionMod * >( mod ) ) {
   if( is_of( fm->function() ) )
    objective_function_modification( fm );
   else
@@ -2446,7 +2738,7 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
   return;
   }
 
- if( auto fvm = dynamic_cast< const FunctionModVars * >( mod ) ) {
+ if( auto fvm = memo_cast< const FunctionModVars * >( mod ) ) {
   if( is_of( fvm->function() ) )
    objective_fvars_modification( fvm );
   else
@@ -2454,7 +2746,7 @@ void MILPSolver::guts_of_process_modifications( const p_Mod mod )
   return;
   }
 
- if( auto dm = dynamic_cast< const BlockModAD * >( mod ) )
+ if( auto dm = memo_cast< const BlockModAD * >( mod ) )
   dynamic_modification( dm );
 
  // PolyhedralFunctionMod (Addd / Rngd / Sbst) is intentionally not handled
@@ -2484,8 +2776,19 @@ bool MILPSolver::read_column_group(
  std::vector< double > val;
  std::vector< double > cst( vars.size() , 0 );
 
- // where a Variable of the group sits in vars, and Inf for any other one
- auto pos_of = [ & vars ]( const Variable * var ) -> Index {
+ // where a Variable of the group sits in vars, and Inf for any other one:
+ // a group of many columns is looked up by hash rather than by a scan
+ std::unordered_map< const Variable * , Index > where;
+ if( vars.size() > 16 ) {
+  where.reserve( vars.size() );
+  for( Index i = 0 ; i < vars.size() ; ++i )
+   where.emplace( vars[ i ] , i );
+  }
+ auto pos_of = [ & vars , & where ]( const Variable * var ) -> Index {
+  if( ! where.empty() ) {
+   auto it = where.find( var );
+   return( it == where.end() ? Inf< Index >() : it->second );
+   }
   for( Index i = 0 ; i < vars.size() ; ++i )
    if( vars[ i ] == var )
     return( i );
@@ -2512,13 +2815,15 @@ bool MILPSolver::read_column_group(
    if( ! modl )
     return( false );
 
+   // the cost the column is born with, which the Modification carries even
+   // if a later one has taken the Variable out of the Function again, as
+   // it is applied one by one; it is scaled by the weight of the Objective
+   const double w = objective_weight( lf );
    for( Index i = 0 ; i < fvm->vars().size() ; ++i ) {
     auto p = pos_of( fvm->vars()[ i ] );
     if( p == Inf< Index >() )  // a column that was there already, whose cost
      return( false );          // would have to be read back from the model
-    if( lf->is_active( static_cast< const ColVariable * >( fvm->vars()[ i ] )
-                       ) < nav )
-     cst[ p ] += modl->coeff()[ i ];
+    cst[ p ] += w * modl->coeff()[ i ];
     }
    continue;
    }
@@ -2527,12 +2832,28 @@ bool MILPSolver::read_column_group(
   if( ! con )  // a Function of something this Solver does not have
    continue;
 
+  // where each Variable sits in the row, by hash when they are many, rather
+  // than by a scan of the row for each
+  std::unordered_map< const Variable * , Index > in_row;
+  if( fvm->vars().size() > 16 ) {
+   const auto & vp = lf->get_v_var();
+   in_row.reserve( vp.size() );
+   for( Index k = 0 ; k < vp.size() ; ++k )
+    in_row.emplace( vp[ k ].first , k );
+   }
+
   for( auto v : fvm->vars() ) {
    auto var = static_cast< const ColVariable * >( v );
    auto p = pos_of( var );
    if( p == Inf< Index >() )  // as above, a column that was there already
     return( false );
-   auto k = lf->is_active( var );
+   Index k;
+   if( in_row.empty() )
+    k = lf->is_active( var );
+   else {
+    auto it = in_row.find( var );
+    k = ( it == in_row.end() ) ? Inf< Index >() : it->second;
+    }
    cns.push_back( con );
    pos.push_back( p );
    val.push_back( k < nav ?
@@ -2556,7 +2877,7 @@ bool MILPSolver::process_group_modification( const GroupModification * gmod )
 {
  // the shape a group declares: the column, said by the type of the group
  // [see VariableGroupMod in Modification.h]
- if( auto vgm = dynamic_cast< const VariableGroupMod * >( gmod ) ;
+ if( auto vgm = memo_cast< const VariableGroupMod * >( gmod ) ;
      vgm && ( ! vgm->vars().empty() ) ) {
 
   // a group is executed whole only if it contains nothing but the cascade
@@ -2566,10 +2887,10 @@ bool MILPSolver::process_group_modification( const GroupModification * gmod )
   int nstruct = 0;
   for( const auto & submod : gmod->sub_Modifications() ) {
    auto psub = submod.get();
-   if( dynamic_cast< const BlockModAD * >( psub ) )
+   if( memo_cast< const BlockModAD * >( psub ) )
     ++nstruct;
    else
-    if( ! dynamic_cast< const FunctionModVars * >( psub ) )
+    if( ! memo_cast< const FunctionModVars * >( psub ) )
      return( false );
    if( is_excluded( const_cast< Block * >( psub->get_Block() ) ) )
     return( false );
@@ -2606,44 +2927,7 @@ bool MILPSolver::process_group_modification( const GroupModification * gmod )
  // then that Modification is dealt with on its own, then a new batch starts,
  // since only that keeps the order between a change of a datum and a change
  // of the structure the datum lives in
- std::vector< const FunctionMod * > fmods;
- std::vector< const OneVarConstraintMod * > bmods;
- std::vector< const RowConstraintMod * > rmods;
- std::vector< const VariableMod * > vmods;
-
- // executes what has been collected so far, each kind in one operation if
- // the back-end can, one Modification at a time if it cannot
- auto flush = [ & ]() {
-  if( ! fmods.empty() ) {
-   if( ! change_coefficients( fmods ) )
-    for( auto mod : fmods )
-     guts_of_process_modifications( const_cast< FunctionMod * >( mod ) );
-   fmods.clear();
-   }
-
-  if( ! bmods.empty() ) {
-   if( ! change_bounds( bmods ) )
-    for( auto mod : bmods )
-     guts_of_process_modifications( const_cast< OneVarConstraintMod * >(
-                                                                  mod ) );
-   bmods.clear();
-   }
-
-  if( ! rmods.empty() ) {
-   if( ! change_sides( rmods ) )
-    for( auto mod : rmods )
-     guts_of_process_modifications( const_cast< RowConstraintMod * >( mod ) );
-   rmods.clear();
-   }
-
-  if( ! vmods.empty() ) {
-   if( ! change_variables( vmods ) )
-    for( auto mod : vmods )
-     guts_of_process_modifications( const_cast< VariableMod * >( mod ) );
-   vmods.clear();
-   }
-  };
-
+ // the batches are those of the Solver, empty here [see batch_leaf()]
  std::function< void( const GroupModification * ) > walk =
   [ & ]( const GroupModification * grp ) {
    for( const auto & submod : grp->sub_Modifications() ) {
@@ -2654,12 +2938,12 @@ bool MILPSolver::process_group_modification( const GroupModification * gmod )
     if( is_excluded( const_cast< Block * >( psub->get_Block() ) ) )
      continue;
 
-    if( auto sgrp = dynamic_cast< const GroupModification * >( psub ) ) {
+    if( auto sgrp = memo_cast< const GroupModification * >( psub ) ) {
      // a group that declares a shape of its own is asked whole, and what
      // is collected goes out first, the shape being free to change the
      // structure the collected changes are about
-     if( dynamic_cast< const VariableGroupMod * >( sgrp ) ) {
-      flush();
+     if( memo_cast< const VariableGroupMod * >( sgrp ) ) {
+      flush_batch();
       guts_of_process_modifications( const_cast< Modification * >( psub ) );
       }
      else
@@ -2668,67 +2952,164 @@ bool MILPSolver::process_group_modification( const GroupModification * gmod )
      continue;
      }
 
-    /* A Modification this Solver does not act upon changes nothing in the
-     * model, hence it does not close the batch either: a
-     * PolyhedralFunctionMod is one, the PolyhedralFunctionBlock that owns
-     * the PolyhedralFunction answering it with the equivalent changes of
-     * the abstract representation, which are the ones collected here [see
-     * guts_of_process_modifications()]. Were it to close the batch, the
-     * cascade of a whole bundle of cuts would come out one cut at a time,
-     * since the two alternate. */
-    if( dynamic_cast< const PolyhedralFunctionMod * >( psub ) )
+    if( batch_leaf( psub ) )
      continue;
-
-    if( auto fm = dynamic_cast< const C05FunctionModLin * >( psub ) ) {
-     fmods.push_back( fm );
-     continue;
-     }
-
-    /* A bound is a OneVarConstraint, hence it is asked for before the
-     * rows. Fixing a Variable changes the bounds of its column just like
-     * this does, so the two batches are not independent: whichever of the
-     * two comes goes out before the other one starts, which keeps between
-     * them the order they were issued in. */
-    if( auto bm = dynamic_cast< const OneVarConstraintMod * >( psub ) ) {
-     if( ! vmods.empty() ) {
-      if( ! change_variables( vmods ) )
-       for( auto mod : vmods )
-        guts_of_process_modifications( const_cast< VariableMod * >( mod ) );
-      vmods.clear();
-      }
-     bmods.push_back( bm );
-     continue;
-     }
-
-    if( auto vm = dynamic_cast< const VariableMod * >( psub ) ) {
-     if( ! bmods.empty() ) {
-      if( ! change_bounds( bmods ) )
-       for( auto mod : bmods )
-        guts_of_process_modifications(
-                            const_cast< OneVarConstraintMod * >( mod ) );
-      bmods.clear();
-      }
-     vmods.push_back( vm );
-     continue;
-     }
-
-    if( auto rm = dynamic_cast< const RowConstraintMod * >( psub ) ) {
-     rmods.push_back( rm );
-     continue;
-     }
 
     // anything else closes the batch and goes on its own
-    flush();
+    flush_batch();
     guts_of_process_modifications( const_cast< Modification * >( psub ) );
     }
    };
 
  walk( gmod );
- flush();
+ flush_batch();
 
  return( true );
 
  }  // end( MILPSolver::process_group_modification )
+
+/*--------------------------------------------------------------------------*/
+
+bool MILPSolver::batch_leaf( const Modification * mod )
+{
+ /* A Modification this Solver does not act upon changes nothing in the
+  * model, hence it does not close the batch either: a PolyhedralFunctionMod
+  * is one, the PolyhedralFunctionBlock that owns the PolyhedralFunction
+  * answering it with the equivalent changes of the abstract representation,
+  * which are the ones collected here [see guts_of_process_modifications()].
+  * Were it to close the batch, the cascade of a whole bundle of cuts would
+  * come out one cut at a time, since the two alternate. */
+ if( memo_cast< const PolyhedralFunctionMod * >( mod ) )
+  return( true );
+
+ if( auto fm = memo_cast< const C05FunctionModLin * >( mod ) ) {
+  f_bfmods.push_back( fm );
+  return( true );
+  }
+
+ /* A bound is a OneVarConstraint, hence it is asked for before the rows.
+  * Fixing a Variable changes the bounds of its column just like this does,
+  * so the two batches are not independent: whichever of the two comes goes
+  * out before the other one starts, which keeps between them the order they
+  * were issued in. */
+ if( auto bm = memo_cast< const OneVarConstraintMod * >( mod ) ) {
+  flush_variables();
+  f_bbmods.push_back( bm );
+  return( true );
+  }
+
+ if( auto vm = memo_cast< const VariableMod * >( mod ) ) {
+  flush_bounds();
+  f_bvmods.push_back( vm );
+  return( true );
+  }
+
+ // the sides of a row that is not linear are not changed in place by most
+ // back-ends [see nonlinear_row_sides_in_place()]: such a change goes on
+ // its own, which reloads the problem
+ if( auto rm = memo_cast< const RowConstraintMod * >( mod ) ) {
+  if( ! nonlinear_row_sides_in_place() )
+   if( auto row = memo_cast< const FRowConstraint * >( rm->constraint() ) ;
+       row && row->get_function() &&
+       ( ! memo_cast< const LinearFunction * >( row->get_function() ) ) )
+    return( false );
+  f_brmods.push_back( rm );
+  return( true );
+  }
+
+ return( false );
+
+ }  // end( MILPSolver::batch_leaf )
+
+/*--------------------------------------------------------------------------*/
+
+bool MILPSolver::batch_rows( const Modification * mod )
+{
+ auto tmod = memo_cast< const BlockModAdd< FRowConstraint > * >( mod );
+ if( ( ! tmod ) || numquadrows )  // quadratic rows: the problem is reloaded
+  return( false );
+
+ for( auto * i : tmod->added() )
+  if( ! memo_cast< const LinearFunction * >( i->get_function() ) )
+   return( false );  // nor is it with a row that is not linear
+
+ flush_batch();
+ for( auto * i : tmod->added() )
+  if( m_cut_pool.empty() || ( ! m_cut_pool.count( i ) ) )
+   f_brows.push_back( i );  // the rows of the pool are not rows of the model
+
+ return( true );
+
+ }  // end( MILPSolver::batch_rows )
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::flush_rows( void )
+{
+ if( f_brows.empty() )
+  return;
+
+ auto rows = std::move( f_brows );
+ f_brows.clear();
+ if( rows.size() == 1 )
+  add_dynamic_constraint( rows.front() );
+ else
+  add_dynamic_constraints( rows );
+
+ }  // end( MILPSolver::flush_rows )
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::flush_bounds( void )
+{
+ if( f_bbmods.empty() )
+  return;
+ if( ! change_bounds( f_bbmods ) )
+  for( auto mod : f_bbmods )
+   guts_of_process_modifications( const_cast< OneVarConstraintMod * >( mod ) );
+ f_bbmods.clear();
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::flush_variables( void )
+{
+ if( f_bvmods.empty() )
+  return;
+ if( ! change_variables( f_bvmods ) )
+  for( auto mod : f_bvmods )
+   guts_of_process_modifications( const_cast< VariableMod * >( mod ) );
+ f_bvmods.clear();
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::flush_batch( void )
+{
+ // each kind in one operation if the back-end can, one Modification at a
+ // time if it cannot; the vectors are taken out first, as the one by one
+ // path may get here again through a group
+ if( ! f_bfmods.empty() ) {
+  auto fmods = std::move( f_bfmods );
+  f_bfmods.clear();
+  if( ! change_coefficients( fmods ) )
+   for( auto mod : fmods )
+    guts_of_process_modifications( const_cast< FunctionMod * >( mod ) );
+  }
+
+ flush_bounds();
+
+ if( ! f_brmods.empty() ) {
+  auto rmods = std::move( f_brmods );
+  f_brmods.clear();
+  if( ! change_sides( rmods ) )
+   for( auto mod : rmods )
+    guts_of_process_modifications( const_cast< RowConstraintMod * >( mod ) );
+  }
+
+ flush_variables();
+
+ }  // end( MILPSolver::flush_batch )
 
 /*--------------------------------------------------------------------------*/
 
@@ -2901,26 +3282,26 @@ bool MILPSolver::touches_excluded_objective( const Modification * mod ) const
  if( get_excluded_objectives().empty() )
   return( false );
 
- if( auto gm = dynamic_cast< const GroupModification * >( mod ) ) {
+ if( auto gm = memo_cast< const GroupModification * >( mod ) ) {
   for( const auto & submod : gm->sub_Modifications() )
    if( touches_excluded_objective( submod.get() ) )
     return( true );
   return( false );
   }
 
- if( auto om = dynamic_cast< const ObjectiveMod * >( mod ) )
+ if( auto om = memo_cast< const ObjectiveMod * >( mod ) )
   return( is_objective_excluded( om->get_Block() ) );
 
  const Function * f = nullptr;
- if( auto fm = dynamic_cast< const FunctionMod * >( mod ) )
+ if( auto fm = memo_cast< const FunctionMod * >( mod ) )
   f = fm->function();
  else
-  if( auto fvm = dynamic_cast< const FunctionModVars * >( mod ) )
+  if( auto fvm = memo_cast< const FunctionModVars * >( mod ) )
    f = fvm->function();
  if( ! f )
   return( false );
 
- auto obj = dynamic_cast< const Objective * >( f->get_Observer() );
+ auto obj = memo_cast< const Objective * >( f->get_Observer() );
  return( obj && is_objective_excluded( obj->get_Block() ) );
  }
 
@@ -2988,7 +3369,7 @@ void MILPSolver::const_modification( const ConstraintMod * mod )
  if( rhs.empty() )
   return;
 
- auto * con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+ auto * con = memo_cast< FRowConstraint * >( mod->constraint() );
  if( ! con )  // non-FRowConstraint Mods are silently ignored
   return;
 
@@ -3324,7 +3705,7 @@ void MILPSolver::constraint_fvars_modification( const FunctionModVars * mod )
 
 void MILPSolver::dynamic_modification( const BlockModAD * mod )
 {
- if( auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >( mod
+ if( auto tmod = memo_cast< const BlockModAdd< FRowConstraint > * >( mod
 									) ) {
   // the back-ends add only linear rows to a loaded problem, and only to one
   // with no quadratic row, while loading it reads them all [see
@@ -3334,7 +3715,7 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
    return;
    }
   for( auto * i : tmod->added() )
-   if( ! dynamic_cast< const LinearFunction * >( i->get_function() ) ) {
+   if( ! memo_cast< const LinearFunction * >( i->get_function() ) ) {
     f_reset = true;
     return;
     }
@@ -3382,7 +3763,7 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
   return;
   }
 
- if( auto tmod = dynamic_cast< const BlockModRmv< FRowConstraint > * >( mod
+ if( auto tmod = memo_cast< const BlockModRmv< FRowConstraint > * >( mod
 									) ) {
   // as above, a problem with quadratic rows is loaded again
   if( numquadrows ) {
@@ -3402,22 +3783,22 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
   }
 
  // and so is it if columns come or go
- if( numquadrows && ( dynamic_cast< const BlockModAdd< ColVariable > * >( mod )
-                      || dynamic_cast< const BlockModRmv< ColVariable > * >(
+ if( numquadrows && ( memo_cast< const BlockModAdd< ColVariable > * >( mod )
+                      || memo_cast< const BlockModRmv< ColVariable > * >(
                                                                     mod ) ) ) {
   f_reset = true;
   return;
   }
 
- if( auto tmod = dynamic_cast< const BlockModAdd< ColVariable > * >( mod
+ if( auto tmod = memo_cast< const BlockModAdd< ColVariable > * >( mod
 								     ) ) {
-  for( auto * i : tmod->added() )
-   add_dynamic_variable( i );
+  add_dynamic_variables( std::vector< const ColVariable * >(
+                          tmod->added().begin() , tmod->added().end() ) );
 
   return;
   }
 
- if( auto tmod = dynamic_cast< const BlockModRmv< ColVariable > * >( mod
+ if( auto tmod = memo_cast< const BlockModRmv< ColVariable > * >( mod
 								    ) ) {
   std::vector< const ColVariable * > cols;
   cols.reserve( tmod->removed().size() );
@@ -3432,7 +3813,7 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
  // we deal with this using the base class BlockModAD, which is *not*
  // template, to be able to deal with all derived classes from
  // OneVarConstraint at once
- if( auto tmod = dynamic_cast< const BlockModAD * >( mod ) ) {
+ if( auto tmod = memo_cast< const BlockModAD * >( mod ) ) {
   if( mod->is_variable() )
    throw( std::invalid_argument(
               "MILPSolver::dynamic_modification: "
@@ -3443,7 +3824,7 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
   if( mdcns.empty() )  // this should not happen, but ...
    return;             // there you go
 
-  if( ! dynamic_cast< OneVarConstraint * >( mdcns.front() ) )
+  if( ! memo_cast< OneVarConstraint * >( mdcns.front() ) )
    throw( std::invalid_argument(
               "MILPSolver::dynamic_modification: "
               "adding unsupported Constraint type" ) );
@@ -3467,22 +3848,45 @@ void MILPSolver::dynamic_modification( const BlockModAD * mod )
 
 void MILPSolver::add_dynamic_constraint( const FRowConstraint * con )
 {
- // update the dictionaries
- auto it = lower_bound( dcon_to_idx.begin() , dcon_to_idx.end() , con ,
-                        []( auto & pair , const FRowConstraint * c ) {
-                         return( pair.first < c );
-                         } );
- dcon_to_idx.insert( it , { con , numrows } );
- idx_to_dcon.emplace_back( con );
+ register_dynamic_constraints(
+                     std::span< const FRowConstraint * const >( & con , 1 ) );
 
- // update the counter
- ++numrows;
+ // The CSC matrix (matbeg/matcnt/matind/matval) is the snapshot produced
+ // by load_problem(); we do NOT mutate it here. Inserting a row into a
+ // column-major CSC means scanning the LinearFunction of `con` and pushing
+ // an entry into every involved column's slice, which is O(nnz_total) and
+ // not worth the bookkeeping: the snapshot is only used to push the model
+ // to the back-end at load_problem() time. After this point each derived
+ // :MILPSolver holds its own internal model and applies the row directly
+ // via its native API in its own override of add_dynamic_constraint().
+ // Therefore leaving the CSC stale is safe as long as load_problem() is not
+ // invoked again on this Solver instance
 
- // update the vectors (if any)
- if( ! rhs.empty() ) {
+ }  // end( MILPSolver::add_dynamic_constraint )
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::register_dynamic_constraints(
+                              std::span< const FRowConstraint * const > cons )
+{
+ if( cons.empty() )
+  return;
+
+ // the new pairs are appended, sorted among themselves and merged with the
+ // old ones, which are sorted by address
+ const auto old = dcon_to_idx.size();
+ dcon_to_idx.reserve( old + cons.size() );
+ idx_to_dcon.reserve( idx_to_dcon.size() + cons.size() );
+ for( auto * con : cons ) {
+  dcon_to_idx.emplace_back( con , numrows++ );
+  idx_to_dcon.emplace_back( con );
+
+  // update the vectors (if any)
+  if( rhs.empty() )
+   continue;
+
   auto con_lhs = con->get_lhs();
   auto con_rhs = con->get_rhs();
-
   if( con_lhs == con_rhs ) {
    sense.emplace_back( 'E' );
    rhs.emplace_back( con_rhs );
@@ -3507,76 +3911,95 @@ void MILPSolver::add_dynamic_constraint( const FRowConstraint * con )
      }
   }
 
- // The CSC matrix (matbeg/matcnt/matind/matval) is the snapshot produced
- // by load_problem(); we do NOT mutate it here. Inserting a row into a
- // column-major CSC means scanning the LinearFunction of `con` and pushing
- // an entry into every involved column's slice, which is O(nnz_total) and
- // not worth the bookkeeping: the snapshot is only used to push the model
- // to the back-end at load_problem() time. After this point each derived
- // :MILPSolver (CPX/GRB/SCIP/HiGHS) holds its own internal model and
- // applies the row directly via its native API (CPXaddrows / GRBaddconstr
- // / SCIPcreateConsLinear / HighsAddRow) in its own override of
- // add_dynamic_constraint(). Therefore leaving the CSC stale is safe as
- // long as load_problem() is not invoked again on this Solver instance
+ auto by_address = []( const con_int & a , const con_int & b ) {
+  return( a.first < b.first );
+  };
+ auto mid = dcon_to_idx.begin() + old;
+ if( cons.size() > 1 )
+  std::sort( mid , dcon_to_idx.end() , by_address );
+ if( old && ( mid->first < ( mid - 1 )->first ) )
+  std::inplace_merge( dcon_to_idx.begin() , mid , dcon_to_idx.end() ,
+                      by_address );
 
- }  // end( MILPSolver::add_dynamic_constraint )
+ }  // end( MILPSolver::register_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
 
 void MILPSolver::add_dynamic_variable( const ColVariable * var )
 {
- // update the dictionaries
- auto it = lower_bound( dvar_to_idx.begin() , dvar_to_idx.end() , var ,
-                        []( auto & pair , const ColVariable * v ) {
-                         return( pair.first < v );
-                         } );
-
- dvar_to_idx.insert( it , { var , numcols } );
- idx_to_dvar.emplace_back( var );
-
- // update the counters
- ++numcols;
- if( var->is_integer() && ( ! relax_int_vars ) )
-  ++int_vars;
-
- // update the LB/UB vectors (if any): a Variable may come already fixed
- if( ! lb.empty() ) {
-  auto bd = MILPSolver::get_problem_bounds( *var );
-  fix_bounds( *var , bd );
-  lb.emplace_back( bd[ 0 ] );
-  ub.emplace_back( bd[ 1 ] );
-  }
-
- // update the objective vectors
- if( ! objective.empty() ) {
-  objective.push_back( 0 );
-  if( ! q_objective.empty() )
-   q_objective.push_back( 0 );
-  }
-
- // update the variable type vector
- if( ! xctype.empty() ) {
-  if( var->is_integer() && ( ! relax_int_vars ) ) {
-   if( var->is_unitary() && var->is_positive() )
-    xctype.emplace_back( 'B' );
-   else
-    xctype.emplace_back( 'I' );
-   }
-  else
-   xctype.emplace_back( 'C' );
-  }
-
- // the OneVarConstraint associated with the variable
- scan_dynamic_variable_bound( *var );
+ register_dynamic_variables(
+                        std::span< const ColVariable * const >( & var , 1 ) );
 
  // The CSC matrix (matbeg/matcnt/matind/matval) is left untouched: see the
  // comment in add_dynamic_constraint() for the rationale. The derived
- // :MILPSolver (CPX/GRB/SCIP/HiGHS) plumbs the new column into its own
- // back-end model via its override (CPXaddcols / GRBaddvar /
- // SCIPcreateVar / HighsAddCol). Leaving the CSC stale here is safe as
- // long as load_problem() is not invoked again on this Solver instance
+ // :MILPSolver plumbs the new column into its own back-end model via its
+ // override. Leaving the CSC stale here is safe as long as load_problem()
+ // is not invoked again on this Solver instance
 
  }  // end( MILPSolver::add_dynamic_variable )
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::register_dynamic_variables(
+                                 std::span< const ColVariable * const > vars )
+{
+ if( vars.empty() )
+  return;
+
+ // as in register_dynamic_constraints()
+ const auto old = dvar_to_idx.size();
+ dvar_to_idx.reserve( old + vars.size() );
+ idx_to_dvar.reserve( idx_to_dvar.size() + vars.size() );
+ for( auto * var : vars ) {
+  dvar_to_idx.emplace_back( var , numcols++ );
+  idx_to_dvar.emplace_back( var );
+
+  // update the counters
+  if( var->is_integer() && ( ! relax_int_vars ) )
+   ++int_vars;
+
+  // update the LB/UB vectors (if any): a Variable may come already fixed
+  if( ! lb.empty() ) {
+   auto bd = MILPSolver::get_problem_bounds( *var );
+   fix_bounds( *var , bd );
+   lb.emplace_back( bd[ 0 ] );
+   ub.emplace_back( bd[ 1 ] );
+   }
+
+  // update the objective vectors
+  if( ! objective.empty() ) {
+   objective.push_back( 0 );
+   if( ! q_objective.empty() )
+    q_objective.push_back( 0 );
+   }
+
+  // update the variable type vector
+  if( ! xctype.empty() ) {
+   if( var->is_integer() && ( ! relax_int_vars ) ) {
+    if( var->is_unitary() && var->is_positive() )
+     xctype.emplace_back( 'B' );
+    else
+     xctype.emplace_back( 'I' );
+    }
+   else
+    xctype.emplace_back( 'C' );
+   }
+
+  // the OneVarConstraint associated with the variable
+  scan_dynamic_variable_bound( *var );
+  }
+
+ auto by_address = []( const var_int & a , const var_int & b ) {
+  return( a.first < b.first );
+  };
+ auto mid = dvar_to_idx.begin() + old;
+ if( vars.size() > 1 )
+  std::sort( mid , dvar_to_idx.end() , by_address );
+ if( old && ( mid->first < ( mid - 1 )->first ) )
+  std::inplace_merge( dvar_to_idx.begin() , mid , dvar_to_idx.end() ,
+                      by_address );
+
+ }  // end( MILPSolver::register_dynamic_variables )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3623,108 +4046,163 @@ void MILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 
 void MILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 {
-
- // update the dictionaries
- int index = 0;
- auto it1 = lower_bound( dcon_to_idx.begin() , dcon_to_idx.end() ,
-                         std::make_pair( con , 0 ) ,
-                         []( auto & p1 , auto & p2 ) {
-                          return( p1.first < p2.first );
-                          } );
-
- if( ( it1 != dcon_to_idx.end() ) && ( it1->first == con ) ) {
-  index = it1->second;
-  dcon_to_idx.erase( it1 );
-  idx_to_dcon.erase( idx_to_dcon.begin() + ( index - static_cons ) );
-  }
- else
-  throw( std::runtime_error(
-             "MILPSolver::remove_dynamic_constraint: "
-             "dynamic constraint not found" ) );
-
- for( auto & it : dcon_to_idx )
-  if( it.second > index )
-   it.second--;
-
- // update the counter
- --numrows;
-
- // update the vectors, if any
- if( ! rhs.empty() ) {
-  sense.erase( sense.begin() + index );
-  rhs.erase( rhs.begin() + index );
-  rngval.erase( rngval.begin() + index );
-  }
-
- // update the matrix, if any
- if( matval.empty() )
-  return;
-
- throw( std::logic_error(
-            "MILPSolver::remove_dynamic_constraint: "
-            "not fully implemented yet" ) );
+ forget_dynamic_constraints(
+                     std::span< const FRowConstraint * const >( & con , 1 ) );
 
  }  // end( MILPSolver::remove_dynamic_constraint )
 
 /*--------------------------------------------------------------------------*/
 
+namespace {
+
+/// erases from v the positions del[ i ] - off, del being sorted, in one pass
+template< class V >
+void erase_sorted( V & v , const std::vector< int > & del , int off )
+{
+ std::size_t w = 0 , d = 0;
+ for( std::size_t r = 0 ; r < v.size() ; ++r ) {
+  if( ( d < del.size() ) && ( int( r ) + off == del[ d ] ) ) {
+   ++d;
+   continue;
+   }
+  if( w != r )
+   v[ w ] = std::move( v[ r ] );
+  ++w;
+  }
+ v.resize( w );
+ }
+
+/// the number of elements of the sorted del that are smaller than i
+int below( const std::vector< int > & del , int i )
+{
+ return( int( std::lower_bound( del.begin() , del.end() , i ) -
+              del.begin() ) );
+ }
+
+}  // end( anonymous namespace )
+
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::forget_dynamic_constraints(
+                              std::span< const FRowConstraint * const > cons )
+{
+ if( cons.empty() )
+  return;
+
+ // the indices of the rows, before the removal
+ std::vector< int > del;
+ del.reserve( cons.size() );
+ for( auto * con : cons ) {
+  auto it = std::lower_bound( dcon_to_idx.begin() , dcon_to_idx.end() , con ,
+                              []( const con_int & p ,
+                                  const FRowConstraint * c ) {
+                               return( p.first < c );
+                               } );
+  if( ( it == dcon_to_idx.end() ) || ( it->first != con ) )
+   throw( std::runtime_error(
+              "MILPSolver::remove_dynamic_constraint: "
+              "dynamic constraint not found" ) );
+  del.push_back( it->second );
+  }
+ std::sort( del.begin() , del.end() );
+ del.erase( std::unique( del.begin() , del.end() ) , del.end() );
+
+ // the dictionaries: the removed go, the others move down by as many
+ // removed rows as come before them
+ std::erase_if( dcon_to_idx , [ & del ]( const con_int & p ) {
+  return( std::binary_search( del.begin() , del.end() , p.second ) );
+  } );
+ for( auto & p : dcon_to_idx )
+  p.second -= below( del , p.second );
+ erase_sorted( idx_to_dcon , del , static_cons );
+
+ // update the counter
+ numrows -= int( del.size() );
+
+ // update the vectors, if any
+ if( ! rhs.empty() ) {
+  erase_sorted( sense , del , 0 );
+  erase_sorted( rhs , del , 0 );
+  erase_sorted( rngval , del , 0 );
+  }
+
+ // update the matrix, if any
+ if( ! matval.empty() )
+  throw( std::logic_error(
+             "MILPSolver::remove_dynamic_constraint: "
+             "not fully implemented yet" ) );
+
+ }  // end( MILPSolver::forget_dynamic_constraints )
+
+/*--------------------------------------------------------------------------*/
+
 void MILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
+ forget_dynamic_variables(
+                        std::span< const ColVariable * const >( & var , 1 ) );
 
- // update the dictionaries
- int index = 0;
- auto it1 = lower_bound( dvar_to_idx.begin() , dvar_to_idx.end() ,
-                         std::make_pair( var , 0 ),
-                         []( auto & p1 , auto & p2 ) {
-                          return( p1.first < p2.first );
-                          } );
+ }  // end( MILPSolver::remove_dynamic_variable )
 
- if( ( it1 != dvar_to_idx.end() ) && ( it1->first == var ) ) {
-  index = it1->second;
-  dvar_to_idx.erase( it1 );
-  idx_to_dvar.erase( idx_to_dvar.begin() + ( index - static_vars ) );
-  dvar_to_bound.erase( dvar_to_bound.begin() + ( index - static_vars ) );
+/*--------------------------------------------------------------------------*/
+
+void MILPSolver::forget_dynamic_variables(
+                                 std::span< const ColVariable * const > vars )
+{
+ if( vars.empty() )
+  return;
+
+ // the indices of the columns, before the removal
+ std::vector< int > del;
+ del.reserve( vars.size() );
+ for( auto * var : vars ) {
+  auto it = std::lower_bound( dvar_to_idx.begin() , dvar_to_idx.end() , var ,
+                              []( const var_int & p , const ColVariable * v ) {
+                               return( p.first < v );
+                               } );
+  if( ( it == dvar_to_idx.end() ) || ( it->first != var ) )
+   throw( std::runtime_error(
+              "MILPSolver::remove_dynamic_variable: "
+              "dynamic variable not found" ) );
+  del.push_back( it->second );
   m_more_bounds.erase( var );
+  if( var->is_integer() && ( ! relax_int_vars ) )
+   --int_vars;
   }
- else
-  throw( std::runtime_error(
-             "MILPSolver::remove_dynamic_variable: "
-             "dynamic variable not found" ) );
+ std::sort( del.begin() , del.end() );
+ del.erase( std::unique( del.begin() , del.end() ) , del.end() );
 
- for( auto & it : dvar_to_idx )
-  if( it.second > index )
-   it.second--;
+ // the dictionaries [see forget_dynamic_constraints()]
+ std::erase_if( dvar_to_idx , [ & del ]( const var_int & p ) {
+  return( std::binary_search( del.begin() , del.end() , p.second ) );
+  } );
+ for( auto & p : dvar_to_idx )
+  p.second -= below( del , p.second );
+ erase_sorted( idx_to_dvar , del , static_vars );
+ erase_sorted( dvar_to_bound , del , static_vars );
 
- // update the counters
- --numcols;
- if( var->is_integer() && ( ! relax_int_vars ) )
-  --int_vars;
+ // update the counter
+ numcols -= int( del.size() );
 
  // update the bound vectors, if any
  if( ! lb.empty() ) {
-  lb.erase( lb.begin() + index );
-  ub.erase( ub.begin() + index );
+  erase_sorted( lb , del , 0 );
+  erase_sorted( ub , del , 0 );
   }
 
  // update the objective vectors, if any
  if( ! objective.empty() ) {
-  objective.erase( objective.begin() + index );
+  erase_sorted( objective , del , 0 );
   if( ! q_objective.empty() )
-   q_objective.erase( q_objective.begin() + index );
+   erase_sorted( q_objective , del , 0 );
   }
 
  // update the matrix, if any
- if( matval.empty() )
-  return;
+ if( ! matval.empty() )
+  throw( std::logic_error(
+             "MILPSolver::remove_dynamic_variable: "
+             "not fully implemented yet" ) );
 
- /* this would be easy, but the rest is not
- xctype.erase( xctype.begin() + index ); */
-
- throw( std::logic_error(
-            "MILPSolver::remove_dynamic_variable: "
-            "not fully implemented yet" ) );
-
- }  // end( MILPSolver::remove_dynamic_variable )
+ }  // end( MILPSolver::forget_dynamic_variables )
 
 /*--------------------------------------------------------------------------*/
 

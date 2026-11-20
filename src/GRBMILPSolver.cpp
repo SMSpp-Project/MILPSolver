@@ -253,6 +253,7 @@ GRBMILPSolver::~GRBMILPSolver()
 
  // Ranged constraints
  map_rng_con_aux_var.clear();
+ f_aux_valid = f_qskip_valid = false;
  }
 
  /*--------------------------------------------------------------------------*/
@@ -596,6 +597,7 @@ void GRBMILPSolver::load_problem( void )
  grb_idx_aux_qvar.clear();
 
  map_rng_con_aux_var.clear();
+ f_aux_valid = f_qskip_valid = false;
 
  if( model ) {
   GRBfreemodel( model );
@@ -821,6 +823,7 @@ void GRBMILPSolver::load_problem( void )
       // by Gurobi
       // See GRBMILPSolver.h for further information
       map_rng_con_aux_var.push_back( { j , numcols + n_ranged_con } );
+      f_aux_valid = false;
 
       if( j < static_cons)
         last_static_rng_con = n_ranged_con;
@@ -995,7 +998,8 @@ void GRBMILPSolver::load_problem( void )
 
         grb_quad_var_aux[ i ] = numcols + num_qauxvar; // Index of aux var
 
-        grb_idx_aux_qvar.push_back( numcols + num_qauxvar ); 
+        grb_idx_aux_qvar.push_back( numcols + num_qauxvar );
+        f_aux_valid = false;
 
         num_qauxvar++; // Update counter of auxiliary variables
        }
@@ -1010,6 +1014,7 @@ void GRBMILPSolver::load_problem( void )
     for( int i = 0 ; i < n_ranged_con ; i++ ){
       map_rng_con_aux_var.push_back( { ranged_idxs[ i ] , 
                                     numcols + num_qauxvar + i } );
+      f_aux_valid = false;
       }
   }
 
@@ -2486,79 +2491,38 @@ int GRBMILPSolver::grb_index_of_variable( const ColVariable * var ) const
 
 int GRBMILPSolver::grb_index_of_variable( int old_idx ) const
 {
- if( old_idx >= numcols ){
+ if( old_idx >= numcols )
   throw( std::runtime_error(
              "GRBMILPSolver::grb_index_of_variable: "
              "index is out of range" ) );
- }
 
- int new_idx = old_idx;
- int n_ranged_con = map_rng_con_aux_var.size();
- int n_quad_aux_var = grb_idx_aux_qvar.size();
- int tot_grb_vars = numcols + n_ranged_con + n_quad_aux_var;
+ if( map_rng_con_aux_var.empty() && grb_idx_aux_qvar.empty() )
+  return( old_idx );
 
- if( tot_grb_vars == numcols ) {
-  // Nothing to do
-  return( new_idx );
- }
- else{
-  int rng_count = 0;
-  int q_count = 0;
-
-  while( true ){
-    bool has_rng = ( rng_count < map_rng_con_aux_var.size() );
-    bool has_q   = ( q_count < grb_idx_aux_qvar.size() );
-
-    if ( !has_rng && !has_q ) {
-     // There are no more auxiliary variables to skip
-     break;
-    }
-
-    int next_aux_idx;
-    bool take_rng;
-
-    if( has_rng && has_q ){
-      if( map_rng_con_aux_var[ rng_count ].second <=
-          grb_idx_aux_qvar[ q_count ] ){
-        // It is important to understand which var must be skipped first
-        next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
-        take_rng = true;
-      } 
-      else{
-        next_aux_idx = grb_idx_aux_qvar[ q_count ];
-        take_rng = false;
-      }
-    }
-    else if( has_rng ){
-      // Only left ranged auxiliary variables to skip
-      next_aux_idx = map_rng_con_aux_var[ rng_count ].second;
-      take_rng = true;
-    }
-    else{
-      // Only left quadratic auxiliary variables to skip
-      next_aux_idx = grb_idx_aux_qvar[ q_count ];
-      take_rng = false;
-    }
-    
-    if(next_aux_idx <= new_idx){
-      // Index must be skipped
-      ++new_idx;
-      if( take_rng ){
-        ++rng_count;
-      } 
-      else{
-        ++q_count;
-      }
-    }
-    else{
-      // We can return the index
-      break;
-    }
+ // with a_0 < a_1 < ... the GUROBI columns of the auxiliary variables, the
+ // column of old_idx is old_idx + j, j being the number of i such that
+ // a_i - i <= old_idx, as a_i - i is nondecreasing [see f_aux_shift]
+ if( ! f_aux_valid ) {
+  f_aux_shift.resize( map_rng_con_aux_var.size() + grb_idx_aux_qvar.size() );
+  auto rit = map_rng_con_aux_var.begin();
+  auto qit = grb_idx_aux_qvar.begin();
+  for( int i = 0 ; i < int( f_aux_shift.size() ) ; ++i ) {
+   int a;
+   if( ( qit == grb_idx_aux_qvar.end() ) ||
+       ( ( rit != map_rng_con_aux_var.end() ) && ( rit->second <= *qit ) ) )
+    a = ( rit++ )->second;
+   else
+    a = *( qit++ );
+   f_aux_shift[ i ] = a - i;
+   }
+  f_aux_valid = true;
   }
 
- return( new_idx );
- }
-}
+ return( old_idx + int( std::upper_bound( f_aux_shift.begin() ,
+                                          f_aux_shift.end() , old_idx ) -
+                        f_aux_shift.begin() ) );
+
+ }  // end( GRBMILPSolver::grb_index_of_variable( int ) )
 
 /*--------------------------------------------------------------------------*/
 
@@ -2610,14 +2574,18 @@ int GRBMILPSolver::grb_index_of_dynamic_variable( const ColVariable * var )
   // "jump" only quadratic constraint without a linear part, i.e. for which
   // an linear constraint has not been built. This is beacuse Gurobi keeps
   // separate index sets for both linear and quadratic constraints.
-  auto new_idx = idx;
-  for( int j = 0 ; j < idx ; j++ ) {
-    if( is_quad_row( j ) && ( grb_quad_var_aux[ j ] == -1 ) ) {
-      // Quadratic constraint without linear part
-      new_idx--;
-    }
+  // the quadratic rows are all static, so the number of them with no
+  // linear part before each row is counted once [see f_qskip]
+  if( ! f_qskip_valid ) {
+   f_qskip.assign( 1 , 0 );
+   f_qskip.reserve( static_cons + 1 );
+   for( int j = 0 ; j < static_cons ; ++j )
+    f_qskip.push_back( f_qskip.back() +
+                       ( ( is_quad_row( j ) &&
+                           ( grb_quad_var_aux[ j ] == -1 ) ) ? 1 : 0 ) );
+   f_qskip_valid = true;
    }
-  return( new_idx );
+  return( idx - f_qskip[ std::min( idx , static_cons ) ] );
   }
  }
 
@@ -2723,6 +2691,7 @@ void GRBMILPSolver::make_free_row( int index )
   double one = 1.0;
   GRBchgcoeffs( model , 1 , & index , & idx_aux_var , & one );
   map_rng_con_aux_var.push_back( { index , idx_aux_var } );
+  f_aux_valid = false;
   }
  else {
   idx_aux_var = it_rng->second;
@@ -2852,6 +2821,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
      // solution/dual extraction walks it together with the column index; the
      // new slack has the largest index so far, hence it goes at the back
      map_rng_con_aux_var.push_back( { index , idx_aux_var } );
+     f_aux_valid = false;
      }
     else
      idx_aux_var = ( *it_rng ).second;
@@ -3814,6 +3784,7 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
   // the new aux var has the largest column index, so the map stays sorted
   // ascending by .second when the entry is appended at the back
   map_rng_con_aux_var.push_back( { numrows - 1 , aux_idx } );
+  f_aux_valid = false;
   }
 
  ++f_new_rows;
@@ -3906,12 +3877,9 @@ void GRBMILPSolver::add_dynamic_constraints(
   }
  const int nnz = int( cind.size() );
 
- // update the dictionaries (only) for every batched row, in the same
- // order they appear in the CSR layout. This mirrors what the base
- // MILPSolver::add_dynamic_constraint does on the single-row path
- // before delegating to the derived solver's back-end call
- for( auto * c : batch )
-  MILPSolver::add_dynamic_constraint( c );
+ // the dictionaries of all the batched rows at once, in the order of the
+ // CSR layout [see MILPSolver::register_dynamic_constraints()]
+ register_dynamic_constraints( batch );
 
  const int rc = GRBaddconstrs( model , n , nnz , cbeg.data() , cind.data() ,
                                cval.data() , sense.data() , rhs.data() ,
@@ -3964,6 +3932,41 @@ void GRBMILPSolver::add_dynamic_variable( const ColVariable * var )
             bd[ 0 ] , bd[ 1 ] , new_ctype , nullptr );
 
  }  // end( GRBMILPSolver::add_dynamic_variable )
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::add_dynamic_variables(
+                            const std::vector< const ColVariable * > & vars )
+{
+ if( vars.empty() )
+  return;
+
+ // the dictionaries, the counters and the bounds of all the columns at once
+ register_dynamic_variables( vars );
+
+ // the columns, each born empty with a zero cost recorded as written since
+ // the last update [see new_col()], all in one call
+ const int k = int( vars.size() );
+ std::vector< double > lbs( k ) , ubs( k );
+ std::vector< char > types( k );
+ for( int i = 0 ; i < k ; ++i ) {
+  auto var = vars[ i ];
+  auto bd = GRBMILPSolver::get_problem_bounds( *var );
+  fix_bounds( *var , bd );  // a Variable may come already fixed
+  lbs[ i ] = bd[ 0 ];
+  ubs[ i ] = bd[ 1 ];
+  if( var->is_integer() && ( ! relax_int_vars ) )
+   types[ i ] = ( var->is_unitary() && var->is_positive() ) ? GRB_BINARY
+                                                            : GRB_INTEGER;
+  else
+   types[ i ] = GRB_CONTINUOUS;
+  new_col();
+  }
+
+ GRBaddvars( model , k , 0 , nullptr , nullptr , nullptr , nullptr ,
+             lbs.data() , ubs.data() , types.data() , nullptr );
+
+ }  // end( GRBMILPSolver::add_dynamic_variables )
 
 /*--------------------------------------------------------------------------*/
 
@@ -4024,19 +4027,15 @@ void GRBMILPSolver::remove_dynamic_constraints(
               "GRBMILPSolver::remove_dynamic_constraints: "
               "dynamic constraint not found" ) );
   rows.push_back( index );
-  // the map is scanned whole, as a row converted to ranged at runtime has a
-  // low row index and its slack at the end of the columns, so it is not
-  // ordered by .first
-  auto it_rng = std::find_if( map_rng_con_aux_var.begin() ,
-                              map_rng_con_aux_var.end() ,
-                              [ index ]( const std::pair< int , int > & e ) {
-                               return( e.first == index );
-                               } );
-  if( it_rng != map_rng_con_aux_var.end() )
-   cols.push_back( it_rng->second );
   }
-
  std::sort( rows.begin() , rows.end() );
+
+ // the slacks of the ranged rows among them, in one pass over the map,
+ // which is not sorted by .first: a row converted to ranged at runtime has
+ // a low row index and its slack at the end of the columns
+ for( const auto & e : map_rng_con_aux_var )
+  if( std::binary_search( rows.begin() , rows.end() , e.first ) )
+   cols.push_back( e.second );
  std::sort( cols.begin() , cols.end() );
 
  // the entries of the deleted rows go, and every other row and slack moves
@@ -4054,6 +4053,7 @@ void GRBMILPSolver::remove_dynamic_constraints(
   elem.first -= below( rows , elem.first );
   elem.second -= below( cols , elem.second );
   }
+ f_aux_valid = false;
 
  if( ! cols.empty() )
   GRBdelvars( model , int( cols.size() ) , cols.data() );
@@ -4075,8 +4075,7 @@ void GRBMILPSolver::remove_dynamic_constraints(
  // indices.
 
  // call the method of MILPSolver to update the dictionaries (only)
- for( auto * con : cons )
-  MILPSolver::remove_dynamic_constraint( con );
+ forget_dynamic_constraints( cons );
 
  }  // end( GRBMILPSolver::remove_dynamic_constraints )
 
@@ -4110,6 +4109,7 @@ void GRBMILPSolver::remove_dynamic_variables(
  for( auto & elem : map_rng_con_aux_var )
   elem.second -= int( std::lower_bound( cols.begin() , cols.end() ,
                                         elem.second ) - cols.begin() );
+ f_aux_valid = false;
 
  GRBdelvars( model , int( cols.size() ) , cols.data() );
 
@@ -4123,8 +4123,7 @@ void GRBMILPSolver::remove_dynamic_variables(
  // done to dynamic variables do not impact the quadratic indices.
 
  // call the method of MILPSolver to update the dictionaries (only)
- for( auto * var : vars )
-  MILPSolver::remove_dynamic_variable( var );
+ forget_dynamic_variables( vars );
 
  }  // end( GRBMILPSolver::remove_dynamic_variables )
 
@@ -4144,33 +4143,15 @@ bool GRBMILPSolver::add_columns( const std::vector< Variable * > & vars ,
  if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
   return( false );
 
- // Use the initial objective coefficients carried by the additions even
- // if a later queued Modification has removed a Variable from its Function.
- std::fill( cost.begin() , cost.end() , 0.0 );
- for( const auto & submod : gmod->sub_Modifications() ) {
-  auto modl =
-   dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
-  if( ( ! modl ) ||
-      ( ! dynamic_cast< const Objective * >(
-                                      modl->function()->get_Observer() ) ) )
-   continue;
-
-  for( Index i = 0 ; i < modl->vars().size() ; ++i ) {
-   auto it = std::find( vars.begin() , vars.end() , modl->vars()[ i ] );
-   if( it == vars.end() )
-    return( false );
-   cost[ std::distance( vars.begin() , it ) ] += modl->coeff()[ i ];
-   }
-  }
-
  // the columns themselves, each born empty with its bounds and its type,
  // exactly as it is when the Modification arrive one by one
+ std::vector< const ColVariable * > cvars( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  cvars[ i ] = static_cast< const ColVariable * >( vars[ i ] );
+ add_dynamic_variables( cvars );
  std::vector< int > vidx( vars.size() );
- for( Index i = 0 ; i < vars.size() ; ++i ) {
-  auto var = static_cast< const ColVariable * >( vars[ i ] );
-  add_dynamic_variable( var );
-  vidx[ i ] = grb_index_of_variable( var );
-  }
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  vidx[ i ] = grb_index_of_variable( cvars[ i ] );
 
  // the entries of all the columns together, in one call
  std::vector< int > rows , cols;
@@ -4217,8 +4198,10 @@ bool GRBMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
 {
  // deleting the column takes its coefficients away with it, so not one of
  // the rows it appears in is touched
- for( auto v : vars )
-  remove_dynamic_variable( static_cast< const ColVariable * >( v ) );
+ std::vector< const ColVariable * > cvars( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  cvars[ i ] = static_cast< const ColVariable * >( vars[ i ] );
+ remove_dynamic_variables( cvars );
 
  return( true );
 
@@ -4543,6 +4526,10 @@ bool GRBMILPSolver::change_sides(
    }
 
   if( ! auxs.empty() ) {
+   // the slack of a free row has no lower bound, which it gets back
+   std::vector< double > zeros( auxs.size() , 0.0 );
+   GRBsetdblattrlist( model , GRB_DBL_ATTR_LB , auxs.size() , auxs.data() ,
+                      zeros.data() );
    GRBsetdblattrlist( model , GRB_DBL_ATTR_UB , auxs.size() , auxs.data() ,
                       auxubs.data() );
    auxs.clear();
@@ -4587,8 +4574,12 @@ bool GRBMILPSolver::change_sides(
    * created, with its coefficient in the row: that is a change of the
    * structure of the model and not of an attribute, so what has been
    * collected goes out first and that one Modification is executed on its
-   * own, which keeps the order between the two. */
-  if( two_sided && ( ! is_rng ) ) {
+   * own, which keeps the order between the two. So is a row that is, or
+   * stays, free [see make_free_row()]. */
+  const bool free_row = con->is_relaxed() ||
+                        ( ( con_lhs == -Inf< double >() ) &&
+                          ( con_rhs == Inf< double >() ) );
+  if( free_row || ( two_sided && ( ! is_rng ) ) ) {
    flush();
    const_modification( mod );
    continue;

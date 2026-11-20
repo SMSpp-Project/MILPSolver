@@ -136,12 +136,20 @@ ClarabelMILPSolver::ClarabelMILPSolver( void ) : MILPSolver()
  }
 
 /*--------------------------------------------------------------------------*/
+
+ClarabelMILPSolver::~ClarabelMILPSolver()
+{
+ free_solver();
+ }
+
+/*--------------------------------------------------------------------------*/
 /*--------------------- DERIVED METHODS OF BASE CLASS ----------------------*/
 /*--------------------------------------------------------------------------*/
 
 void ClarabelMILPSolver::clear_problem( unsigned int what )
 {
  MILPSolver::clear_problem( what );
+ free_solver();
  d_n = d_m = d_meq = 0;
  d_loaded = false;
  d_status = 0;
@@ -162,6 +170,16 @@ void ClarabelMILPSolver::load_problem( void )
 				"variables are only supported if relaxed "
 				"(intRelaxIntVars)" ) );
 
+ make_data();
+ f_changed = 0;
+ d_status = 0;
+
+ }  // end( ClarabelMILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+void ClarabelMILPSolver::make_data( void )
+{
  const int n = numcols;
  d_n = n;
  d_sign = ( objsense == -1 ) ? -1 : 1;  // Clarabel minimizes
@@ -169,9 +187,7 @@ void ClarabelMILPSolver::load_problem( void )
  // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
  // 1/2 x' P x + q' x with P_jj = 2 q_j and P_ij = P_ji = ndq_k, of which
  // Clarabel only wants the upper triangle
- d_q.assign( n , 0 );
- for( int j = 0 ; j < n ; ++j )
-  d_q[ j ] = d_sign * objective[ j ];
+ make_q();
 
  std::vector< std::pair< std::pair< int , int > , double > > t;
  t.reserve( n + ndq_objective.size() );
@@ -189,71 +205,8 @@ void ClarabelMILPSolver::load_problem( void )
   }
  triplets_to_csc( t , n , d_Pbeg , d_Pind , d_Pval );
 
- // the sides of each constraint, the bounds first and then the rows, an
- // infinite one being none
- const int nc = n + numrows;
- std::vector< double > lo( nc ) , up( nc );
- for( int j = 0 ; j < n ; ++j ) {
-  lo[ j ] = lb[ j ];
-  up[ j ] = ub[ j ];
-  }
-
- for( int i = 0 ; i < numrows ; ++i ) {
-  const int r = n + i;
-  switch( sense[ i ] ) {
-   case( 'L' ): lo[ r ] = - Inf< double >();
-                up[ r ] = rhs[ i ];
-                break;
-   case( 'G' ): lo[ r ] = rhs[ i ];
-                up[ r ] = Inf< double >();
-                break;
-   case( 'E' ): lo[ r ] = up[ r ] = rhs[ i ];
-                break;
-   case( 'R' ): if( rngval[ i ] > 0 ) {
-                 lo[ r ] = rhs[ i ];
-                 up[ r ] = rhs[ i ] + rngval[ i ];
-                 }
-                else {
-                 lo[ r ] = rhs[ i ] + rngval[ i ];
-                 up[ r ] = rhs[ i ];
-                 }
-                break;
-   default:
-    throw( std::invalid_argument( "ClarabelMILPSolver::load_problem: row "
-				  + std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
-   }
-  }
-
- // the rows of A: a constraint with equal and finite sides is a row of the
- // zero cone, each other finite side a row of the nonnegative orthant, the
- // upper one as a' x + s = u and the lower one as - a' x + s = - l
- auto is_eq = [ & ]( int k ) {
-  return( ( lo[ k ] == up[ k ] ) && ( std::abs( up[ k ] ) < ClarabelInf ) );
-  };
-
- d_up.assign( nc , -1 );
- d_lo.assign( nc , -1 );
- d_b.clear();
- for( int k = 0 ; k < nc ; ++k )
-  if( is_eq( k ) ) {
-   d_up[ k ] = d_b.size();
-   d_b.push_back( up[ k ] );
-   }
- d_meq = d_b.size();
-
- for( int k = 0 ; k < nc ; ++k ) {
-  if( is_eq( k ) )
-   continue;
-  if( up[ k ] < ClarabelInf ) {
-   d_up[ k ] = d_b.size();
-   d_b.push_back( up[ k ] );
-   }
-  if( lo[ k ] > - ClarabelInf ) {
-   d_lo[ k ] = d_b.size();
-   d_b.push_back( - lo[ k ] );
-   }
-  }
+ // the rows of A and their sides
+ make_sides( d_up , d_lo , d_b , d_meq );
  d_m = d_b.size();
 
  // the columns of A, from those of MILPSolver and from the bounds
@@ -279,9 +232,111 @@ void ClarabelMILPSolver::load_problem( void )
  d_x.assign( n , 0 );
  d_z.assign( d_m , 0 );
  d_loaded = true;
- d_status = 0;
+ }
 
- }  // end( ClarabelMILPSolver::load_problem )
+/*--------------------------------------------------------------------------*/
+
+void ClarabelMILPSolver::make_q( void )
+{
+ d_q.resize( d_n );
+ for( int j = 0 ; j < d_n ; ++j )
+  d_q[ j ] = d_sign * objective[ j ];
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ClarabelMILPSolver::make_sides( std::vector< int > & up ,
+				     std::vector< int > & lo ,
+				     std::vector< double > & b ,
+				     int & meq ) const
+{
+ // the sides of each constraint, the bounds first and then the rows, an
+ // infinite one being none
+ const int nc = numcols + numrows;
+ std::vector< double > l( nc ) , u( nc );
+ for( int j = 0 ; j < numcols ; ++j ) {
+  l[ j ] = lb[ j ];
+  u[ j ] = ub[ j ];
+  }
+ for( int i = 0 ; i < numrows ; ++i )
+  row_sides( i , l[ numcols + i ] , u[ numcols + i ] );
+
+ // the rows of A: a constraint with equal and finite sides is a row of the
+ // zero cone, each other finite side a row of the nonnegative orthant, the
+ // upper one as a' x + s = u and the lower one as - a' x + s = - l
+ auto is_eq = [ & ]( int k ) {
+  return( ( l[ k ] == u[ k ] ) && ( std::abs( u[ k ] ) < ClarabelInf ) );
+  };
+
+ up.assign( nc , -1 );
+ lo.assign( nc , -1 );
+ b.clear();
+ for( int k = 0 ; k < nc ; ++k )
+  if( is_eq( k ) ) {
+   up[ k ] = b.size();
+   b.push_back( u[ k ] );
+   }
+ meq = b.size();
+
+ for( int k = 0 ; k < nc ; ++k ) {
+  if( is_eq( k ) )
+   continue;
+  if( u[ k ] < ClarabelInf ) {
+   up[ k ] = b.size();
+   b.push_back( u[ k ] );
+   }
+  if( l[ k ] > - ClarabelInf ) {
+   lo[ k ] = b.size();
+   b.push_back( - l[ k ] );
+   }
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ClarabelMILPSolver::update_data( void )
+{
+ // a new sense changes P as well, and new sides that change which of them
+ // are rows of A, or in which cone, change A: the data are made again
+ if( f_changed & kSense ) {
+  make_data();
+  return;
+  }
+ const bool sides = f_changed & ( kBounds | kSides );
+ if( sides ) {
+  std::vector< int > up , lo;
+  std::vector< double > b;
+  int meq;
+  make_sides( up , lo , b , meq );
+  if( ( meq != d_meq ) || ( up != d_up ) || ( lo != d_lo ) ) {
+   make_data();
+   return;
+   }
+  d_b = std::move( b );
+  }
+ if( f_changed & kObj )
+  make_q();
+
+ // the solver of Clarabel already set up, if any, is given the new vectors
+ // [see guts_of_compute()]
+ if( d_loaded || ( ! d_solver ) )
+  return;
+ if( f_changed & kObj )
+  clarabel_DefaultSolver_f64_update_q( d_solver , nonnull( d_q ) ,
+				       d_q.size() );
+ if( sides )
+  clarabel_DefaultSolver_f64_update_b( d_solver , nonnull( d_b ) ,
+				       d_b.size() );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ClarabelMILPSolver::free_solver( void )
+{
+ if( d_solver )
+  clarabel_DefaultSolver_f64_free( d_solver );
+ d_solver = nullptr;
+ }
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR SOLVING THE MODEL -----------------------*/
@@ -289,29 +344,15 @@ void ClarabelMILPSolver::load_problem( void )
 
 int ClarabelMILPSolver::guts_of_compute( void )
 {
+ // the data changed in place since the last solve [see updates_in_place()]
+ if( f_changed ) {
+  update_data();
+  f_changed = 0;
+  }
+
  d_status = ClarabelUnsolved;
- if( ! d_loaded )
+ if( ( ! d_loaded ) && ( ! d_solver ) )  // no problem has been loaded
   return( sol_status = kError );
-
- ClarabelCscMatrix_f64 P , A;
- clarabel_CscMatrix_f64_init( & P , d_n , d_n , d_Pbeg.data() ,
-			      nonnull( d_Pind ) , nonnull( d_Pval ) );
- clarabel_CscMatrix_f64_init( & A , d_m , d_n , d_Abeg.data() ,
-			      nonnull( d_Aind ) , nonnull( d_Aval ) );
-
- std::vector< ClarabelSupportedConeT_f64 > cones;
- if( d_meq > 0 ) {
-  ClarabelSupportedConeT_f64 c{};
-  c.tag = ClarabelZeroConeT_Tag;
-  c.zero_cone_t = d_meq;
-  cones.push_back( c );
-  }
- if( d_m > d_meq ) {
-  ClarabelSupportedConeT_f64 c{};
-  c.tag = ClarabelNonnegativeConeT_Tag;
-  c.nonnegative_cone_t = d_m - d_meq;
-  cones.push_back( c );
-  }
 
  // a time limit of 0 is the smallest positive one
  ClarabelDefaultSettings_f64 settings = clarabel_defaults();
@@ -325,16 +366,50 @@ int ClarabelMILPSolver::guts_of_compute( void )
  settings.tol_feas = d_tol_feas;
  settings.tol_infeas_abs = d_tol_infeas_abs;
  settings.tol_infeas_rel = d_tol_infeas_rel;
+ // the data of a solver that is kept are changed in place, which Clarabel
+ // only allows if its presolve has not reduced the problem
+ settings.presolve_enable = false;
 
- auto solver = clarabel_DefaultSolver_f64_new( & P , nonnull( d_q ) , & A ,
-					       nonnull( d_b ) , cones.size() ,
-					       nonnull( cones ) ,
-					       & settings );
- if( ! solver )  // the data are not accepted (Clarabel says why)
-  return( sol_status = kError );
+ // the solver is kept between two solves, and set up again if the problem
+ // has been loaded again or the settings, which it does not change, have
+ const std::array< double , 8 > key = {
+  double( settings.max_iter ) , settings.time_limit ,
+  double( settings.verbose ) , settings.tol_gap_abs , settings.tol_gap_rel ,
+  settings.tol_feas , settings.tol_infeas_abs , settings.tol_infeas_rel };
+ if( d_loaded || ( ! d_solver ) || ( key != d_key ) ) {
+  free_solver();
 
- clarabel_DefaultSolver_f64_solve( solver );
- const auto sol = clarabel_DefaultSolver_f64_solution( solver );
+  ClarabelCscMatrix_f64 P , A;
+  clarabel_CscMatrix_f64_init( & P , d_n , d_n , d_Pbeg.data() ,
+			       nonnull( d_Pind ) , nonnull( d_Pval ) );
+  clarabel_CscMatrix_f64_init( & A , d_m , d_n , d_Abeg.data() ,
+			       nonnull( d_Aind ) , nonnull( d_Aval ) );
+
+  std::vector< ClarabelSupportedConeT_f64 > cones;
+  if( d_meq > 0 ) {
+   ClarabelSupportedConeT_f64 c{};
+   c.tag = ClarabelZeroConeT_Tag;
+   c.zero_cone_t = d_meq;
+   cones.push_back( c );
+   }
+  if( d_m > d_meq ) {
+   ClarabelSupportedConeT_f64 c{};
+   c.tag = ClarabelNonnegativeConeT_Tag;
+   c.nonnegative_cone_t = d_m - d_meq;
+   cones.push_back( c );
+   }
+
+  d_solver = clarabel_DefaultSolver_f64_new( & P , nonnull( d_q ) , & A ,
+					     nonnull( d_b ) , cones.size() ,
+					     nonnull( cones ) , & settings );
+  if( ! d_solver )  // the data are not accepted (Clarabel says why)
+   return( sol_status = kError );
+  d_key = key;
+  d_loaded = false;
+  }
+
+ clarabel_DefaultSolver_f64_solve( d_solver );
+ const auto sol = clarabel_DefaultSolver_f64_solution( d_solver );
  d_status = sol.status;
  // x is also the ray of a dual infeasible problem, and z the certificate of
  // a primal infeasible one
@@ -342,7 +417,6 @@ int ClarabelMILPSolver::guts_of_compute( void )
   std::copy( sol.x , sol.x + d_n , d_x.begin() );
  if( solved() || ( d_status == ClarabelPrimalInfeasible ) )
   std::copy( sol.z , sol.z + d_m , d_z.begin() );
- clarabel_DefaultSolver_f64_free( solver );
 
  // the value is computed here rather than taken from Clarabel, so that it
  // is that of the solution which is given out

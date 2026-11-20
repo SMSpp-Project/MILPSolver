@@ -92,6 +92,36 @@ void HiGHSMILPSolver_callback( const int callback_type,
 }
 
 /*--------------------------------------------------------------------------*/
+
+namespace {
+
+/// erases from v the positions in del, sorted, in one pass
+template< class V >
+void erase_sorted( V & v , const std::vector< HighsInt > & del )
+{
+ std::size_t w = 0 , d = 0;
+ for( std::size_t r = 0 ; r < v.size() ; ++r ) {
+  if( ( d < del.size() ) && ( HighsInt( r ) == del[ d ] ) ) {
+   ++d;
+   continue;
+   }
+  if( w != r )
+   v[ w ] = std::move( v[ r ] );
+  ++w;
+  }
+ v.resize( w );
+ }
+
+/// the number of elements of the sorted del that are smaller than i
+HighsInt below( const std::vector< HighsInt > & del , HighsInt i )
+{
+ return( HighsInt( std::lower_bound( del.begin() , del.end() , i ) -
+                   del.begin() ) );
+ }
+
+}  // end( anonymous namespace )
+
+/*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -132,6 +162,7 @@ void HiGHSMILPSolver::clear_problem( unsigned int what )
 
  Highs_clearModel(highs);
  n_free_slacks = 0;
+ col_cost.clear();
  q_hessian.clear();
  q_hessian_nnz = 0;
  f_hessian_changed = false;
@@ -274,6 +305,10 @@ void HiGHSMILPSolver::load_problem( void )
 			      std::to_string( status ) ) );
  }
  
+ // the costs that HiGHS has, before the base representation goes
+ col_cost.assign( objective.begin() , objective.end() );
+ col_cost.resize( numcols , 0 );
+
  if( is_sqp || is_qp ) { // QP problem, the Hessian matrix need to be added
 
   generate_qobj_hessian();
@@ -445,6 +480,7 @@ void HiGHSMILPSolver::bind_free_rows( void )
                              "unable to add the slacks of the free rows" ) );
 
  n_free_slacks += n;
+ col_cost.resize( col_cost.size() + n , 0 );
 
  }  // end( HiGHSMILPSolver::bind_free_rows )
 
@@ -670,27 +706,33 @@ int HiGHSMILPSolver::guts_of_compute( void )
  // a QP whose columns are all bounded cannot be unbounded, and this answer
  // is taken as one of a QP the active set has not solved: it gives it (up
  // to 1.15.1 at least) for some convex QP, which it takes for a nonconvex
- // one
- bool bounded = false;
- if( qp_help ) {
-  const HighsInt nc = Highs_getNumCol( highs );
-  std::vector< double > cost( nc ) , lower( nc ) , upper( nc );
-  HighsInt num , nz;
-  Highs_getColsByRange( highs , 0 , nc - 1 , & num , cost.data() ,
-                        lower.data() , upper.data() , & nz , nullptr ,
-                        nullptr , nullptr );
-  const double inf = Highs_getInfinity( highs );
-  bounded = std::all_of( lower.begin() , lower.end() ,
-                         [ inf ]( double l ) { return( l > - inf ); } ) &&
-            std::all_of( upper.begin() , upper.end() ,
-                         [ inf ]( double u ) { return( u < inf ); } );
-  }
+ // one; the bounds are read only for such an answer, and once
+ int bounded = -1;  // -1 = not read yet
+ const auto is_bounded = [ & ]( void ) {
+  if( bounded < 0 ) {
+   bounded = 0;
+   if( qp_help ) {
+    const HighsInt nc = Highs_getNumCol( highs );
+    std::vector< double > lower( nc ) , upper( nc );
+    HighsInt num , nz;
+    Highs_getColsByRange( highs , 0 , nc - 1 , & num , nullptr ,
+                          lower.data() , upper.data() , & nz , nullptr ,
+                          nullptr , nullptr );
+    const double inf = Highs_getInfinity( highs );
+    bounded = std::all_of( lower.begin() , lower.end() ,
+                           [ inf ]( double l ) { return( l > - inf ); } ) &&
+              std::all_of( upper.begin() , upper.end() ,
+                           [ inf ]( double u ) { return( u < inf ); } );
+    }
+   }
+  return( bounded > 0 );
+  };
  const auto definite = [ & ]( int status ) {
   return( ( status == kHighsModelStatusOptimal ) ||
           ( status == kHighsModelStatusInfeasible ) ||
-          ( ( ! bounded ) &&
-            ( ( status == kHighsModelStatusUnbounded ) ||
-              ( status == kHighsModelStatusUnboundedOrInfeasible ) ) ) ||
+          ( ( ( status == kHighsModelStatusUnbounded ) ||
+              ( status == kHighsModelStatusUnboundedOrInfeasible ) ) &&
+            ( ! is_bounded() ) ) ||
           ( status == kHighsModelStatusTimeLimit ) );
   };
  if( qp_help && ( ! definite( m_status ) ) ) {
@@ -1546,40 +1588,25 @@ bool HiGHSMILPSolver::add_columns( const std::vector< Variable * > & vars ,
  if( ! read_column_group( vars , gmod , econs , evars , evals , cost ) )
   return( false );
 
- // Use the initial objective coefficients carried by the additions even
- // if a later queued Modification has removed a Variable from its Function.
- std::fill( cost.begin() , cost.end() , 0.0 );
- for( const auto & submod : gmod->sub_Modifications() ) {
-  auto modl =
-   dynamic_cast< const LinearFunctionModVarsAddd * >( submod.get() );
-  if( ( ! modl ) ||
-      ( ! dynamic_cast< const Objective * >(
-                                      modl->function()->get_Observer() ) ) )
-   continue;
+ const Index k = vars.size();
 
-  for( Index i = 0 ; i < modl->vars().size() ; ++i ) {
-   auto it = std::find( vars.begin() , vars.end() , modl->vars()[ i ] );
-   if( it == vars.end() )
-    return( false );
-   cost[ std::distance( vars.begin() , it ) ] += modl->coeff()[ i ];
-   }
-  }
+ // the entries, bucketed by column with a counting sort that keeps them in
+ // the order they were issued; an entry of a Constraint that is not (yet?)
+ // there is skipped, which is what the handler does with it one by one
+ std::vector< int > erow( econs.size() );
+ std::vector< HighsInt > start( k + 1 , 0 );
+ for( Index e = 0 ; e < econs.size() ; ++e )
+  if( ( erow[ e ] = index_of_constraint( econs[ e ] ) ) < Inf< int >() )
+   ++start[ evars[ e ] + 1 ];
 
- // the columns themselves, each born empty with its bounds and its type,
- // exactly as it is when the Modification arrive one by one
- std::vector< int > vidx( vars.size() );
- for( Index i = 0 ; i < vars.size() ; ++i ) {
-  auto var = static_cast< const ColVariable * >( vars[ i ] );
-  add_dynamic_variable( var );
-  vidx[ i ] = index_of_variable( var );
-  }
+ for( Index j = 0 ; j < k ; ++j )
+  start[ j + 1 ] += start[ j ];
 
- // the entries: HiGHS has no batched form of a change of coefficient, hence
- // they go one at a time, but the columns and the costs do not
+ std::vector< std::pair< HighsInt , double > > ent( start[ k ] );
+ std::vector< HighsInt > next( start.begin() , start.end() - 1 );
  for( Index e = 0 ; e < econs.size() ; ++e ) {
-  auto row = index_of_constraint( econs[ e ] );
-  if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
-   continue;                  // what the handler does with it one by one
+  if( erow[ e ] == Inf< int >() )
+   continue;
 
   double value = evals[ e ];
 
@@ -1588,23 +1615,37 @@ bool HiGHSMILPSolver::add_columns( const std::vector< Variable * > & vars ,
   if( ( value > 0 ) && ( value <= 1e-9 ) )
    value = 2e-9;
 
-  Highs_changeCoeff( highs , row , vidx[ evars[ e ] ] , value );
+  ent[ next[ evars[ e ] ]++ ] = { erow[ e ] , value };
   }
 
- std::vector< int > oidx;
- std::vector< double > oval;
- for( Index i = 0 ; i < vars.size() ; ++i )
-  if( cost[ i ] != 0 ) {  // the column is born with a zero cost
-   oidx.push_back( vidx[ i ] );
-   oval.push_back( cost[ i ] );
-   }
-
- if( ! oidx.empty() ) {
-  // the set has to be ordered and without repetitions, and it is: each
-  // column of the group is named once, and they are born in order
-  Highs_changeColsCostBySet( highs , oidx.size() , oidx.data() ,
-                             oval.data() );
+ // Highs_addCols() refuses a row repeated in a column, where a change of
+ // coefficient keeps the last value written: each column is ordered by row,
+ // keeping the order of issue among equal rows, and the last one of a row
+ // is kept, unless it is a zero, which leaves no entry
+ std::vector< HighsInt > index;
+ std::vector< double > value;
+ index.reserve( ent.size() );
+ value.reserve( ent.size() );
+ for( Index j = 0 ; j < k ; ++j ) {
+  const auto beg = ent.begin() + start[ j ];
+  const auto end = ent.begin() + start[ j + 1 ];
+  std::stable_sort( beg , end , []( const auto & a , const auto & b ) {
+                                 return( a.first < b.first ); } );
+  start[ j ] = HighsInt( index.size() );
+  for( auto it = beg ; it != end ; ++it )
+   if( ( ( it + 1 ) == end ) || ( ( it + 1 )->first != it->first ) )
+    if( it->second != 0 ) {
+     index.push_back( it->first );
+     value.push_back( it->second );
+     }
   }
+ start.pop_back();
+
+ // the columns, with their entries, costs, bounds and types, all at once
+ std::vector< const ColVariable * > cvars( k );
+ for( Index i = 0 ; i < k ; ++i )
+  cvars[ i ] = static_cast< const ColVariable * >( vars[ i ] );
+ append_columns( cvars , cost , start , index , value );
 
  return( true );
 
@@ -1617,8 +1658,10 @@ bool HiGHSMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
 {
  // deleting the column takes its coefficients away with it, so not one of
  // the rows it appears in is touched
- for( auto v : vars )
-  remove_dynamic_variable( static_cast< const ColVariable * >( v ) );
+ std::vector< const ColVariable * > cvars( vars.size() );
+ for( Index i = 0 ; i < vars.size() ; ++i )
+  cvars[ i ] = static_cast< const ColVariable * >( vars[ i ] );
+ remove_dynamic_variables( cvars );
 
  return( true );
 
@@ -2107,6 +2150,9 @@ void HiGHSMILPSolver::set_linear_objective(
 				  obj.data() ) == kHighsStatusError )
   throw( std::runtime_error( "HiGHSMILPSolver::set_linear_objective: "
 			     "Highs_changeColsCostByRange failed" ) );
+ if( col_cost.size() < obj.size() )
+  col_cost.resize( obj.size() , 0 );
+ std::copy( obj.begin() , obj.end() , col_cost.begin() );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2548,10 +2594,14 @@ void HiGHSMILPSolver::add_dynamic_constraints(
                       return( index_of_variable( v ) );
                       };
 
+ std::vector< const FRowConstraint * > batch;
+ batch.reserve( n );
+
  for( auto * c : cons ) {
   if( ! c )
    continue;
 
+  batch.push_back( c );
   auto lf = dynamic_cast< const LinearFunction * >( c->get_function() );
   if( ! lf )
    throw( std::invalid_argument(
@@ -2584,14 +2634,9 @@ void HiGHSMILPSolver::add_dynamic_constraints(
   }
  const int nnz = int( index.size() );
 
- // update the dictionaries (only) for every batched row, in the same
- // order they appear in the CSR layout. This mirrors the dictionary
- // refresh that the base MILPSolver::add_dynamic_constraint does on
- // the single-row path before delegating to the derived solver's
- // back-end call
- for( auto * c : cons )
-  if( c )
-   MILPSolver::add_dynamic_constraint( c );
+ // the dictionaries of all the rows at once, in the order of the CSR
+ // layout [see MILPSolver::register_dynamic_constraints()]
+ register_dynamic_constraints( batch );
 
  Highs_addRows( highs , int( lhs.size() ) , lhs.data() , rhs.data() ,
                 nnz , starts.data() , index.data() , value.data() );
@@ -2602,36 +2647,81 @@ void HiGHSMILPSolver::add_dynamic_constraints(
 
 void HiGHSMILPSolver::add_dynamic_variable( const ColVariable * var )
 {
- bool was_mip = int_vars > 0;  // was a MIP before the change
+ add_dynamic_variables( { var } );
+ }
 
- // call the method of MILPSolver to update dictionaries (and int_vars)
- MILPSolver::add_dynamic_variable( var );
+/*--------------------------------------------------------------------------*/
 
- bool is_mip = int_vars > 0;  // is a MIP after the change
+void HiGHSMILPSolver::add_dynamic_variables(
+                            const std::vector< const ColVariable * > & vars )
+{
+ // the columns are born empty, with a zero cost
+ append_columns( vars , {} , {} , {} , {} );
+ }
 
- // get the bounds
- auto bd = HiGHSMILPSolver::get_problem_bounds( *var );
- fix_bounds( *var , bd );  // a Variable may come already fixed
+/*--------------------------------------------------------------------------*/
 
- char new_ctype;  // get the new variable type
- 
- if( var->is_integer() && ( ! relax_int_vars ) )
-  // Integer or Binary
-  new_ctype = kHighsVarTypeInteger;
+void HiGHSMILPSolver::append_columns(
+                            const std::vector< const ColVariable * > & vars ,
+                            const std::vector< double > & cost ,
+                            const std::vector< HighsInt > & start ,
+                            const std::vector< HighsInt > & index ,
+                            const std::vector< double > & value )
+{
+ const HighsInt k = HighsInt( vars.size() );
+ if( k == 0 )
+  return;
+
+ // the dictionaries, the counters and the bounds of all the columns at once
+ register_dynamic_variables( vars );
+ const HighsInt first = numcols - k;  // the index of the first new column
+
+ std::vector< double > lbs( k ) , ubs( k );
+ std::vector< HighsInt > ints;  // the new integer columns
+ for( HighsInt i = 0 ; i < k ; ++i ) {
+  auto var = vars[ i ];
+  auto bd = HiGHSMILPSolver::get_problem_bounds( *var );
+  fix_bounds( *var , bd );  // a Variable may come already fixed
+  lbs[ i ] = bd[ 0 ];
+  ubs[ i ] = bd[ 1 ];
+  if( var->is_integer() && ( ! relax_int_vars ) )
+   ints.push_back( first + i );
+  }
+
+ HighsInt status;
+ if( cost.empty() && value.empty() )
+  status = Highs_addVars( highs , k , lbs.data() , ubs.data() );
+ else {
+  const std::vector< double > zero( cost.empty() ? k : 0 , 0 );
+  const std::vector< HighsInt > nostart( start.empty() ? k : 0 , 0 );
+  status = Highs_addCols( highs , k ,
+                          cost.empty() ? zero.data() : cost.data() ,
+                          lbs.data() , ubs.data() , HighsInt( value.size() ) ,
+                          start.empty() ? nostart.data() : start.data() ,
+                          index.data() , value.data() );
+  }
+
+ if( status == kHighsStatusError )
+  throw( std::runtime_error( "HiGHSMILPSolver::append_columns: "
+                             "unable to add the columns" ) );
+
+ // a new column is continuous, so only the integer ones are changed
+ if( ! ints.empty() ) {
+  const std::vector< HighsInt > type( ints.size() , kHighsVarTypeInteger );
+  Highs_changeColsIntegralityBySet( highs , HighsInt( ints.size() ) ,
+                                    ints.data() , type.data() );
+  }
+
+ if( cost.empty() )
+  col_cost.resize( col_cost.size() + k , 0 );
  else
-  new_ctype = kHighsVarTypeContinuous;  // Continuous
+  col_cost.insert( col_cost.end() , cost.begin() , cost.end() );
 
- // update the HiGHS problem
- Highs_addVar( highs , bd[0] , bd[1] );
- Highs_changeColIntegrality( highs , numcols - 1 , new_ctype );
-
- // the column is born with no quadratic term, but a Hessian that is there
- // has to be passed again with one more column
+ // the columns are born with no quadratic term, and HiGHS gives its own
+ // Hessian, if any, as many empty columns: the copy follows
  q_hessian.resize( numcols );
- if( q_hessian_nnz > 0 )
-  f_hessian_changed = true;
 
- }  // end( HiGHSMILPSolver::add_dynamic_variable )
+ }  // end( HiGHSMILPSolver::append_columns )
 
 /*--------------------------------------------------------------------------*/
 
@@ -2662,36 +2752,79 @@ void HiGHSMILPSolver::add_dynamic_bound( const OneVarConstraint * con )
 
 void HiGHSMILPSolver::remove_dynamic_constraint( const FRowConstraint * con )
 {
- int index = index_of_dynamic_constraint( con );
- if( index == Inf< int >() )
-  throw( std::runtime_error(
-             "HiGHSMILPSolver::remove_dynamic_constraint: "
-             "dynamic constraint not found" ) );
+ remove_dynamic_constraints( { con } );
+ }
 
- Highs_deleteRowsByRange( highs , index , index );
+/*--------------------------------------------------------------------------*/
+
+void HiGHSMILPSolver::remove_dynamic_constraints(
+                         const std::vector< const FRowConstraint * > & cons )
+{
+ if( cons.empty() )
+  return;
+
+ // the rows, with the indices of the model as it is now; HiGHS wants the
+ // set strictly increasing
+ std::vector< HighsInt > rows;
+ rows.reserve( cons.size() );
+ for( auto * con : cons ) {
+  int index = index_of_dynamic_constraint( con );
+  if( index == Inf< int >() )
+   throw( std::runtime_error(
+              "HiGHSMILPSolver::remove_dynamic_constraints: "
+              "dynamic constraint not found" ) );
+  rows.push_back( index );
+  }
+ std::sort( rows.begin() , rows.end() );
+ rows.erase( std::unique( rows.begin() , rows.end() ) , rows.end() );
+
+ Highs_deleteRowsBySet( highs , HighsInt( rows.size() ) , rows.data() );
 
  // call the method of MILPSolver to update the dictionaries (only)
- MILPSolver::remove_dynamic_constraint( con );
- }
+ forget_dynamic_constraints( cons );
+
+ }  // end( HiGHSMILPSolver::remove_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
 
 void HiGHSMILPSolver::remove_dynamic_variable( const ColVariable * var )
 {
- int index = index_of_dynamic_variable( var );
- if( index == Inf< int >() )
-  throw( std::runtime_error(
-             "HiGHSMILPSolver::remove_dynamic_variable: "
-             "dynamic variable not found" ) );
+ remove_dynamic_variables( { var } );
+ }
 
- Highs_deleteColsByRange( highs , index , index );
+/*--------------------------------------------------------------------------*/
 
- // HiGHS takes the column away from its own Hessian, the copy follows
- remove_hessian_column( index );
+void HiGHSMILPSolver::remove_dynamic_variables(
+                            const std::vector< const ColVariable * > & vars )
+{
+ if( vars.empty() )
+  return;
+
+ // as in remove_dynamic_constraints()
+ std::vector< HighsInt > cols;
+ cols.reserve( vars.size() );
+ for( auto * var : vars ) {
+  int index = index_of_dynamic_variable( var );
+  if( index == Inf< int >() )
+   throw( std::runtime_error(
+              "HiGHSMILPSolver::remove_dynamic_variables: "
+              "dynamic variable not found" ) );
+  cols.push_back( index );
+  }
+ std::sort( cols.begin() , cols.end() );
+ cols.erase( std::unique( cols.begin() , cols.end() ) , cols.end() );
+
+ Highs_deleteColsBySet( highs , HighsInt( cols.size() ) , cols.data() );
+
+ // HiGHS takes the columns away from its costs and its Hessian, the copies
+ // follow
+ erase_sorted( col_cost , cols );
+ remove_hessian_columns( cols );
 
  // call the method of MILPSolver to update the dictionaries (only)
- MILPSolver::remove_dynamic_variable( var );
- }
+ forget_dynamic_variables( vars );
+
+ }  // end( HiGHSMILPSolver::remove_dynamic_variables )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3830,43 +3963,52 @@ void HiGHSMILPSolver::set_hessian( int i , int j , double value )
 
 /*--------------------------------------------------------------------------*/
 
-void HiGHSMILPSolver::remove_hessian_column( int c )
+void HiGHSMILPSolver::remove_hessian_columns(
+                                     const std::vector< HighsInt > & del )
 {
- if( c >= int( q_hessian.size() ) )
+ if( del.empty() )
   return;
+
+ const bool had = ( q_hessian_nnz > 0 );
+
+ // the terms of the columns go with them
+ for( auto c : del )
+  if( c < HighsInt( q_hessian.size() ) )
+   q_hessian_nnz -= int( q_hessian[ c ].size() );
+ erase_sorted( q_hessian , del );
 
  if( q_hessian_nnz == 0 ) {  // nothing to renumber
-  q_hessian.erase( q_hessian.begin() + c );
+  if( had )  // HiGHS keeps a Hessian with no nonzero, and takes it for a QP
+   f_hessian_changed = true;
   return;
   }
 
- // the terms of the column go with it, the ones of the row are found in the
- // columns before it, and every index past c moves back by one
- q_hessian_nnz -= q_hessian[ c ].size();
- bool changed = ! q_hessian[ c ].empty();
- q_hessian.erase( q_hessian.begin() + c );
-
- for( int j = 0 ; j < int( q_hessian.size() ) ; ++j ) {
-  auto & col = q_hessian[ j ];
-  if( col.empty() || ( col.back().first < c ) )
+ // the terms of the rows are found in the columns before them, and every
+ // other index moves down by as many columns of del as come before it
+ for( auto & col : q_hessian ) {
+  if( col.empty() || ( col.back().first < del.front() ) )
    continue;
-  auto it = std::lower_bound( col.begin() , col.end() , c ,
-                              []( const auto & e , int r ) {
-                               return( e.first < r );
-                               } );
-  if( ( it != col.end() ) && ( it->first == c ) ) {
-   it = col.erase( it );
-   --q_hessian_nnz;
-   changed = true;
+  auto w = std::lower_bound( col.begin() , col.end() , del.front() ,
+                             []( const auto & e , HighsInt r ) {
+                              return( e.first < r );
+                              } );
+  for( auto r = w ; r != col.end() ; ++r ) {
+   const auto b = below( del , r->first );
+   if( ( b < HighsInt( del.size() ) ) && ( del[ b ] == r->first ) ) {
+    --q_hessian_nnz;
+    continue;
+    }
+   *w = *r;
+   w->first -= b;
+   ++w;
    }
-  for( ; it != col.end() ; ++it )
-   --( it->first );
+  col.erase( w , col.end() );
   }
 
- if( changed )
+ if( had && ( q_hessian_nnz == 0 ) )  // [see above]
   f_hessian_changed = true;
 
- }  // end( HiGHSMILPSolver::remove_hessian_column )
+ }  // end( HiGHSMILPSolver::remove_hessian_columns )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3940,17 +4082,13 @@ void HiGHSMILPSolver::change_obj_costs( std::vector< int > & idx ,
    else
     nval.back() = val[ p ];
 
- if( add ) {  // the old costs are read once for the whole set
-  std::vector< double > old( set.size() );
-  HighsInt num_col , num_nz;
-  Highs_getColsBySet( highs , set.size() , set.data() , & num_col ,
-                      old.data() , nullptr , nullptr , & num_nz , nullptr ,
-                      nullptr , nullptr );
+ if( add )  // the old costs are those HiGHS has [see col_cost]
   for( Index k = 0 ; k < set.size() ; ++k ) {
+   const double old = col_cost[ set[ k ] ];
    const double change = nval[ k ];
-   double newval = old[ k ] + change;
+   double newval = old + change;
    if( removal ) {
-    const double scale = std::max( { 1.0 , std::abs( old[ k ] ) ,
+    const double scale = std::max( { 1.0 , std::abs( old ) ,
                                     std::abs( change ) } );
     if( std::isfinite( newval ) &&
         ( std::abs( newval ) <= obj_removal_tol * scale ) )
@@ -3958,9 +4096,10 @@ void HiGHSMILPSolver::change_obj_costs( std::vector< int > & idx ,
     }
    nval[ k ] = newval;
    }
-  }
 
  Highs_changeColsCostBySet( highs , set.size() , set.data() , nval.data() );
+ for( Index k = 0 ; k < set.size() ; ++k )
+  col_cost[ set[ k ] ] = nval[ k ];
 
  }  // end( HiGHSMILPSolver::change_obj_costs )
 

@@ -92,12 +92,17 @@ namespace SMSpp_di_unipi_it
  * - quadratic constraints are not supported, and integer variables are only
  *   accepted if relaxed via intRelaxIntVars;
  *
- * - ProxQP is not given the changes of the loaded problem: whenever a
- *   Modification is received the problem is loaded again whole from the
- *   Block [see MILPSolver::reload_on_modification()], and the solution of
- *   the previous solve and the multipliers of its equalities, on the
- *   variables and rows that are still there, are the start of the next
- *   one;
+ * - ProxQP is not given the changes of the structure of the loaded
+ *   problem: a Modification that changes the linear part of the
+ *   Objective, the bounds of the variables or the sides of the rows is
+ *   given to the solver of ProxQP already set up as new vectors [see
+ *   MILPSolver::updates_in_place()], unless a row moves between the
+ *   equalities and the inequalities or, with the sparse backend, a
+ *   variable gets or loses all its finite bounds, and any other one has
+ *   the problem loaded again whole from the Block [see
+ *   MILPSolver::reload_on_modification()]; the solution of the previous
+ *   solve and the multipliers of its equalities, on the variables and rows
+ *   that are still there, are the start of the next one;
  *
  * - ProxQP has no time limit, hence dblMaxTime is not handled and
  *   compute() never returns kStopTime;
@@ -332,9 +337,13 @@ class ProxQPMILPSolver : public MILPSolver
 
  int guts_of_compute( void ) override;
 
- /// ProxQP is not given the changes of a problem: it is always loaded again
+ /// the problem is loaded again on a Modification that changes more than data
 
  bool reload_on_modification( void ) override { return( true ); }
+
+ /// the data are changed in place [see update_data()]
+
+ bool updates_in_place( void ) const override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE PART --------------------------------*/
@@ -349,6 +358,42 @@ class ProxQPMILPSolver : public MILPSolver
  /// releases the solver of ProxQP
 
  void free_solver( void );
+
+ /// writes the problem in the format of ProxQP out of that of MILPSolver
+
+ void make_data( void );
+
+ /// writes the linear term g out of the Objective of MILPSolver
+
+ void make_g( void );
+
+ /// writes the bounds d_lbox and d_ubox out of those of MILPSolver
+
+ void make_bounds( void );
+
+ /// writes where each row is in A or C [see d_row_pos], and their sizes
+
+ void row_layout( std::vector< int > & row_pos , int & neq ,
+                  int & nin ) const;
+
+ /// writes the sides d_b, d_l and d_u of the rows as in d_row_pos
+
+ void make_sides( void );
+
+ /// writes the sides of the rows of C of the sparse backend
+ /** The rows of d_C are followed by a row for each variable with a finite
+  * bound, whose position is written in \p box_pos (-1 for the others);
+  * returns the number of rows. */
+
+ int sparse_sides( std::vector< int > & box_pos , Eigen::VectorXd & l ,
+                   Eigen::VectorXd & u ) const;
+
+ /// gives ProxQP the data changed in place [see MILPSolver::f_changed]
+ /** The new vectors are given to the solver of ProxQP already set up if
+  * the rows in A and C are the same; otherwise, or if the sense has
+  * changed, the data are made again and ProxQP set up again. */
+
+ void update_data( void );
 
  /// true if the last solve has given a primal solution
 

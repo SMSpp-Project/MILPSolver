@@ -102,11 +102,14 @@ namespace SMSpp_di_unipi_it
  *   (rather than the 0 of MILPSolver), so that such a solve is checked and
  *   ends with kError;
  *
- * - PermonQP is not given the changes of the loaded problem: whenever a
- *   Modification is received the problem is loaded again whole from the
- *   Block [see MILPSolver::reload_on_modification()], and the solution of
- *   the previous solve, on the variables that are still there, is the start
- *   of the next one (see intPERMONWarmStart);
+ * - PermonQP is set up anew at each solve: a Modification that changes the
+ *   linear part of the Objective, the bounds of the variables or the sides
+ *   of the rows changes these data in place [see
+ *   MILPSolver::updates_in_place()], and any other one has the problem
+ *   loaded again whole from the Block [see
+ *   MILPSolver::reload_on_modification()]; the solution of the previous
+ *   solve, on the variables that are still there, is the start of the next
+ *   one (see intPERMONWarmStart);
  *
  * - PermonQP has no time limit, hence dblMaxTime is not handled and
  *   compute() never returns kStopTime;
@@ -295,9 +298,13 @@ class PERMONMILPSolver : public MILPSolver
 
  int guts_of_compute( void ) override;
 
- /// PermonQP is not given the changes of a problem: it is always loaded again
+ /// the problem is loaded again on a Modification that changes more than data
 
  bool reload_on_modification( void ) override { return( true ); }
+
+ /// the data are changed in place [see update_data()]
+
+ bool updates_in_place( void ) const override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE PART --------------------------------*/
@@ -307,6 +314,25 @@ class PERMONMILPSolver : public MILPSolver
  /// true if the last solve has given a primal solution
 
  [[nodiscard]] bool solved( void ) const;
+
+ /// writes the problem in the format of PermonQP out of that of MILPSolver
+
+ void make_data( void );
+
+ /// writes where each row and each fixed variable is [see d_row_pos]
+
+ void layout( std::vector< int > & row_pos , std::vector< int > & fix_row ,
+              int & neq , int & nin , int & nfix ) const;
+
+ /// writes the right-hand sides, the bounds and the sides of PermonQP
+
+ void make_vectors( void );
+
+ /// writes again the data changed in place [see MILPSolver::f_changed]
+ /** The vectors are written again, and the matrices as well if the sense
+  * has changed or a row or a variable is no longer where it was. */
+
+ void update_data( void );
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PRIVATE FIELDS -------------------------------*/

@@ -78,9 +78,14 @@ namespace SMSpp_di_unipi_it
  * - quadratic constraints are not supported, and integer variables are only
  *   accepted if relaxed via intRelaxIntVars;
  *
- * - PIQP is not given the changes of the loaded problem: whenever a
- *   Modification is received the problem is loaded again whole from the
- *   Block [see MILPSolver::reload_on_modification()];
+ * - PIQP is not given the changes of the structure of the loaded problem:
+ *   a Modification that changes the linear part of the Objective, the
+ *   bounds of the variables or the sides of the rows is given to the
+ *   solver of PIQP already set up as new vectors [see
+ *   MILPSolver::updates_in_place()], unless a row moves between the
+ *   equalities, the inequalities and the rows with no finite side, and
+ *   any other one has the problem loaded again whole from the Block [see
+ *   MILPSolver::reload_on_modification()];
  *
  * - PIQP has no warm start, hence each solve starts from the initial point
  *   of the interior point method, whatever the previous one;
@@ -320,9 +325,13 @@ class PIQPMILPSolver : public MILPSolver
 
  int guts_of_compute( void ) override;
 
- /// PIQP is not given the changes of a problem: it is always loaded again
+ /// the problem is loaded again on a Modification that changes more than data
 
  bool reload_on_modification( void ) override { return( true ); }
+
+ /// the data are changed in place [see update_data()]
+
+ bool updates_in_place( void ) const override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE PART --------------------------------*/
@@ -337,6 +346,34 @@ class PIQPMILPSolver : public MILPSolver
  /// releases the solver of PIQP
 
  void free_solver( void );
+
+ /// writes the problem in the format of PIQP out of that of MILPSolver
+
+ void make_data( void );
+
+ /// writes the linear term c out of the Objective of MILPSolver
+
+ void make_c( void );
+
+ /// writes the bounds d_xl and d_xu out of those of MILPSolver
+
+ void make_bounds( void );
+
+ /// writes where each row is in A or G [see d_row_pos], and their sizes
+
+ void row_layout( std::vector< int > & row_pos , int & neq ,
+                  int & nin ) const;
+
+ /// writes the sides d_b, d_hl and d_hu of the rows as in d_row_pos
+
+ void make_sides( void );
+
+ /// gives PIQP the data changed in place [see MILPSolver::f_changed]
+ /** The new vectors are given to the solver of PIQP already set up if the
+  * rows in A and G are the same; otherwise, or if the sense has changed,
+  * the data are made again and PIQP set up again. */
+
+ void update_data( void );
 
  /// true if the last solve has given a primal solution
 

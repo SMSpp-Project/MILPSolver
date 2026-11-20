@@ -73,11 +73,16 @@ namespace SMSpp_di_unipi_it
  *   too short step (kError), except for inconsistent equality constraints,
  *   which give kInfeasible;
  *
- * - whenever a Modification is received the problem is loaded again whole
- *   from the Block [see MILPSolver::reload_on_modification()]; if
- *   intHPIPMWarmStart is set, the solve starts from the previous
- *   solution, on the variables that are still there, and one that does not
- *   end so is repeated from the initial point of HPIPM;
+ * - HPIPM is given the whole problem at each solve: a Modification that
+ *   changes the linear part of the Objective, the bounds of the variables
+ *   or the sides of the rows changes these data in place [see
+ *   MILPSolver::updates_in_place()], and any other one has the problem
+ *   loaded again whole from the Block [see
+ *   MILPSolver::reload_on_modification()], the memory of HPIPM being kept
+ *   if the sizes of its problem do not change; if intHPIPMWarmStart is
+ *   set, the solve starts from the previous solution, on the variables
+ *   that are still there, and one that does not end so is repeated from
+ *   the initial point of HPIPM;
  *
  * - HPIPM has no time limit, hence dblMaxTime is not handled;
  *
@@ -237,9 +242,13 @@ class HPIPMMILPSolver : public MILPSolver
 
  int guts_of_compute( void ) override;
 
- /// HPIPM has no problem to change: it is always loaded again
+ /// the problem is loaded again on a Modification that changes more than data
 
  bool reload_on_modification( void ) override { return( true ); }
+
+ /// the data are changed in place [see guts_of_compute()]
+
+ bool updates_in_place( void ) const override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE PART --------------------------------*/
@@ -250,6 +259,22 @@ class HPIPMMILPSolver : public MILPSolver
  /// true if the last solve has given a primal solution
 
  [[nodiscard]] bool solved( void ) const { return( d_status == kOK ); }
+
+ /// writes the problem out of that of MILPSolver
+
+ void make_data( void );
+
+ /// writes the linear term d_h out of the Objective of MILPSolver
+
+ void make_h( void );
+
+ /// writes the bounds d_lb and d_ub out of those of MILPSolver
+
+ void make_bounds( void );
+
+ /// writes the sides d_lbA and d_ubA out of those of MILPSolver
+
+ void make_sides( void );
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PRIVATE FIELDS -------------------------------*/

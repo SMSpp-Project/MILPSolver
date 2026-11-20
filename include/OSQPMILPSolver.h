@@ -69,11 +69,16 @@ namespace SMSpp_di_unipi_it
  * with at least one finite bound, whose multiplier is the reduced cost of
  * the variable. The equalities are the rows with \f$ l_i = u_i \f$.
  *
- * Whenever a Modification is received the problem is loaded again whole
- * from the Block [see MILPSolver::reload_on_modification()]; if the sizes
- * and the sparsity patterns of \f$ P \f$ and \f$ A \f$ have not changed,
- * the new data are given to the solver of OSQP already set up, which is
- * set up again otherwise. After the first solve, each one starts from the
+ * A Modification that changes the linear part of the Objective, the bounds
+ * of the variables or the sides of the rows is given to the solver of OSQP
+ * already set up, which keeps its factorization, as new \f$ q \f$,
+ * \f$ l \f$ and \f$ u \f$ [see MILPSolver::updates_in_place()], unless
+ * a row or a bound gets or loses all its finite sides; any other one has
+ * the problem loaded again whole from the Block [see
+ * MILPSolver::reload_on_modification()], and if the sizes and the
+ * sparsity patterns of \f$ P \f$ and \f$ A \f$ have not changed, the new
+ * data are given to the solver of OSQP already set up, which is set up
+ * again otherwise. After the first solve, each one starts from the
  * primal and dual solution of the previous one, on the variables and rows
  * that are still there (see intOSQPWarmStart). After the ADMM has
  * converged, the solution is polished (see intOSQPPolishing), i.e., the
@@ -337,9 +342,13 @@ class OSQPMILPSolver : public MILPSolver
 
  int guts_of_compute( void ) override;
 
- /// OSQP is not given the changes of a problem: it is always loaded again
+ /// the problem is loaded again on a Modification that changes more than data
 
  bool reload_on_modification( void ) override { return( true ); }
+
+ /// the data are changed in place [see update_data()]
+
+ bool updates_in_place( void ) const override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE PART --------------------------------*/
@@ -354,6 +363,28 @@ class OSQPMILPSolver : public MILPSolver
  /// releases the solver of OSQP
 
  void free_solver( void );
+
+ /// writes the problem in the format of OSQP out of that of MILPSolver
+
+ void make_data( void );
+
+ /// writes the linear term q out of the Objective of MILPSolver
+
+ void make_q( void );
+
+ /// writes the sides of the rows of A, and where each one is in A
+
+ void make_sides( std::vector< OSQPInt > & row_pos ,
+                  std::vector< OSQPInt > & box_pos ,
+                  std::vector< OSQPFloat > & l ,
+                  std::vector< OSQPFloat > & u ) const;
+
+ /// gives OSQP the data changed in place [see MILPSolver::f_changed]
+ /** The new q, l and u are given to the solver of OSQP already set up if
+  * the rows of A are the same; otherwise, or if the sense has changed, the
+  * data are made again and given to OSQP as after a reload. */
+
+ void update_data( void );
 
  /// true if the last solve has given an optimal solution
 

@@ -676,18 +676,20 @@ void add_mip_starts(
   * MILPSolver::change_coefficients()]. */
 
  /// adds the whole column of each of the given Variable in one operation
- /** The columns are born empty and get their entries and their costs
-   * afterwards, the costs in one Highs_changeColsCostBySet(); HiGHS has no
-   * batched form of a change of coefficient, so the entries go one at a
-   * time [see MILPSolver::add_columns()]. */
+ /** The columns, with their entries, costs and bounds, go in one
+  * Highs_addCols(), and their integrality in one
+  * Highs_changeColsIntegralityBySet(): the entries are read from the
+  * sub-Modification of the group, exactly as the handlers read them one by
+  * one [see MILPSolver::add_columns()]. */
 
  bool add_columns( const std::vector< Variable * > & vars ,
                    const GroupModification * gmod ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// removes the whole column of each of the given Variable
- /** One deletion per column, and none of the coefficients is touched: the
-   * deletion takes them away [see MILPSolver::remove_columns()]. */
+ /// removes the whole column of each of the given Variable in one operation
+ /** One deletion for all the columns, and none of the coefficients is
+  * touched: the deletion takes them away [see
+  * MILPSolver::remove_columns()]. */
 
  bool remove_columns( const std::vector< Variable * > & vars ,
                       const GroupModification * gmod ) override;
@@ -768,11 +770,23 @@ void add_mip_starts(
  /// adds a single new dynamic ColVariable
  void add_dynamic_variable( const ColVariable * var ) override;
 
+ /// adds the given dynamic ColVariable with one Highs_addVars()
+ void add_dynamic_variables(
+            const std::vector< const ColVariable * > & vars ) override;
+
  /// removes a single dynamic FRowConstraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
 
+ /// removes the given dynamic FRowConstraint with one Highs_deleteRowsBySet()
+ void remove_dynamic_constraints(
+            const std::vector< const FRowConstraint * > & cons ) override;
+
  /// removes a single dynamic ColVariable
  void remove_dynamic_variable( const ColVariable * var ) override;
+
+ /// removes the given dynamic ColVariable with one Highs_deleteColsBySet()
+ void remove_dynamic_variables(
+            const std::vector< const ColVariable * > & vars ) override;
 
  /// removes a single dynamic bound (OneVarConstraint)
  void remove_dynamic_bound( const OneVarConstraint * con ) override;
@@ -866,6 +880,13 @@ void add_mip_starts(
 
  /// true if q_hessian has changed since it was last passed to HiGHS
  bool f_hessian_changed = false;
+
+ /// the linear costs of the columns of HiGHS, one element per column
+ /** What HiGHS has, so that a change by a delta needs not read the old cost
+  * back [see change_obj_costs()]; it follows the columns of HiGHS as they
+  * are added and removed, the slacks of the free rows included [see
+  * bind_free_rows()]. */
+ std::vector< double > col_cost;
   
  /** @name Handling of Highs parameters (options)
   *
@@ -934,8 +955,25 @@ void add_mip_starts(
  /// sets the entry ( i , j ) of the Hessian to value, zero meaning removed
  void set_hessian( int i , int j , double value );
 
- /// the column c of the model is gone: so is it in the Hessian
- void remove_hessian_column( int c );
+ /// the columns del of the model are gone: so are they in the Hessian
+ /** del is strictly increasing; the other indices move down by as many
+  * columns of del as come before them. HiGHS does the same to its own
+  * Hessian when it deletes the columns, so it is passed again only if it
+  * is left with no nonzero, which HiGHS would still take for a QP. */
+ void remove_hessian_columns( const std::vector< HighsInt > & del );
+
+ /// appends the columns of vars to the model, with one Highs_addCols()
+ /** Records vars in the dictionaries [see
+  * MILPSolver::register_dynamic_variables()] and gives HiGHS their columns
+  * with their bounds, the costs cost (all zero if it is empty) and the
+  * entries in ( start , index , value ), column-wise with no repeated row
+  * in a column (all empty if there are none); the integer ones then get
+  * their type in one Highs_changeColsIntegralityBySet(). */
+ void append_columns( const std::vector< const ColVariable * > & vars ,
+                      const std::vector< double > & cost ,
+                      const std::vector< HighsInt > & start ,
+                      const std::vector< HighsInt > & index ,
+                      const std::vector< double > & value );
 
  /// calls Highs_run(), sizing again the scheduler of HiGHS if needed
  int run_highs( void );
@@ -974,8 +1012,8 @@ void add_mip_starts(
  void pass_hessian( const char * caller );
 
  /// changes the costs of the columns idx, adding val to them or setting them
- /** Changes the costs of the columns in idx in one call, reading the old ones
-  * in one call as well if add is true. The indices need not be ordered, and
+ /** Changes the costs of the columns in idx in one call, the old ones being
+  * read from col_cost if add is true. The indices need not be ordered, and
   * a column named twice gets the sum of its values if add is true and the
   * last one otherwise. If add and removal are both true, round a finite
   * result to zero when its magnitude is at most

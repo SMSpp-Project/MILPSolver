@@ -115,11 +115,22 @@ void QPOASESMILPSolver::load_problem( void )
 				"variables are only supported if relaxed "
 				"(intRelaxIntVars)" ) );
 
+ make_data( true );
+ f_changed = 0;
+
+ }  // end( QPOASESMILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+void QPOASESMILPSolver::make_data( bool reloaded )
+{
  // the fixed columns and the free rows are not given to qpOASES; the
  // positions in the problem of qpOASES of the columns and rows of the
  // previous problem are kept, to move to the new one its solution
  std::vector< int > ppos = std::move( d_dq.pos );
  std::vector< int > prpos = std::move( d_dq.rpos );
+ const auto oldH = std::move( d_dq.H );
+ const auto oldA = std::move( d_dq.A );
  const int qn = std::count_if( ppos.begin() , ppos.end() ,
 			       []( int k ) { return( k >= 0 ); } );
  const int qm = std::count_if( prpos.begin() , prpos.end() ,
@@ -128,6 +139,7 @@ void QPOASESMILPSolver::load_problem( void )
  make_dense_qp( d_dq , d_sign , qpOASES::INFTY );
  const int n = d_n = d_dq.n;
  d_nc = d_dq.m;
+ d_new_mat |= ( d_dq.H != oldH ) || ( d_dq.A != oldA );
 
  // a solved problem with other columns or rows cannot be hot-started, but
  // its working set, solution and multipliers, moved to the columns and
@@ -135,13 +147,20 @@ void QPOASESMILPSolver::load_problem( void )
  // with which the next one is initialized, the new ones inactive and at 0;
  // an active side that is no longer finite is inactive
  d_guess = false;
- const auto [ pn , pm ] = previous_sizes();
+ auto pcol = [ this , reloaded ]( int j ) {
+  return( reloaded ? previous_column_index( j ) : j );
+  };
+ auto prow = [ this , reloaded ]( int i ) {
+  return( reloaded ? previous_row_index( i ) : i );
+  };
+ const auto [ pn , pm ] = reloaded ? previous_sizes()
+                                   : std::make_pair( numcols , numrows );
  d_same = ( pn == numcols ) && ( pm == numrows ) &&
           ( ppos == d_dq.pos ) && ( prpos == d_dq.rpos );
  for( int j = 0 ; d_same && ( j < numcols ) ; ++j )
-  d_same = ( previous_column_index( j ) == j );
+  d_same = ( pcol( j ) == j );
  for( int i = 0 ; d_same && ( i < numrows ) ; ++i )
-  d_same = ( previous_row_index( i ) == i );
+  d_same = ( prow( i ) == i );
  if( d_hot_start && d_qp && d_qp_solved && ( ! d_same ) &&
      ( d_qp->getNV() == qn ) && ( d_qp->getNC() == qm ) &&
      ( ppos.size() == std::size_t( pn ) ) &&
@@ -169,7 +188,7 @@ void QPOASESMILPSolver::load_problem( void )
   d_guess_b->init( n );
   d_guess_c->init( d_nc );
   for( int j = 0 ; j < n ; ++j ) {
-   const int pc = previous_column_index( d_dq.col[ j ] );
+   const int pc = pcol( d_dq.col[ j ] );
    const int pj = ( pc >= 0 ) ? ppos[ pc ] : -1;
    d_guess_b->setupBound( j , pj < 0 ? qpOASES::ST_INACTIVE :
                           status( ob.getStatus( pj ) , d_dq.lb[ j ] ,
@@ -180,7 +199,7 @@ void QPOASESMILPSolver::load_problem( void )
     }
    }
   for( int i = 0 ; i < d_nc ; ++i ) {
-   const int pr = previous_row_index( d_dq.row[ i ] );
+   const int pr = prow( d_dq.row[ i ] );
    const int pi = ( pr >= 0 ) ? prpos[ pr ] : -1;
    d_guess_c->setupConstraint( i , pi < 0 ? qpOASES::ST_INACTIVE :
 			       status( oc.getStatus( pi ) , d_dq.rl[ i ] ,
@@ -195,7 +214,7 @@ void QPOASESMILPSolver::load_problem( void )
  d_y.assign( n + d_nc , 0 );
  d_status = kError;
 
- }  // end( QPOASESMILPSolver::load_problem )
+ }
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR SOLVING THE MODEL -----------------------*/
@@ -203,6 +222,15 @@ void QPOASESMILPSolver::load_problem( void )
 
 int QPOASESMILPSolver::guts_of_compute( void )
 {
+ // the data changed in place since the last solve [see updates_in_place()]:
+ // with the same columns and rows, the next solve is a hot start with the
+ // new vectors, otherwise the problem is made again as by a reload
+ if( f_changed ) {
+  if( ! refresh_dense_qp( d_dq ) )
+   make_data( false );
+  f_changed = 0;
+  }
+
  d_fval = d_dq.fconst;
 
  // qpOASES needs at least one variable: with none, the problem is feasible
@@ -220,7 +248,7 @@ int QPOASESMILPSolver::guts_of_compute( void )
  // a hot start needs the problem of qpOASES solved, with the same columns
  // and rows in the same places and with the same Options, otherwise the
  // new problem is initialized from the guess made out of the previous one
- // by load_problem(), if any; one that does not end with a solution, unless
+ // by make_data(), if any; one that does not end with a solution, unless
  // it is stopped by the time limit, is repeated from scratch
  if( d_hot_start && d_qp && d_qp_solved && ( ! d_new_options ) &&
      d_same && ( d_qp->getNV() == d_n ) && ( d_qp->getNC() == d_nc ) ) {
@@ -283,8 +311,9 @@ int QPOASESMILPSolver::solve_from_scratch( bool guess )
  d_new_options = false;
 
  d_cur = 0;
- d_qpH[ 0 ] = d_oldH = d_dq.H;
- d_qpA[ 0 ] = d_oldA = d_dq.A;
+ d_qpH[ 0 ] = d_dq.H;
+ d_qpA[ 0 ] = d_dq.A;
+ d_new_mat = false;
 
  // a guess that is good takes few working set recalculations, and on a
  // singular H a bad one may take as many as from scratch, or more: a
@@ -329,7 +358,7 @@ int QPOASESMILPSolver::hot_start( void )
  const bool timed = d_max_time < Inf< double >();
  qpOASES::returnValue ret;
 
- if( ( d_dq.H == d_oldH ) && ( d_dq.A == d_oldA ) )
+ if( ! d_new_mat )
   // only the vectors have changed, if anything
   ret = d_qp->hotstart( d_dq.f.data() , d_dq.lb.data() , d_dq.ub.data() ,
 			d_nc ? d_dq.rl.data() : nullptr ,
@@ -339,8 +368,9 @@ int QPOASESMILPSolver::hot_start( void )
   // the new matrices go into the other copy, the current one being still
   // read by qpOASES while it moves to the new ones
   const int nxt = 1 - d_cur;
-  d_qpH[ nxt ] = d_oldH = d_dq.H;
-  d_qpA[ nxt ] = d_oldA = d_dq.A;
+  d_qpH[ nxt ] = d_dq.H;
+  d_qpA[ nxt ] = d_dq.A;
+  d_new_mat = false;
   ret = d_qp->hotstart( d_qpH[ nxt ].data() , d_dq.f.data() ,
 			d_nc ? d_qpA[ nxt ].data() : nullptr ,
 			d_dq.lb.data() , d_dq.ub.data() ,

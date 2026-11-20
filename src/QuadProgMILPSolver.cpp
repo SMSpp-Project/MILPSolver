@@ -22,6 +22,7 @@
 #include <array>
 #include <cmath>
 #include <stdexcept>
+#include <tuple>
 
 #include <Eigen/Dense>
 
@@ -94,6 +95,19 @@ void QuadProgMILPSolver::load_problem( void )
 				"variables are only supported if relaxed "
 				"(intRelaxIntVars)" ) );
 
+ make_data();
+ f_changed = 0;
+
+ d_x.assign( d_n , 0 );
+ d_y.assign( d_n + d_nc , 0 );
+ d_status = kError;
+
+ }  // end( QuadProgMILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+void QuadProgMILPSolver::make_data( void )
+{
  const int n = numcols;
  d_n = n;
  d_nc = numrows;
@@ -101,9 +115,7 @@ void QuadProgMILPSolver::load_problem( void )
 
  // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
  // 1/2 x' H x + h' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k
- d_h.assign( n , 0 );
- for( int j = 0 ; j < n ; ++j )
-  d_h[ j ] = d_sign * objective[ j ];
+ make_h();
 
  d_H.assign( std::size_t( n ) * n , 0 );
  for( int j = 0 ; j < n ; ++j )
@@ -120,88 +132,91 @@ void QuadProgMILPSolver::load_problem( void )
    }
   }
 
+ // the constraints of quadprog
+ make_constraints( true );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void QuadProgMILPSolver::make_h( void )
+{
+ d_h.resize( d_n );
+ for( int j = 0 ; j < d_n ; ++j )
+  d_h[ j ] = d_sign * objective[ j ];
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void QuadProgMILPSolver::make_constraints( bool all )
+{
+ const int n = d_n;
+
+ // the sides of the rows
+ std::vector< double > lbA( d_nc );
+ std::vector< double > ubA( d_nc );
+ for( int i = 0 ; i < d_nc ; ++i )
+  row_sides( i , lbA[ i ] , ubA[ i ] );
+
+ // the constraints of quadprog, the equalities first: index j < n of d_y is
+ // the bound of variable j, n + i is row i; each is ( index , sign , side )
+ std::vector< std::tuple< int , double , double > > cns;
+ for( int j = 0 ; j < n ; ++j )
+  if( lb[ j ] == ub[ j ] )
+   cns.emplace_back( j , 1 , lb[ j ] );
+ for( int i = 0 ; i < d_nc ; ++i )
+  if( lbA[ i ] == ubA[ i ] )
+   cns.emplace_back( n + i , 1 , lbA[ i ] );
+ const int meq = int( cns.size() );
+
+ for( int j = 0 ; j < n ; ++j )
+  if( lb[ j ] != ub[ j ] ) {
+   if( std::isfinite( lb[ j ] ) )
+    cns.emplace_back( j , 1 , lb[ j ] );
+   if( std::isfinite( ub[ j ] ) )
+    cns.emplace_back( j , -1 , ub[ j ] );
+   }
+ for( int i = 0 ; i < d_nc ; ++i )
+  if( lbA[ i ] != ubA[ i ] ) {
+   if( std::isfinite( lbA[ i ] ) )
+    cns.emplace_back( n + i , 1 , lbA[ i ] );
+   if( std::isfinite( ubA[ i ] ) )
+    cns.emplace_back( n + i , -1 , ubA[ i ] );
+   }
+
+ // the same constraints as before: only their right-hand sides change
+ bool same = ( ! all ) && ( meq == d_meq ) && ( cns.size() == d_b.size() );
+ for( std::size_t k = 0 ; same && ( k < cns.size() ) ; ++k )
+  same = ( std::get< 0 >( cns[ k ] ) == d_idx[ k ] ) &&
+         ( std::get< 1 >( cns[ k ] ) == d_sgn[ k ] );
+ if( same ) {
+  for( std::size_t k = 0 ; k < cns.size() ; ++k )
+   d_b[ k ] = std::get< 1 >( cns[ k ] ) * std::get< 2 >( cns[ k ] );
+  return;
+  }
+
  // the rows, dense and row-major, from the columns of MILPSolver
  std::vector< double > A( std::size_t( d_nc ) * n , 0 );
  for( int j = 0 ; j < n ; ++j )
   for( int k = matbeg[ j ] ; k < matbeg[ j ] + matcnt[ j ] ; ++k )
    A[ std::size_t( matind[ k ] ) * n + j ] += matval[ k ];
 
- // the sides of the rows
- std::vector< double > lbA( d_nc );
- std::vector< double > ubA( d_nc );
- for( int i = 0 ; i < d_nc ; ++i )
-  switch( sense[ i ] ) {
-   case( 'L' ): lbA[ i ] = - Inf< double >();
-                ubA[ i ] = rhs[ i ];
-                break;
-   case( 'G' ): lbA[ i ] = rhs[ i ];
-                ubA[ i ] = Inf< double >();
-                break;
-   case( 'E' ): lbA[ i ] = ubA[ i ] = rhs[ i ];
-                break;
-   case( 'R' ): if( rngval[ i ] > 0 ) {
-                 lbA[ i ] = rhs[ i ];
-                 ubA[ i ] = rhs[ i ] + rngval[ i ];
-                 }
-                else {
-                 lbA[ i ] = rhs[ i ] + rngval[ i ];
-                 ubA[ i ] = rhs[ i ];
-                 }
-                break;
-   default:
-    throw( std::invalid_argument( "QuadProgMILPSolver::load_problem: row " +
-				  std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
-   }
-
- // the constraints of quadprog, the equalities first: index j < n of d_y is
- // the bound of variable j, n + i is row i
- d_C.clear();
+ d_C.assign( cns.size() * n , 0 );
  d_b.clear();
  d_idx.clear();
  d_sgn.clear();
-
- auto add = [ & ]( int idx , double sgn , double side ) {
-  const auto k = d_C.size();
-  d_C.resize( k + n , 0 );
+ for( std::size_t k = 0 ; k < cns.size() ; ++k ) {
+  const auto [ idx , sgn , side ] = cns[ k ];
   if( idx < n )
-   d_C[ k + idx ] = sgn;
+   d_C[ k * n + idx ] = sgn;
   else
    for( int j = 0 ; j < n ; ++j )
-    d_C[ k + j ] = sgn * A[ std::size_t( idx - n ) * n + j ];
+    d_C[ k * n + j ] = sgn * A[ std::size_t( idx - n ) * n + j ];
   d_b.push_back( sgn * side );
   d_idx.push_back( idx );
   d_sgn.push_back( sgn );
-  };
-
- for( int j = 0 ; j < n ; ++j )
-  if( lb[ j ] == ub[ j ] )
-   add( j , 1 , lb[ j ] );
- for( int i = 0 ; i < d_nc ; ++i )
-  if( lbA[ i ] == ubA[ i ] )
-   add( n + i , 1 , lbA[ i ] );
- d_meq = int( d_b.size() );
-
- for( int j = 0 ; j < n ; ++j )
-  if( lb[ j ] != ub[ j ] ) {
-   if( std::isfinite( lb[ j ] ) )
-    add( j , 1 , lb[ j ] );
-   if( std::isfinite( ub[ j ] ) )
-    add( j , -1 , ub[ j ] );
-   }
- for( int i = 0 ; i < d_nc ; ++i )
-  if( lbA[ i ] != ubA[ i ] ) {
-   if( std::isfinite( lbA[ i ] ) )
-    add( n + i , 1 , lbA[ i ] );
-   if( std::isfinite( ubA[ i ] ) )
-    add( n + i , -1 , ubA[ i ] );
-   }
-
- d_x.assign( n , 0 );
- d_y.assign( n + d_nc , 0 );
- d_status = kError;
-
- }  // end( QuadProgMILPSolver::load_problem )
+  }
+ d_meq = meq;
+ }
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR SOLVING THE MODEL -----------------------*/
@@ -234,6 +249,18 @@ bool QuadProgMILPSolver::factorize( void )
 
 int QuadProgMILPSolver::guts_of_compute( void )
 {
+ // the data changed in place since the last solve [see updates_in_place()],
+ // the inverse of the factor of H being kept; a new sense changes H as well
+ if( f_changed & kSense )
+  make_data();
+ else {
+  if( f_changed & kObj )
+   make_h();
+  if( f_changed & ( kBounds | kSides ) )
+   make_constraints( false );
+  }
+ f_changed = 0;
+
  d_fval = 0;
 
  // with no variable, the problem is feasible if and only if each

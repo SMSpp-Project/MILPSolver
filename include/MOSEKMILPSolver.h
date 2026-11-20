@@ -551,11 +551,23 @@ class MOSEKMILPSolver : public MILPSolver {
  /// adds a single new dynamic ColVariable
  void add_dynamic_variable( const ColVariable * var ) override;
 
+ /// adds the given dynamic ColVariable with one MSK_appendvars()
+ void add_dynamic_variables(
+            const std::vector< const ColVariable * > & vars ) override;
+
  /// removes a single dynamic FRowConstraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
 
+ /// removes the given dynamic FRowConstraint with one MSK_removecons()
+ void remove_dynamic_constraints(
+            const std::vector< const FRowConstraint * > & cons ) override;
+
  /// removes a single dynamic ColVariable
  void remove_dynamic_variable( const ColVariable * var ) override;
+
+ /// removes the given dynamic ColVariable with one MSK_removevars()
+ void remove_dynamic_variables(
+            const std::vector< const ColVariable * > & vars ) override;
 
  /// removes a single dynamic bound (OneVarConstraint)
  void remove_dynamic_bound( const OneVarConstraint * con ) override;
@@ -615,6 +627,14 @@ class MOSEKMILPSolver : public MILPSolver {
 
  /// true if q_hessian has changed since it was last given to MOSEK
  bool f_hessian_changed = false;
+
+ /// true if q_hessian is to be given to MOSEK as a whole
+ bool f_hessian_full = false;
+
+ /// the entries ( i , j ), i >= j, changed since q_hessian was given
+ /** Meaningful only if f_hessian_full is false: a few changed entries are
+  * given one by one rather than the whole Hessian [see pass_hessian()]. */
+ std::vector< std::pair< int , int > > f_hessian_dirty;
 
  /** @name Handling of MOSEK parameters
   *
@@ -700,8 +720,14 @@ class MOSEKMILPSolver : public MILPSolver {
  /// sets the entry ( i , j ) of the Hessian to value, zero meaning removed
  void set_hessian( int i , int j , double value );
 
- /// the column c of the model is gone: so is it in the Hessian
- void remove_hessian_column( int c );
+ /// records that the entry ( i , j ), i >= j, of the Hessian has changed
+ void mark_hessian( int i , int j );
+
+ /// removes every entry of the Hessian in the rows and columns idx
+ void zero_hessian_vars( std::vector< int > idx );
+
+ /// the columns del (sorted) of the model are gone: so are they in Q
+ void remove_hessian_columns( const std::vector< int > & del );
 
  /// gives q_hessian to MOSEK if it has changed
  void pass_hessian( void );

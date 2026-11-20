@@ -147,15 +147,26 @@ void ProxQPMILPSolver::load_problem( void )
 				"variables are only supported if relaxed "
 				"(intRelaxIntVars)" ) );
 
+ make_data();
+ f_changed = 0;
+
+ d_loaded = true;
+ d_status = -1;
+ d_remap = true;
+
+ }  // end( ProxQPMILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+void ProxQPMILPSolver::make_data( void )
+{
  const int n = numcols;
  d_n = n;
  d_sign = ( objsense == -1 ) ? -1 : 1;  // ProxQP minimizes
 
  // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
  // 1/2 x' H x + g' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k
- d_g.resize( n );
- for( int j = 0 ; j < n ; ++j )
-  d_g[ j ] = d_sign * objective[ j ];
+ make_g();
 
  std::vector< Eigen::Triplet< double > > trp;
  for( int j = 0 ; j < n ; ++j )
@@ -176,51 +187,9 @@ void ProxQPMILPSolver::load_problem( void )
  d_H.setFromTriplets( trp.begin() , trp.end() );
  d_H.prune( 0.0 );
 
- // the sides of the rows: those whose two sides coincide are equalities,
- // which go in A, and all the others in C
- std::vector< double > lo( numrows ) , hi( numrows );
- d_row_pos.resize( numrows );
- d_neq = d_nin = 0;
- for( int i = 0 ; i < numrows ; ++i ) {
-  switch( sense[ i ] ) {
-   case( 'L' ): lo[ i ] = - Inf< double >();
-                hi[ i ] = rhs[ i ];
-                break;
-   case( 'G' ): lo[ i ] = rhs[ i ];
-                hi[ i ] = Inf< double >();
-                break;
-   case( 'E' ): lo[ i ] = hi[ i ] = rhs[ i ];
-                break;
-   case( 'R' ): if( rngval[ i ] > 0 ) {
-                 lo[ i ] = rhs[ i ];
-                 hi[ i ] = rhs[ i ] + rngval[ i ];
-                 }
-                else {
-                 lo[ i ] = rhs[ i ] + rngval[ i ];
-                 hi[ i ] = rhs[ i ];
-                 }
-                break;
-   default:
-    throw( std::invalid_argument( "ProxQPMILPSolver::load_problem: row " +
-				  std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
-   }
-  if( lo[ i ] == hi[ i ] )
-   d_row_pos[ i ] = d_neq++;
-  else
-   d_row_pos[ i ] = - ( ++d_nin );
-  }
-
- d_b.resize( d_neq );
- d_l.resize( d_nin );
- d_u.resize( d_nin );
- for( int i = 0 ; i < numrows ; ++i )
-  if( d_row_pos[ i ] >= 0 )
-   d_b[ d_row_pos[ i ] ] = lo[ i ];
-  else {
-   d_l[ - d_row_pos[ i ] - 1 ] = lo[ i ];
-   d_u[ - d_row_pos[ i ] - 1 ] = hi[ i ];
-   }
+ // the sides of the rows
+ row_layout( d_row_pos , d_neq , d_nin );
+ make_sides();
 
  // the rows, from the columns of MILPSolver
  std::vector< Eigen::Triplet< double > > trpA , trpC;
@@ -238,18 +207,151 @@ void ProxQPMILPSolver::load_problem( void )
  d_C.setFromTriplets( trpC.begin() , trpC.end() );
 
  // the bounds
- d_lbox.resize( n );
- d_ubox.resize( n );
- for( int j = 0 ; j < n ; ++j ) {
+ make_bounds();
+
+ d_loaded = true;
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ProxQPMILPSolver::make_g( void )
+{
+ d_g.resize( d_n );
+ for( int j = 0 ; j < d_n ; ++j )
+  d_g[ j ] = d_sign * objective[ j ];
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ProxQPMILPSolver::make_bounds( void )
+{
+ d_lbox.resize( d_n );
+ d_ubox.resize( d_n );
+ for( int j = 0 ; j < d_n ; ++j ) {
   d_lbox[ j ] = lb[ j ];
   d_ubox[ j ] = ub[ j ];
   }
+ }
 
- d_loaded = true;
- d_status = -1;
- d_remap = true;
+/*--------------------------------------------------------------------------*/
 
- }  // end( ProxQPMILPSolver::load_problem )
+void ProxQPMILPSolver::row_layout( std::vector< int > & row_pos , int & neq ,
+				   int & nin ) const
+{
+ // the rows whose two sides coincide are equalities, which go in A, and
+ // all the others in C
+ row_pos.resize( numrows );
+ neq = nin = 0;
+ for( int i = 0 ; i < numrows ; ++i ) {
+  double lo , hi;
+  row_sides( i , lo , hi );
+  if( lo == hi )
+   row_pos[ i ] = neq++;
+  else
+   row_pos[ i ] = - ( ++nin );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ProxQPMILPSolver::make_sides( void )
+{
+ d_b.resize( d_neq );
+ d_l.resize( d_nin );
+ d_u.resize( d_nin );
+ for( int i = 0 ; i < numrows ; ++i ) {
+  double lo , hi;
+  row_sides( i , lo , hi );
+  if( d_row_pos[ i ] >= 0 )
+   d_b[ d_row_pos[ i ] ] = lo;
+  else {
+   d_l[ - d_row_pos[ i ] - 1 ] = lo;
+   d_u[ - d_row_pos[ i ] - 1 ] = hi;
+   }
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+int ProxQPMILPSolver::sparse_sides( std::vector< int > & box_pos ,
+				    Eigen::VectorXd & l ,
+				    Eigen::VectorXd & u ) const
+{
+ // the rows of C, then a row for each variable with a finite bound
+ box_pos.assign( d_n , -1 );
+ int r = d_nin;
+ for( int j = 0 ; j < d_n ; ++j )
+  if( ( d_lbox[ j ] > - Inf< double >() ) ||
+      ( d_ubox[ j ] < Inf< double >() ) )
+   box_pos[ j ] = r++;
+
+ l.resize( r );
+ u.resize( r );
+ l.head( d_nin ) = d_l;
+ u.head( d_nin ) = d_u;
+ for( int j = 0 ; j < d_n ; ++j )
+  if( box_pos[ j ] >= 0 ) {
+   l[ box_pos[ j ] ] = d_lbox[ j ];
+   u[ box_pos[ j ] ] = d_ubox[ j ];
+   }
+ return( r );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void ProxQPMILPSolver::update_data( void )
+{
+ // a new sense changes H as well, and new sides that move a row between
+ // the equalities and the inequalities change A and C: the data are made
+ // again, and ProxQP set up again, the multipliers of the equalities that
+ // are still there kept for the warm start
+ if( f_changed & kSense ) {
+  make_data();
+  return;
+  }
+ if( f_changed & kSides ) {
+  std::vector< int > row_pos;
+  int neq , nin;
+  row_layout( row_pos , neq , nin );
+  if( row_pos != d_row_pos ) {
+   if( ! d_remap ) {
+    Eigen::VectorXd y = Eigen::VectorXd::Zero( neq );
+    for( int i = 0 ; i < numrows ; ++i )
+     if( ( d_row_pos[ i ] >= 0 ) && ( d_row_pos[ i ] < d_y.size() ) &&
+	 ( row_pos[ i ] >= 0 ) )
+      y[ row_pos[ i ] ] = d_y[ d_row_pos[ i ] ];
+    d_y = std::move( y );
+    }
+   make_data();
+   return;
+   }
+  make_sides();
+  }
+ if( f_changed & kObj )
+  make_g();
+ if( f_changed & kBounds )
+  make_bounds();
+
+ // the vectors are given to the solver of ProxQP already set up, if any,
+ // which keeps its preconditioner and its factorization; the sparse one
+ // is set up again if the variables with a finite bound change
+ if( d_loaded || ( d_backend != d_par_backend ) || ( ! ( d_dqp || d_sqp ) ) )
+  return;
+ if( d_dqp )
+  d_dqp->update( proxsuite::nullopt , d_g , proxsuite::nullopt , d_b ,
+		 proxsuite::nullopt , d_l , d_u , d_lbox , d_ubox , false );
+ else {
+  std::vector< int > box_pos;
+  Eigen::VectorXd l , u;
+  sparse_sides( box_pos , l , u );
+  if( box_pos != d_box_pos ) {
+   d_loaded = true;
+   return;
+   }
+  d_sqp->update( proxsuite::nullopt , d_g , proxsuite::nullopt , d_b ,
+		 proxsuite::nullopt , l , u , false );
+  }
+ }
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR SOLVING THE MODEL -----------------------*/
@@ -257,6 +359,12 @@ void ProxQPMILPSolver::load_problem( void )
 
 int ProxQPMILPSolver::guts_of_compute( void )
 {
+ // the data changed in place since the last solve [see updates_in_place()]
+ if( f_changed ) {
+  update_data();
+  f_changed = 0;
+  }
+
  // the settings that may change between two solves
  auto set = [ this ]( pqp::Settings< double > & s ) {
   s.eps_abs = d_eps_abs;
@@ -305,30 +413,17 @@ int ProxQPMILPSolver::guts_of_compute( void )
 		true , d_rho , d_mu_eq , d_mu_in );
    }
   else {                  // sparse, with the finite bounds as rows of C
-   d_box_pos.assign( d_n , -1 );
-   std::vector< double > lo , hi;
+   Eigen::VectorXd l , u;
+   const int r = sparse_sides( d_box_pos , l , u );
    std::vector< Eigen::Triplet< double > > trp;
    for( int k = 0 ; k < d_C.outerSize() ; ++k )
     for( SpMat::InnerIterator it( d_C , k ) ; it ; ++it )
      trp.emplace_back( it.row() , it.col() , it.value() );
-   int r = d_nin;
    for( int j = 0 ; j < d_n ; ++j )
-    if( ( d_lbox[ j ] > - Inf< double >() ) ||
-	( d_ubox[ j ] < Inf< double >() ) ) {
-     trp.emplace_back( r , j , 1.0 );
-     lo.push_back( d_lbox[ j ] );
-     hi.push_back( d_ubox[ j ] );
-     d_box_pos[ j ] = r++;
-     }
+    if( d_box_pos[ j ] >= 0 )
+     trp.emplace_back( d_box_pos[ j ] , j , 1.0 );
    SpMat C( r , d_n );
    C.setFromTriplets( trp.begin() , trp.end() );
-   Eigen::VectorXd l( r ) , u( r );
-   l.head( d_nin ) = d_l;
-   u.head( d_nin ) = d_u;
-   for( int i = d_nin ; i < r ; ++i ) {
-    l[ i ] = lo[ i - d_nin ];
-    u[ i ] = hi[ i - d_nin ];
-    }
 
    d_sqp = std::make_unique< SQP >( d_n , d_neq , r );
    set( d_sqp->settings );

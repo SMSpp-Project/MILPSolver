@@ -588,29 +588,30 @@ class CPXMILPSolver : public MILPSolver {
  /// handles a bound (OneVarConstraint) Modification
  void bound_modification( const OneVarConstraintMod * mod ) override;
 
- /// changes the linear coefficients of a whole group in one operation
- /** The entries of the rows go out with one CPXchgcoeflist() and the costs
-  * with one CPXchgobj(), with the old cost of each column read once for the
-  * whole group and the deltas of a column the group touches more than once
-  * summed [see MILPSolver::change_coefficients()]. */
-
  /// adds the whole column of each of the given Variable in one operation
- /** The columns are born empty and get their entries in one
-   * CPXchgcoeflist() and their costs in one CPXchgobj() [see
-   * MILPSolver::add_columns()]. */
+ /** The columns are added by one CPXnewcols() with their costs [see
+   * add_dynamic_variables()], and get their entries in one
+   * CPXchgcoeflist() [see MILPSolver::add_columns()]. */
 
  bool add_columns( const std::vector< Variable * > & vars ,
                    const GroupModification * gmod ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// removes the whole column of each of the given Variable
- /** One deletion per column, and none of the coefficients is touched: the
-   * deletion takes them away [see MILPSolver::remove_columns()]. */
+ /** One CPXdelsetcols() for all of them, and none of the coefficients is
+   * touched: the deletion takes them away [see MILPSolver::remove_columns()].
+   */
 
  bool remove_columns( const std::vector< Variable * > & vars ,
                       const GroupModification * gmod ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// changes the linear coefficients of a whole group in one operation
+ /** The entries of the rows go out with one CPXchgcoeflist() and the costs
+  * with one CPXchgobj(), with the old costs read together [see
+  * get_obj_coefficients()] and the deltas of a column the group touches more
+  * than once summed [see MILPSolver::change_coefficients()]. */
+
  bool change_coefficients(
                const std::vector< const FunctionMod * > & mods ) override;
 
@@ -672,11 +673,10 @@ class CPXMILPSolver : public MILPSolver {
  void add_dynamic_constraint( const FRowConstraint * con ) override;
 
  /// batch-adds a sequence of new dynamic FRowConstraints
- /** Override the default loop implementation by routing the whole
-  * batch through a single CPXaddrows call. Ranged rows (which need
-  * the separate CPXchgrngval post-step) and rows flagged as inverted
-  * (f_inverted_rows) are filtered out of the batch and added one by
-  * one via the base add_dynamic_constraint fallback. */
+ /** All the rows go in one CPXaddrows(), in the order of \p cons, and the
+  * ranges of the ranged ones in one CPXchgrngval() after it; a row with
+  * \f$ lhs > rhs \f$ is added as an equality at its rhs and recorded in
+  * f_inverted_rows. */
 
  void add_dynamic_constraints(
           const std::vector< const FRowConstraint * > & cons ) override;
@@ -687,11 +687,29 @@ class CPXMILPSolver : public MILPSolver {
  /// adds a single new dynamic ColVariable
  void add_dynamic_variable( const ColVariable * var ) override;
 
+ /// adds several dynamic ColVariable with one CPXnewcols()
+ void add_dynamic_variables(
+             const std::vector< const ColVariable * > & vars ) override;
+
+ /// adds the dynamic ColVariable with the given costs
+ /** As add_dynamic_variables(), the columns being born with the costs in
+  * \p obj, of the same size as \p vars, rather than zero. */
+ void add_dynamic_variables( const std::vector< const ColVariable * > & vars ,
+                             const std::vector< double > & obj );
+
  /// removes a single dynamic FRowConstraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
 
+ /// removes several dynamic FRowConstraint with one CPXdelsetrows()
+ void remove_dynamic_constraints(
+          const std::vector< const FRowConstraint * > & cons ) override;
+
  /// removes a single dynamic ColVariable
  void remove_dynamic_variable( const ColVariable * var ) override;
+
+ /// removes several dynamic ColVariable with one CPXdelsetcols()
+ void remove_dynamic_variables(
+             const std::vector< const ColVariable * > & vars ) override;
 
  /// removes a single dynamic bound (OneVarConstraint)
  void remove_dynamic_bound( const OneVarConstraint * con ) override;
@@ -763,8 +781,15 @@ class CPXMILPSolver : public MILPSolver {
  KeptSolution f_kept;
 
  /// the basis kept by free_workspace(), until the next solve
+ /**< The rows and the columns added or deleted in between are added to or
+  * deleted from it too [see basis_add() and basis_del()]. */
  std::vector< int > f_cstat;
  std::vector< int > f_rstat;
+
+ /// the Farkas certificate of the last solve [see dual_farkas()]
+ std::vector< double > f_farkas_y;
+ double f_farkas_proof = 0;  ///< the second output of CPXdualfarkas()
+ int f_farkas_status = -1;   ///< what CPXdualfarkas() gave, -1 if not read
 
  // note: CutSepPar (the bitwise-encoded cut/lazy separation parameter)
  // is now an inherited member of MILPSolver base
@@ -824,6 +849,13 @@ class CPXMILPSolver : public MILPSolver {
   std::vector< int > cpx_quad_var_aux;
   std::vector< int > cpx_quad_con_aux;
   std::vector< int > cpx_idx_aux_qvar; // Need to be sorted
+
+ /// the sorted indices of the quadratic rows with no linear part
+ /**< CPLEX has no linear row for them [see load_problem()]. */
+ std::vector< int > cpx_qrows_nolin;
+
+ /// the CPLEX index of the column of index idx, past the auxiliary ones
+ int cpx_skip_aux( int idx ) const;
 
  /// true if row i is a quadratic constraint
  /** After load_problem() the base representation, q_part included, is gone
@@ -918,12 +950,39 @@ class CPXMILPSolver : public MILPSolver {
  void free_workspace( void );
 
  /// gives the problem the basis kept by free_workspace(), if any
- /** A row or a column added since gets the status of a basic row or of a
-  * column at its lower bound, which is how CPLEX warm starts after the
-  * same change to a problem it has kept; a problem with fewer rows or
-  * columns than the basis starts cold. */
+ /** The basis has followed the rows and the columns added and deleted
+  * since [see basis_add() and basis_del()]; one whose size is not that of
+  * the problem is dropped, and the solve starts cold, and a number of basic
+  * statuses other than that of the rows is made up with the slacks of the
+  * last rows. */
 
  void restore_basis( void );
+
+ /// appends to the kept basis, if any, k rows and the given columns
+ /** A row is basic, a column is at its lower bound, or at its upper one if
+  * it has none, or free and nonbasic if it has neither; \p lb and \p ub
+  * are CPLEX bounds [see get_problem_bounds()]. */
+
+ void basis_add( int k , const std::vector< double > & lb = {} ,
+                 const std::vector< double > & ub = {} );
+
+ /// deletes from the kept basis, if any, the given rows or columns
+ /** \p del holds sorted and distinct indices, of rows if \p rows. */
+
+ void basis_del( const std::vector< int > & del , bool rows );
+
+ /// CPXdualfarkas() on the last solve, read once and kept
+ /** Returns what CPXdualfarkas() returns, its outputs being in f_farkas_y
+  * and f_farkas_proof. */
+
+ int dual_farkas( void );
+
+ /// the costs CPLEX has for the columns in idx
+ /** Read with one CPXgetobj() over the range of \p idx if it is not much
+  * larger than \p idx, else one per column. */
+
+ std::vector< double > get_obj_coefficients(
+                                       const std::vector< int > & idx ) const;
 
  /** @name The solution of the last solve
   * Each stands for the CPLEX call with the same arguments but the

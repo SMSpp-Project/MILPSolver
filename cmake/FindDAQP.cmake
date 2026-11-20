@@ -71,10 +71,15 @@ if (NOT DAQP_FOUND)
     # ----- Check that it is 0.8.2 or later --------------------------------- #
     # The headers carry no version number: DAQP_DEFAULT_EPS_PROX, which
     # DAQPMILPSolver uses, is in those of 0.8.2 and later only, hence
-    # DAQP_EPS_PROX is required
+    # DAQP_EPS_PROX is required, and so is daqp_update_ldp() in utils.h,
+    # which gives new data to a workspace already set up
     if (DAQP_INCLUDE_DIR AND EXISTS "${DAQP_INCLUDE_DIR}/daqp/constants.h")
         file(STRINGS "${DAQP_INCLUDE_DIR}/daqp/constants.h" DAQP_EPS_PROX
              REGEX "define[ \t]+DAQP_DEFAULT_EPS_PROX")
+    endif ()
+    if (DAQP_INCLUDE_DIR AND EXISTS "${DAQP_INCLUDE_DIR}/daqp/utils.h")
+        file(STRINGS "${DAQP_INCLUDE_DIR}/daqp/utils.h" DAQP_UPDATE_LDP
+             REGEX "int[ \t]+daqp_update_ldp[ \t]*\\(")
     endif ()
 
     # ----- Find the DAQP library ------------------------------------------- #
@@ -111,7 +116,8 @@ if (NOT DAQP_FOUND)
     # triplet) has none, and the library is then a static one
     find_package_handle_standard_args(
             DAQP
-            REQUIRED_VARS DAQP_LIBRARY DAQP_INCLUDE_DIR DAQP_EPS_PROX)
+            REQUIRED_VARS DAQP_LIBRARY DAQP_INCLUDE_DIR DAQP_EPS_PROX
+                          DAQP_UPDATE_LDP)
 endif ()
 
 # ----- Export the target --------------------------------------------------- #

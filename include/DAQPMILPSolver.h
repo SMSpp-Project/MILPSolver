@@ -76,13 +76,19 @@ namespace SMSpp_di_unipi_it
  * - quadratic constraints are not supported, and integer variables are only
  *   accepted if relaxed via intRelaxIntVars;
  *
- * - DAQP does not support changing the loaded problem in place: whenever a
- *   Modification is received the problem is loaded again whole from the
- *   Block [see MILPSolver::reload_on_modification()], and the working set
- *   of the previous solution, on the variables and rows that are still
- *   there, is the start of the next one, but for the constraints that
- *   either problem fixes (a variable with equal bounds, an equality row),
- *   which are active in the new one if and only if it fixes them;
+ * - DAQP does not support changing the structure of the loaded problem: a
+ *   Modification that changes the linear part of the Objective, the bounds
+ *   of the variables or the sides of the rows is given to the workspace
+ *   already set up, which keeps its factorization and its working set, as
+ *   long as the columns and the rows that DAQP is given and the
+ *   constraints that the problem fixes are the same [see
+ *   MILPSolver::updates_in_place()], DAQP being set up again otherwise;
+ *   any other one has the problem loaded again whole from the Block [see
+ *   MILPSolver::reload_on_modification()], and the working set of the
+ *   previous solution, on the variables and rows that are still there, is
+ *   the start of the next one, but for the constraints that either problem
+ *   fixes (a variable with equal bounds, an equality row), which are
+ *   active in the new one if and only if it fixes them;
  *
  * - a problem whose H is singular, e.g., a Linear Program, is solved by
  *   proximal-point iterations, whose solution and multipliers are accurate
@@ -286,9 +292,13 @@ class DAQPMILPSolver : public MILPSolver
 
  int guts_of_compute( void ) override;
 
- /// DAQP does not change a problem in place: it is always loaded again
+ /// the problem is loaded again on a Modification that changes more than data
 
  bool reload_on_modification( void ) override { return( true ); }
+
+ /// the data are changed in place [see update_data()]
+
+ bool updates_in_place( void ) const override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE PART --------------------------------*/
@@ -303,6 +313,22 @@ class DAQPMILPSolver : public MILPSolver
  /// frees the DAQP workspace, keeping its working set for the next start
 
  void free_workspace( void );
+
+ /// writes the problem in the format of DAQP out of that of MILPSolver
+
+ void make_data( void );
+
+ /// writes the sides d_bl, d_bu and d_fixed out of d_dq
+
+ void make_sides( void );
+
+ /// gives DAQP the data changed in place [see MILPSolver::f_changed]
+ /** The new linear term and sides are written over the old ones and given
+  * to the workspace already set up [see MILPSolver::refresh_dense_qp()];
+  * the problem is made again if its columns or rows change, and DAQP set
+  * up again if the constraints that it fixes change. */
+
+ void update_data( void );
 
  /// true if the rows and the bounds of the problem admit a point
  /** Solves the problem with no linear term, which has a solution if and

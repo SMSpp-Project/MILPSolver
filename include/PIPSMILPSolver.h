@@ -404,40 +404,14 @@ class PIPSMILPSolver : public MILPSolver
 /*------------------- METHODS FOR MODIFYING THE PROBLEM --------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for modifying the problem
- *
- * PIPS-IPM++ does not support changing the loaded model, hence every
- * Modification marks the model for a full rebuild: the base MILPSolver
- * representation and the PIPS tree are reconstructed from scratch (by
- * load_problem()) before the next solve, and all the other Modification
- * in the queue are discarded.
  * @{ */
 
- /// handles a Variable Modification by marking the model for a rebuild
- void var_modification( const VariableMod * mod ) override;
+ /// PIPS-IPM++ is not given the changes of a problem: it is loaded again
+ /** PIPS-IPM++ does not support changing the loaded model, hence a pending
+  * Modification has the base MILPSolver representation and the PIPS tree
+  * reconstructed from scratch by load_problem() before the next solve. */
 
- /// handles an Objective Modification by marking the model for a rebuild
- void objective_modification( const ObjectiveMod * mod ) override;
-
- /// handles a Constraint Modification by marking the model for a rebuild
- void const_modification( const ConstraintMod * mod ) override;
-
- /// handles a bound Modification by marking the model for a rebuild
- void bound_modification( const OneVarConstraintMod * mod ) override;
-
- /// handles an Objective Function Modification by marking a rebuild
- void objective_function_modification( const FunctionMod * mod ) override;
-
- /// handles a Constraint Function Modification by marking a rebuild
- void constraint_function_modification( const FunctionMod * mod ) override;
-
- /// handles an Objective FunctionModVars by marking the model for a rebuild
- void objective_fvars_modification( const FunctionModVars * mod ) override;
-
- /// handles a Constraint FunctionModVars by marking the model for a rebuild
- void constraint_fvars_modification( const FunctionModVars * mod ) override;
-
- /// handles a dynamic Modification by marking the model for a rebuild
- void dynamic_modification( const BlockModAD * mod ) override;
+ bool reload_on_modification( void ) override { return( true ); }
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------- HANDLING OF THE PIPS PARAMETERS ----------------------*/

@@ -92,9 +92,13 @@ namespace SMSpp_di_unipi_it
  *   accepted if relaxed via intRelaxIntVars;
  *
  * - qpOASES does not support adding or removing variables or constraints:
- *   whenever a Modification is received the problem is loaded again whole
- *   from the Block [see MILPSolver::reload_on_modification()], and if no
- *   variable or row has been added, removed or moved the next solve is a
+ *   a Modification that changes the linear part of the Objective, the
+ *   bounds of the variables or the sides of the rows changes these data in
+ *   place [see MILPSolver::updates_in_place()], and any other one has the
+ *   problem loaded again whole from the Block [see
+ *   MILPSolver::reload_on_modification()]; if no variable or row has been
+ *   added, removed or moved, nor has a variable got fixed or stopped being
+ *   so, nor a row got or lost all its finite sides, the next solve is a
  *   hot start from the solution of the previous one, otherwise it starts
  *   from the guess that working set, solution and multipliers of the
  *   previous one give on the variables and rows that are still there; a
@@ -333,9 +337,13 @@ class QPOASESMILPSolver : public MILPSolver
 
  int guts_of_compute( void ) override;
 
- /// qpOASES cannot change the size of a problem: it is always loaded again
+ /// the problem is loaded again on a Modification that changes more than data
 
  bool reload_on_modification( void ) override { return( true ); }
+
+ /// the data are changed in place [see guts_of_compute()]
+
+ bool updates_in_place( void ) const override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE PART --------------------------------*/
@@ -343,9 +351,16 @@ class QPOASESMILPSolver : public MILPSolver
 
  private:
 
+ /// writes the problem as a DenseQP, and the guess for its first solve
+ /** The guess is made out of the solution of the previous problem, whose
+  * columns and rows are those of MILPSolver before load_problem() if
+  * \p reloaded and the same as now otherwise. */
+
+ void make_data( bool reloaded );
+
  /// solves the problem in a new problem of qpOASES
  /** The new problem of qpOASES is initialized from the guess that
-  * load_problem() has made out of the previous one if \p guess, from
+  * make_data() has made out of the previous one if \p guess, from
   * scratch otherwise. */
 
  int solve_from_scratch( bool guess = false );
@@ -402,8 +417,7 @@ class QPOASESMILPSolver : public MILPSolver
  std::vector< double > d_qpH[ 2 ];  ///< copies of H for qpOASES
  std::vector< double > d_qpA[ 2 ];  ///< copies of A for qpOASES
  int d_cur = 0;                     ///< the copy qpOASES is working on
- std::vector< double > d_oldH;  ///< H of the current problem, as loaded
- std::vector< double > d_oldA;  ///< A of the current problem, as loaded
+ bool d_new_mat = true;   ///< true if d_dq has other H or A than d_qp
 
  std::unique_ptr< qpOASES::SQProblem > d_qp;   ///< the problem of qpOASES
  std::unique_ptr< qpOASES::Options > d_options;  ///< its Options

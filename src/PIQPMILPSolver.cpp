@@ -164,15 +164,25 @@ void PIQPMILPSolver::load_problem( void )
 				"variables are only supported if relaxed "
 				"(intRelaxIntVars)" ) );
 
+ make_data();
+ f_changed = 0;
+
+ d_loaded = true;
+ d_status = 0;
+
+ }  // end( PIQPMILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+void PIQPMILPSolver::make_data( void )
+{
  const int n = numcols;
  d_n = n;
  d_sign = ( objsense == -1 ) ? -1 : 1;  // PIQP minimizes
 
  // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
  // 1/2 x' P x + c' x with P_jj = 2 q_j and P_ij = P_ji = ndq_k
- d_c.resize( n );
- for( int j = 0 ; j < n ; ++j )
-  d_c[ j ] = d_sign * objective[ j ];
+ make_c();
 
  std::vector< Eigen::Triplet< double > > trp;
  for( int j = 0 ; j < n ; ++j )
@@ -193,56 +203,9 @@ void PIQPMILPSolver::load_problem( void )
  d_P.setFromTriplets( trp.begin() , trp.end() );
  d_P.prune( 0.0 );
 
- // the sides of the rows: those whose two sides coincide are equalities,
- // which go in A, those with no finite side (as PIQP sees it) are left out,
- // and all the others go in G
- std::vector< double > lo( numrows ) , hi( numrows );
- d_row_pos.resize( numrows );
- d_neq = d_nin = 0;
- for( int i = 0 ; i < numrows ; ++i ) {
-  switch( sense[ i ] ) {
-   case( 'L' ): lo[ i ] = - Inf< double >();
-                hi[ i ] = rhs[ i ];
-                break;
-   case( 'G' ): lo[ i ] = rhs[ i ];
-                hi[ i ] = Inf< double >();
-                break;
-   case( 'E' ): lo[ i ] = hi[ i ] = rhs[ i ];
-                break;
-   case( 'R' ): if( rngval[ i ] > 0 ) {
-                 lo[ i ] = rhs[ i ];
-                 hi[ i ] = rhs[ i ] + rngval[ i ];
-                 }
-                else {
-                 lo[ i ] = rhs[ i ] + rngval[ i ];
-                 hi[ i ] = rhs[ i ];
-                 }
-                break;
-   default:
-    throw( std::invalid_argument( "PIQPMILPSolver::load_problem: row " +
-				  std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
-   }
-  if( lo[ i ] == hi[ i ] )
-   d_row_pos[ i ] = d_neq++;
-  else
-   if( ( lo[ i ] <= - PIQP_INF ) && ( hi[ i ] >= PIQP_INF ) )
-    d_row_pos[ i ] = PIQP_free_row;
-   else
-    d_row_pos[ i ] = - ( ++d_nin );
-  }
-
- d_b.resize( d_neq );
- d_hl.resize( d_nin );
- d_hu.resize( d_nin );
- for( int i = 0 ; i < numrows ; ++i )
-  if( d_row_pos[ i ] >= 0 )
-   d_b[ d_row_pos[ i ] ] = lo[ i ];
-  else
-   if( d_row_pos[ i ] != PIQP_free_row ) {
-    d_hl[ - d_row_pos[ i ] - 1 ] = lo[ i ];
-    d_hu[ - d_row_pos[ i ] - 1 ] = hi[ i ];
-    }
+ // the sides of the rows
+ row_layout( d_row_pos , d_neq , d_nin );
+ make_sides();
 
  // the rows, from the columns of MILPSolver
  std::vector< Eigen::Triplet< double > > trpA , trpG;
@@ -261,17 +224,112 @@ void PIQPMILPSolver::load_problem( void )
  d_G.setFromTriplets( trpG.begin() , trpG.end() );
 
  // the bounds, the box constraints of PIQP
- d_xl.resize( n );
- d_xu.resize( n );
- for( int j = 0 ; j < n ; ++j ) {
+ make_bounds();
+
+ d_loaded = true;
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void PIQPMILPSolver::make_c( void )
+{
+ d_c.resize( d_n );
+ for( int j = 0 ; j < d_n ; ++j )
+  d_c[ j ] = d_sign * objective[ j ];
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void PIQPMILPSolver::make_bounds( void )
+{
+ d_xl.resize( d_n );
+ d_xu.resize( d_n );
+ for( int j = 0 ; j < d_n ; ++j ) {
   d_xl[ j ] = lb[ j ];
   d_xu[ j ] = ub[ j ];
   }
+ }
 
- d_loaded = true;
- d_status = 0;
+/*--------------------------------------------------------------------------*/
 
- }  // end( PIQPMILPSolver::load_problem )
+void PIQPMILPSolver::row_layout( std::vector< int > & row_pos , int & neq ,
+				 int & nin ) const
+{
+ // the rows whose two sides coincide are equalities, which go in A, those
+ // with no finite side (as PIQP sees it) are left out, and all the others
+ // go in G
+ row_pos.resize( numrows );
+ neq = nin = 0;
+ for( int i = 0 ; i < numrows ; ++i ) {
+  double lo , hi;
+  row_sides( i , lo , hi );
+  if( lo == hi )
+   row_pos[ i ] = neq++;
+  else
+   if( ( lo <= - PIQP_INF ) && ( hi >= PIQP_INF ) )
+    row_pos[ i ] = PIQP_free_row;
+   else
+    row_pos[ i ] = - ( ++nin );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void PIQPMILPSolver::make_sides( void )
+{
+ d_b.resize( d_neq );
+ d_hl.resize( d_nin );
+ d_hu.resize( d_nin );
+ for( int i = 0 ; i < numrows ; ++i ) {
+  double lo , hi;
+  row_sides( i , lo , hi );
+  if( d_row_pos[ i ] >= 0 )
+   d_b[ d_row_pos[ i ] ] = lo;
+  else
+   if( d_row_pos[ i ] != PIQP_free_row ) {
+    d_hl[ - d_row_pos[ i ] - 1 ] = lo;
+    d_hu[ - d_row_pos[ i ] - 1 ] = hi;
+    }
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void PIQPMILPSolver::update_data( void )
+{
+ // a new sense changes P as well, and new sides that move a row between
+ // the equalities, the inequalities and the rows left out change A and G:
+ // the data are made again, and PIQP set up again
+ if( f_changed & kSense ) {
+  make_data();
+  return;
+  }
+ if( f_changed & kSides ) {
+  std::vector< int > row_pos;
+  int neq , nin;
+  row_layout( row_pos , neq , nin );
+  if( row_pos != d_row_pos ) {
+   make_data();
+   return;
+   }
+  make_sides();
+  }
+ if( f_changed & kObj )
+  make_c();
+ if( f_changed & kBounds )
+  make_bounds();
+
+ // the vectors are given to the solver of PIQP already set up, if any,
+ // which keeps the structure of its factorization
+ if( d_loaded || ( ! d_slv ) || ( d_backend != d_par_backend ) )
+  return;
+ if( d_slv->dense )
+  d_slv->dense->update( piqp::nullopt , d_c , piqp::nullopt , d_b ,
+			piqp::nullopt , d_hl , d_hu , d_xl , d_xu );
+ else
+  d_slv->sparse->update( piqp::nullopt , d_c , piqp::nullopt , d_b ,
+			 piqp::nullopt , d_hl , d_hu , d_xl , d_xu );
+ }
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR SOLVING THE MODEL -----------------------*/
@@ -279,6 +337,12 @@ void PIQPMILPSolver::load_problem( void )
 
 int PIQPMILPSolver::guts_of_compute( void )
 {
+ // the data changed in place since the last solve [see updates_in_place()]
+ if( f_changed ) {
+  update_data();
+  f_changed = 0;
+  }
+
  // the settings that are read by the setup of PIQP
  auto set_setup = [ this ]( piqp::Settings< double > & s ) {
   s.preconditioner_iter = d_precond_iter;

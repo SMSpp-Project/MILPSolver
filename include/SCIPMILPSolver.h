@@ -37,6 +37,8 @@
 
 #include "MILPSolver.h"
 
+#include <unordered_map>
+
 #include <scip/scip.h>
 #include <objscip/objscip.h>
 
@@ -261,8 +263,10 @@ class SCIPMILPSolver : public MILPSolver
 
  void unset_f_cb_mutex( void );
 
- /// get the actual SCIP var used
- std::vector< SCIP_VAR * > get_SCIP_var( void );
+ /// the SCIP variables of the columns, in their order
+ const std::vector< SCIP_VAR * > & get_SCIP_var( void ) const {
+  return( vars );
+  }
 
   /** 
  * Adds multiple MIP starts to a MIP problem. This function allows the solver 
@@ -559,18 +563,32 @@ class SCIPMILPSolver : public MILPSolver
   * To map these new structures with the original model, we keep track 
   * of the generated auxiliary constraint and variable. 
   *
-  * NOTE: to modify a quadratic coefficient, in SCIP it is sufficient to 
-  * access the vector of coefficients returned by SCIPgetCoefsExprSum() 
-  * and change the element in the right position. Thus, we also keep track
-  * of the order in which the coefficients have been inserted using 
-  * vectors obj_idx1 and obj_idx2. */
+  * NOTE: to modify a quadratic coefficient, in SCIP it is sufficient to
+  * access the vector of coefficients returned by SCIPgetCoefsExprSum()
+  * and change the element in the right position, which qobj_pos gives for
+  * each term x_i x_j by the pair of the SCIP variables. A term stays in
+  * the expression, with coefficient 0 if need be, and the expression
+  * keeps its variables captured, so that the positions and the pointers
+  * stay valid while columns come and go. */
 
  /// SCIP auxiliary variables for QPs
  SCIP_VAR * obj_aux_var;
  /// SCIP auxiliary constraints for QPs
  SCIP_CONS * obj_aux_con;
- std::vector< int > qobj_idx1;
- std::vector< int > qobj_idx2;
+
+ /// hash of a pair of SCIP variables
+ struct QTermHash {
+  std::size_t operator()( const std::pair< SCIP_VAR * , SCIP_VAR * > & p )
+   const {
+   const auto h = std::hash< SCIP_VAR * >()( p.first );
+   return( h ^ ( std::hash< SCIP_VAR * >()( p.second ) +
+                 0x9e3779b97f4a7c15ULL + ( h << 6 ) + ( h >> 2 ) ) );
+   }
+  };
+
+ /// position of the term x_i x_j in the sum of obj_aux_con
+ std::unordered_map< std::pair< SCIP_VAR * , SCIP_VAR * > , int ,
+                     QTermHash > qobj_pos;
 
  /// true if the objective has changed since SCIP was told whether the
  /// problem is convex, which is then done before the next solve
@@ -648,8 +666,25 @@ class SCIPMILPSolver : public MILPSolver
  // no point in defining it, just calls the base class method
  // void dynamic_modification( const BlockModAD * mod ) override;
 
+ /// changes the linear coefficients of the Objective in place
+ void set_linear_objective( const std::vector< double > & obj ) override;
+
+ /// changes the diagonal of the quadratic Objective in place
+ void set_quadratic_objective( const std::vector< int > & cols ,
+                               const std::vector< double > & vals ) override;
+
+ /// changes coefficients of the linear rows in place
+ void set_matrix_coefficients(
+	    const std::vector< const FRowConstraint * > & rows ,
+	    const std::vector< int > & cols ,
+	    const std::vector< double > & vals ) override;
+
  /// adds a single new dynamic constraint
  void add_dynamic_constraint( const FRowConstraint * con ) override;
+
+ /// adds several dynamic constraints, registered at once
+ void add_dynamic_constraints(
+               const std::vector< const FRowConstraint * > & rows ) override;
 
  /// adds a single new dynamic bound
  void add_dynamic_bound( const OneVarConstraint * con ) override;
@@ -657,11 +692,23 @@ class SCIPMILPSolver : public MILPSolver
  /// adds a single new dynamic variable
  void add_dynamic_variable( const ColVariable * var ) override;
 
+ /// adds several dynamic variables, registered at once
+ void add_dynamic_variables(
+                  const std::vector< const ColVariable * > & cols ) override;
+
  /// removes a single dynamic constraint
  void remove_dynamic_constraint( const FRowConstraint * con ) override;
 
+ /// removes several dynamic constraints, compacting cons once
+ void remove_dynamic_constraints(
+               const std::vector< const FRowConstraint * > & rows ) override;
+
  /// removes a single dynamic variable
  void remove_dynamic_variable( const ColVariable * var ) override;
+
+ /// removes several dynamic variables, compacting vars once
+ void remove_dynamic_variables(
+                  const std::vector< const ColVariable * > & cols ) override;
 
  /// removes a single dynamic bound
  void remove_dynamic_bound( const OneVarConstraint * con ) override;
@@ -726,10 +773,18 @@ void generate_qcon_lincoeff( std::vector< SCIP_VAR * > & lidx ,
 			  std::vector< double > & qcoeff );
 
 /** Create the structures used to provide the quadratic objective matrix
- *  to SCIP (following some modifications). */
- void create_new_qobj( std::vector< int > & qidx1 ,
-			  std::vector< int > & qidx2 ,
+ *  to SCIP (following some modifications): the term qidx1[ k ] qidx2[ k ]
+ *  with coefficient qcoeff[ k ] in the sum of obj_aux_con. */
+ void create_new_qobj( std::vector< SCIP_VAR * > & qidx1 ,
+			  std::vector< SCIP_VAR * > & qidx2 ,
 			  std::vector< double > & qcoeff );
+
+/** Changes the coefficient of the term v1 v2 in the sum of obj_aux_con,
+ *  adding c to it if delta, setting it to c otherwise; a missing term is
+ *  appended, and obj_aux_con created, only if c is not 0. f_check_convex
+ *  is set if the coefficient changes. */
+ void chg_qobj_coef( SCIP_VAR * v1 , SCIP_VAR * v2 , double c ,
+                     bool delta );
 
 /** Tells SCIP whether the problem is convex (constraints/nonlinear/
  *  assumeconvex), i.e., whether the only nonlinear constraint is the

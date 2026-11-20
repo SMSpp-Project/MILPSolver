@@ -289,56 +289,24 @@ void PERMONMILPSolver::load_problem( void )
 				"variables are only supported if relaxed "
 				"(intRelaxIntVars)" ) );
 
+ make_data();
+ f_changed = 0;
+
+ d_status = 0;
+ d_remap = true;
+
+ }  // end( PERMONMILPSolver::load_problem )
+
+/*--------------------------------------------------------------------------*/
+
+void PERMONMILPSolver::make_data( void )
+{
  const int n = numcols;
  d_n = n;
  d_sign = ( objsense == -1 ) ? -1 : 1;  // PermonQP minimizes
 
- // the sides of the rows: those whose two sides coincide are equalities,
- // all the others get a slack
- std::vector< double > lo( numrows ) , hi( numrows );
- d_row_pos.resize( numrows );
- d_neq = d_nin = 0;
- for( int i = 0 ; i < numrows ; ++i ) {
-  switch( sense[ i ] ) {
-   case( 'L' ):
-    lo[ i ] = -Inf< double >();
-    hi[ i ] = rhs[ i ];
-    break;
-   case( 'G' ):
-    lo[ i ] = rhs[ i ];
-    hi[ i ] = Inf< double >();
-    break;
-   case( 'E' ):
-    lo[ i ] = hi[ i ] = rhs[ i ];
-    break;
-   case( 'R' ):
-    if( rngval[ i ] > 0 ) {
-     lo[ i ] = rhs[ i ];
-     hi[ i ] = rhs[ i ] + rngval[ i ];
-     }
-    else {
-     lo[ i ] = rhs[ i ] + rngval[ i ];
-     hi[ i ] = rhs[ i ];
-     }
-    break;
-   default:
-    throw( std::invalid_argument( "PERMONMILPSolver::load_problem: row " +
-				  std::to_string( i ) + " has sense " +
-				  std::string( 1 , sense[ i ] ) ) );
-   }
-  if( lo[ i ] == hi[ i ] )
-   d_row_pos[ i ] = d_neq++;
-  else
-   d_row_pos[ i ] = -( ++d_nin );
-  }
-
- // the variables with equal bounds, which MPGP cannot handle in its box,
- // are fixed by an equality x_j = l_j and have no bounds
- d_fix_row.assign( n , -1 );
- d_nfix = 0;
- for( int j = 0 ; j < n ; ++j )
-  if( lb[ j ] == ub[ j ] )
-   d_fix_row[ j ] = d_neq + d_nfix++;
+ // the rows with a slack and the fixed variables
+ layout( d_row_pos , d_fix_row , d_neq , d_nin , d_nfix );
 
  const int nt = n + d_nin;       // the variables and the slacks
  const int ns = d_neq + d_nfix;  // the first row with a slack
@@ -346,8 +314,8 @@ void PERMONMILPSolver::load_problem( void )
  auto & pd = *d_pd;
 
  // the objective: c' x + sum_j q_j x_j^2 + sum_k ndq_k x_i x_j is
- // 1/2 x' H x + g' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k, and
- // PermonQP is given rhs = - g; the slacks are not in the objective
+ // 1/2 x' H x + g' x with H_jj = 2 q_j and H_ij = H_ji = ndq_k, the
+ // slacks not being in it
  std::vector< Eigen::Triplet< double , PetscInt > > trp;
  for( int j = 0 ; j < n ; ++j )
   if( q_objective[ j ] != 0 )
@@ -368,10 +336,6 @@ void PERMONMILPSolver::load_problem( void )
  pd.Hs.prune( 0.0 );
  pd.Hs.makeCompressed();
 
- pd.vrhs.assign( nt , 0 );
- for( int j = 0 ; j < n ; ++j )
-  pd.vrhs[ j ] = -d_sign * objective[ j ];
-
  // the rows: [ A 0 ] x = b and [ C -I ] ( x , s ) = 0
  trp.clear();
  for( int j = 0 ; j < n ; ++j )
@@ -388,6 +352,52 @@ void PERMONMILPSolver::load_problem( void )
  pd.Bs.setFromTriplets( trp.begin() , trp.end() );
  pd.Bs.makeCompressed();
 
+ // the right-hand sides, the bounds and the sides
+ make_vectors();
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void PERMONMILPSolver::layout( std::vector< int > & row_pos ,
+			       std::vector< int > & fix_row , int & neq ,
+			       int & nin , int & nfix ) const
+{
+ // the rows whose two sides coincide are equalities, all the others get a
+ // slack
+ row_pos.resize( numrows );
+ neq = nin = 0;
+ for( int i = 0 ; i < numrows ; ++i ) {
+  double lo , hi;
+  row_sides( i , lo , hi );
+  if( lo == hi )
+   row_pos[ i ] = neq++;
+  else
+   row_pos[ i ] = -( ++nin );
+  }
+
+ // the variables with equal bounds, which MPGP cannot handle in its box,
+ // are fixed by an equality x_j = l_j and have no bounds
+ fix_row.assign( numcols , -1 );
+ nfix = 0;
+ for( int j = 0 ; j < numcols ; ++j )
+  if( lb[ j ] == ub[ j ] )
+   fix_row[ j ] = neq + nfix++;
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void PERMONMILPSolver::make_vectors( void )
+{
+ const int n = d_n;
+ const int nt = n + d_nin;
+ const int m = d_neq + d_nfix + d_nin;
+ auto & pd = *d_pd;
+
+ // PermonQP is given rhs = - g, the slacks are not in the objective
+ pd.vrhs.assign( nt , 0 );
+ for( int j = 0 ; j < n ; ++j )
+  pd.vrhs[ j ] = -d_sign * objective[ j ];
+
  pd.vc.assign( m , 0 );
  pd.vlb.resize( nt );
  pd.vub.resize( nt );
@@ -401,19 +411,34 @@ void PERMONMILPSolver::load_problem( void )
    pd.vlb[ j ] = lb[ j ] > -Inf< double >() ? lb[ j ] : PETSC_NINFINITY;
    pd.vub[ j ] = ub[ j ] < Inf< double >() ? ub[ j ] : PETSC_INFINITY;
    }
- for( int i = 0 ; i < numrows ; ++i )
+ for( int i = 0 ; i < numrows ; ++i ) {
+  double lo , hi;
+  row_sides( i , lo , hi );
   if( const int p = d_row_pos[ i ]; p >= 0 )
-   pd.vc[ p ] = lo[ i ];
+   pd.vc[ p ] = lo;
   else {
-   pd.vlb[ n - p - 1 ] =
-     lo[ i ] > -Inf< double >() ? lo[ i ] : PETSC_NINFINITY;
-   pd.vub[ n - p - 1 ] = hi[ i ] < Inf< double >() ? hi[ i ] : PETSC_INFINITY;
+   pd.vlb[ n - p - 1 ] = lo > -Inf< double >() ? lo : PETSC_NINFINITY;
+   pd.vub[ n - p - 1 ] = hi < Inf< double >() ? hi : PETSC_INFINITY;
    }
+  }
+ }
 
- d_status = 0;
- d_remap = true;
+/*--------------------------------------------------------------------------*/
 
- }  // end( PERMONMILPSolver::load_problem )
+void PERMONMILPSolver::update_data( void )
+{
+ // the objects of PermonQP are made anew at each solve: the vectors are
+ // written again, and so are the matrices if the sense has changed, a
+ // row has become or stopped being an equality or a variable fixed
+ std::vector< int > row_pos , fix_row;
+ int neq , nin , nfix;
+ layout( row_pos , fix_row , neq , nin , nfix );
+ if( ( f_changed & kSense ) || ( row_pos != d_row_pos ) ||
+     ( fix_row != d_fix_row ) )
+  make_data();
+ else
+  make_vectors();
+ }
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- METHODS FOR SOLVING THE MODEL -----------------------*/
@@ -421,6 +446,12 @@ void PERMONMILPSolver::load_problem( void )
 
 int PERMONMILPSolver::guts_of_compute( void )
 {
+ // the data changed in place since the last solve [see updates_in_place()]
+ if( f_changed ) {
+  update_data();
+  f_changed = 0;
+  }
+
  auto & pd = *d_pd;
  const int nt = d_n + d_nin;
  const int ns = d_neq + d_nfix;
