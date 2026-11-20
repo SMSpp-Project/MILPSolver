@@ -45,7 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for all those added or removed together, in O(n + k log k) rather than
   O(k n), the type of a `Modification`, of a `Function`, of a `Variable`
   and of a `Constraint` is found once for each dynamic type rather than by
-  a `dynamic_cast` each time, in all the back-ends, and the column groups
+  a `dynamic_cast` each time [see `memo_cast()` in `SMSTypedefs.h` of
+  SMS++], in all the back-ends, and the column groups
   of many `Variable` are read by hash
 
 - `CPXMILPSolver` keeps the basis of a solve in step with the rows and the

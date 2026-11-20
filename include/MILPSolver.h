@@ -1883,40 +1883,11 @@ class MILPSolver : public CDASolver
  /// the dynamic_cast of \p i to T *, made once per dynamic type
  /** The active stuff of a ColVariable is taken to an FRowConstraint or to
   * a OneVarConstraint for each ColVariable that is loaded, which a large
-  * problem does tens of millions of times [see memo_cast()]. */
+  * problem does tens of millions of times [see memo_cast() in
+  * SMSTypedefs.h]. */
  template< class T >
  static T * cast_active( ThinVarDepInterface * i ) {
   return( memo_cast< T * >( i ) );
-  }
-
- /// dynamic_cast< P >( \p p ), made once per dynamic type of * \p p
- /** What dynamic_cast< P >( \p p ) gives, P being a pointer type, with
-  * the cast made only the first time a dynamic type is seen: the answer
-  * depends on that type alone, and the offset from \p p to the object of
-  * the cast (the same for all the objects of a type, which have the same
-  * layout) is kept in a table of the thread, keyed by its std::type_info.
-  * A type defined later, e.g., a Modification of some :Block, is cast for
-  * real the first time, so that the hierarchy is followed exactly as by
-  * dynamic_cast. The hierarchy of B must have no virtual base, through
-  * which the offset may differ from one object to another. */
- template< class P , class B >
- static P memo_cast( B * p ) {
-  using T = std::remove_pointer_t< P >;
-  if( ! p )
-   return( nullptr );
-  // PTRDIFF_MIN if the cast fails
-  static thread_local std::unordered_map< const std::type_info * ,
-					  std::ptrdiff_t > cache;
-  auto [ it , fresh ] = cache.try_emplace( & typeid( * p ) , PTRDIFF_MIN );
-  if( fresh )
-   if( auto * t = dynamic_cast< T * >( p ) )
-    it->second = reinterpret_cast< const char * >( t ) -
-                 reinterpret_cast< const char * >( p );
-  if( it->second == PTRDIFF_MIN )
-   return( nullptr );
-  return( reinterpret_cast< T * >(
-            const_cast< char * >( reinterpret_cast< const char * >( p ) ) +
-            it->second ) );
   }
 
  /// gets the active bounds for the specified variable
