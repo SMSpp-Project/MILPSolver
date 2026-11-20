@@ -1068,10 +1068,10 @@ PIPSMILPSolver::CSRMatrix PIPSMILPSolver::extract_block_matrix(
  for( const auto * con : rows ) {
   const auto * f = con->get_function();
 
-  if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
+  if( const auto * lf = memo_cast< const LinearFunction * >( f ) ) {
    for( const auto & el : lf->get_v_var() ) {
     const auto * var =
-     dynamic_cast< const ColVariable * >( std::get< 0 >( el ) );
+     memo_cast< const ColVariable * >( std::get< 0 >( el ) );
 
     auto it = local_col.find( var );
 
@@ -1327,9 +1327,9 @@ void PIPSMILPSolver::scan_constraint( const FRowConstraint & con ,
  // leaves
  bool found_in_other_node = false;
  if( auto f = con.get_function() ) {
-  if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+  if( auto lf = memo_cast< const LinearFunction * >( f ) ) {
    for( auto el : lf->get_v_var() ) {
-    auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+    auto * v = memo_cast< ColVariable * >( std::get< 0 >( el ) );
 
     auto it = var_to_node.find( v );
 

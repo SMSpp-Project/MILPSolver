@@ -2294,7 +2294,7 @@ void CPXMILPSolver::const_modification( const ConstraintMod * mod )
 
  /* To change the coefficents, a FunctionMod must be used. */
 
- auto * con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+ auto * con = memo_cast< FRowConstraint * >( mod->constraint() );
  if( ! con )  // this should not happen
   return;     // but in case, nothing to do
 
@@ -2526,22 +2526,22 @@ bool CPXMILPSolver::change_coefficients(
  std::vector< double > odeltas;
 
  for( auto mod : mods ) {
-  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+  auto modl = memo_cast< const C05FunctionModLin * >( mod );
   if( ! modl )
    return( false );
 
-  auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+  auto lf = memo_cast< const LinearFunction * >( mod->function() );
   if( ! lf )
    return( false );
 
-  auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl );
-  auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl );
+  auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl );
+  auto modls = memo_cast< const C05FunctionModLinSbst * >( modl );
   if( ( ! modlr ) && ( ! modls ) )
    return( false );
 
   auto obs = lf->get_Observer();
 
-  if( auto con = dynamic_cast< const FRowConstraint * >( obs ) ) {
+  if( auto con = memo_cast< const FRowConstraint * >( obs ) ) {
    auto row = cpx_index_of_linear_constraint( con );
    if( row == Inf< int >() )  // the Constraint is not (yet?) there, which is
     continue;                 // what the handler does with it one by one
@@ -2561,7 +2561,7 @@ bool CPXMILPSolver::change_coefficients(
    continue;
    }
 
-  if( dynamic_cast< const Objective * >( obs ) ) {
+  if( memo_cast< const Objective * >( obs ) ) {
    // Objective deltas describe the state at issuance, even if a later
    // queued modification has already removed the Variable from the Function.
    const double w = objective_weight( lf );  // as one by one
@@ -2777,7 +2777,7 @@ bool CPXMILPSolver::change_sides(
     return( false );  // nothing has been written yet
    }
 
-  auto con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+  auto con = memo_cast< FRowConstraint * >( mod->constraint() );
   if( ! con )  // this should not happen
    return( false );
 
@@ -2849,13 +2849,13 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
+ if( auto modl = memo_cast< const C05FunctionModLin * >( mod ) ) {
 
-  if( dynamic_cast< const LinearFunction * >( f ) ) {
+  if( memo_cast< const LinearFunction * >( f ) ) {
    // Linear objective function
 
-   if( ( ! dynamic_cast< const C05FunctionModLinRngd * >( modl ) ) &&
-       ( ! dynamic_cast< const C05FunctionModLinSbst * >( modl ) ) )
+   if( ( ! memo_cast< const C05FunctionModLinRngd * >( modl ) ) &&
+       ( ! memo_cast< const C05FunctionModLinSbst * >( modl ) ) )
     throw( std::logic_error(
                 "CPXMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
@@ -2888,14 +2888,14 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
 
-  if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+  if( auto qf = memo_cast< const DQuadFunction * >( f ) ) {
    // quadratic objective function
 
    Subset idxs;
-   if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+   if( auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl ) )
     idxs = qf->map_index( modl->vars() , modlr->range() );
    else
-    if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+    if( auto modls = memo_cast< const C05FunctionModLinSbst * >( modl ) )
      idxs = qf->map_index( modl->vars() , modls->subset() );
     else
      throw( std::logic_error(
@@ -2942,7 +2942,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
 
  // C05FunctionMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( auto modl = dynamic_cast< const C05FunctionMod * >( mod ) ) {
+ if( auto modl = memo_cast< const C05FunctionMod * >( mod ) ) {
 
   if( modl->type() == C05FunctionMod::NothingChanged ) {
 
@@ -2959,8 +2959,8 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
 
-  auto qf = dynamic_cast< const QuadFunction * >( f );
-  auto dqf = dynamic_cast< const DQuadFunction * >( f );
+  auto qf = memo_cast< const QuadFunction * >( f );
+  auto dqf = memo_cast< const DQuadFunction * >( f );
   if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
                "CPXMILPSolver::objective_function_modification: "
@@ -2969,7 +2969,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
   // Select correct quadratic function
   auto fqf = ( qf ) ? qf : dqf;
 
-  if( auto modlr = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ) {
+  if( auto modlr = memo_cast< const DQuadFunctionModRngd * >( modl ) ) {
    // we exploit the delta() vector of DQuadFunctionModRngd, giving the
    // difference between the new and the old value of both linear and
    // quadratic coefficient, to update the objective values without having
@@ -2993,7 +2993,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( auto v : *vars ) {
     const auto & dc = *(dcoeffit++);
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     int cidx = cpx_index_of_variable( dynamic_cast< ColVariable * >( v ) );
+     int cidx = cpx_index_of_variable( memo_cast< ColVariable * >( v ) );
      *(cidxit++) = cidx;
       
      // the delta of the linear coefficient, the old one being read later
@@ -3031,7 +3031,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
   else if( auto modls =
-            dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
+            memo_cast< const DQuadFunctionModSbst * >( modl ) ) {
    // we exploit the delta() vector of DQuadFunctionModSbst, giving the
    // difference between the new and the old value of both linear and
    // quadratic coefficient, to update the objective values without having
@@ -3055,7 +3055,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( auto v : *vars ) {
     const auto & dc = *(dcoeffit++);
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
-     int cidx = cpx_index_of_variable( dynamic_cast< ColVariable * >( v ) );
+     int cidx = cpx_index_of_variable( memo_cast< ColVariable * >( v ) );
      *(cidxit++) = cidx;
       
      // the delta of the linear coefficient, the old one being read later
@@ -3092,7 +3092,7 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
    CPXchgobj( env , lp , nsz , cidx.data() , nval.data() );
    return;
    }
-  else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
+  else if( auto modlq = memo_cast< const QuadFunctionModSbst * >( modl ) ) {
    // we exploit the delta() vector of QuadFunctionModSbst, giving the
    // difference between the new and the old value of both linear and
    // quadratic coefficient, to update the objective values without having
@@ -3112,9 +3112,9 @@ void CPXMILPSolver::objective_function_modification( const FunctionMod * mod )
                "QuadFunctionModSbst" ) );
 
    int idx1 =
-    cpx_index_of_variable( dynamic_cast< ColVariable * >( vars[ 0 ] ) );
+    cpx_index_of_variable( memo_cast< ColVariable * >( vars[ 0 ] ) );
    int idx2 =
-    cpx_index_of_variable( dynamic_cast< ColVariable * >( vars[ 1 ] ) );
+    cpx_index_of_variable( memo_cast< ColVariable * >( vars[ 1 ] ) );
 
    // Retrieve old quadratic coefficient
    double oldqval;
@@ -3223,11 +3223,11 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_function_modification( mod );
 
- auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto lf = memo_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
- auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
+ auto con = memo_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )
   return;
 
@@ -3235,17 +3235,17 @@ void CPXMILPSolver::constraint_function_modification( const FunctionMod *mod )
  if( row == Inf< int >() )  // the constraint is not (yet?) there
   return;
 
- auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+ auto modl = memo_cast< const C05FunctionModLin * >( mod );
  if( ! modl )
   throw( std::logic_error(
              "CPXMILPSolver::constraint_function_modification: "
              "unexpected *C05FunctionModLin* from FRowConstraint" ) );
 
  Subset idxs;
- if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+ if( auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl ) )
   idxs = lf->map_index( modl->vars() , modlr->range() );
  else
-  if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+  if( auto modls = memo_cast< const C05FunctionModLinSbst * >( modl ) )
    idxs = lf->map_index( modl->vars() , modls->subset() );
   else
    throw( std::logic_error(
@@ -3295,11 +3295,11 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "CPXMILPSolver: this type of FunctionModVars is not handled"
 				) );
@@ -3319,7 +3319,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( dynamic_cast< const LinearFunction * >( f ) ) {
+ if( memo_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
 
   // Additions carry their initial coefficients; removals may carry the
@@ -3327,19 +3327,19 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // objective coefficient, including contributions from other Functions.
   const Function::Vec_FunctionValue * delta = nullptr;
   if( mod->added() ) {
-   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+   auto modl = memo_cast< const LinearFunctionModVarsAddd * >( mod );
    if( ! modl )
     throw( std::invalid_argument(
                "CPXMILPSolver: unexpected linear objective addition" ) );
    delta = & modl->coeff();
    }
   else if( auto modr =
-            dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+            memo_cast< const C05FunctionModVarsRngd * >( mod ) ) {
    if( modr->has_linear_delta() )
     delta = & modr->linear_delta();
    }
   else if( auto mods =
-            dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+            memo_cast< const C05FunctionModVarsSbst * >( mod ) ) {
    if( mods->has_linear_delta() )
     delta = & mods->linear_delta();
    }
@@ -3385,13 +3385,13 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
  }
 
- if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
+ if( auto qf = memo_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
   
   // Firstly check if we are simply removing variables
   if( ! mod->added() ) {
     for( Block::Index i = 0 ; i < mod->vars().size() ; ++i ) {
-      auto var = dynamic_cast< const ColVariable * >( mod->vars()[ i ] );
+      auto var = memo_cast< const ColVariable * >( mod->vars()[ i ] );
 
       if( auto idx = cpx_index_of_variable( var ) ; idx < Inf< int >() ) {
         // Set diagonal coefficient to 0
@@ -3408,7 +3408,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq =
-   dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+   memo_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
     throw( std::invalid_argument(
@@ -3430,9 +3430,9 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     auto var2 = qf->get_active_var( loc_idx2 );
 
     int glob_idx1 =
-     cpx_index_of_variable( dynamic_cast< ColVariable * >( var1 ) );
+     cpx_index_of_variable( memo_cast< ColVariable * >( var1 ) );
     int glob_idx2 =
-     cpx_index_of_variable( dynamic_cast< ColVariable * >( var2 ) );
+     cpx_index_of_variable( memo_cast< ColVariable * >( var2 ) );
 
     // Retrieve old quadratic coefficient
     double oldqval;
@@ -3446,7 +3446,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // derives from a DQuadFunction
  }
 
- if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( auto dqf = memo_cast< const DQuadFunction * >( f ) ) {
   // Separable quadratic objective function modification
 
   // Firstly check if we are simply removing variables
@@ -3467,7 +3467,7 @@ void CPXMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq =
-   dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+   memo_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
     throw( std::invalid_argument(
@@ -3528,7 +3528,7 @@ void CPXMILPSolver::constraint_fvars_modification(
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_fvars_modification( mod );
 
- auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto lf = memo_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
@@ -3537,14 +3537,14 @@ void CPXMILPSolver::constraint_fvars_modification(
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "CPXMILPSolver: this type of FunctionModVars is not handled"
 				) );
 
- auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
+ auto con = memo_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )  // non-FRowConstraint Mods are silently ignored
   return;
 
@@ -3637,7 +3637,7 @@ void CPXMILPSolver::add_dynamic_constraints(
   // a row with no Function is an empty one
   rmatbeg.push_back( int( rmatind.size() ) );
   if( auto f = c->get_function() ) {
-   auto lf = dynamic_cast< const LinearFunction * >( f );
+   auto lf = memo_cast< const LinearFunction * >( f );
    if( ! lf )
     throw( std::invalid_argument(
               "CPXMILPSolver::add_dynamic_constraints: "
@@ -4430,7 +4430,7 @@ void CPXMILPSolver::perform_separation( Configuration * cfg ,
  // add all the rows to the matrix, one by one
  for( auto con : rows ) {
   if( auto f = con->get_function() ) {
-   auto * lf = dynamic_cast< const LinearFunction * >( f );
+   auto * lf = memo_cast< const LinearFunction * >( f );
    if( ! lf )
     throw( std::invalid_argument(
                "CPXMILPSolver: the Constraint is not linear" ) );
@@ -5172,7 +5172,7 @@ void CPXMILPSolver::reload_objective( Function * f )
  std::vector< double > values;
  values.reserve( nv );
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( auto lf = memo_cast< const LinearFunction * >( f ) ) {
   for( auto & el : lf->get_v_var() )
    if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
@@ -5185,7 +5185,7 @@ void CPXMILPSolver::reload_objective( Function * f )
   return;
   }
 
- if( auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( auto * qf = memo_cast< const DQuadFunction * >( f ) ) {
   for( auto & el : qf->get_v_var() )
    if( auto idx = index_of_variable( std::get< 0 >( el ) ) ;
        idx < Inf< int >() ) {

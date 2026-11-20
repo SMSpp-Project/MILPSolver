@@ -312,25 +312,25 @@ void MILPSolver::load_problem( void )
 
   auto counter_static_lin_quad_row = [ this , & nst_linrow, & nst_quadrow ]
                               ( FRowConstraint & cons ) {
-   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+   if( memo_cast< LinearFunction * >( cons.get_function() ) )
     ++nst_linrow;
    else
-    if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+    if( memo_cast< DQuadFunction * >( cons.get_function() ) )
      ++nst_quadrow;
     else
-     if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+     if( memo_cast< QuadFunction * >( cons.get_function() ) )
       ++nst_quadrow;
    };
 
   auto counter_dynamic_lin_quad_row = [ this , & ndy_linrow, & ndy_quadrow ]
                               ( FRowConstraint & cons ) {
-   if( dynamic_cast< LinearFunction * >( cons.get_function() ) )
+   if( memo_cast< LinearFunction * >( cons.get_function() ) )
     ++ndy_linrow;
    else
-    if( dynamic_cast< DQuadFunction * >( cons.get_function() ) )
+    if( memo_cast< DQuadFunction * >( cons.get_function() ) )
      ++ndy_quadrow;
     else
-     if( dynamic_cast< QuadFunction * >( cons.get_function() ) )
+     if( memo_cast< QuadFunction * >( cons.get_function() ) )
       ++ndy_quadrow;
    };
 
@@ -601,7 +601,7 @@ void MILPSolver::load_problem( void )
      objsense = 1;
    }
 
-  if( auto * obj = dynamic_cast< FRealObjective * >( qb->get_objective() ) ) {
+  if( auto * obj = memo_cast< FRealObjective * >( qb->get_objective() ) ) {
    auto it = f_obj_weight.find( qb );
    scan_objective( obj , it == f_obj_weight.end() ? 1 : it->second );
    }
@@ -885,11 +885,11 @@ double MILPSolver::check_kkt( void )
  std::vector< double > act( rows.size() );
  for( std::size_t i = 0 ; i < rows.size() ; ++i ) {
   auto f = rows[ i ]->get_function();
-  if( ! dynamic_cast< LinearFunction * >( f ) )
+  if( ! memo_cast< LinearFunction * >( f ) )
    linear = false;
   // the activity of the row in the problem, with the weights of the
   // Variable [see variable_weight()]
-  if( auto lf = f_var_weighted ? dynamic_cast< LinearFunction * >( f )
+  if( auto lf = f_var_weighted ? memo_cast< LinearFunction * >( f )
                                : nullptr ) {
    act[ i ] = lf->get_constant_term();
    for( const auto & [ var , a ] : lf->get_v_var() )
@@ -916,10 +916,10 @@ double MILPSolver::check_kkt( void )
  for( auto qb : v_BFS ) {
   if( is_objective_excluded( qb ) )
    continue;
-  auto obj = dynamic_cast< FRealObjective * >( qb->get_objective() );
+  auto obj = memo_cast< FRealObjective * >( qb->get_objective() );
   if( ! obj )
    continue;
-  auto f = dynamic_cast< C05Function * >( obj->get_function() );
+  auto f = memo_cast< C05Function * >( obj->get_function() );
   if( ! f )
    return( rp );
   f->compute();
@@ -1368,7 +1368,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
    // a weight of the Variable [see variable_weight()] is supported in the
    // linear Constraint only
-   if( f_var_weighted && ( ! dynamic_cast< const LinearFunction * >( f ) ) )
+   if( f_var_weighted && ( ! memo_cast< const LinearFunction * >( f ) ) )
     for( Index k = 0 ; k < f->get_num_active_var() ; ++k )
      if( variable_weight( f->get_active_var( k ) , & con ) != 1 )
       throw( std::invalid_argument( "MILPSolver::scan_constraint: a weight "
@@ -1388,12 +1388,12 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
     else
       matbeg[ row ] = matbeg[ row - 1 ] + matcnt[ row - 1 ];
 
-    if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+    if( auto lf = memo_cast< const LinearFunction * >( f ) ) {
       matcnt[ row ] = lf->get_v_var().size();
       int j = 0;
 
       for( auto el : lf->get_v_var() ) {
-        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto * v = memo_cast< ColVariable * >( std::get< 0 >( el ) );
         auto idx_v = index_of_variable( v );
 
         matval[ matbeg[ row ] + j ] =
@@ -1408,7 +1408,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
         j++;
       }
     }
-    else if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
+    else if( auto qf = memo_cast< const QuadFunction * >( f ) ) {
       int nnz = 0;
 
       /* The quadratic part of the constraint will be represented as an
@@ -1428,7 +1428,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
       for( auto el : qf->get_v_var() ) {
         // Fill linear part of the constraint
-        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto * v = memo_cast< ColVariable * >( std::get< 0 >( el ) );
         auto idx_v = index_of_variable( v );
         map_local_to_global[ num_var ] = idx_v;
 
@@ -1472,7 +1472,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
       q_part[ row ] = global_qmatrix;
     }
-    else if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ) {
+    else if( auto dqf = memo_cast< const DQuadFunction * >( f ) ) {
       int nnz = 0;
 
       /* The quadratic part of the constraint will be represented as an
@@ -1487,7 +1487,7 @@ void MILPSolver::scan_constraint( const FRowConstraint & con , Index & row  )
 
       for( auto el : dqf->get_v_var() ) {
         // Fill linear part of the constraint
-        auto * v = dynamic_cast< ColVariable * >( std::get< 0 >( el ) );
+        auto * v = memo_cast< ColVariable * >( std::get< 0 >( el ) );
         auto idx_v = index_of_variable( v );
 
         // If the linear coefficient is nonzero
@@ -1685,7 +1685,7 @@ double MILPSolver::objective_weight( const Function * f ) const
 {
  if( f_obj_weight.empty() )
   return( 1 );
- auto obj = dynamic_cast< const Objective * >( f->get_Observer() );
+ auto obj = memo_cast< const Objective * >( f->get_Observer() );
  if( ! obj )
   return( 1 );
  auto it = f_obj_weight.find( obj->get_Block() );
@@ -1764,19 +1764,19 @@ void MILPSolver::weight_modification( const BlockWeightMod * mod )
   for( auto qb : v_BFS ) {
    if( is_objective_excluded( qb ) )
     continue;
-   auto o = dynamic_cast< const FRealObjective * >( qb->get_objective() );
+   auto o = memo_cast< const FRealObjective * >( qb->get_objective() );
    if( ! o )
     continue;
    const auto it = f_obj_weight.find( qb );
    const double w = ( it == f_obj_weight.end() ? 1 : it->second );
    cst += w * o->get_constant_term();
    auto f = o->get_function();
-   if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+   if( auto lf = memo_cast< const LinearFunction * >( f ) ) {
     for( const auto & el : lf->get_v_var() )
      obj[ index_of_variable( el.first ) ] += w * el.second;
     continue;
     }
-   if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
+   if( auto qf = memo_cast< const QuadFunction * >( f ) ) {
     if( below( qb ) ) {
      v_off_diag_term nd;
      qf->get_v_nd_var( nd );
@@ -1788,7 +1788,7 @@ void MILPSolver::weight_modification( const BlockWeightMod * mod )
     quadratic( qb , qf , w );
     continue;
     }
-   if( auto df = dynamic_cast< const DQuadFunction * >( f ) ) {
+   if( auto df = memo_cast< const DQuadFunction * >( f ) ) {
     quadratic( qb , df , w );
     continue;
     }
@@ -1837,7 +1837,7 @@ void MILPSolver::weight_modification( const BlockWeightMod * mod )
         if( ( ! row ) || ( ! is_mine( row->get_Block() ) ) ||
             below( row->get_Block() ) )
          continue;
-        auto lf = dynamic_cast< const LinearFunction * >(
+        auto lf = memo_cast< const LinearFunction * >(
 						      row->get_function() );
         if( ! lf ) {
          reload = true;
@@ -2155,7 +2155,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj , double w )
  // if the ColVariable appears only once this is equivalent to the fact that
  // the final coefficients are the ones found there)
 
- if( auto * lf = dynamic_cast< const LinearFunction * >(
+ if( auto * lf = memo_cast< const LinearFunction * >(
 						 obj->get_function() ) ) {
   /* Linear objective function */
   for( auto el : lf->get_v_var() )
@@ -2164,7 +2164,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj , double w )
   return;
   }
 
- if( auto * qf = dynamic_cast< const QuadFunction * >(
+ if( auto * qf = memo_cast< const QuadFunction * >(
 						 obj->get_function() ) ) {
   /* Non separable Quadratic objective function */
 
@@ -2194,8 +2194,8 @@ void MILPSolver::scan_objective( const FRealObjective * obj , double w )
    auto * v1 = qf->get_active_var( std::get< 0 >( el_nd ) );
    auto * v2 = qf->get_active_var( std::get< 1 >( el_nd ) );
 
-   int global_idx1 = index_of_variable( dynamic_cast< ColVariable * >( v1 ) );
-   int global_idx2 = index_of_variable( dynamic_cast< ColVariable * >( v2 ) );
+   int global_idx1 = index_of_variable( memo_cast< ColVariable * >( v1 ) );
+   int global_idx2 = index_of_variable( memo_cast< ColVariable * >( v2 ) );
 
    ndq_rowind[ i ] = global_idx1;
    ndq_colind[ i ] = global_idx2;
@@ -2205,7 +2205,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj , double w )
   return;
   }
 
- if( auto * qf = dynamic_cast< const DQuadFunction * >(
+ if( auto * qf = memo_cast< const DQuadFunction * >(
 						 obj->get_function() ) ) {
   /* Separable Quadratic objective function */
   for( auto el : qf->get_v_var() ) {
@@ -2219,7 +2219,7 @@ void MILPSolver::scan_objective( const FRealObjective * obj , double w )
 
  // the natural representation of a PolyhedralFunctionBlock, which a
  // :MILPSolver reads only in its linearized one
- if( dynamic_cast< const PolyhedralFunction * >( obj->get_function() ) )
+ if( memo_cast< const PolyhedralFunction * >( obj->get_function() ) )
   throw( std::invalid_argument(
              "MILPSolver::scan_objective: the Objective of a " +
              obj->get_Block()->classname() + " is a PolyhedralFunction: a "
@@ -2495,14 +2495,14 @@ void MILPSolver::process_modifications( void )
 
 bool MILPSolver::modification_in_place( const Modification * mod )
 {
- if( dynamic_cast< const NBModification * >( mod ) )
+ if( memo_cast< const NBModification * >( mod ) )
   return( false );
 
  // what comes from a sub-Block to be ignored changes nothing
  if( is_excluded( const_cast< Block * >( mod->get_Block() ) ) )
   return( true );
 
- if( auto gm = dynamic_cast< const GroupModification * >( mod ) ) {
+ if( auto gm = memo_cast< const GroupModification * >( mod ) ) {
   for( const auto & submod : gm->sub_Modifications() )
    if( ! modification_in_place( submod.get() ) )
     return( false );
@@ -2512,34 +2512,34 @@ bool MILPSolver::modification_in_place( const Modification * mod )
  // nor does a change of an Objective to be ignored, nor a
  // PolyhedralFunctionMod [see batch_leaf()]
  if( touches_excluded_objective( mod ) ||
-     dynamic_cast< const PolyhedralFunctionMod * >( mod ) )
+     memo_cast< const PolyhedralFunctionMod * >( mod ) )
   return( true );
 
  // nor a change of a Function that is neither that of the Objective nor
  // that of a row, nor of a Constraint that is neither a bound nor a row
- auto fm = dynamic_cast< const FunctionMod * >( mod );
- auto fvm = dynamic_cast< const FunctionModVars * >( mod );
+ auto fm = memo_cast< const FunctionMod * >( mod );
+ auto fvm = memo_cast< const FunctionModVars * >( mod );
  const Function * f = fm ? fm->function() : ( fvm ? fvm->function()
                                                    : nullptr );
  const bool of_obj = f &&
-  dynamic_cast< const Objective * >( f->get_Observer() );
+  memo_cast< const Objective * >( f->get_Observer() );
  if( f && ( ! of_obj ) &&
-     ( ! dynamic_cast< const FRowConstraint * >( f->get_Observer() ) ) )
+     ( ! memo_cast< const FRowConstraint * >( f->get_Observer() ) ) )
   return( true );
 
- auto cm = dynamic_cast< const ConstraintMod * >( mod );
- auto bm = dynamic_cast< const OneVarConstraintMod * >( mod );
- auto row = cm ? dynamic_cast< const FRowConstraint * >( cm->constraint() )
+ auto cm = memo_cast< const ConstraintMod * >( mod );
+ auto bm = memo_cast< const OneVarConstraintMod * >( mod );
+ auto row = cm ? memo_cast< const FRowConstraint * >( cm->constraint() )
                : nullptr;
  if( cm && ( ! bm ) && ( ! row ) )
   return( true );
 
  // nor any kind that MILPSolver does not act upon
- auto vm = dynamic_cast< const VariableMod * >( mod );
- auto om = dynamic_cast< const ObjectiveMod * >( mod );
+ auto vm = memo_cast< const VariableMod * >( mod );
+ auto om = memo_cast< const ObjectiveMod * >( mod );
  if( ( ! f ) && ( ! cm ) && ( ! vm ) && ( ! om ) &&
-     ( ! dynamic_cast< const BlockWeightMod * >( mod ) ) &&
-     ( ! dynamic_cast< const BlockModAD * >( mod ) ) )
+     ( ! memo_cast< const BlockWeightMod * >( mod ) ) &&
+     ( ! memo_cast< const BlockModAD * >( mod ) ) )
   return( true );
 
  if( ! updates_in_place() )
@@ -2576,7 +2576,7 @@ bool MILPSolver::modification_in_place( const Modification * mod )
  // fixes or frees the Variable; the integrality of a column changes the
  // problem, unless it is relaxed
  auto bounds = [ this ]( const Variable * v ) {
-  auto var = dynamic_cast< const ColVariable * >( v );
+  auto var = memo_cast< const ColVariable * >( v );
   const int j = var ? index_of_variable( var ) : -1;
   if( ( j < 0 ) || ( j >= numcols ) )
    return( false );
@@ -2600,7 +2600,7 @@ bool MILPSolver::modification_in_place( const Modification * mod )
  // the sides of a linear row
  if( row ) {
   if( row->get_function() &&
-      ( ! dynamic_cast< const LinearFunction * >( row->get_function() ) ) )
+      ( ! memo_cast< const LinearFunction * >( row->get_function() ) ) )
    return( false );
   const int i = index_of_constraint( row );
   if( ( i < 0 ) || ( i >= numrows ) )
@@ -2614,12 +2614,12 @@ bool MILPSolver::modification_in_place( const Modification * mod )
  // C05FunctionModLin carries, since a column may be in many Objective,
  // and its constant, by the shift of a C05FunctionMod of nothing else
  if( fm && of_obj &&
-     ( dynamic_cast< const LinearFunction * >( f ) ||
-       dynamic_cast< const DQuadFunction * >( f ) ) ) {
+     ( memo_cast< const LinearFunction * >( f ) ||
+       memo_cast< const DQuadFunction * >( f ) ) ) {
   const double w = objective_weight( f );
-  if( auto modl = dynamic_cast< const C05FunctionModLin * >( fm ) ) {
+  if( auto modl = memo_cast< const C05FunctionModLin * >( fm ) ) {
    for( Index k = 0 ; k < modl->vars().size() ; ++k ) {
-    auto var = dynamic_cast< const ColVariable * >( modl->vars()[ k ] );
+    auto var = memo_cast< const ColVariable * >( modl->vars()[ k ] );
     const int j = var ? index_of_variable( var ) : -1;
     if( ( j < 0 ) || ( j >= numcols ) )
      return( false );
@@ -2796,22 +2796,22 @@ bool MILPSolver::read_column_group(
   };
 
  for( const auto & submod : gmod->sub_Modifications() ) {
-  auto fvm = dynamic_cast< const FunctionModVars * >( submod.get() );
+  auto fvm = memo_cast< const FunctionModVars * >( submod.get() );
   if( ! fvm )  // the Variable coming in, which vars already says
    continue;
 
   if( ! fvm->added() )  // a removal inside an addition is not a column
    return( false );
 
-  auto lf = dynamic_cast< const LinearFunction * >( fvm->function() );
+  auto lf = memo_cast< const LinearFunction * >( fvm->function() );
   if( ! lf )  // a column of something that is not linear is not a column
    return( false );
 
   auto nav = lf->get_num_active_var();
   auto obs = lf->get_Observer();
 
-  if( dynamic_cast< const Objective * >( obs ) ) {
-   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( fvm );
+  if( memo_cast< const Objective * >( obs ) ) {
+   auto modl = memo_cast< const LinearFunctionModVarsAddd * >( fvm );
    if( ! modl )
     return( false );
 
@@ -2828,7 +2828,7 @@ bool MILPSolver::read_column_group(
    continue;
    }
 
-  auto con = dynamic_cast< const FRowConstraint * >( obs );
+  auto con = memo_cast< const FRowConstraint * >( obs );
   if( ! con )  // a Function of something this Solver does not have
    continue;
 
@@ -3116,13 +3116,13 @@ void MILPSolver::flush_batch( void )
 void MILPSolver::for_each_row_addition( const Modification * mod ,
  const std::function< void( const BlockModAdd< FRowConstraint > * ) > & f )
 {
- if( auto gm = dynamic_cast< const GroupModification * >( mod ) ) {
+ if( auto gm = memo_cast< const GroupModification * >( mod ) ) {
   for( const auto & submod : gm->sub_Modifications() )
    for_each_row_addition( submod.get() , f );
   return;
   }
 
- if( auto tmod = dynamic_cast< const BlockModAdd< FRowConstraint > * >( mod ) )
+ if( auto tmod = memo_cast< const BlockModAdd< FRowConstraint > * >( mod ) )
   f( tmod );
 
  }  // end( MILPSolver::for_each_row_addition )
@@ -3161,7 +3161,7 @@ void MILPSolver::separate_in_callback( Configuration * cfg ,
  // the set of Variable a row is written on, as an index
  auto support = [ this ]( const FRowConstraint * con ) -> Index {
   std::vector< const Variable * > vars;
-  if( auto lf = dynamic_cast< const LinearFunction * >( con->get_function() ) )
+  if( auto lf = memo_cast< const LinearFunction * >( con->get_function() ) )
    for( const auto & el : lf->get_v_var() )
     vars.push_back( el.first );
   std::sort( vars.begin() , vars.end() );
@@ -3192,7 +3192,7 @@ void MILPSolver::separate_in_callback( Configuration * cfg ,
    const auto con = v_cut_pool[ i ];
    double act = 0;
    double size = 1;
-   if( auto lf = dynamic_cast< const LinearFunction * >(
+   if( auto lf = memo_cast< const LinearFunction * >(
                                                     con->get_function() ) )
     for( const auto & el : lf->get_v_var() ) {
      const double v = el.second * variable_weight( el.first , con ) *
@@ -3272,7 +3272,7 @@ bool MILPSolver::erase_from_cut_pool( const FRowConstraint * con )
 
 bool MILPSolver::is_of( Function * f )
 {
- return( dynamic_cast< Objective * >( f->get_Observer() ) );
+ return( memo_cast< Objective * >( f->get_Observer() ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -3480,8 +3480,8 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
  // (potentially) a sum of terms, recomputing them would require fetching
  // back all the terms, while the delta() can just be applied to the sum
 
- if( auto * modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
-  if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( auto * modl = memo_cast< const C05FunctionModLin * >( mod ) ) {
+  if( auto * lf = memo_cast< const LinearFunction * >( f ) ) {
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
     auto var = static_cast< const ColVariable * >( modl->vars()[ i ] );
     objective[ index_of_variable( var ) ] += w * modl->delta()[ i ];
@@ -3514,7 +3514,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
   }
 
  // fallback method - update all costs
- if( const auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( const auto * lf = memo_cast< const LinearFunction * >( f ) ) {
   // Linear objective function
   for( auto el : lf->get_v_var() )
    objective[ index_of_variable( el.first ) ] = w * el.second;
@@ -3522,7 +3522,7 @@ void MILPSolver::objective_function_modification( const FunctionMod * mod )
   return;
   }
 
- if( const auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( const auto * qf = memo_cast< const DQuadFunction * >( f ) ) {
   // quadratic objective function
 
   // this may happen if we change from LP to QP
@@ -3555,11 +3555,11 @@ void MILPSolver::constraint_function_modification( const FunctionMod * mod )
 
  auto * f = mod->function();
 
- auto * lf = dynamic_cast< const LinearFunction * >( f );
+ auto * lf = memo_cast< const LinearFunction * >( f );
  if( ! lf )
   return;
 
- auto * con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
+ auto * con = memo_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )  // non-FRowConstraint Mods are silently ignored
   return;
 
@@ -3614,14 +3614,14 @@ void MILPSolver::objective_fvars_modification( const FunctionModVars * mod )
  const double w = objective_weight( f );
 
  // Check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "MILPSolver::objective_fvars_modification: "
              "this type of FunctionModVars is not handled" ) );
 
- if( auto * lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( auto * lf = memo_cast< const LinearFunction * >( f ) ) {
   // Linear objective function
 
   for( auto * it1 : mod->vars() )
@@ -3638,7 +3638,7 @@ void MILPSolver::objective_fvars_modification( const FunctionModVars * mod )
   return;
   }
 
- if( auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( auto * qf = memo_cast< const DQuadFunction * >( f ) ) {
   // Quadratic objective function
 
   for( auto * it1 : mod->vars() )
@@ -3674,20 +3674,20 @@ void MILPSolver::constraint_fvars_modification( const FunctionModVars * mod )
  if( matval.empty() )
   return;
 
- auto * lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto * lf = memo_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
  // Check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "MILPSolver::constraint_fvars_modification: "
              "this type of FunctionModVars is not handled" ) );
 
  // Get indices and coefficients
- auto * con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
+ auto * con = memo_cast< FRowConstraint * >( lf->get_Observer() );
  if( ! con )  // non-FRowConstraint Mods are silently ignored
   return;
 

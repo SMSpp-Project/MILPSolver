@@ -1457,7 +1457,7 @@ void HiGHSMILPSolver::const_modification( const ConstraintMod * mod )
 
  /* To change the coefficients, a FunctionMod must be used. */
 
- auto * con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+ auto * con = memo_cast< FRowConstraint * >( mod->constraint() );
  if( ! con )  // this should not happen
   return;     // but in case, nothing to do
 
@@ -1683,22 +1683,22 @@ bool HiGHSMILPSolver::change_coefficients(
  std::vector< double > odeltas;
 
  for( auto mod : mods ) {
-  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+  auto modl = memo_cast< const C05FunctionModLin * >( mod );
   if( ! modl )
    return( false );
 
-  auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+  auto lf = memo_cast< const LinearFunction * >( mod->function() );
   if( ! lf )
    return( false );
 
-  auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl );
-  auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl );
+  auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl );
+  auto modls = memo_cast< const C05FunctionModLinSbst * >( modl );
   if( ( ! modlr ) && ( ! modls ) )
    return( false );
 
   auto obs = lf->get_Observer();
 
-  if( auto con = dynamic_cast< const FRowConstraint * >( obs ) ) {
+  if( auto con = memo_cast< const FRowConstraint * >( obs ) ) {
    auto idxs = modlr ? lf->map_index( modl->vars() , modlr->range() )
                     : lf->map_index( modl->vars() , modls->subset() );
    auto row = index_of_constraint( con );
@@ -1725,7 +1725,7 @@ bool HiGHSMILPSolver::change_coefficients(
    continue;
    }
 
-  if( dynamic_cast< const Objective * >( obs ) ) {
+  if( memo_cast< const Objective * >( obs ) ) {
    // Objective deltas describe queued changes, not the live Function state.
    const double w = objective_weight( lf );  // as one by one
    for( Block::Index i = 0 ; i < modl->vars().size() ; ++i ) {
@@ -1894,7 +1894,7 @@ bool HiGHSMILPSolver::change_sides(
     return( false );  // nothing has been written yet
    }
 
-  auto con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+  auto con = memo_cast< FRowConstraint * >( mod->constraint() );
   if( ! con )  // this should not happen
    return( false );
 
@@ -1962,13 +1962,13 @@ void HiGHSMILPSolver::objective_function_modification(
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
+ if( auto modl = memo_cast< const C05FunctionModLin * >( mod ) ) {
 
-  if( dynamic_cast< const LinearFunction * >( f ) ) {
+  if( memo_cast< const LinearFunction * >( f ) ) {
    // Linear objective function
 
-   if( ( ! dynamic_cast< const C05FunctionModLinRngd * >( modl ) ) &&
-       ( ! dynamic_cast< const C05FunctionModLinSbst * >( modl ) ) )
+   if( ( ! memo_cast< const C05FunctionModLinRngd * >( modl ) ) &&
+       ( ! memo_cast< const C05FunctionModLinSbst * >( modl ) ) )
     throw( std::logic_error(
                 "HiGHSMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
@@ -1996,14 +1996,14 @@ void HiGHSMILPSolver::objective_function_modification(
    return;
   }
 
-  if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+  if( auto qf = memo_cast< const DQuadFunction * >( f ) ) {
    // quadratic objective function
 
    Subset idxs;
-   if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+   if( auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl ) )
     idxs = qf->map_index( modl->vars() , modlr->range() );
    else
-    if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+    if( auto modls = memo_cast< const C05FunctionModLinSbst * >( modl ) )
      idxs = qf->map_index( modl->vars() , modls->subset() );
     else
      throw( std::logic_error(
@@ -2041,7 +2041,7 @@ void HiGHSMILPSolver::objective_function_modification(
 
  // C05FunctionMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( auto modl = dynamic_cast< const C05FunctionMod * >( mod ) ) {
+ if( auto modl = memo_cast< const C05FunctionMod * >( mod ) ) {
 
   if( modl->type() == C05FunctionMod::NothingChanged ) {
 
@@ -2058,8 +2058,8 @@ void HiGHSMILPSolver::objective_function_modification(
    return;
    }
 
-  auto qf = dynamic_cast< const QuadFunction * >( f );
-  auto dqf = dynamic_cast< const DQuadFunction * >( f );
+  auto qf = memo_cast< const QuadFunction * >( f );
+  auto dqf = memo_cast< const DQuadFunction * >( f );
   if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
                "HiGHSMILPSolver::objective_function_modification: "
@@ -2068,8 +2068,8 @@ void HiGHSMILPSolver::objective_function_modification(
   // Select correct quadratic function
   auto fqf = ( qf ) ? qf : dqf;
 
-  if( auto modld = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ;
-      modld || dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
+  if( auto modld = memo_cast< const DQuadFunctionModRngd * >( modl ) ;
+      modld || memo_cast< const DQuadFunctionModSbst * >( modl ) ) {
    // we exploit the delta() vector of DQuadFunctionModRngd/Sbst, giving the
    // difference between the new and the old value of both linear and
    // quadratic coefficient, to update the objective values without having
@@ -2113,7 +2113,7 @@ void HiGHSMILPSolver::objective_function_modification(
    change_obj_costs( cidx , delta , true );
    return;
    }
-  else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
+  else if( auto modlq = memo_cast< const QuadFunctionModSbst * >( modl ) ) {
    // NOTE: in the actual version of QuadFunction, we expect to recieve one
    // coefficient at time for each Modification.
    c_Vec_p_Var vars = modlq->vars();
@@ -2209,11 +2209,11 @@ void HiGHSMILPSolver::constraint_function_modification(
 {
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_function_modification( mod );
- auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto lf = memo_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
- auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
+ auto con = memo_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )
   return;
 
@@ -2221,17 +2221,17 @@ void HiGHSMILPSolver::constraint_function_modification(
  if( row == Inf< int >() )  // the constraint is not (yet?) there
   return;
 
- auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+ auto modl = memo_cast< const C05FunctionModLin * >( mod );
  if( ! modl )
   throw( std::logic_error(
              "HiGHSMILPSolver::constraint_function_modification: "
              "unexpected *C05FunctionModLin* from FRowConstraint" ) );
 
  Subset idxs;
- if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+ if( auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl ) )
   idxs = lf->map_index( modl->vars() , modlr->range() );
  else
-  if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+  if( auto modls = memo_cast< const C05FunctionModLinSbst * >( modl ) )
    idxs = lf->map_index( modl->vars() , modls->subset() );
   else
    throw( std::logic_error(
@@ -2280,11 +2280,11 @@ void HiGHSMILPSolver::objective_fvars_modification(
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "HiGHSMILPSolver: this type of FunctionModVars is not handled"
 				) );
@@ -2305,7 +2305,7 @@ void HiGHSMILPSolver::objective_fvars_modification(
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( dynamic_cast< const LinearFunction * >( f ) ) {
+ if( memo_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
 
   // Addition coefficients and removal deltas refer to the issuing Function
@@ -2313,19 +2313,19 @@ void HiGHSMILPSolver::objective_fvars_modification(
   // the current active Variables of the Function.
   const Function::Vec_FunctionValue * delta = nullptr;
   if( mod->added() ) {
-   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+   auto modl = memo_cast< const LinearFunctionModVarsAddd * >( mod );
    if( ! modl )
     throw( std::invalid_argument(
                "HiGHSMILPSolver: invalid LinearFunction addition" ) );
    delta = & modl->coeff();
    }
   else if( auto modr =
-            dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+            memo_cast< const C05FunctionModVarsRngd * >( mod ) ) {
    if( modr->has_linear_delta() )
     delta = & modr->linear_delta();
    }
   else if( auto mods =
-            dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+            memo_cast< const C05FunctionModVarsSbst * >( mod ) ) {
    if( mods->has_linear_delta() )
     delta = & mods->linear_delta();
    }
@@ -2343,7 +2343,7 @@ void HiGHSMILPSolver::objective_fvars_modification(
   return;
   }
 
- if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
+ if( auto qf = memo_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
 
   if( ! mod->added() ) {  // the Variable leave the Objective, and so does
@@ -2363,7 +2363,7 @@ void HiGHSMILPSolver::objective_fvars_modification(
    return;
    }
 
-  auto modq = dynamic_cast< const QuadFunctionModVarsAddd * >( mod );
+  auto modq = memo_cast< const QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
    // This should never happen
    throw( std::invalid_argument(
@@ -2385,7 +2385,7 @@ void HiGHSMILPSolver::objective_fvars_modification(
   // derives from a DQuadFunction
   }
 
- if( dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( memo_cast< const DQuadFunction * >( f ) ) {
   // Separable quadratic objective function modification
 
   if( ! mod->added() ) {  // the Variable leave the Objective
@@ -2401,7 +2401,7 @@ void HiGHSMILPSolver::objective_fvars_modification(
    return;
    }
 
-  auto modq = dynamic_cast< const DQuadFunctionModVarsAddd * >( mod );
+  auto modq = memo_cast< const DQuadFunctionModVarsAddd * >( mod );
   if( ! modq )
    // This should never happen
    throw( std::invalid_argument(
@@ -2446,7 +2446,7 @@ void HiGHSMILPSolver::constraint_fvars_modification(
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_fvars_modification( mod );
 
- auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto lf = memo_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
@@ -2455,14 +2455,14 @@ void HiGHSMILPSolver::constraint_fvars_modification(
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "HiGHSMILPSolver: this type of FunctionModVars is not handled"
 				) );
 
- auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
+ auto con = memo_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )  // non-FRowConstraint Mods are silently ignored
   return;
 
@@ -2517,7 +2517,7 @@ void HiGHSMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::add_dynamic_constraint( con );
 
- auto lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+ auto lf = memo_cast< const LinearFunction * >( con->get_function() );
  if( ! lf )
   throw( std::invalid_argument(
             "HiGHSMILPSolver::add_dynamic_constraint: "
@@ -2602,7 +2602,7 @@ void HiGHSMILPSolver::add_dynamic_constraints(
    continue;
 
   batch.push_back( c );
-  auto lf = dynamic_cast< const LinearFunction * >( c->get_function() );
+  auto lf = memo_cast< const LinearFunction * >( c->get_function() );
   if( ! lf )
    throw( std::invalid_argument(
              "HiGHSMILPSolver::add_dynamic_constraints: "
@@ -2997,7 +2997,7 @@ void HiGHSMILPSolver::perform_separation( Configuration * cfg ,
 
  // add all the rows to the matrix, one by one
  for( auto con : rows ) {
-  auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+  auto * lf = memo_cast< const LinearFunction * >( con->get_function() );
   if( ! lf )
    throw( std::invalid_argument(
               "HiGHSMILPSolver: the Constraint is not linear" ) );
@@ -3793,7 +3793,7 @@ void HiGHSMILPSolver::reload_objective( Function * f )
  std::vector< double > values;
  values.reserve( nv );
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( auto lf = memo_cast< const LinearFunction * >( f ) ) {
   for( auto & el : lf->get_v_var() )
    if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
@@ -3806,7 +3806,7 @@ void HiGHSMILPSolver::reload_objective( Function * f )
   return;
   }
 
- if( auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( auto * qf = memo_cast< const DQuadFunction * >( f ) ) {
   for( auto & el : qf->get_v_var() )
    if( auto idx = index_of_variable( std::get< 0 >( el ) ) ;
        idx < Inf< int >() ) {

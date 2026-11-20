@@ -2716,7 +2716,7 @@ void GRBMILPSolver::const_modification( const ConstraintMod * mod )
 
  /* To change the coefficients, a FunctionMod must be used. */
 
- auto * con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+ auto * con = memo_cast< FRowConstraint * >( mod->constraint() );
  if( ! con )  // this should not happen
   return;     // but in case, nothing to do
 
@@ -2921,13 +2921,13 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
+ if( auto modl = memo_cast< const C05FunctionModLin * >( mod ) ) {
 
-  if( dynamic_cast< const LinearFunction * >( f ) ) {
+  if( memo_cast< const LinearFunction * >( f ) ) {
    // Linear objective function
 
-   if( ( ! dynamic_cast< const C05FunctionModLinRngd * >( modl ) ) &&
-       ( ! dynamic_cast< const C05FunctionModLinSbst * >( modl ) ) )
+   if( ( ! memo_cast< const C05FunctionModLinRngd * >( modl ) ) &&
+       ( ! memo_cast< const C05FunctionModLinSbst * >( modl ) ) )
     throw( std::logic_error(
                 "GRBMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
@@ -2963,14 +2963,14 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
   }
 
-  if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+  if( auto qf = memo_cast< const DQuadFunction * >( f ) ) {
    // quadratic objective function
 
    Subset idxs;
-   if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+   if( auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl ) )
     idxs = qf->map_index( modl->vars() , modlr->range() );
    else
-    if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+    if( auto modls = memo_cast< const C05FunctionModLinSbst * >( modl ) )
      idxs = qf->map_index( modl->vars() , modls->subset() );
     else
      throw( std::logic_error(
@@ -3010,7 +3010,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
 
  // C05FunctionMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( auto modl = dynamic_cast< const C05FunctionMod * >( mod ) ) {
+ if( auto modl = memo_cast< const C05FunctionMod * >( mod ) ) {
 
   if( modl->type() == C05FunctionMod::NothingChanged ) {
 
@@ -3027,8 +3027,8 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
 
-  auto qf = dynamic_cast< const QuadFunction * >( f );
-  auto dqf = dynamic_cast< const DQuadFunction * >( f );
+  auto qf = memo_cast< const QuadFunction * >( f );
+  auto dqf = memo_cast< const DQuadFunction * >( f );
   if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
                "GRBMILPSolver::objective_function_modification: "
@@ -3040,7 +3040,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
   // In Gurobi we can directly pass the delta_coeff() value of the Modification
   // to the function GRBaddqpterms() to update the quadratic coefficient.
 
-  if( auto modlr = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ) {
+  if( auto modlr = memo_cast< const DQuadFunctionModRngd * >( modl ) ) {
    // we exploit the delta_coeff() vector of DQuadFunctionModRngd, giving the
    // difference between the new and the old value of both linear and
    // quadratic coefficient, to update the objective values without having
@@ -3086,7 +3086,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
   else if( auto modls =
-            dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
+            memo_cast< const DQuadFunctionModSbst * >( modl ) ) {
    // we exploit the delta() vector of DQuadFunctionModSbst, giving the
    // difference between the new and the old value of both linear and
    // quadratic coefficient, to update the objective values without having
@@ -3109,7 +3109,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    for( auto v : *vars ) {
     if( auto idx = *(idxit++) ; idx < Inf< Index >() ) {
      cidx.push_back( grb_index_of_variable(
-                                     dynamic_cast< ColVariable * >( v ) ) );
+                                     memo_cast< ColVariable * >( v ) ) );
      ldelta.push_back( w * std::get< 0 >( *dcoeffit ) );
      qdelta.push_back( w * std::get< 1 >( *dcoeffit ) );
      }
@@ -3129,7 +3129,7 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
    set_obj_coefficients( int( cidx.size() ) , cidx.data() , nval.data() );
    return;
    }
-  else if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
+  else if( auto modlq = memo_cast< const QuadFunctionModSbst * >( modl ) ) {
    // we exploit the delta() vector of QuadFunctionModSbst, giving the
    // difference between the new and the old value of both linear and
    // quadratic coefficient, to update the objective values without having
@@ -3149,9 +3149,9 @@ void GRBMILPSolver::objective_function_modification( const FunctionMod * mod )
                "QuadFunctionModSbst" ) );
 
    int idx1 =
-    grb_index_of_variable( dynamic_cast< ColVariable * >( vars[ 0 ] ) );
+    grb_index_of_variable( memo_cast< ColVariable * >( vars[ 0 ] ) );
    int idx2 =
-    grb_index_of_variable( dynamic_cast< ColVariable * >( vars[ 1 ] ) );
+    grb_index_of_variable( memo_cast< ColVariable * >( vars[ 1 ] ) );
 
    // Update quadratic coefficient
    add_qp_term( model , idx1 , idx2 , delta_coeff );
@@ -3249,11 +3249,11 @@ void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
 {
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_function_modification( mod );
- auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto lf = memo_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
- auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
+ auto con = memo_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )
   return;
 
@@ -3261,17 +3261,17 @@ void GRBMILPSolver::constraint_function_modification( const FunctionMod *mod )
  if( row == Inf< int >() )  // the constraint is not (yet?) there
   return;
 
- auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+ auto modl = memo_cast< const C05FunctionModLin * >( mod );
  if( ! modl )
   throw( std::logic_error(
              "GRBMILPSolver::constraint_function_modification: "
              "unexpected *C05FunctionModLin* from FRowConstraint" ) );
 
  Subset idxs;
- if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+ if( auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl ) )
   idxs = lf->map_index( modl->vars() , modlr->range() );
  else
-  if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+  if( auto modls = memo_cast< const C05FunctionModLinSbst * >( modl ) )
    idxs = lf->map_index( modl->vars() , modls->subset() );
   else
    throw( std::logic_error(
@@ -3324,11 +3324,11 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "GRBMILPSolver: this type of FunctionModVars is not handled"
 				) );
@@ -3349,7 +3349,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
  // strictly in arrival order, they may no longer exist in the model;
  // more to the point, they may no longer be active in the LinearFunction
 
- if( dynamic_cast< const LinearFunction * >( f ) ) {
+ if( memo_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
 
   // Addition coefficients and removal deltas refer to the issuing Function
@@ -3357,19 +3357,19 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // the current active Variables of the Function.
   const Function::Vec_FunctionValue * delta = nullptr;
   if( mod->added() ) {
-   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+   auto modl = memo_cast< const LinearFunctionModVarsAddd * >( mod );
    if( ! modl )
     throw( std::invalid_argument(
                "GRBMILPSolver: invalid LinearFunction addition" ) );
    delta = & modl->coeff();
    }
   else if( auto modr =
-            dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+            memo_cast< const C05FunctionModVarsRngd * >( mod ) ) {
    if( modr->has_linear_delta() )
     delta = & modr->linear_delta();
    }
   else if( auto mods =
-            dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+            memo_cast< const C05FunctionModVarsSbst * >( mod ) ) {
    if( mods->has_linear_delta() )
     delta = & mods->linear_delta();
    }
@@ -3413,7 +3413,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   return;
   }
 
- if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
+ if( auto qf = memo_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
 
   // In Gurobi to change quadratic coefficients we need to retrieve all the
@@ -3472,7 +3472,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq =
-   dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+   memo_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
     throw( std::invalid_argument(
@@ -3494,9 +3494,9 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
     auto var2 = qf->get_active_var( loc_idx2 );
 
     int glob_idx1 =
-     grb_index_of_variable( dynamic_cast< ColVariable * >( var1 ) );
+     grb_index_of_variable( memo_cast< ColVariable * >( var1 ) );
     int glob_idx2 =
-     grb_index_of_variable( dynamic_cast< ColVariable * >( var2 ) );
+     grb_index_of_variable( memo_cast< ColVariable * >( var2 ) );
 
     double q_diff = ( w * std::get<2>( t ) );
 
@@ -3507,7 +3507,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   // derives from a DQuadFunction
  }
 
- if( auto dqf = dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( auto dqf = memo_cast< const DQuadFunction * >( f ) ) {
   // Separable quadratic objective function modification
 
   // In Gurobi to change quadratic coefficients we need to retrieve all the
@@ -3564,7 +3564,7 @@ void GRBMILPSolver::objective_fvars_modification( const FunctionModVars *mod )
   }
 
   auto modq =
-   dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+   memo_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
   if( ! modq )
     // This should never happen
     throw( std::invalid_argument(
@@ -3630,7 +3630,7 @@ void GRBMILPSolver::constraint_fvars_modification(
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_fvars_modification( mod );
 
- auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto lf = memo_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
@@ -3639,14 +3639,14 @@ void GRBMILPSolver::constraint_fvars_modification(
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "GRBMILPSolver: this type of FunctionModVars is not handled"
 				) );
 
- auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
+ auto con = memo_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )  // non-FRowConstraint Mods are silently ignored
   return;
 
@@ -3706,7 +3706,7 @@ void GRBMILPSolver::add_dynamic_constraint( const FRowConstraint * con )
  // call the method of MILPSolver to update the dictionaries (only)
  MILPSolver::add_dynamic_constraint( con );
 
- auto lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+ auto lf = memo_cast< const LinearFunction * >( con->get_function() );
  if( ! lf )
   throw( std::invalid_argument(
             "GRBMILPSolver::add_dynamic_constraint: "
@@ -3851,7 +3851,7 @@ void GRBMILPSolver::add_dynamic_constraints(
                       };
 
  for( auto * c : batch ) {
-  auto lf = dynamic_cast< const LinearFunction * >( c->get_function() );
+  auto lf = memo_cast< const LinearFunction * >( c->get_function() );
   if( ! lf )
    throw( std::invalid_argument(
              "GRBMILPSolver::add_dynamic_constraints: "
@@ -4250,10 +4250,10 @@ bool GRBMILPSolver::change_coefficients(
   };
 
  for( auto mod : mods ) {
-  if( auto modq = dynamic_cast< const DQuadFunctionModRngd * >( mod ) ) {
-   auto qf = dynamic_cast< const DQuadFunction * >( mod->function() );
+  if( auto modq = memo_cast< const DQuadFunctionModRngd * >( mod ) ) {
+   auto qf = memo_cast< const DQuadFunction * >( mod->function() );
    if( ( ! qf ) ||
-       ( ! dynamic_cast< const Objective * >( qf->get_Observer() ) ) )
+       ( ! memo_cast< const Objective * >( qf->get_Observer() ) ) )
     return( false );
 
    quadratic( modq->vars() ,
@@ -4262,10 +4262,10 @@ bool GRBMILPSolver::change_coefficients(
    continue;
    }
 
-  if( auto modq = dynamic_cast< const DQuadFunctionModSbst * >( mod ) ) {
-   auto qf = dynamic_cast< const DQuadFunction * >( mod->function() );
+  if( auto modq = memo_cast< const DQuadFunctionModSbst * >( mod ) ) {
+   auto qf = memo_cast< const DQuadFunction * >( mod->function() );
    if( ( ! qf ) ||
-       ( ! dynamic_cast< const Objective * >( qf->get_Observer() ) ) )
+       ( ! memo_cast< const Objective * >( qf->get_Observer() ) ) )
     return( false );
 
    quadratic( modq->vars() ,
@@ -4274,22 +4274,22 @@ bool GRBMILPSolver::change_coefficients(
    continue;
    }
 
-  auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+  auto modl = memo_cast< const C05FunctionModLin * >( mod );
   if( ! modl )
    return( false );
 
-  auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+  auto lf = memo_cast< const LinearFunction * >( mod->function() );
   if( ! lf )
    return( false );
 
-  auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl );
-  auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl );
+  auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl );
+  auto modls = memo_cast< const C05FunctionModLinSbst * >( modl );
   if( ( ! modlr ) && ( ! modls ) )
    return( false );
 
   auto obs = lf->get_Observer();
 
-  if( auto con = dynamic_cast< const FRowConstraint * >( obs ) ) {
+  if( auto con = memo_cast< const FRowConstraint * >( obs ) ) {
    auto idxs = modlr ? lf->map_index( modl->vars() , modlr->range() )
                     : lf->map_index( modl->vars() , modls->subset() );
    auto row = grb_index_of_linear_constraint( con );
@@ -4309,7 +4309,7 @@ bool GRBMILPSolver::change_coefficients(
    continue;
    }
 
-  if( dynamic_cast< const Objective * >( obs ) ) {
+  if( memo_cast< const Objective * >( obs ) ) {
    // Objective deltas describe queued changes, not the live Function state;
    // they are scaled by the weight of the Objective, as one by one
    const double w = objective_weight( lf );
@@ -4549,7 +4549,7 @@ bool GRBMILPSolver::change_sides(
     return( false );  // nothing has been written yet
    }
 
-  auto con = dynamic_cast< FRowConstraint * >( mod->constraint() );
+  auto con = memo_cast< FRowConstraint * >( mod->constraint() );
   if( ! con )  // this should not happen
    return( false );
 
@@ -5249,7 +5249,7 @@ void GRBMILPSolver::perform_separation( Configuration * cfg ,
 
  // add all the rows to the matrix, one by one
  for( auto con : rows ) {
-  auto * lf = dynamic_cast< const LinearFunction * >( con->get_function() );
+  auto * lf = memo_cast< const LinearFunction * >( con->get_function() );
   if( ! lf )
    throw( std::invalid_argument(
               "GRBMILPSolver: the Constraint is not linear" ) );
@@ -6034,7 +6034,7 @@ void CPXMILPSolver::reload_objective( Function * f )
  std::vector< double > values;
  values.reserve( nv );
 
- if( auto lf = dynamic_cast< const LinearFunction * >( f ) ) {
+ if( auto lf = memo_cast< const LinearFunction * >( f ) ) {
   for( auto & el : lf->get_v_var() )
    if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
     indices.push_back( idx );
@@ -6047,7 +6047,7 @@ void CPXMILPSolver::reload_objective( Function * f )
   return;
   }
 
- if( auto * qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( auto * qf = memo_cast< const DQuadFunction * >( f ) ) {
   for( auto & el : qf->get_v_var() )
    if( auto idx = index_of_variable( std::get< 0 >( el ) ) ;
        idx < Inf< int >() ) {

@@ -43,9 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   group, and the rows added by `Modification` that follow one another in one
   call; the dictionaries of the dynamic rows and columns are updated once
   for all those added or removed together, in O(n + k log k) rather than
-  O(k n), the type of a `Modification` is found once for each dynamic type
-  rather than by a chain of `dynamic_cast`, and the column groups of many
-  `Variable` are read by hash
+  O(k n), the type of a `Modification`, of a `Function`, of a `Variable`
+  and of a `Constraint` is found once for each dynamic type rather than by
+  a `dynamic_cast` each time, in all the back-ends, and the column groups
+  of many `Variable` are read by hash
 
 - `CPXMILPSolver` keeps the basis of a solve in step with the rows and the
   columns added and removed since, reads the costs it changes by a range,

@@ -1392,7 +1392,7 @@ class MILPSolver : public CDASolver
  inline void scatter_lf_to_csr( const LinearFunction * lf , IdxFn && idx_fn ,
                                 std::vector< int > & out_ind ,
                                 std::vector< double > & out_val ) const {
-  const auto con = dynamic_cast< const Constraint * >( lf->get_Observer() );
+  const auto con = memo_cast< const Constraint * >( lf->get_Observer() );
   for( auto & el : lf->get_v_var() )
    if( auto idx = idx_fn( el.first ) ; idx < Inf< int >() ) {
     out_ind.push_back( idx );

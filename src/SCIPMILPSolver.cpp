@@ -1096,7 +1096,7 @@ void SCIPMILPSolver::const_modification( const ConstraintMod * mod )
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto con = dynamic_cast< const FRowConstraint * >(mod->constraint());
+ auto con = memo_cast< const FRowConstraint * >(mod->constraint());
  if( ! con )  // this should not happen
   return;     // but in case, nothing to do
 
@@ -1258,13 +1258,13 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
 
  // C05FunctionModLin - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( auto modl = dynamic_cast< const C05FunctionModLin * >( mod ) ) {
+ if( auto modl = memo_cast< const C05FunctionModLin * >( mod ) ) {
 
-  if( dynamic_cast< const LinearFunction * >( f ) ) {
+  if( memo_cast< const LinearFunction * >( f ) ) {
    // Linear objective function
 
-   if( ( ! dynamic_cast< const C05FunctionModLinRngd * >( modl ) ) &&
-       ( ! dynamic_cast< const C05FunctionModLinSbst * >( modl ) ) )
+   if( ( ! memo_cast< const C05FunctionModLinRngd * >( modl ) ) &&
+       ( ! memo_cast< const C05FunctionModLinSbst * >( modl ) ) )
     throw( std::logic_error(
                 "SCIPMILPSolver: unknown type of C05FunctionModLinRngd" ) );
 
@@ -1291,14 +1291,14 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
    
   }
 
-  if( auto qf = dynamic_cast< const DQuadFunction * >( f ) ) {
+  if( auto qf = memo_cast< const DQuadFunction * >( f ) ) {
    // quadratic objective function
 
    Subset idxs;
-   if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+   if( auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl ) )
     idxs = qf->map_index( modl->vars() , modlr->range() );
    else
-    if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+    if( auto modls = memo_cast< const C05FunctionModLinSbst * >( modl ) )
      idxs = qf->map_index( modl->vars() , modls->subset() );
     else
      throw( std::logic_error(
@@ -1337,7 +1337,7 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
 
  // C05FunctionMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( auto modl = dynamic_cast< const C05FunctionMod * >( mod ) ) {
+ if( auto modl = memo_cast< const C05FunctionMod * >( mod ) ) {
 
   if( modl->type() == C05FunctionMod::NothingChanged ) {
 
@@ -1354,8 +1354,8 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
    return;
    }
 
-  auto qf = dynamic_cast< const QuadFunction * >( f );
-  auto dqf = dynamic_cast< const DQuadFunction * >( f );
+  auto qf = memo_cast< const QuadFunction * >( f );
+  auto dqf = memo_cast< const DQuadFunction * >( f );
   if( ( ! qf ) && ( ! dqf ) )
     throw( std::logic_error(
                "SCIPMILPSolver::objective_function_modification: "
@@ -1408,19 +1408,19 @@ void SCIPMILPSolver::objective_function_modification( const FunctionMod * mod )
     create_new_qobj( qvar1 , qvar2 , qcoeffs );
    };
 
-  if( auto modlr = dynamic_cast< const DQuadFunctionModRngd * >( modl ) ) {
+  if( auto modlr = memo_cast< const DQuadFunctionModRngd * >( modl ) ) {
    apply( fqf->map_index( modlr->vars() , modlr->range() ) ,
           modlr->vars() , modlr->delta() );
    return;
    }
 
-  if( auto modls = dynamic_cast< const DQuadFunctionModSbst * >( modl ) ) {
+  if( auto modls = memo_cast< const DQuadFunctionModSbst * >( modl ) ) {
    apply( fqf->map_index( modls->vars() , modls->subset() ) ,
           modls->vars() , modls->delta() );
    return;
    }
 
-  if( auto modlq = dynamic_cast< const QuadFunctionModSbst * >( modl ) ) {
+  if( auto modlq = memo_cast< const QuadFunctionModSbst * >( modl ) ) {
    // the delta() of QuadFunctionModSbst is the change of the coefficient of
    // the one term x_i x_j that it is about
    Subset idxs = fqf->map_index( modlq->vars() , modlq->subset() );
@@ -1525,11 +1525,11 @@ void SCIPMILPSolver::constraint_function_modification(
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- auto lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto lf = memo_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
- auto con = dynamic_cast< const FRowConstraint * >( lf->get_Observer() );
+ auto con = memo_cast< const FRowConstraint * >( lf->get_Observer() );
  if( ! con )
   return;
 
@@ -1539,17 +1539,17 @@ void SCIPMILPSolver::constraint_function_modification(
  
  SCIP_CONS * scip_con = cons[ cidx ];
 
- auto modl = dynamic_cast< const C05FunctionModLin * >( mod );
+ auto modl = memo_cast< const C05FunctionModLin * >( mod );
  if( ! modl )
   throw( std::logic_error(
              "SCIPMILPSolver: "
              "unexpected *C05FunctionModLin* from FRowConstraint" ) );
 
  Subset idxs;
- if( auto modlr = dynamic_cast< const C05FunctionModLinRngd * >( modl ) )
+ if( auto modlr = memo_cast< const C05FunctionModLinRngd * >( modl ) )
   idxs = lf->map_index( modl->vars() , modlr->range() );
  else
-  if( auto modls = dynamic_cast< const C05FunctionModLinSbst * >( modl ) )
+  if( auto modls = memo_cast< const C05FunctionModLinSbst * >( modl ) )
    idxs = lf->map_index( modl->vars() , modls->subset() );
   else
    throw( std::logic_error(
@@ -1594,11 +1594,11 @@ void SCIPMILPSolver::objective_fvars_modification(
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const LinearFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const DQuadFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const QuadFunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "SCIPMILPSolver::objective_fvars_modification: "
              "this type of FunctionModVars is not handled" ) );
@@ -1617,7 +1617,7 @@ void SCIPMILPSolver::objective_fvars_modification(
  if( SCIPisTransformed( scip ) )
   SCIP_CALL_ABORT( SCIPfreeTransform( scip ) );
 
- if( dynamic_cast< const LinearFunction * >( f ) ) {
+ if( memo_cast< const LinearFunction * >( f ) ) {
   // Linear objective function modification
 
   // Addition coefficients and removal deltas refer to the issuing Function
@@ -1625,19 +1625,19 @@ void SCIPMILPSolver::objective_fvars_modification(
   // the current active Variables of the Function.
   const Function::Vec_FunctionValue * delta = nullptr;
   if( mod->added() ) {
-   auto modl = dynamic_cast< const LinearFunctionModVarsAddd * >( mod );
+   auto modl = memo_cast< const LinearFunctionModVarsAddd * >( mod );
    if( ! modl )
     throw( std::invalid_argument(
                "SCIPMILPSolver: invalid LinearFunction addition" ) );
    delta = & modl->coeff();
    }
   else if( auto modr =
-            dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) {
+            memo_cast< const C05FunctionModVarsRngd * >( mod ) ) {
    if( modr->has_linear_delta() )
     delta = & modr->linear_delta();
    }
   else if( auto mods =
-            dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) {
+            memo_cast< const C05FunctionModVarsSbst * >( mod ) ) {
    if( mods->has_linear_delta() )
     delta = & mods->linear_delta();
    }
@@ -1684,7 +1684,7 @@ void SCIPMILPSolver::objective_fvars_modification(
    }
   };
 
- if( auto qf = dynamic_cast< const QuadFunction * >( f ) ) {
+ if( auto qf = memo_cast< const QuadFunction * >( f ) ) {
   // Quadratic objective function modification
 
   // Firstly check if we are simply removing variables
@@ -1694,7 +1694,7 @@ void SCIPMILPSolver::objective_fvars_modification(
    }
 
   auto modq =
-   dynamic_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
+   memo_cast< const SMSpp_di_unipi_it::QuadFunctionModVarsAddd * >( mod );
   if( ! modq )
    // This should never happen
    throw( std::invalid_argument(
@@ -1723,7 +1723,7 @@ void SCIPMILPSolver::objective_fvars_modification(
   // derives from a DQuadFunction
   }
 
- if( dynamic_cast< const DQuadFunction * >( f ) ) {
+ if( memo_cast< const DQuadFunction * >( f ) ) {
   // Separable quadratic objective function modification
 
   // Firstly check if we are simply removing variables
@@ -1733,7 +1733,7 @@ void SCIPMILPSolver::objective_fvars_modification(
    }
 
   auto modq =
-   dynamic_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
+   memo_cast< const SMSpp_di_unipi_it::DQuadFunctionModVarsAddd * >( mod );
   if( ! modq )
    // This should never happen
    throw( std::invalid_argument(
@@ -1777,19 +1777,19 @@ void SCIPMILPSolver::constraint_fvars_modification(
  // no point in calling the method of MILPSolver, as it does nothing
  // MILPSolver::constraint_fvars_modification( mod );
 
- auto * lf = dynamic_cast< const LinearFunction * >( mod->function() );
+ auto * lf = memo_cast< const LinearFunction * >( mod->function() );
  if( ! lf )
   return;
 
  // check the modification type
- if( ( ! dynamic_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
-     ( ! dynamic_cast< const C05FunctionModVarsSbst * >( mod ) ) )
+ if( ( ! memo_cast< const C05FunctionModVarsAddd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsRngd * >( mod ) ) &&
+     ( ! memo_cast< const C05FunctionModVarsSbst * >( mod ) ) )
   throw( std::invalid_argument(
              "SCIPMILPSolver::constraint_fvars_modification: "
              "this type of FunctionModVars is not handled" ) );
 
- auto con = dynamic_cast< FRowConstraint * >( lf->get_Observer() );
+ auto con = memo_cast< FRowConstraint * >( lf->get_Observer() );
  if( ! con )
   return;
 
@@ -1844,7 +1844,7 @@ void SCIPMILPSolver::add_dynamic_constraints(
 
  for( auto * con : rows )
   if( auto f = con->get_function() ;
-      f && ( ! dynamic_cast< const LinearFunction * >( f ) ) )
+      f && ( ! memo_cast< const LinearFunction * >( f ) ) )
    throw( std::invalid_argument(
              "SCIPMILPSolver::add_dynamic_constraints: "
              "the FRowConstraint is not linear" ) );
@@ -1867,7 +1867,7 @@ void SCIPMILPSolver::add_dynamic_constraints(
  for( auto * con : rows ) {
   rvar.clear();
   rval.clear();
-  if( auto lf = dynamic_cast< const LinearFunction * >( con->get_function() ) )
+  if( auto lf = memo_cast< const LinearFunction * >( con->get_function() ) )
    for( auto & el : lf->get_v_var() )
     if( auto idx = index_of_variable( el.first ) ; idx < Inf< int >() ) {
      rvar.push_back( vars[ idx ] );
@@ -2154,7 +2154,7 @@ void SCIPMILPSolver::perform_separation( Configuration * cfg ,
  // add all the rows to the matrix, one by one
  for( auto con : rows ) {
   if( auto f = con->get_function() ) {
-   auto * lf = dynamic_cast< const LinearFunction * >( f );
+   auto * lf = memo_cast< const LinearFunction * >( f );
    if( ! lf )
     throw( std::invalid_argument(
                "SCIPMILPSolver: the Constraint is not linear" ) );
