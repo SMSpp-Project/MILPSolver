@@ -958,6 +958,18 @@ class CPXMILPSolver : public MILPSolver {
 
  void restore_basis( void );
 
+/*--------------------------------------------------------------------------*/
+ /// optimizes a continuous problem, with the barrier after intIPMFallback
+ /** Optimizes the LP, or the QP if is_qp, as CPXlpopt() or CPXqpopt()
+  * do, but if intIPMFallback is positive and the method is not the barrier
+  * already, the simplex is stopped after that many iterations (or at the
+  * iteration limit, if smaller) and, if it is intIPMFallback that stopped
+  * it, the problem is solved again by CPXbaropt(), with the crossover of
+  * the default; the iteration limit is then restored. Returns the CPLEX
+  * error code. */
+
+ int optimize_ipm_fallback( bool is_qp );
+
  /// appends to the kept basis, if any, k rows and the given columns
  /** A row is basic, a column is at its lower bound, or at its upper one if
   * it has none, or free and nonbasic if it has neither; \p lb and \p ub

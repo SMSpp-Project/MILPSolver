@@ -433,8 +433,38 @@ int MOSEKMILPSolver::guts_of_compute( void )
    f_callback_set = false;
    }
 
+ // the simplex of an LP stops at the smaller of its iteration limit and
+ // intIPMFallback, and only if it is the latter the interior point, with
+ // its basis identification, takes over [see below]
+ MSKint32t optimizer = MSK_OPTIMIZER_FREE , sim_limit = 0;
+ bool ipm_fallback_set = false;
+ if( ( ipm_fallback > 0 ) && ( ! mip ) && ( q_hessian_nnz == 0 ) ) {
+  MSK_getintparam( task , MSK_IPAR_OPTIMIZER , & optimizer );
+  MSK_getintparam( task , MSK_IPAR_SIM_MAX_ITERATIONS , & sim_limit );
+  if( ( ( optimizer == MSK_OPTIMIZER_PRIMAL_SIMPLEX ) ||
+	( optimizer == MSK_OPTIMIZER_DUAL_SIMPLEX ) ||
+	( optimizer == MSK_OPTIMIZER_FREE_SIMPLEX ) ) &&
+      ( ipm_fallback < sim_limit ) ) {
+   MSK_putintparam( task , MSK_IPAR_SIM_MAX_ITERATIONS , ipm_fallback );
+   ipm_fallback_set = true;
+   }
+  }
+
  MSKrescodee trm = MSK_RES_OK;
  MSKrescodee r = MSK_optimizetrm( task , & trm );
+
+ if( ipm_fallback_set ) {
+  MSK_putintparam( task , MSK_IPAR_SIM_MAX_ITERATIONS , sim_limit );
+  if( ( r == MSK_RES_OK ) && ( trm == MSK_RES_TRM_MAX_ITERATIONS ) ) {
+   MSKint32t prim = 0 , dual = 0;
+   MSK_getintinf( task , MSK_IINF_SIM_PRIMAL_ITER , & prim );
+   MSK_getintinf( task , MSK_IINF_SIM_DUAL_ITER , & dual );
+   elapsed_iter += long( prim ) + dual;
+   MSK_putintparam( task , MSK_IPAR_OPTIMIZER , MSK_OPTIMIZER_INTPNT );
+   r = MSK_optimizetrm( task , & trm );
+   MSK_putintparam( task , MSK_IPAR_OPTIMIZER , optimizer );
+   }
+  }
 
  // a convex objective with a singular Hessian that MOSEK refuses as not
  // convex is solved again with the diagonal shifted [see HessianShift],

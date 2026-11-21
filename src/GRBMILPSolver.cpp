@@ -1196,7 +1196,7 @@ int GRBMILPSolver::guts_of_compute( void )
  restore_basis();
 
  const bool lp_cutoff = set_lp_cutoff();
- const int status = optimize( updated_model() , elapsed_iter );
+ int status = optimize_ipm_fallback();
  if( lp_cutoff )
   reset_lp_cutoff();
 
@@ -1363,6 +1363,43 @@ int GRBMILPSolver::guts_of_compute( void )
  return( sol_status );
 
  }  // end( GRBMILPSolver::guts_of_compute )
+
+/*--------------------------------------------------------------------------*/
+
+int GRBMILPSolver::optimize_ipm_fallback( void )
+{
+ auto mdl = updated_model();
+ auto menv = GRBgetenv( mdl );
+
+ int method = GRB_METHOD_AUTO;
+ GRBgetintparam( menv , GRB_INT_PAR_METHOD , & method );
+ if( ( ipm_fallback <= 0 ) || ( method == GRB_METHOD_BARRIER ) )
+  return( optimize( mdl , elapsed_iter ) );
+
+ // the simplex stops at the smaller of the two limits, and only if it is
+ // that of intIPMFallback the barrier takes over
+ double limit = GRB_INFINITY;
+ GRBgetdblparam( menv , GRB_DBL_PAR_ITERATIONLIMIT , & limit );
+ const bool own = ( ipm_fallback < limit );
+ if( own )
+  GRBsetdblparam( menv , GRB_DBL_PAR_ITERATIONLIMIT , ipm_fallback );
+
+ int status = optimize( mdl , elapsed_iter );
+
+ if( own )
+  GRBsetdblparam( menv , GRB_DBL_PAR_ITERATIONLIMIT , limit );
+
+ int m_status = 0;
+ if( status || ( ! own ) ||
+     GRBgetintattr( mdl , GRB_INT_ATTR_STATUS , & m_status ) ||
+     ( m_status != GRB_ITERATION_LIMIT ) )
+  return( status );
+
+ GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_BARRIER );
+ status = optimize( mdl , elapsed_iter );
+ GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
+ return( status );
+ }
 
 /*--------------------------------------------------------------------------*/
 

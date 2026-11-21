@@ -1,0 +1,42 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - -  LPPar-ipm-fallback.txt - - - - - - - - - - - -
+#
+# A txt description of a BlockSolverConfig attaching to the LP of
+# test_ipm_fallback.cpp each :MILPSolver with intIPMFallback twice, once
+# with the simplex alone and once with the interior point method after the
+# first iteration of the simplex
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+BlockSolverConfig     # exact type of the Configuration object
+
+1  # the BlockSolverConfig is a "differential" one: values are being set
+
+8  # number of (the names of) Solver in this BlockSolverConfig
+# now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
+CPXMILPSolver        # name of Solver, if it is in the build
+CPXMILPSolver        # name of Solver, if it is in the build
+GRBMILPSolver        # name of Solver, if it is in the build
+GRBMILPSolver        # name of Solver, if it is in the build
+MOSEKMILPSolver      # name of Solver, if it is in the build
+MOSEKMILPSolver      # name of Solver, if it is in the build
+HiGHSMILPSolver      # name of Solver, if it is in the build
+HiGHSMILPSolver      # name of Solver, if it is in the build
+
+8  # number of ComputeConfig in this BlockSolverConfig
+
+# now all the ComputeConfig, one per Solver in the same order
+*LPCfg-ipm-ref.txt             # CPXMILPSolver, the simplex
+*LPCfg-ipm-fallback.txt        # CPXMILPSolver, the barrier after it
+*LPCfg-ipm-ref.txt             # GRBMILPSolver, the simplex
+*LPCfg-ipm-fallback.txt        # GRBMILPSolver, the barrier after it
+*LPCfg-ipm-ref-MOSEK.txt       # MOSEKMILPSolver, the dual simplex
+*LPCfg-ipm-fallback-MOSEK.txt  # MOSEKMILPSolver, the barrier after it
+*LPCfg-ipm-ref.txt             # HiGHSMILPSolver, the simplex
+*LPCfg-ipm-fallback.txt        # HiGHSMILPSolver, the barrier after it
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - -  END LPPar-ipm-fallback.txt - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

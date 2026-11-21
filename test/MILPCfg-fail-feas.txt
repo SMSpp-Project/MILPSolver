@@ -1,5 +1,5 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - -  MILPCfg-fail-feas.txt - - - - - - - - - - - - -
+# - - - - - - - - - - - - - MILPCfg-fail-feas.txt - - - - - - - - - - - - - -
 #
 # A txt description of the ComputeConfig of CPXMILPSolver in
 # test_fail_feas: one thread, on which CPLEX stops the search on
@@ -49,5 +49,5 @@ dblRelAcc                     1e-6  # relative gap required to the optimum
 *  # [none]
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - -  END MILPCfg-fail-feas.txt - - - - - - - - - - - -
+# - - - - - - - - - - - - END MILPCfg-fail-feas.txt - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

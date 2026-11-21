@@ -848,6 +848,17 @@ void add_mip_starts(
  void restore_basis( void );
 
 /*--------------------------------------------------------------------------*/
+ /// optimizes a continuous model, with the barrier after intIPMFallback
+ /** Optimizes the model as optimize() does, but if intIPMFallback is
+  * positive and the method is not the barrier already, the simplex is
+  * stopped after that many iterations (or at IterationLimit, if smaller)
+  * and, if it is intIPMFallback that stopped it, the model is solved again
+  * by the barrier, with the crossover of the default; Method and
+  * IterationLimit are then restored. Returns the GUROBI error code. */
+
+ int optimize_ipm_fallback( void );
+
+/*--------------------------------------------------------------------------*/
  /// the objective coefficients of the given columns, read in one call
  /** Reads the linear coefficient of the Objective for each of the given
   * columns, in one call: a coefficient that has to be changed by a delta

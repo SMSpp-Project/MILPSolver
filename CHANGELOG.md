@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the warm start, and a `Modification` that changes nothing in the model no
   longer loads it again
 
+- `intIPMFallback`, the number of iterations after which the simplex of a
+  continuous problem is stopped and the problem solved again by the
+  interior point method, with the crossover of the back-end, for a sequence
+  of LP where the simplex started from the previous basis is now and then
+  far slower than a solve from scratch: `CPXMILPSolver` and `GRBMILPSolver`
+  use it, `HiGHSMILPSolver` and `MOSEKMILPSolver` on an LP only
+
 ### Changed
 
 - `GRBMILPSolver` reads the objective coefficients that a `Modification`

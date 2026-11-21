@@ -652,7 +652,7 @@ int CPXMILPSolver::guts_of_compute( void )
 
  restore_basis();
  const bool lp_cutoff = set_lp_cutoff();
- const int status = is_qp ? CPXqpopt( env , lp ) : CPXlpopt( env , lp );
+ const int status = optimize_ipm_fallback( is_qp );
  if( lp_cutoff )
   reset_lp_cutoff();
 
@@ -682,6 +682,36 @@ int CPXMILPSolver::guts_of_compute( void )
  return( sol_status );
 
  }  // end( CPXMILPSolver::guts_of_compute )
+
+/*--------------------------------------------------------------------------*/
+
+int CPXMILPSolver::optimize_ipm_fallback( bool is_qp )
+{
+ const int mpar = is_qp ? CPXPARAM_QPMethod : CPXPARAM_LPMethod;
+ int method = CPX_ALG_AUTOMATIC;
+ CPXgetintparam( env , mpar , & method );
+ if( ( ipm_fallback <= 0 ) || ( method == CPX_ALG_BARRIER ) )
+  return( is_qp ? CPXqpopt( env , lp ) : CPXlpopt( env , lp ) );
+
+ // the simplex stops at the smaller of the two limits, and only if it is
+ // that of intIPMFallback the barrier takes over
+ CPXLONG limit = 0;
+ CPXgetlongparam( env , CPXPARAM_Simplex_Limits_Iterations , & limit );
+ const bool own = ( ipm_fallback < limit );
+ if( own )
+  CPXsetlongparam( env , CPXPARAM_Simplex_Limits_Iterations , ipm_fallback );
+
+ int status = is_qp ? CPXqpopt( env , lp ) : CPXlpopt( env , lp );
+
+ if( own )
+  CPXsetlongparam( env , CPXPARAM_Simplex_Limits_Iterations , limit );
+
+ if( status || ( ! own ) ||
+     ( CPXgetstat( env , lp ) != CPX_STAT_ABORT_IT_LIM ) )
+  return( status );
+
+ return( CPXbaropt( env , lp ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 

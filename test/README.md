@@ -62,6 +62,13 @@ Three testers for the `MILPSolver` module, each registered as a separate
   after the first solve is the one it writes before; the Solver and their
   options are those of `LPPar-ipm.txt`.
 
+- `test_ipm_fallback` verifies that each `:MILPSolver` of the build with
+  `intIPMFallback` solves right a sequence of transportation problems that
+  differ in a few costs when the interior point method takes over after the
+  first iteration of the simplex, every solve after the first starting from
+  the basis of the previous one; the Solver and their options are those of
+  `LPPar-ipm-fallback.txt`.
+
 - `test_cutoff_status` verifies the cutoffs of each `:MILPSolver` of the
   build on a maximization and a minimization MIP with a constant in the
   objective: the cutoffs of the `ComputeConfig` of `MILPPar-cutoff.txt`

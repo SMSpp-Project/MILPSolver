@@ -266,6 +266,26 @@ class MILPSolver : public CDASolver
    * whatever its value, and has no effect: its name stays only so that the
    * configurations that set it are not refused. */
   intHomogeneousDirection ,
+  /// simplex iterations after which a continuous problem goes to the barrier
+  /**< If positive, a continuous problem (an LP, or a MILP with
+   * intRelaxIntVars != 0) that the simplex method has not solved within
+   * this many iterations is solved again by the interior point method of
+   * the back-end, with the crossover that the back-end does by default, so
+   * that the solution is a basic one and the next solve starts from its
+   * basis. It is meant for a sequence of LP that differ little, where the
+   * simplex started from the previous basis is usually far faster than any
+   * other method, but now and then, after a large change, takes many times
+   * the iterations of a solve from scratch, while the interior point method
+   * takes about the same time whatever the change. A good value is about
+   * twice the iterations of a solve from scratch. The limit of the simplex
+   * is the smaller of this and the iteration limit set for the back-end,
+   * and the interior point method is not used if the latter is the one that
+   * stopped it, nor if it is already the method of the back-end.
+   * CPXMILPSolver and GRBMILPSolver use it, HiGHSMILPSolver and
+   * MOSEKMILPSolver on an LP only (their QP are not solved by the simplex,
+   * and MOSEKMILPSolver only if its optimizer is a simplex one), the others
+   * ignore it. The default is 0, i.e., never. */
+  intIPMFallback ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
@@ -1680,6 +1700,9 @@ class MILPSolver : public CDASolver
 
  /// maximum number of LP cut separation passes (see intMaxCutPasses)
  int max_cut_passes = 1000;
+
+ /// simplex iterations before the interior point method (see intIPMFallback)
+ int ipm_fallback = 0;
 
  /// objective coefficient removal tolerance (see dblObjRemovalTol)
  double obj_removal_tol = 1e-12;

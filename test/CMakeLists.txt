@@ -116,6 +116,13 @@ add_test(NAME test_ipm_free_rows
          COMMAND test_ipm_free_rows
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# ----- test_ipm_fallback --------------------------------------------------- #
+
+add_milp_test(test_ipm_fallback test_ipm_fallback.cpp)
+add_test(NAME test_ipm_fallback
+         COMMAND test_ipm_fallback
+         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ----- test_cutoff_status -------------------------------------------------- #
 
 add_milp_test(test_cutoff_status test_cutoff_status.cpp)

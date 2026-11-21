@@ -4282,6 +4282,10 @@ void MILPSolver::set_par( idx_type par , int value )
   max_cut_passes = value;
   return;
   }
+ if( par == intIPMFallback ) {
+  ipm_fallback = std::max( value , 0 );
+  return;
+  }
  if( par == intHomogeneousDirection )  // accepted, and of no effect
   return;
 
@@ -4398,6 +4402,9 @@ int MILPSolver::get_dflt_int_par( idx_type par ) const
  if( par == intMaxCutPasses )
   return( 1000 );
 
+ if( par == intIPMFallback )
+  return( 0 );
+
  if( par == intHomogeneousDirection )
   return( 1 );
 
@@ -4473,6 +4480,9 @@ int MILPSolver::get_int_par( idx_type par ) const
 
  if( par == intMaxCutPasses )
   return( max_cut_passes );
+
+ if( par == intIPMFallback )
+  return( ipm_fallback );
 
  if( par == intHomogeneousDirection )
   return( 1 );
@@ -4552,6 +4562,9 @@ Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
  if( name == "intHomogeneousDirection" )
   return( intHomogeneousDirection );
 
+ if( name == "intIPMFallback" )
+  return( intIPMFallback );
+
  return( CDASolver::int_par_str2idx( name ) );
  }
 
@@ -4567,7 +4580,8 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
   "intConsModification" ,
   "intCutSepPar" ,
   "intMaxCutPasses" ,
-  "intHomogeneousDirection" };
+  "intHomogeneousDirection" ,
+  "intIPMFallback" };
  if( idx == intThrowReducedCostException )
   return( pars[ 0 ] );
 
@@ -4591,6 +4605,9 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
 
  if( idx == intHomogeneousDirection )
   return( pars[ 7 ] );
+
+ if( idx == intIPMFallback )
+  return( pars[ 8 ] );
 
  return( CDASolver::int_par_idx2str( idx ) );
  }

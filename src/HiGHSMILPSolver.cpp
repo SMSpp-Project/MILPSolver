@@ -663,6 +663,22 @@ int HiGHSMILPSolver::guts_of_compute( void )
  f_lp_cutoff_stop = false;
  const bool lp_cutoff = set_lp_cutoff();
 
+ // the simplex of an LP stops at the smaller of its iteration limit and
+ // intIPMFallback, and only if it is the latter the interior point takes
+ // over [see below]
+ HighsInt simplex_limit = 0;
+ bool ipm_fallback_set = false;
+ if( ( ipm_fallback > 0 ) && ( int_vars == 0 ) && ( q_hessian_nnz == 0 ) &&
+     ( ! ipm_on_lp() ) ) {
+  Highs_getIntOptionValue( highs , "simplex_iteration_limit" ,
+                           & simplex_limit );
+  if( ipm_fallback < simplex_limit ) {
+   Highs_setIntOptionValue( highs , "simplex_iteration_limit" ,
+                            ipm_fallback );
+   ipm_fallback_set = true;
+   }
+  }
+
  // Call HiGHS to solve the problem; a QP that fails is dealt with below
  if( ( run_highs() == -1 ) && ( ! qp_help ) ) {
   // An error happened during the call of HiGHS_run. Notice that this is not
@@ -671,6 +687,10 @@ int HiGHSMILPSolver::guts_of_compute( void )
    << "WARNING: An unmanaged error occurred during the execution of  "
    << "HiGHS_run" << std::endl;
  }
+
+ if( ipm_fallback_set )
+  Highs_setIntOptionValue( highs , "simplex_iteration_limit" ,
+                           simplex_limit );
 
  int m_status;
  m_status = Highs_getModelStatus( highs );
@@ -785,9 +805,12 @@ int HiGHSMILPSolver::guts_of_compute( void )
  // a free row that is not the last one, reading past the end of its list of
  // free rows (ERGO-Code/HiGHS#3319), which it is no longer given [see
  // bind_free_rows()]. LP-only, since "solver = ipm" is not valid for MIP
- // models.
+ // models. The same is done with an LP whose simplex intIPMFallback has
+ // stopped, which goes to the interior point
  if( ( ( m_status == kHighsModelStatusUnknown ) ||
-       ( m_status == kHighsModelStatusSolveError ) ) &&
+       ( m_status == kHighsModelStatusSolveError ) ||
+       ( ipm_fallback_set &&
+         ( m_status == kHighsModelStatusIterationLimit ) ) ) &&
      ( int_vars == 0 ) && ( q_hessian_nnz == 0 ) ) {
   std::array< char , kHighsMaximumStringLength > solver_option = {};
   Highs_getStringOptionValue( highs , "solver" , solver_option.data() );
