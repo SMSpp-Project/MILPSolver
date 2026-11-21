@@ -291,6 +291,10 @@ if (PIPS_FOUND)
                 "${PIPS_METIS_ADAPTER_LIBRARY}")
     endif ()
 
+    # the adapters call into the core library, which --as-needed has already
+    # dropped if nothing before them did: it comes again after them
+    list(APPEND _PIPS_LINK_LIBRARIES "${PIPS_LIBRARY}")
+
     if (PIPS_WITH_MUMPS)
         list(APPEND _PIPS_LINK_LIBRARIES
                 "${PIPS_MUMPS_D_LIBRARY}"

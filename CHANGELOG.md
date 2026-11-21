@@ -126,6 +126,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sense, and `CPXMILPSolver` and `SCIPMILPSolver` add a dynamic row with no
   `Function` as an empty one, so that the rows stay in step with the
   dictionaries
+- a program that links the installed `MILPSolver` with PIPS-IPM++ finds
+  the symbols of PIPS-IPM++ that its linear solvers use under
+  `--as-needed`
 
 ## [0.12.0] - 2026-11-16
 
