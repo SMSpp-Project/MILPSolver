@@ -129,6 +129,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - a program that links the installed `MILPSolver` with PIPS-IPM++ finds
   the symbols of PIPS-IPM++ that its linear solvers use under
   `--as-needed`
+- `FindMOSEK.cmake` takes a `HOME`, a `USERPROFILE` or a `MOSEK_ROOT`
+  with backslashes, as MSYS2 gives them, which stopped CMake on an invalid
+  escape
+- `QPOASESMILPSolver` gives the status of an unbounded QP, and
+  `SCIPMILPSolver` that of a status of SCIP it does not decode, with no
+  arithmetic or conditional between two enumerations
 
 ## [0.12.0] - 2026-11-16
 

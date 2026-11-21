@@ -41,32 +41,37 @@ include(FindPackageHandleStandardArgs)
 # Where the installers put it (/opt, /Library, C:/Program Files) or the home
 # directory, of which only those of the system at hand are there
 
+# (in the form of CMake, with no backslash, whatever the environment gives)
+
+file(TO_CMAKE_PATH "$ENV{HOME}" _mosek_home)
+file(TO_CMAKE_PATH "$ENV{USERPROFILE}" _mosek_profile)
 set(MOSEK_DIRS /opt/mosek /Library/mosek "C:/Program Files/Mosek"
-        "$ENV{HOME}/mosek" "$ENV{USERPROFILE}/mosek")
+        "${_mosek_home}/mosek" "${_mosek_profile}/mosek")
+unset(_mosek_home)
+unset(_mosek_profile)
 
 # ----- Find the path to MOSEK ---------------------------------------------- #
 # The directory of a version is the one holding tools/platform: MOSEK_ROOT
 # itself, or the last of its subdirectories that holds one.
 
-macro(find_mosek_version_dir root var)
+function(find_mosek_version_dir root var)
+    file(TO_CMAKE_PATH "${root}" root)
     if (IS_DIRECTORY "${root}/tools/platform")
-        set(${var} "${root}")
+        set(${var} "${root}" PARENT_SCOPE)
     else ()
-        file(GLOB _mosek_versions "${root}/*/tools/platform")
-        if (_mosek_versions)
-            list(SORT _mosek_versions)
-            list(REVERSE _mosek_versions)
-            list(GET _mosek_versions 0 _mosek_version)
-            get_filename_component(_mosek_version "${_mosek_version}"
-                    DIRECTORY)
-            get_filename_component(${var} "${_mosek_version}" DIRECTORY)
+        file(GLOB _versions "${root}/*/tools/platform")
+        if (_versions)
+            list(SORT _versions)
+            list(REVERSE _versions)
+            list(GET _versions 0 _version)
+            get_filename_component(_version "${_version}" DIRECTORY)
+            get_filename_component(_version "${_version}" DIRECTORY)
+            set(${var} "${_version}" PARENT_SCOPE)
         else ()
-            set(${var} "")
+            set(${var} "" PARENT_SCOPE)
         endif ()
-        unset(_mosek_versions)
-        unset(_mosek_version)
     endif ()
-endmacro()
+endfunction()
 
 set(MOSEK_VERSION_DIR "")
 if (NOT "${MOSEK_ROOT}" STREQUAL "")

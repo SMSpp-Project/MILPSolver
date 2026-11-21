@@ -594,7 +594,8 @@ int SCIPMILPSolver::guts_of_compute( void )
    // MILPSolver::compute() then turns into kCutOff
    sol_status = kError;
    break;
-  default:                        sol_status = kError + SCIPgetStatus( scip );
+  default:
+   sol_status = kError + int( SCIPgetStatus( scip ) );
   }
 
  // an optimal LP can do without the transformed problem until the next
