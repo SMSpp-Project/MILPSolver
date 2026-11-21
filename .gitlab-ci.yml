@@ -99,6 +99,12 @@ build:
           "$GRB_LICENSEID" "$GRB_WLSACCESSID" "$GRB_WLSSECRET" > /tmp/gurobi.lic
         export GRB_LICENSE_FILE=/tmp/gurobi.lic
       fi
+    # the umbrella comes from the cache of the branch, which another pipeline
+    # running at the same time may have saved with the module at its own
+    # commit: the module is brought back to the commit of this pipeline from
+    # the clone of the job, for the tests read their files from its sources
+    - git -C "smspp-project/$CI_PROJECT_TITLE" fetch --quiet "$CI_PROJECT_DIR" "$CI_COMMIT_SHA"
+    - git -C "smspp-project/$CI_PROJECT_TITLE" checkout --quiet "$CI_COMMIT_SHA"
   only:
     refs:
       - develop
