@@ -99,6 +99,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` waits for the license service that refuses a solve only
+  within the time limit of the model, a solve given a few seconds having
+  been kept for tens of seconds
+
 - a change of the Objective of a weighted Block inside a channel is
   multiplied by the weight of the `Objective` in `CPXMILPSolver`,
   `GRBMILPSolver`, `HiGHSMILPSolver` and `MOSEKMILPSolver`, as one by one;

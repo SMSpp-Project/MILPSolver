@@ -25,6 +25,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -98,14 +99,30 @@ bool is_license_refusal( int status )
  * sessions open elsewhere as it allows. Nothing is wrong with the model, and
  * a single refusal would otherwise make the Solver fail, and with it a
  * computation that may have been running for hours, so the call is repeated
- * [see GRBoptTrials]; the returned value is that of the last attempt. The
+ * [see GRBoptTrials], waiting longer and longer in between but never beyond
+ * the time limit of the model, a solve given a few seconds being otherwise
+ * kept for minutes; the returned value is that of the last attempt. The
  * simplex and barrier iterations of the solve are added to iter. */
 
 int optimize( GRBmodel * model , long & iter )
 {
+ double limit = GRB_INFINITY;
+ GRBgetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_TIMELIMIT , & limit );
+ const auto start = std::chrono::steady_clock::now();
+
  for( unsigned int trial = 0 ; ; ) {
   int status = GRBoptimize( model );
-  if( ( ! is_license_refusal( status ) ) || ( ++trial >= GRBoptTrials ) ) {
+  bool done = ( ! is_license_refusal( status ) ) ||
+              ( ++trial >= GRBoptTrials );
+  std::chrono::seconds wait( 0 );
+  if( ! done ) {
+   wait = std::chrono::seconds( std::min( 1u << ( trial - 1 ) , 30u ) );
+   const std::chrono::duration< double > elapsed =
+    std::chrono::steady_clock::now() - start;
+   done = ( elapsed + wait ).count() > limit;
+   }
+
+  if( done ) {
    double simplex = 0;
    int barrier = 0;
    if( ! GRBgetdblattr( model , GRB_DBL_ATTR_ITERCOUNT , & simplex ) )
@@ -120,8 +137,7 @@ int optimize( GRBmodel * model , long & iter )
                 "refused the request [GUROBI error " << status
              << "], trying again" << std::endl;
 
-  std::this_thread::sleep_for( std::chrono::seconds(
-                                 std::min( 1u << ( trial - 1 ) , 30u ) ) );
+  std::this_thread::sleep_for( wait );
   }
  }
 
