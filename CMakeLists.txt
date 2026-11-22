@@ -396,6 +396,15 @@ if (MILPSolver_USE_ProxQP)
     message(STATUS "MILPSolver: ProxQP found, configuring ProxQPMILPSolver")
     target_sources(${modName} PRIVATE src/ProxQPMILPSolver.cpp)
     target_link_libraries(${modName} PUBLIC proxsuite::proxsuite)
+    # the macros of the headers of ProxQP need the standard preprocessor,
+    # which MSVC gives by /Zc:preprocessor (and other compilers by default,
+    # not taking the option)
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("/Zc:preprocessor" MILPSolver_ZC_PREPROCESSOR)
+    if (MILPSolver_ZC_PREPROCESSOR)
+        set_property(SOURCE src/ProxQPMILPSolver.cpp APPEND PROPERTY
+                COMPILE_OPTIONS "/Zc:preprocessor")
+    endif ()
 endif ()
 
 if (MILPSolver_USE_PIQP)
