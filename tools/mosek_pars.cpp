@@ -27,6 +27,8 @@
 #include <string>
 #include <cstring>
 #include <map>
+#include <exception>
+#include <cstdlib>
 #include <vector>
 #include <getopt.h>
 

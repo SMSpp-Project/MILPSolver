@@ -110,6 +110,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the tools that print the parameters of the back-ends include `<exception>`
+  and `<cstdlib>`, which libc++ does not include through the other headers.
+
 - `GRBMILPSolver` waits for the license service that refuses a solve only
   within the time limit of the model, a solve given a few seconds having
   been kept for tens of seconds

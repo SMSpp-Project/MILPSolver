@@ -28,6 +28,8 @@
 #include <string>
 #include <cstring>
 #include <map>
+#include <exception>
+#include <cstdlib>
 #include <getopt.h>
 // #include <filesystem>
 
