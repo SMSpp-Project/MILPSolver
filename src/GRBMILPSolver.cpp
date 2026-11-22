@@ -1749,7 +1749,9 @@ int GRBMILPSolver::decode_model_status( int status )
    // objective or the best bound), and that limit has been reached
    return( kOK );
   case( GRB_WORK_LIMIT ):
-   return( failed( status , "the work limit" ) );
+   // Optimization terminated because the work expended exceeded the value
+   // specified in the WorkLimit parameter, a deterministic time limit
+   return( kStopTime );
   case( GRB_MEM_LIMIT ):
    return( failed( status , "the memory limit" ) );
   default:;

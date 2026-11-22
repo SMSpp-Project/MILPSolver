@@ -153,6 +153,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ProxQPMILPSolver` builds with MSVC, compiled by `/Zc:preprocessor`, the
   standard preprocessor that the macros of the headers of ProxQP need.
 
+- `GRBMILPSolver` returns `kStopTime` when GUROBI stops on its `WorkLimit`,
+  a deterministic time limit, as `CPXMILPSolver` does on that of CPLEX,
+  where it returned `kError` and gave no bound
+
 - the tools that print the parameters of the back-ends include `<exception>`
   and `<cstdlib>`, which libc++ does not include through the other headers.
 
