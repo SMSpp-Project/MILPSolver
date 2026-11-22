@@ -120,6 +120,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   within the time limit of the model, a solve given a few seconds having
   been kept for tens of seconds
 
+- `GRBMILPSolver` moves its model to a new environment when the license
+  service still refuses a solve at the end of the patience: a session can be
+  refused for good (status 10032) while a new one is granted at once, and
+  every later solve of the process was refused in turn
+
 - a change of the Objective of a weighted Block inside a channel is
   multiplied by the weight of the `Objective` in `CPXMILPSolver`,
   `GRBMILPSolver`, `HiGHSMILPSolver` and `MOSEKMILPSolver`, as one by one;

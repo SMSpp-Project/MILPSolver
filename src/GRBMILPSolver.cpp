@@ -178,9 +178,161 @@ int GRBMILPSolver_callback( GRBmodel * model , void * cbdata , int where ,
 /*------------------------- THE SHARED ENVIRONMENT -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-unsigned int GRBMILPSolver::f_env_users = 0;
+std::map< GRBenv * , unsigned int > GRBMILPSolver::f_env_users;
 GRBenv * GRBMILPSolver::f_shared_env = nullptr;
 std::mutex GRBMILPSolver::f_env_mutex;
+
+/*--------------------------------------------------------------------------*/
+
+GRBenv * GRBMILPSolver::start_env( int & status )
+{
+ GRBenv * e = nullptr;
+ if( ( status = GRBemptyenv( & e ) ) )
+  return( nullptr );
+
+ // starting the environment prints the license parameters and banner, once
+ // per process: off while it starts, on again after, so that the log of the
+ // models is as before
+ GRBsetintparam( e , GRB_INT_PAR_OUTPUTFLAG , 0 );
+
+ // starting the environment contacts the license service, which can refuse
+ // the request for reasons that have nothing to do with this process (the
+ // network, or too many sessions of the same license at the same moment);
+ // since a refusal here kills a computation that may have been running for
+ // hours, the request is repeated a few times before giving up
+ for( unsigned int trial = 0 ; ( status = GRBstartenv( e ) ) ; ) {
+  if( ( ++trial >= GRBenvTrials ) || ( ! is_license_refusal( status ) ) ) {
+   GRBfreeenv( e );
+   return( nullptr );
+   }
+
+  std::this_thread::sleep_for( std::chrono::seconds(
+                                 std::min( 1u << ( trial - 1 ) , 30u ) ) );
+  }
+
+ GRBsetintparam( e , GRB_INT_PAR_OUTPUTFLAG , 1 );
+ return( e );
+
+ }  // end( GRBMILPSolver::start_env )
+
+/*--------------------------------------------------------------------------*/
+
+void GRBMILPSolver::release_env( GRBenv * e )
+{
+ auto it = f_env_users.find( e );
+ if( ( it == f_env_users.end() ) || ( --it->second > 0 ) )
+  return;
+
+ f_env_users.erase( it );
+ GRBfreeenv( e );
+ if( e == f_shared_env )
+  f_shared_env = nullptr;
+
+ }  // end( GRBMILPSolver::release_env )
+
+/*--------------------------------------------------------------------------*/
+
+bool GRBMILPSolver::move_to_new_env( void )
+{
+ if( ! model )
+  return( false );
+
+ std::lock_guard< std::mutex > lock( f_env_mutex );
+
+ // a new environment unless another Solver has already made one since
+ // this one got its own
+ if( ( env == f_shared_env ) || ( ! f_shared_env ) ) {
+  int status = 0;
+  auto fresh = start_env( status );
+  if( ! fresh ) {
+   std::cerr << "GRBMILPSolver::move_to_new_env: warning: starting a new "
+                "environment returned with status " << status << std::endl;
+   return( false );
+   }
+  f_shared_env = fresh;
+  }
+
+ GRBmodel * copy = nullptr;
+ if( GRBcopymodeltoenv( model , f_shared_env , & copy ) || ( ! copy ) )
+  return( false );
+
+ // the copy has the parameters of the new environment: those of the model,
+ // i.e., the ones of this Solver and those that compute() has changed for
+ // the solve under way, are given to it one by one
+ // (silently: OutputFlag, which makes GUROBI print each change, is off
+ // meanwhile and given last)
+ auto from = GRBgetenv( model );
+ auto to = GRBgetenv( copy );
+ int output = 0;
+ GRBgetintparam( from , GRB_INT_PAR_OUTPUTFLAG , & output );
+ GRBsetintparam( to , GRB_INT_PAR_OUTPUTFLAG , 0 );
+ const int np = GRBgetnumparams( from );
+ for( int i = 0 ; i < np ; ++i ) {
+  char * name = nullptr;
+  if( GRBgetparamname( from , i , & name ) || ( ! name ) ||
+      ( ! std::strcmp( name , GRB_INT_PAR_OUTPUTFLAG ) ) )
+   continue;
+  switch( GRBgetparamtype( from , name ) ) {
+   case 1: {
+    int vf , vt;
+    if( ( ! GRBgetintparam( from , name , & vf ) ) &&
+        ( ! GRBgetintparam( to , name , & vt ) ) && ( vf != vt ) )
+     GRBsetintparam( to , name , vf );
+    break;
+    }
+   case 2: {
+    double vf , vt;
+    if( ( ! GRBgetdblparam( from , name , & vf ) ) &&
+        ( ! GRBgetdblparam( to , name , & vt ) ) && ( vf != vt ) )
+     GRBsetdblparam( to , name , vf );
+    break;
+    }
+   case 3: {
+    char vf[ GRB_MAX_STRLEN ] , vt[ GRB_MAX_STRLEN ];
+    if( ( ! GRBgetstrparam( from , name , vf ) ) &&
+        ( ! GRBgetstrparam( to , name , vt ) ) && std::strcmp( vf , vt ) )
+     GRBsetstrparam( to , name , vf );
+    break;
+    }
+   default: ;
+   }
+  }
+ GRBsetintparam( to , GRB_INT_PAR_OUTPUTFLAG , output );
+
+ // the copy is named after the model with "_copy" appended
+ char * mname = nullptr;
+ if( ! GRBgetstrattr( model , GRB_STR_ATTR_MODELNAME , & mname ) && mname )
+  GRBsetstrattr( copy , GRB_STR_ATTR_MODELNAME , mname );
+
+ if( f_callback_set )
+  GRBsetcallbackfunc( copy , & GRBMILPSolver_callback , this );
+
+ GRBupdatemodel( copy );
+ GRBfreemodel( model );
+ model = copy;
+
+ release_env( env );
+ env = f_shared_env;
+ ++f_env_users[ env ];
+ return( true );
+
+ }  // end( GRBMILPSolver::move_to_new_env )
+
+/*--------------------------------------------------------------------------*/
+
+int GRBMILPSolver::optimize_model( long & iter )
+{
+ int status = optimize( updated_model() , iter );
+ if( is_license_refusal( status ) && move_to_new_env() ) {
+  std::cerr << "GRBMILPSolver::compute: warning: the license service "
+               "kept refusing the session [GUROBI error " << status
+            << "], the model has been moved to a new one" << std::endl;
+  status = optimize( model , iter );
+  }
+
+ return( status );
+
+ }  // end( GRBMILPSolver::optimize_model )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
@@ -196,50 +348,17 @@ GRBMILPSolver::GRBMILPSolver( void ) :
  std::lock_guard< std::mutex > lock( f_env_mutex );
 
  if( ! f_shared_env ) {
-  int status = GRBemptyenv( & f_shared_env );
-  if( status != 0 )
+  int status = 0;
+  f_shared_env = start_env( status );
+  if( ! f_shared_env )
    throw( std::runtime_error(
               "GRBMILPSolver::GRBMILPSolver: "
-              "GRBemptyenv returned with status " +
+              "starting the environment returned with status " +
               std::to_string( status ) ) );
-
-  // starting the environment prints the license parameters and banner, once
-  // per process: off while it starts, on again after, so that the log of the
-  // models is as before
-  GRBsetintparam( f_shared_env , GRB_INT_PAR_OUTPUTFLAG , 0 );
-
-  // starting the environment contacts the license service, which can refuse
-  // the request for reasons that have nothing to do with this process (the
-  // network, or too many sessions of the same license at the same moment);
-  // since a refusal here kills a computation that may have been running for
-  // hours, the request is repeated a few times before giving up
-  for( unsigned int trial = 0 ; ; ) {
-   status = GRBstartenv( f_shared_env );
-   if( status == 0 )
-    break;
-
-   if( ( ++trial >= GRBenvTrials ) ||
-       ( ( status != GRB_ERROR_NETWORK ) &&
-         ( status != GRB_ERROR_JOB_REJECTED ) &&
-         ( status != GRB_ERROR_CSWORKER ) &&
-         ( status != GRB_ERROR_NO_LICENSE ) ) ) {
-    GRBfreeenv( f_shared_env );
-    f_shared_env = nullptr;
-    throw( std::runtime_error(
-               "GRBMILPSolver::GRBMILPSolver: "
-               "GRBstartenv returned with status " +
-               std::to_string( status ) ) );
-    }
-
-   std::this_thread::sleep_for( std::chrono::seconds(
-                                 std::min( 1u << ( trial - 1 ) , 30u ) ) );
-   }
-
-  GRBsetintparam( f_shared_env , GRB_INT_PAR_OUTPUTFLAG , 1 );
   }
 
  env = f_shared_env;
- ++f_env_users;
+ ++f_env_users[ env ];
  }
 
 /*--------------------------------------------------------------------------*/
@@ -252,12 +371,9 @@ GRBMILPSolver::~GRBMILPSolver()
  if( model )
   GRBfreemodel( model );
 
- // the environment goes when the last of us goes
+ // an environment goes when the last of its users goes
  std::lock_guard< std::mutex > lock( f_env_mutex );
- if( ( f_env_users > 0 ) && ( --f_env_users == 0 ) && f_shared_env ) {
-  GRBfreeenv( f_shared_env );
-  f_shared_env = nullptr;
-  }
+ release_env( env );
  env = nullptr;
 
  // Free auxiliary structures
@@ -1165,7 +1281,7 @@ int GRBMILPSolver::guts_of_compute( void )
     }
   }
 
-  if( int status = optimize( updated_model() , elapsed_iter ) ) { //error
+  if( int status = optimize_model( elapsed_iter ) ) { //error
 
    sol_status = decode_grb_error( status );
    return( sol_status );
@@ -1229,8 +1345,8 @@ int GRBMILPSolver::guts_of_compute( void )
    GRBgetintparam( menv , GRB_INT_PAR_METHOD , & method );
    GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_PRIMAL );
    GRBreset( model , 0 );
-   const int st = optimize( updated_model() , elapsed_iter );
-   GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
+   const int st = optimize_model( elapsed_iter );
+   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_METHOD , method );
    if( st ) {
     sol_status = decode_grb_error( st );
     return( sol_status );
@@ -1252,7 +1368,7 @@ int GRBMILPSolver::guts_of_compute( void )
   int saved;
   GRBgetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , & saved );
   GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , 0 );
-  if( int status = optimize( updated_model() , elapsed_iter ) ) {
+  if( int status = optimize_model( elapsed_iter ) ) {
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_DUALREDUCTIONS , saved );
    sol_status = decode_grb_error( status );
    return( sol_status );
@@ -1281,7 +1397,7 @@ int GRBMILPSolver::guts_of_compute( void )
      ( ( m_status == GRB_INFEASIBLE ) && ( ! is_mip ) && is_qp ) ) {
   const int first = m_status;
   GRBreset( model , 0 );
-  if( int status = optimize( updated_model() , elapsed_iter ) ) {
+  if( int status = optimize_model( elapsed_iter ) ) {
    sol_status = decode_grb_error( status );
    return( sol_status );
    }
@@ -1300,7 +1416,7 @@ int GRBMILPSolver::guts_of_compute( void )
   if( presolve ) {
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRESOLVE , 0 );
    GRBreset( model , 0 );
-   int status = optimize( updated_model() , elapsed_iter );
+   int status = optimize_model( elapsed_iter );
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_PRESOLVE , presolve );
    if( status ) {
     sol_status = decode_grb_error( status );
@@ -1321,7 +1437,7 @@ int GRBMILPSolver::guts_of_compute( void )
   if( ( ! is_mip ) && ( saved < 3 ) ) {
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_NUMERICFOCUS , 3 );
    GRBreset( model , 0 );
-   const int status = optimize( updated_model() , elapsed_iter );
+   const int status = optimize_model( elapsed_iter );
    GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_NUMERICFOCUS , saved );
    if( status ) {
     sol_status = decode_grb_error( status );
@@ -1374,7 +1490,7 @@ int GRBMILPSolver::optimize_ipm_fallback( void )
  int method = GRB_METHOD_AUTO;
  GRBgetintparam( menv , GRB_INT_PAR_METHOD , & method );
  if( ( ipm_fallback <= 0 ) || ( method == GRB_METHOD_BARRIER ) )
-  return( optimize( mdl , elapsed_iter ) );
+  return( optimize_model( elapsed_iter ) );
 
  // the simplex stops at the smaller of the two limits, and only if it is
  // that of intIPMFallback the barrier takes over
@@ -1384,20 +1500,22 @@ int GRBMILPSolver::optimize_ipm_fallback( void )
  if( own )
   GRBsetdblparam( menv , GRB_DBL_PAR_ITERATIONLIMIT , ipm_fallback );
 
- int status = optimize( mdl , elapsed_iter );
+ int status = optimize_model( elapsed_iter );
 
+ // the solve may have moved the model to another environment
+ menv = GRBgetenv( model );
  if( own )
   GRBsetdblparam( menv , GRB_DBL_PAR_ITERATIONLIMIT , limit );
 
  int m_status = 0;
  if( status || ( ! own ) ||
-     GRBgetintattr( mdl , GRB_INT_ATTR_STATUS , & m_status ) ||
+     GRBgetintattr( model , GRB_INT_ATTR_STATUS , & m_status ) ||
      ( m_status != GRB_ITERATION_LIMIT ) )
   return( status );
 
  GRBsetintparam( menv , GRB_INT_PAR_METHOD , GRB_METHOD_BARRIER );
- status = optimize( mdl , elapsed_iter );
- GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
+ status = optimize_model( elapsed_iter );
+ GRBsetintparam( GRBgetenv( model ) , GRB_INT_PAR_METHOD , method );
  return( status );
  }
 
@@ -1466,8 +1584,9 @@ void GRBMILPSolver::compute_certificate( int m_status )
 
  // a solve for the ray alone, not one of compute()
  long ray_iter = 0;
- optimize( updated_model() , ray_iter );
+ optimize_model( ray_iter );
 
+ menv = GRBgetenv( model );  // the solve may have moved the model
  GRBsetintparam( menv , GRB_INT_PAR_INFUNBDINFO , infunbd );
  GRBsetintparam( menv , GRB_INT_PAR_METHOD , method );
 

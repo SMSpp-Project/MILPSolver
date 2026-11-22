@@ -34,6 +34,7 @@
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+#include <map>
 #include <mutex>
 #include <unordered_map>
 
@@ -848,6 +849,30 @@ void add_mip_starts(
  void restore_basis( void );
 
 /*--------------------------------------------------------------------------*/
+ /// optimizes the model, in a new environment if the license refuses it
+ /** Optimizes the model, repeating the call while the license service
+  * refuses it; if it is still refused at the end of the patience, the
+  * session of the environment is taken to be lost (a session can be
+  * refused for good, e.g., with status 10032, while a new one is granted at
+  * once), and the model is moved to a new environment [see
+  * move_to_new_env()] and optimized once more. The simplex and barrier
+  * iterations are added to iter; returns the GUROBI error code. */
+
+ int optimize_model( long & iter );
+
+/*--------------------------------------------------------------------------*/
+ /// moves the model to a new environment
+ /** Copies the model into a new environment, which is made unless another
+  * GRBMILPSolver has already made one since this one got its own, with all
+  * the parameters of the model, the callback and the name, and frees the
+  * old model, which loses its solution and its basis; the old environment
+  * goes when no model lives in it any more [see f_env_users]. Returns
+  * false, and leaves the model where it was, if the new environment cannot
+  * be started or the model cannot be copied. */
+
+ bool move_to_new_env( void );
+
+/*--------------------------------------------------------------------------*/
  /// optimizes a continuous model, with the barrier after intIPMFallback
  /** Optimizes the model as optimize() does, but if intIPMFallback is
   * positive and the method is not the barrier already, the simplex is
@@ -955,12 +980,23 @@ void add_mip_starts(
  std::vector< int > f_vbasis;
  std::vector< int > f_cbasis;
 
- /// how many GRBMILPSolver are using the shared environment
- static unsigned int f_env_users;
+ /// how many GRBMILPSolver are using each environment
+ /**< The shared environment and those that it has replaced [see
+  * move_to_new_env()] while some model still lives in them; each one is
+  * freed when its count drops to zero. */
+ static std::map< GRBenv * , unsigned int > f_env_users;
 
  /// the shared environment itself, and the lock that guards its life
  static GRBenv * f_shared_env;
  static std::mutex f_env_mutex;
+
+ /// a new environment, started with the patience of GRBenvTrials
+ /** Returns nullptr, with the GUROBI error code in status, if it cannot be
+  * created or started. */
+ static GRBenv * start_env( int & status );
+
+ /// one user less of the given environment, freed if it was the last one
+ static void release_env( GRBenv * e );
 
 /*--------------------------------------------------------------------------*/
  /// gives the model of this Solver the parameters this Solver was given
