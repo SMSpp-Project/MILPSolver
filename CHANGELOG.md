@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- the makefiles give the shared library of the module by default on Linux
+  and on macOS, as CMake does, and its objects with `SMSppSTATIC` [see
+  `lib/makefile-shared` of SMS++]
+
 - `GRBMILPSolver` reads the objective coefficients that a `Modification`
   changes by a delta as of the last update of the model, with those written
   since laid over them, a column added since starting with a zero cost

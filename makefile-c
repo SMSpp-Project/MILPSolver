@@ -183,4 +183,8 @@ ifneq ($(PERMON_PRESENT),)
     MILPSLIB := $(MILPSLIB) $(libPERMONLIB)
 endif
 
+# the objects as the shared libraries of the module and of those whose
+# objects it takes [see SMS++/lib/makefile-shared]
+$(eval $(call SMSppSOlib,MILPS))
+
 ############################ End of makefile #################################
