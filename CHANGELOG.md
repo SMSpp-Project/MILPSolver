@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- with the shared libraries each backend is a plugin of its own, linked to
+  the library and to its solver only, which a program loads when it asks the
+  factory for it, so that a program built with no solver runs with those
+  that are there; with the static ones the backends are in the library, as
+  before [see `smspp_plugin()` in `SMSppModule.cmake` of SMS++].
+
 - `GRBMILPSolver`, `CPXMILPSolver` and `SCIPMILPSolver` free the memory
   that their back-end keeps after the solve of an LP only with
   `intFreeWorkspace`, a new parameter of `MILPSolver`, 0 by default: the

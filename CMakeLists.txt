@@ -331,71 +331,105 @@ target_include_directories(
 # on this library.
 target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
 
+# ----- Backends ------------------------------------------------------------ #
+# With the shared libraries each backend is a plugin of its own, linked to
+# the library and to its solver only, which a program loads when it asks the
+# factory for it [see smspp_plugin() in SMSppModule.cmake of SMS++], so that
+# a program built with no solver runs with those that are there; with the
+# static ones the backend is in the library, as it always was. The macro
+# gives in _bk the target that the backend goes in.
+set(MILPSolver_PLUGINS "")
+macro(milpsolver_backend name)
+    if (BUILD_SHARED_LIBS)
+        add_library(${name} SHARED)
+        target_link_libraries(${name} PUBLIC ${modName})
+        set_target_properties(${name} PROPERTIES
+                VERSION ${PROJECT_VERSION}
+                SOVERSION ${soVersion})
+        add_dependencies(${name} generate_headers)
+        add_library(${modNamespace}::${name} ALIAS ${name})
+        list(APPEND MILPSolver_PLUGINS ${name})
+        set(_bk ${name})
+    else ()
+        set(_bk ${modName})
+    endif ()
+endmacro()
+
 if (MILPSolver_USE_CPLEX)
     message(STATUS "MILPSolver: CPLEX found, configuring CPXMILPSolver")
-    target_sources(${modName} PRIVATE src/CPXMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC CPLEX::Cplex)
+    milpsolver_backend(CPXMILPSolver)
+    target_sources(${_bk} PRIVATE src/CPXMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC CPLEX::Cplex)
 endif ()
 
 if (MILPSolver_USE_SCIP)
     message(STATUS "MILPSolver: SCIP found, configuring SCIPMILPSolver")
-    target_sources(${modName} PRIVATE src/SCIPMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC SCIP::SCIP)
+    milpsolver_backend(SCIPMILPSolver)
+    target_sources(${_bk} PRIVATE src/SCIPMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC SCIP::SCIP)
 endif ()
 
 if (MILPSolver_USE_GUROBI)
     message(STATUS "MILPSolver: GUROBI found, configuring GRBMILPSolver")
-    target_sources(${modName} PRIVATE src/GRBMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC GUROBI::Gurobi)
+    milpsolver_backend(GRBMILPSolver)
+    target_sources(${_bk} PRIVATE src/GRBMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC GUROBI::Gurobi)
 endif ()
 
 if (MILPSolver_USE_HiGHS)
     message(STATUS "MILPSolver: HiGHS found, configuring HiGHSMILPSolver")
-    target_sources(${modName} PRIVATE src/HiGHSMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC HiGHS::HiGHS)
+    milpsolver_backend(HiGHSMILPSolver)
+    target_sources(${_bk} PRIVATE src/HiGHSMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC HiGHS::HiGHS)
 endif ()
 
 if (MILPSolver_USE_PIPS)
     message(STATUS "MILPSolver: PIPS-IPM++ found, configuring PIPSMILPSolver")
-    target_sources(${modName} PRIVATE src/PIPSMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC PIPS::PIPS)
+    milpsolver_backend(PIPSMILPSolver)
+    target_sources(${_bk} PRIVATE src/PIPSMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC PIPS::PIPS)
 endif ()
 
 if (MILPSolver_USE_DAQP)
     message(STATUS "MILPSolver: DAQP found, configuring DAQPMILPSolver")
-    target_sources(${modName} PRIVATE src/DAQPMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC DAQP::DAQP)
+    milpsolver_backend(DAQPMILPSolver)
+    target_sources(${_bk} PRIVATE src/DAQPMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC DAQP::DAQP)
 endif ()
 
 if (MILPSolver_USE_qpOASES)
     message(STATUS "MILPSolver: qpOASES found, configuring QPOASESMILPSolver")
-    target_sources(${modName} PRIVATE src/QPOASESMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC qpOASES::qpOASES)
+    milpsolver_backend(QPOASESMILPSolver)
+    target_sources(${_bk} PRIVATE src/QPOASESMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC qpOASES::qpOASES)
 endif ()
 
 if (MILPSolver_USE_Clarabel)
     message(STATUS
             "MILPSolver: Clarabel found, configuring ClarabelMILPSolver")
-    target_sources(${modName} PRIVATE src/ClarabelMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC Clarabel::Clarabel)
+    milpsolver_backend(ClarabelMILPSolver)
+    target_sources(${_bk} PRIVATE src/ClarabelMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC Clarabel::Clarabel)
 endif ()
 
 if (MILPSolver_USE_MOSEK)
     message(STATUS "MILPSolver: MOSEK found, configuring MOSEKMILPSolver")
-    target_sources(${modName} PRIVATE src/MOSEKMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC MOSEK::MOSEK)
+    milpsolver_backend(MOSEKMILPSolver)
+    target_sources(${_bk} PRIVATE src/MOSEKMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC MOSEK::MOSEK)
     # the installed library finds libmosek64 in the directory of MOSEK, which
     # is not in the link path of the build [see FindMOSEK.cmake]
     if (MOSEK_RUNTIME_DIR)
-        set_property(TARGET ${modName} APPEND PROPERTY
+        set_property(TARGET ${_bk} APPEND PROPERTY
                 INSTALL_RPATH "${MOSEK_RUNTIME_DIR}")
     endif ()
 endif ()
 
 if (MILPSolver_USE_ProxQP)
     message(STATUS "MILPSolver: ProxQP found, configuring ProxQPMILPSolver")
-    target_sources(${modName} PRIVATE src/ProxQPMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC proxsuite::proxsuite)
+    milpsolver_backend(ProxQPMILPSolver)
+    target_sources(${_bk} PRIVATE src/ProxQPMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC proxsuite::proxsuite)
     # the macros of the headers of ProxQP need the standard preprocessor,
     # which MSVC gives by /Zc:preprocessor (and other compilers by default,
     # not taking the option)
@@ -409,32 +443,34 @@ endif ()
 
 if (MILPSolver_USE_PIQP)
     message(STATUS "MILPSolver: PIQP found, configuring PIQPMILPSolver")
-    target_sources(${modName} PRIVATE src/PIQPMILPSolver.cpp)
+    milpsolver_backend(PIQPMILPSolver)
+    target_sources(${_bk} PRIVATE src/PIQPMILPSolver.cpp)
     # the compiled library of PIQP, if it has been built, otherwise its
     # header-only target
     if (TARGET piqp::piqp)
-        target_link_libraries(${modName} PUBLIC piqp::piqp)
+        target_link_libraries(${_bk} PUBLIC piqp::piqp)
     else ()
-        target_link_libraries(${modName} PUBLIC piqp::piqp_header_only)
+        target_link_libraries(${_bk} PUBLIC piqp::piqp_header_only)
     endif ()
 endif ()
 
 if (MILPSolver_USE_OSQP)
     message(STATUS "MILPSolver: OSQP found, configuring OSQPMILPSolver")
-    target_sources(${modName} PRIVATE src/OSQPMILPSolver.cpp)
+    milpsolver_backend(OSQPMILPSolver)
+    target_sources(${_bk} PRIVATE src/OSQPMILPSolver.cpp)
     # the static library of OSQP, if it has been built, otherwise its shared
     # one. OSQP exports its internal functions, some of which have the name
     # of functions of other libraries (e.g., csc_copy, also in HiGHS), and
     # on Linux the first library loaded gives the function to both; hence
     # the symbols of the static library are kept local to the binary, where
     # the linker can do that
-    target_link_libraries(${modName} PUBLIC ${OSQP_TARGET})
+    target_link_libraries(${_bk} PUBLIC ${OSQP_TARGET})
     if (OSQP_TARGET STREQUAL "osqp::osqpstatic")
         include(CheckLinkerFlag)
         check_linker_flag(CXX "LINKER:--exclude-libs,libosqpstatic.a"
                           MILPSolver_EXCLUDE_LIBS)
         if (MILPSolver_EXCLUDE_LIBS)
-            target_link_options(${modName} PUBLIC
+            target_link_options(${_bk} PUBLIC
                                 "LINKER:--exclude-libs,libosqpstatic.a")
         endif ()
     endif ()
@@ -442,28 +478,36 @@ endif ()
 
 if (MILPSolver_USE_qpmad)
     message(STATUS "MILPSolver: qpmad found, configuring QPMADMILPSolver")
-    target_sources(${modName} PRIVATE src/QPMADMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC qpmad::qpmad)
+    milpsolver_backend(QPMADMILPSolver)
+    target_sources(${_bk} PRIVATE src/QPMADMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC qpmad::qpmad)
 endif ()
 
 if (MILPSolver_USE_quadprog)
     message(STATUS
             "MILPSolver: quadprog found, configuring QuadProgMILPSolver")
-    target_sources(${modName} PRIVATE src/QuadProgMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC quadprog::quadprog)
+    milpsolver_backend(QuadProgMILPSolver)
+    target_sources(${_bk} PRIVATE src/QuadProgMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC quadprog::quadprog)
 endif ()
 
 if (MILPSolver_USE_HPIPM)
     message(STATUS "MILPSolver: HPIPM found, configuring HPIPMMILPSolver")
-    target_sources(${modName} PRIVATE src/HPIPMMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC HPIPM::HPIPM)
+    milpsolver_backend(HPIPMMILPSolver)
+    target_sources(${_bk} PRIVATE src/HPIPMMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC HPIPM::HPIPM)
 endif ()
 
 if (MILPSolver_USE_PERMON)
     message(STATUS "MILPSolver: PERMON found, configuring PERMONMILPSolver")
-    target_sources(${modName} PRIVATE src/PERMONMILPSolver.cpp)
-    target_link_libraries(${modName} PUBLIC PERMON::PERMON)
+    milpsolver_backend(PERMONMILPSolver)
+    target_sources(${_bk} PRIVATE src/PERMONMILPSolver.cpp)
+    target_link_libraries(${_bk} PUBLIC PERMON::PERMON)
 endif ()
+
+foreach (_plugin IN LISTS MILPSolver_PLUGINS)
+    smspp_plugin(${_plugin} EXPORT ${modName}Targets)
+endforeach ()
 
 # This alias is defined so that executables in this same project can use
 # the library with this notation.
@@ -515,10 +559,11 @@ if (SMSpp_BUILD_MODULE)
     target_link_libraries(${modName}_module PUBLIC $<LINK_ONLY:${modName}>
             ${modNamespace}::SMS++_module)
     # the interface takes the header and the names of a backend only if it
-    # is there [see the #if in src/MILPSolver.cppm]
+    # is there [see the #if in src/MILPSolver.cppm], and in the library: a
+    # plugin is reached by the factory, or by its header and its target
     foreach (backend CPLEX SCIP GUROBI HiGHS PIPS DAQP qpOASES Clarabel MOSEK
              ProxQP PIQP OSQP qpmad quadprog HPIPM PERMON)
-        if (MILPSolver_USE_${backend})
+        if (MILPSolver_USE_${backend} AND NOT BUILD_SHARED_LIBS)
             target_compile_definitions(${modName}_module PRIVATE
                     MILPSolver_MODULE_${backend})
         endif ()
