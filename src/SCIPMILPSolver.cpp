@@ -598,10 +598,12 @@ int SCIPMILPSolver::guts_of_compute( void )
    sol_status = kError + int( SCIPgetStatus( scip ) );
   }
 
- // an optimal LP can do without the transformed problem until the next
- // solve, which builds it again in any case; a quadratic Objective is the
- // constraint obj_aux_con, the arrays of the base being freed at load
- if( ( SCIPgetStatus( scip ) == SCIP_STATUS_OPTIMAL ) && ( int_vars == 0 ) &&
+ // with intFreeWorkspace, an optimal LP does without the transformed
+ // problem until the next solve, which builds it again in any case; a
+ // quadratic Objective is the constraint obj_aux_con, the arrays of the
+ // base being freed at load
+ if( free_ws && ( SCIPgetStatus( scip ) == SCIP_STATUS_OPTIMAL ) &&
+     ( int_vars == 0 ) &&
      ( numquadrows == 0 ) && ( ! obj_aux_con ) )
   free_workspace();
 

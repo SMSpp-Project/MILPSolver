@@ -35,6 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `GRBMILPSolver`, `CPXMILPSolver` and `SCIPMILPSolver` free the memory
+  that their back-end keeps after the solve of an LP only with
+  `intFreeWorkspace`, a new parameter of `MILPSolver`, 0 by default: the
+  copy of the problem that frees it has no presolved problem and no
+  factorization, and its next solve starts from the kept basis on the
+  original problem, which may take far more iterations than a re-solve of
+  the problem that the back-end has kept;
+  `test_free_workspace` reads `LPPar-ws.txt`, with those three again with
+  `intFreeWorkspace` 1
+
 - the makefiles give the shared library of the module by default, a DLL on
   Windows, as CMake does, and its objects with `SMSppSTATIC` [see
   `lib/makefile-shared` of SMS++]

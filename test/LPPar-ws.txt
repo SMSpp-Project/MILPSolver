@@ -1,0 +1,54 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - LPPar-ws.txt - - - - - - - - - - - - - - - -
+#
+# A txt description of a BlockSolverConfig attaching every :MILPSolver of
+# LPPar-all.txt to the LP of test_free_workspace.cpp, followed by those
+# that free the memory of their back-end after each solve of an LP, this
+# time with intFreeWorkspace
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+BlockSolverConfig     # exact type of the Configuration object
+
+1  # the BlockSolverConfig is a "differential" one: values are being set
+
+14  # number of (the names of) Solver in this BlockSolverConfig
+# now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
+CPXMILPSolver        # name of Solver, if it is in the build
+GRBMILPSolver        # name of Solver, if it is in the build
+MOSEKMILPSolver      # name of Solver, if it is in the build
+HiGHSMILPSolver      # name of Solver, if it is in the build
+SCIPMILPSolver       # name of Solver, if it is in the build
+DAQPMILPSolver       # name of Solver, if it is in the build
+QPOASESMILPSolver    # name of Solver, if it is in the build
+ClarabelMILPSolver   # name of Solver, if it is in the build
+ProxQPMILPSolver     # name of Solver, if it is in the build
+PIQPMILPSolver       # name of Solver, if it is in the build
+OSQPMILPSolver       # name of Solver, if it is in the build
+CPXMILPSolver        # name of Solver, if it is in the build
+GRBMILPSolver        # name of Solver, if it is in the build
+SCIPMILPSolver       # name of Solver, if it is in the build
+
+14  # number of ComputeConfig in this BlockSolverConfig
+
+# now all the ComputeConfig, one per Solver in the same order
+*LPCfg-all.txt       # CPXMILPSolver
+*LPCfg-all.txt       # GRBMILPSolver
+*LPCfg-all.txt       # MOSEKMILPSolver
+*LPCfg-all.txt       # HiGHSMILPSolver
+*LPCfg-all-SCIP.txt  # SCIPMILPSolver
+*LPCfg-all.txt       # DAQPMILPSolver
+*LPCfg-all.txt       # QPOASESMILPSolver
+*LPCfg-all.txt       # ClarabelMILPSolver
+*LPCfg-all.txt       # ProxQPMILPSolver
+*LPCfg-all.txt       # PIQPMILPSolver
+*LPCfg-all.txt       # OSQPMILPSolver
+*LPCfg-ws.txt        # CPXMILPSolver, memory freed
+*LPCfg-ws.txt        # GRBMILPSolver, memory freed
+*LPCfg-ws-SCIP.txt   # SCIPMILPSolver, memory freed
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - END LPPar-ws.txt - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

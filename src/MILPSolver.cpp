@@ -4286,6 +4286,10 @@ void MILPSolver::set_par( idx_type par , int value )
   ipm_fallback = std::max( value , 0 );
   return;
   }
+ if( par == intFreeWorkspace ) {
+  free_ws = ( value != 0 );
+  return;
+  }
  if( par == intHomogeneousDirection )  // accepted, and of no effect
   return;
 
@@ -4405,6 +4409,9 @@ int MILPSolver::get_dflt_int_par( idx_type par ) const
  if( par == intIPMFallback )
   return( 0 );
 
+ if( par == intFreeWorkspace )
+  return( 0 );
+
  if( par == intHomogeneousDirection )
   return( 1 );
 
@@ -4483,6 +4490,9 @@ int MILPSolver::get_int_par( idx_type par ) const
 
  if( par == intIPMFallback )
   return( ipm_fallback );
+
+ if( par == intFreeWorkspace )
+  return( free_ws );
 
  if( par == intHomogeneousDirection )
   return( 1 );
@@ -4565,6 +4575,9 @@ Solver::idx_type MILPSolver::int_par_str2idx( const std::string & name ) const
  if( name == "intIPMFallback" )
   return( intIPMFallback );
 
+ if( name == "intFreeWorkspace" )
+  return( intFreeWorkspace );
+
  return( CDASolver::int_par_str2idx( name ) );
  }
 
@@ -4581,7 +4594,8 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
   "intCutSepPar" ,
   "intMaxCutPasses" ,
   "intHomogeneousDirection" ,
-  "intIPMFallback" };
+  "intIPMFallback" ,
+  "intFreeWorkspace" };
  if( idx == intThrowReducedCostException )
   return( pars[ 0 ] );
 
@@ -4608,6 +4622,9 @@ const std::string & MILPSolver::int_par_idx2str( idx_type idx ) const
 
  if( idx == intIPMFallback )
   return( pars[ 8 ] );
+
+ if( idx == intFreeWorkspace )
+  return( pars[ 9 ] );
 
  return( CDASolver::int_par_idx2str( idx ) );
  }

@@ -79,9 +79,9 @@ Three testers for the `MILPSolver` module, each registered as a separate
   a cutoff after a first one has to give either, and not throw.
 
 - `test_free_workspace` verifies that every `:MILPSolver` of
-  `LPPar-all.txt` that the build has, each of which may free after a solve
-  the memory that its back-end keeps and the next solve does not need,
-  gives the same status, value, primal values and duals as the others,
+  `LPPar-ws.txt` that the build has, those that may free after a solve the
+  memory that their back-end keeps and the next solve does not need being
+  there twice, without and with `intFreeWorkspace`, gives the same status, value, primal values and duals as the others,
   across warm re-solves after changes of sides, bounds and costs, an
   infeasible solve and a solve with no change.
 

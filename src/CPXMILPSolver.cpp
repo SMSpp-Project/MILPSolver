@@ -672,10 +672,11 @@ int CPXMILPSolver::guts_of_compute( void )
  else
   sol_status = decode_lqp_status( stat );
 
- // an LP optimal or stopped by the cutoff, whose solution is all in x, pi
- // and dj, can do without the memory CPLEX keeps after a solve until the
- // next one
- if( ( ( stat == CPX_STAT_OPTIMAL ) || ( sol_status == kCutOff ) ) &&
+ // with intFreeWorkspace, an LP optimal or stopped by the cutoff, whose
+ // solution is all in x, pi and dj, does without the memory CPLEX keeps
+ // after a solve until the next one
+ if( free_ws &&
+     ( ( stat == CPX_STAT_OPTIMAL ) || ( sol_status == kCutOff ) ) &&
      ( CPXgetprobtype( env , lp ) == CPXPROB_LP ) )
   free_workspace();
 

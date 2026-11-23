@@ -1469,10 +1469,11 @@ int GRBMILPSolver::guts_of_compute( void )
  if( ( sol_status == kInfeasible ) || ( sol_status == kUnbounded ) )
   compute_certificate( m_status );
 
- // an LP optimal or stopped by the cutoff, whose solution is all in X, Pi
- // and RC, can do without the workspace of GUROBI until the next solve [see
- // free_workspace()]
- if( ( ( m_status == GRB_OPTIMAL ) || ( m_status == GRB_CUTOFF ) ) &&
+ // with intFreeWorkspace, an LP optimal or stopped by the cutoff, whose
+ // solution is all in X, Pi and RC, does without the workspace of GUROBI
+ // until the next solve [see free_workspace()]
+ if( free_ws &&
+     ( ( m_status == GRB_OPTIMAL ) || ( m_status == GRB_CUTOFF ) ) &&
      ( ! is_qp ) && ( numquadrows == 0 ) )
   free_workspace();
 

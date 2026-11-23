@@ -286,6 +286,20 @@ class MILPSolver : public CDASolver
    * and MOSEKMILPSolver only if its optimizer is a simplex one), the others
    * ignore it. The default is 0, i.e., never. */
   intIPMFallback ,
+  /// whether the memory of the back-end is freed after each solve of an LP
+  /**< If nonzero, after each solve of an LP that ends optimal (or stopped by
+   * the cutoff) the Solver keeps the solution, the duals and the basis, and
+   * frees the memory that the back-end keeps after a solve: GRBMILPSolver
+   * and CPXMILPSolver replace the problem by a copy of itself and give it
+   * the kept basis before the next solve, SCIPMILPSolver frees its
+   * transformed problem. This lowers the memory of many subproblems that
+   * are kept at once, as in a decomposition, by several times; but the next
+   * solve no longer has the presolved problem and the factorization of the
+   * previous one, and starts from the basis on the original problem (with
+   * GUROBI, unless its parameter LPWarmStart is 2), which may take far more
+   * iterations. The other Solvers ignore it. The default is 0, i.e., the
+   * back-end keeps all it has. */
+  intFreeWorkspace ,
   intLastAlgParMILP  ///< 1st allowed new int parameter for derived classes
   };
 
@@ -1703,6 +1717,9 @@ class MILPSolver : public CDASolver
 
  /// simplex iterations before the interior point method (see intIPMFallback)
  int ipm_fallback = 0;
+
+ /// whether the memory of the back-end is freed (see intFreeWorkspace)
+ bool free_ws = false;
 
  /// objective coefficient removal tolerance (see dblObjRemovalTol)
  double obj_removal_tol = 1e-12;

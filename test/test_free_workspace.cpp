@@ -2,10 +2,11 @@
 /*---------------------- File test_free_workspace.cpp ----------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
- * Checks that every :MILPSolver of LPPar-all.txt that the build has gives
- * the same solution as the others across warm re-solves, after each of
- * which a Solver may free the memory that its back-end keeps and that the
- * next solve does not need (the workspace of GUROBI, for instance). The LP
+ * Checks that every :MILPSolver of LPPar-ws.txt that the build has gives
+ * the same solution as the others across warm re-solves, those that free
+ * the memory that their back-end keeps and that the next solve does not
+ * need (the workspace of GUROBI, for instance) being there twice, without
+ * and with intFreeWorkspace. The LP
  * is a dispatch over 4 instants with demand d_t:
  *
  *     min   sum_t ( c g_t + 1000 y_t )
@@ -175,7 +176,7 @@ static bool same( const std::vector< double > & a ,
 
 int main( void )
 {
- const std::string fn = "LPPar-all.txt";
+ const std::string fn = "LPPar-ws.txt";
  auto bsc = dynamic_cast< BlockSolverConfig * >(
                                           Configuration::deserialize( fn ) );
  Block::Index there = 0;
