@@ -9,12 +9,12 @@
  * HiGHS<HiGHS_VERSION>_maps.h in the specified path.
  * The path should be the include directory of the MILPSolver source tree.
  *
- * \author Niccolo' Iardella \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
- *
  * \author Enrico Calandrini \n
  *         Dipartimento di Matematica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Niccolo' Iardella \n
+ *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
  * Copyright &copy; Niccolo' Iardella

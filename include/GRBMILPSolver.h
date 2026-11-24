@@ -8,11 +8,11 @@
  * MI-QCQP problem expressed by a Block using Gurobi Optimizer. Only supports
  * Gurobi versions >= 10.0.1.
  *
- * \author Antonio Frangioni \n
+ * \author Enrico Calandrini \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Enrico Calandrini \n
+ * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
@@ -20,7 +20,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Enrico Calandrini, Donato Meoli
+ * \copyright &copy; Enrico Calandrini, Antonio Frangioni, Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
