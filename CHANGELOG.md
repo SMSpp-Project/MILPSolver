@@ -120,6 +120,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` starts the new environment of a model whose session the
+  license service keeps refusing, and solves the model there once more,
+  only within the time limit the model has left: the start alone could
+  overrun it by over a minute, another `GRBMILPSolver` waiting meanwhile for
+  the lock of the environments
+
 - `HiGHSMILPSolver` solves an LP found unbounded once more from scratch,
   without the presolve: on a badly scaled LP the dual simplex of HiGHS can
   stop at a basis that is not dual feasible, starting from the basis of the

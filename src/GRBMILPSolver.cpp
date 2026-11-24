@@ -184,8 +184,9 @@ std::mutex GRBMILPSolver::f_env_mutex;
 
 /*--------------------------------------------------------------------------*/
 
-GRBenv * GRBMILPSolver::start_env( int & status )
+GRBenv * GRBMILPSolver::start_env( int & status , double limit )
 {
+ const auto start = std::chrono::steady_clock::now();
  GRBenv * e = nullptr;
  if( ( status = GRBemptyenv( & e ) ) )
   return( nullptr );
@@ -199,15 +200,20 @@ GRBenv * GRBMILPSolver::start_env( int & status )
  // the request for reasons that have nothing to do with this process (the
  // network, or too many sessions of the same license at the same moment);
  // since a refusal here kills a computation that may have been running for
- // hours, the request is repeated a few times before giving up
+ // hours, the request is repeated a few times before giving up, but never
+ // beyond the given limit
  for( unsigned int trial = 0 ; ( status = GRBstartenv( e ) ) ; ) {
-  if( ( ++trial >= GRBenvTrials ) || ( ! is_license_refusal( status ) ) ) {
+  const std::chrono::seconds wait(
+                     std::min( 1u << std::min( trial , 5u ) , 30u ) );
+  const std::chrono::duration< double > elapsed =
+   std::chrono::steady_clock::now() - start;
+  if( ( ++trial >= GRBenvTrials ) || ( ! is_license_refusal( status ) ) ||
+      ( ( elapsed + wait ).count() > limit ) ) {
    GRBfreeenv( e );
    return( nullptr );
    }
 
-  std::this_thread::sleep_for( std::chrono::seconds(
-                                 std::min( 1u << ( trial - 1 ) , 30u ) ) );
+  std::this_thread::sleep_for( wait );
   }
 
  GRBsetintparam( e , GRB_INT_PAR_OUTPUTFLAG , 1 );
@@ -232,7 +238,7 @@ void GRBMILPSolver::release_env( GRBenv * e )
 
 /*--------------------------------------------------------------------------*/
 
-bool GRBMILPSolver::move_to_new_env( void )
+bool GRBMILPSolver::move_to_new_env( double limit )
 {
  if( ! model )
   return( false );
@@ -243,7 +249,7 @@ bool GRBMILPSolver::move_to_new_env( void )
  // this one got its own
  if( ( env == f_shared_env ) || ( ! f_shared_env ) ) {
   int status = 0;
-  auto fresh = start_env( status );
+  auto fresh = start_env( status , limit );
   if( ! fresh ) {
    std::cerr << "GRBMILPSolver::move_to_new_env: warning: starting a new "
                 "environment returned with status " << status << std::endl;
@@ -322,13 +328,37 @@ bool GRBMILPSolver::move_to_new_env( void )
 
 int GRBMILPSolver::optimize_model( long & iter )
 {
- int status = optimize( updated_model() , iter );
- if( is_license_refusal( status ) && move_to_new_env() ) {
-  std::cerr << "GRBMILPSolver::compute: warning: the license service "
-               "kept refusing the session [GUROBI error " << status
-            << "], the model has been moved to a new one" << std::endl;
-  status = optimize( model , iter );
-  }
+ double limit = GRB_INFINITY;
+ GRBgetdblparam( GRBgetenv( updated_model() ) , GRB_DBL_PAR_TIMELIMIT ,
+                 & limit );
+ const auto start = std::chrono::steady_clock::now();
+ int status = optimize( model , iter );
+ if( ! is_license_refusal( status ) )
+  return( status );
+
+ // the time the first solve has left, within which the new environment is
+ // started and the model optimized once more (under a TimeLimit lowered to
+ // it, the one of the model being restored after)
+ const std::chrono::duration< double > elapsed =
+  std::chrono::steady_clock::now() - start;
+ const double left = limit - elapsed.count();
+ if( ( left <= 0 ) || ( ! move_to_new_env( left ) ) )
+  return( status );
+
+ std::cerr << "GRBMILPSolver::compute: warning: the license service "
+              "kept refusing the session [GUROBI error " << status
+           << "], the model has been moved to a new one" << std::endl;
+ const std::chrono::duration< double > moved =
+  std::chrono::steady_clock::now() - start;
+ const double rest = limit - moved.count();
+ if( rest <= 0 )
+  return( status );
+ const bool lowered = rest < limit;
+ if( lowered )
+  GRBsetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_TIMELIMIT , rest );
+ status = optimize( model , iter );
+ if( lowered )
+  GRBsetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_TIMELIMIT , limit );
 
  return( status );
 
