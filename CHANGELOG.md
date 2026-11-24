@@ -120,6 +120,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `HiGHSMILPSolver` solves an LP found unbounded once more from scratch,
+  without the presolve: on a badly scaled LP the dual simplex of HiGHS can
+  stop at a basis that is not dual feasible, starting from the basis of the
+  previous solve or from the presolved LP, and call the LP unbounded, as on
+  the master problem of a Benders decomposition
+
 - `ProxQPMILPSolver` builds with MSVC, compiled by `/Zc:preprocessor`, the
   standard preprocessor that the macros of the headers of ProxQP need.
 
