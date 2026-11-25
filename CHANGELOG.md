@@ -127,6 +127,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `GRBMILPSolver` solves a continuous QP that stops on numerical troubles
+  once more with the objective scaled by its largest quadratic coefficient
+  (`ObjScale`), as the dual master problem of a bundle method with a large
+  t, on which GUROBI stops also from scratch and with `NumericFocus` 3
+
 - `GRBMILPSolver` starts the new environment of a model whose session the
   license service keeps refusing, and solves the model there once more,
   only within the time limit the model has left: the start alone could

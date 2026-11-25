@@ -1436,6 +1436,40 @@ int GRBMILPSolver::guts_of_compute( void )
    m_status = first;
   }
 
+ // a continuous QP whose quadratic coefficients are far larger than its
+ // linear ones, e.g., the dual master problem of a bundle method with a
+ // large t, may stop on numerical troubles also from scratch, while the
+ // same QP with the objective divided by its largest quadratic coefficient
+ // is solved: one more try with that ObjScale, which the automatic scaling
+ // by the largest linear coefficient (a negative ObjScale) cannot replace,
+ // since on such a QP it fails or gives a wrong optimum
+ if( ( m_status == GRB_NUMERIC ) && ( ! is_mip ) ) {
+  int nqz = 0;
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMQNZS , & nqz );
+  double qmax = 0;
+  if( nqz > 0 ) {
+   std::vector< int > qr( nqz ) , qc( nqz );
+   std::vector< double > qv( nqz );
+   if( ! GRBgetq( updated_model() , & nqz , qr.data() , qc.data() ,
+                  qv.data() ) )
+    for( int i = 0 ; i < nqz ; ++i )
+     qmax = std::max( qmax , std::abs( qv[ i ] ) );
+   }
+  double saved = 0;
+  GRBgetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_OBJSCALE , & saved );
+  if( ( qmax > 1 ) && ( saved == 0 ) ) {
+   GRBsetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_OBJSCALE , qmax );
+   GRBreset( model , 0 );
+   const int status = optimize_model( elapsed_iter );
+   GRBsetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_OBJSCALE , saved );
+   if( status ) {
+    sol_status = decode_grb_error( status );
+    return( sol_status );
+    }
+   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+   }
+  }
+
  // the presolve of a QCP turns its quadratic rows into second-order cones,
  // and the barrier may stop on numerical troubles on the cones that it
  // does not meet on the rows, e.g., on the SOCP of the AC network of a
