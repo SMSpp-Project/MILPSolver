@@ -4415,6 +4415,13 @@ bool GRBMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
 bool GRBMILPSolver::change_coefficients(
                           const std::vector< const FunctionMod * > & mods )
 {
+ // a group of one Modification goes the one-by-one path, which does the
+ // same and pays nothing for the group: in a Lagrangian dual most groups
+ // are of one Modification, and a Solver evaluating it very often would
+ // pay that at every evaluation
+ if( mods.size() < 2 )
+  return( false );
+
  // nothing is written until the whole group has been read, so that a group
  // that turns out not to be a plain change of coefficients can still be
  // handed back to the one-by-one path
@@ -4541,32 +4548,28 @@ bool GRBMILPSolver::change_coefficients(
   // the old value of a column is read once for the whole group, and the
   // deltas of a column the group touches more than once are summed: the
   // result is the one the Modification give one at a time, where each of
-  // them reads back what the previous one has written
-  // the columns the group touches, each named once
-  std::vector< int > once;
-  once.reserve( ocols.size() );
-  for( auto col : ocols )
-   once.push_back( col );
-  std::sort( once.begin() , once.end() );
-  once.erase( std::unique( once.begin() , once.end() ) , once.end() );
-
-  std::vector< double > oldval;
-  get_obj_coefficients( once , oldval );
-
-  std::map< int , double > newval;
-  for( std::size_t i = 0 ; i < once.size() ; ++i )
-   newval[ once[ i ] ] = oldval[ i ];
-
-  for( Block::Index i = 0 ; i < ocols.size() ; ++i )
-   newval[ ocols[ i ] ] += odeltas[ i ];
+  // them reads back what the previous one has written; the deltas are
+  // sorted by column, those of a column in the order of the group, in one
+  // vector rather than in a node per column
+  std::vector< std::pair< int , double > > cd( ocols.size() );
+  for( std::size_t i = 0 ; i < ocols.size() ; ++i )
+   cd[ i ] = { ocols[ i ] , odeltas[ i ] };
+  std::stable_sort( cd.begin() , cd.end() ,
+                    []( const auto & a , const auto & b ) {
+                     return( a.first < b.first ); } );
 
   std::vector< int > oidx;
+  oidx.reserve( cd.size() );
+  for( const auto & el : cd )
+   if( oidx.empty() || ( oidx.back() != el.first ) )
+    oidx.push_back( el.first );
+
   std::vector< double > oval;
-  oidx.reserve( newval.size() );
-  oval.reserve( newval.size() );
-  for( const auto & el : newval ) {
-   oidx.push_back( el.first );
-   oval.push_back( el.second );
+  get_obj_coefficients( oidx , oval );
+  for( std::size_t i = 0 , k = 0 ; i < cd.size() ; ++i ) {
+   if( cd[ i ].first != oidx[ k ] )
+    ++k;
+   oval[ k ] += cd[ i ].second;
    }
 
   set_obj_coefficients( int( oidx.size() ) , oidx.data() , oval.data() );

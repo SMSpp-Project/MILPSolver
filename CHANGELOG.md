@@ -35,6 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `GRBMILPSolver::change_coefficients()` hands a group of one
+  `Modification` to the one-by-one path, which does the same with nothing
+  to pay for the group, and sums the deltas of the Objective of a larger
+  group in a sorted vector rather than in a `std::map`: a Solver that
+  evaluates a Lagrangian dual very often, as a subgradient method, paid
+  that at every evaluation
+
 - `GRBMILPSolver`, `CPXMILPSolver` and `SCIPMILPSolver` free the memory
   that their back-end keeps after the solve of an LP only with
   `intFreeWorkspace`, a new parameter of `MILPSolver`, 0 by default: the
