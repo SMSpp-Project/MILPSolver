@@ -715,6 +715,27 @@ int HiGHSMILPSolver::guts_of_compute( void )
   m_status = Highs_getModelStatus( highs );
   }
 
+ // an LP found unbounded is solved again from scratch, without the
+ // presolve: on a badly scaled LP the dual simplex of HiGHS (1.16.0 at
+ // least) can stop at a basis that is not dual feasible, starting from the
+ // basis of the previous solve or from the presolved LP, and call the LP
+ // unbounded, which the solve from scratch of the LP as it is either
+ // confirms or corrects
+ if( ( m_status == kHighsModelStatusUnbounded ) && ( int_vars == 0 ) &&
+     ( q_hessian_nnz == 0 ) ) {
+  std::array< char , kHighsMaximumStringLength > presolve = {};
+  Highs_getStringOptionValue( highs , "presolve" , presolve.data() );
+  Highs_setStringOptionValue( highs , "presolve" , "off" );
+  Highs_clearSolver( highs );
+
+  if( run_highs() == -1 )
+   std::cerr << "WARNING: An unmanaged error occurred during the execution "
+                "of HiGHS_run from scratch" << std::endl;
+
+  Highs_setStringOptionValue( highs , "presolve" , presolve.data() );
+  m_status = Highs_getModelStatus( highs );
+  }
+
  // a QP the active set has not solved, nor found infeasible or unbounded,
  // is solved again from scratch, which gets it out of a stall, and then,
  // if still not solved, with the larger regularizations of the Hessian

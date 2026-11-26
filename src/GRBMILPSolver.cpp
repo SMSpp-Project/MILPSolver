@@ -184,8 +184,9 @@ std::mutex GRBMILPSolver::f_env_mutex;
 
 /*--------------------------------------------------------------------------*/
 
-GRBenv * GRBMILPSolver::start_env( int & status )
+GRBenv * GRBMILPSolver::start_env( int & status , double limit )
 {
+ const auto start = std::chrono::steady_clock::now();
  GRBenv * e = nullptr;
  if( ( status = GRBemptyenv( & e ) ) )
   return( nullptr );
@@ -199,15 +200,20 @@ GRBenv * GRBMILPSolver::start_env( int & status )
  // the request for reasons that have nothing to do with this process (the
  // network, or too many sessions of the same license at the same moment);
  // since a refusal here kills a computation that may have been running for
- // hours, the request is repeated a few times before giving up
+ // hours, the request is repeated a few times before giving up, but never
+ // beyond the given limit
  for( unsigned int trial = 0 ; ( status = GRBstartenv( e ) ) ; ) {
-  if( ( ++trial >= GRBenvTrials ) || ( ! is_license_refusal( status ) ) ) {
+  const std::chrono::seconds wait(
+                     std::min( 1u << std::min( trial , 5u ) , 30u ) );
+  const std::chrono::duration< double > elapsed =
+   std::chrono::steady_clock::now() - start;
+  if( ( ++trial >= GRBenvTrials ) || ( ! is_license_refusal( status ) ) ||
+      ( ( elapsed + wait ).count() > limit ) ) {
    GRBfreeenv( e );
    return( nullptr );
    }
 
-  std::this_thread::sleep_for( std::chrono::seconds(
-                                 std::min( 1u << ( trial - 1 ) , 30u ) ) );
+  std::this_thread::sleep_for( wait );
   }
 
  GRBsetintparam( e , GRB_INT_PAR_OUTPUTFLAG , 1 );
@@ -232,7 +238,7 @@ void GRBMILPSolver::release_env( GRBenv * e )
 
 /*--------------------------------------------------------------------------*/
 
-bool GRBMILPSolver::move_to_new_env( void )
+bool GRBMILPSolver::move_to_new_env( double limit )
 {
  if( ! model )
   return( false );
@@ -243,7 +249,7 @@ bool GRBMILPSolver::move_to_new_env( void )
  // this one got its own
  if( ( env == f_shared_env ) || ( ! f_shared_env ) ) {
   int status = 0;
-  auto fresh = start_env( status );
+  auto fresh = start_env( status , limit );
   if( ! fresh ) {
    std::cerr << "GRBMILPSolver::move_to_new_env: warning: starting a new "
                 "environment returned with status " << status << std::endl;
@@ -322,13 +328,37 @@ bool GRBMILPSolver::move_to_new_env( void )
 
 int GRBMILPSolver::optimize_model( long & iter )
 {
- int status = optimize( updated_model() , iter );
- if( is_license_refusal( status ) && move_to_new_env() ) {
-  std::cerr << "GRBMILPSolver::compute: warning: the license service "
-               "kept refusing the session [GUROBI error " << status
-            << "], the model has been moved to a new one" << std::endl;
-  status = optimize( model , iter );
-  }
+ double limit = GRB_INFINITY;
+ GRBgetdblparam( GRBgetenv( updated_model() ) , GRB_DBL_PAR_TIMELIMIT ,
+                 & limit );
+ const auto start = std::chrono::steady_clock::now();
+ int status = optimize( model , iter );
+ if( ! is_license_refusal( status ) )
+  return( status );
+
+ // the time the first solve has left, within which the new environment is
+ // started and the model optimized once more (under a TimeLimit lowered to
+ // it, the one of the model being restored after)
+ const std::chrono::duration< double > elapsed =
+  std::chrono::steady_clock::now() - start;
+ const double left = limit - elapsed.count();
+ if( ( left <= 0 ) || ( ! move_to_new_env( left ) ) )
+  return( status );
+
+ std::cerr << "GRBMILPSolver::compute: warning: the license service "
+              "kept refusing the session [GUROBI error " << status
+           << "], the model has been moved to a new one" << std::endl;
+ const std::chrono::duration< double > moved =
+  std::chrono::steady_clock::now() - start;
+ const double rest = limit - moved.count();
+ if( rest <= 0 )
+  return( status );
+ const bool lowered = rest < limit;
+ if( lowered )
+  GRBsetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_TIMELIMIT , rest );
+ status = optimize( model , iter );
+ if( lowered )
+  GRBsetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_TIMELIMIT , limit );
 
  return( status );
 
@@ -1404,6 +1434,40 @@ int GRBMILPSolver::guts_of_compute( void )
   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
   if( ( first == GRB_INFEASIBLE ) && ( m_status != GRB_OPTIMAL ) )
    m_status = first;
+  }
+
+ // a continuous QP whose quadratic coefficients are far larger than its
+ // linear ones, e.g., the dual master problem of a bundle method with a
+ // large t, may stop on numerical troubles also from scratch, while the
+ // same QP with the objective divided by its largest quadratic coefficient
+ // is solved: one more try with that ObjScale, which the automatic scaling
+ // by the largest linear coefficient (a negative ObjScale) cannot replace,
+ // since on such a QP it fails or gives a wrong optimum
+ if( ( m_status == GRB_NUMERIC ) && ( ! is_mip ) ) {
+  int nqz = 0;
+  GRBgetintattr( updated_model() , GRB_INT_ATTR_NUMQNZS , & nqz );
+  double qmax = 0;
+  if( nqz > 0 ) {
+   std::vector< int > qr( nqz ) , qc( nqz );
+   std::vector< double > qv( nqz );
+   if( ! GRBgetq( updated_model() , & nqz , qr.data() , qc.data() ,
+                  qv.data() ) )
+    for( int i = 0 ; i < nqz ; ++i )
+     qmax = std::max( qmax , std::abs( qv[ i ] ) );
+   }
+  double saved = 0;
+  GRBgetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_OBJSCALE , & saved );
+  if( ( qmax > 1 ) && ( saved == 0 ) ) {
+   GRBsetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_OBJSCALE , qmax );
+   GRBreset( model , 0 );
+   const int status = optimize_model( elapsed_iter );
+   GRBsetdblparam( GRBgetenv( model ) , GRB_DBL_PAR_OBJSCALE , saved );
+   if( status ) {
+    sol_status = decode_grb_error( status );
+    return( sol_status );
+    }
+   sol_int_attr( GRB_INT_ATTR_STATUS , & m_status );
+   }
   }
 
  // the presolve of a QCP turns its quadratic rows into second-order cones,
@@ -4385,6 +4449,13 @@ bool GRBMILPSolver::remove_columns( const std::vector< Variable * > & vars ,
 bool GRBMILPSolver::change_coefficients(
                           const std::vector< const FunctionMod * > & mods )
 {
+ // a group of one Modification goes the one-by-one path, which does the
+ // same and pays nothing for the group: in a Lagrangian dual most groups
+ // are of one Modification, and a Solver evaluating it very often would
+ // pay that at every evaluation
+ if( mods.size() < 2 )
+  return( false );
+
  // nothing is written until the whole group has been read, so that a group
  // that turns out not to be a plain change of coefficients can still be
  // handed back to the one-by-one path
@@ -4511,32 +4582,28 @@ bool GRBMILPSolver::change_coefficients(
   // the old value of a column is read once for the whole group, and the
   // deltas of a column the group touches more than once are summed: the
   // result is the one the Modification give one at a time, where each of
-  // them reads back what the previous one has written
-  // the columns the group touches, each named once
-  std::vector< int > once;
-  once.reserve( ocols.size() );
-  for( auto col : ocols )
-   once.push_back( col );
-  std::sort( once.begin() , once.end() );
-  once.erase( std::unique( once.begin() , once.end() ) , once.end() );
-
-  std::vector< double > oldval;
-  get_obj_coefficients( once , oldval );
-
-  std::map< int , double > newval;
-  for( std::size_t i = 0 ; i < once.size() ; ++i )
-   newval[ once[ i ] ] = oldval[ i ];
-
-  for( Block::Index i = 0 ; i < ocols.size() ; ++i )
-   newval[ ocols[ i ] ] += odeltas[ i ];
+  // them reads back what the previous one has written; the deltas are
+  // sorted by column, those of a column in the order of the group, in one
+  // vector rather than in a node per column
+  std::vector< std::pair< int , double > > cd( ocols.size() );
+  for( std::size_t i = 0 ; i < ocols.size() ; ++i )
+   cd[ i ] = { ocols[ i ] , odeltas[ i ] };
+  std::stable_sort( cd.begin() , cd.end() ,
+                    []( const auto & a , const auto & b ) {
+                     return( a.first < b.first ); } );
 
   std::vector< int > oidx;
+  oidx.reserve( cd.size() );
+  for( const auto & el : cd )
+   if( oidx.empty() || ( oidx.back() != el.first ) )
+    oidx.push_back( el.first );
+
   std::vector< double > oval;
-  oidx.reserve( newval.size() );
-  oval.reserve( newval.size() );
-  for( const auto & el : newval ) {
-   oidx.push_back( el.first );
-   oval.push_back( el.second );
+  get_obj_coefficients( oidx , oval );
+  for( std::size_t i = 0 , k = 0 ; i < cd.size() ; ++i ) {
+   if( cd[ i ].first != oidx[ k ] )
+    ++k;
+   oval[ k ] += cd[ i ].second;
    }
 
   set_obj_coefficients( int( oidx.size() ) , oidx.data() , oval.data() );

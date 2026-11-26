@@ -7,11 +7,11 @@
  * that the convention established by RowConstraint regarding dual solutions
  * is respected by the Solver.
  *
- * \author Rafael Durbano Lobato \n
+ * \author Enrico Calandrini \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  * 
- * \author Enrico Calandrini \n
+ * \author Rafael Durbano Lobato \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *

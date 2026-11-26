@@ -8,11 +8,11 @@
  * MI-QCQP problem expressed by a Block using Gurobi Optimizer. Only supports
  * Gurobi versions >= 10.0.1.
  *
- * \author Antonio Frangioni \n
+ * \author Enrico Calandrini \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Enrico Calandrini \n
+ * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
@@ -20,7 +20,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; Antonio Frangioni, Enrico Calandrini, Donato Meoli
+ * \copyright &copy; Enrico Calandrini, Antonio Frangioni, Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -855,8 +855,10 @@ void add_mip_starts(
   * session of the environment is taken to be lost (a session can be
   * refused for good, e.g., with status 10032, while a new one is granted at
   * once), and the model is moved to a new environment [see
-  * move_to_new_env()] and optimized once more. The simplex and barrier
-  * iterations are added to iter; returns the GUROBI error code. */
+  * move_to_new_env()] and optimized once more, the start of the new
+  * environment and the new solve taking together no more than the time
+  * limit of the model has left. The simplex and barrier iterations are
+  * added to iter; returns the GUROBI error code. */
 
  int optimize_model( long & iter );
 
@@ -868,9 +870,10 @@ void add_mip_starts(
   * old model, which loses its solution and its basis; the old environment
   * goes when no model lives in it any more [see f_env_users]. Returns
   * false, and leaves the model where it was, if the new environment cannot
-  * be started or the model cannot be copied. */
+  * be started within limit seconds [see start_env()] or the model cannot be
+  * copied. */
 
- bool move_to_new_env( void );
+ bool move_to_new_env( double limit = GRB_INFINITY );
 
 /*--------------------------------------------------------------------------*/
  /// optimizes a continuous model, with the barrier after intIPMFallback
@@ -991,9 +994,10 @@ void add_mip_starts(
  static std::mutex f_env_mutex;
 
  /// a new environment, started with the patience of GRBenvTrials
- /** Returns nullptr, with the GUROBI error code in status, if it cannot be
-  * created or started. */
- static GRBenv * start_env( int & status );
+ /** The attempts stop when the next wait would end beyond limit seconds
+  * from the call. Returns nullptr, with the GUROBI error code in status, if
+  * it cannot be created or started. */
+ static GRBenv * start_env( int & status , double limit = GRB_INFINITY );
 
  /// one user less of the given environment, freed if it was the last one
  static void release_env( GRBenv * e );

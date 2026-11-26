@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that are there; with the static ones the backends are in the library, as
   before [see `smspp_plugin()` in `SMSppModule.cmake` of SMS++].
 
+- `GRBMILPSolver::change_coefficients()` hands a group of one
+  `Modification` to the one-by-one path, which does the same with nothing
+  to pay for the group, and sums the deltas of the Objective of a larger
+  group in a sorted vector rather than in a `std::map`: a Solver that
+  evaluates a Lagrangian dual very often, as a subgradient method, paid
+  that at every evaluation
+
 - `GRBMILPSolver`, `CPXMILPSolver` and `SCIPMILPSolver` free the memory
   that their back-end keeps after the solve of an LP only with
   `intFreeWorkspace`, a new parameter of `MILPSolver`, 0 by default: the
@@ -125,6 +132,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   being used
 
 ### Fixed
+
+- `GRBMILPSolver` solves a continuous QP that stops on numerical troubles
+  once more with the objective scaled by its largest quadratic coefficient
+  (`ObjScale`), as the dual master problem of a bundle method with a large
+  t, on which GUROBI stops also from scratch and with `NumericFocus` 3
+
+- `GRBMILPSolver` starts the new environment of a model whose session the
+  license service keeps refusing, and solves the model there once more,
+  only within the time limit the model has left: the start alone could
+  overrun it by over a minute, another `GRBMILPSolver` waiting meanwhile for
+  the lock of the environments
+
+- `HiGHSMILPSolver` solves an LP found unbounded once more from scratch,
+  without the presolve: on a badly scaled LP the dual simplex of HiGHS can
+  stop at a basis that is not dual feasible, starting from the basis of the
+  previous solve or from the presolved LP, and call the LP unbounded, as on
+  the master problem of a Benders decomposition
 
 - `ProxQPMILPSolver` builds with MSVC, compiled by `/Zc:preprocessor`, the
   standard preprocessor that the macros of the headers of ProxQP need.

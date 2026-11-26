@@ -21,8 +21,7 @@
  *         Universita' di Pisa \n
  *
  * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
- *                      Niccolo' Iardella,
- *                      Donato Meoli
+ *                      Niccolo' Iardella, Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/

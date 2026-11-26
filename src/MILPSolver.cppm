@@ -18,25 +18,11 @@
  * The headers *_defs.h, *_maps.h are not in this module: they need a library
  * of their own, or only a source includes them.
  *
- * \author Enrico Calandrini \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
- *
- * \author Antonio Frangioni \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
- *
- * \author Niccolo' Iardella \n
- *         Dipartimento di Informatica \n
- *         Universita' di Pisa \n
- *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \copyright &copy; by Enrico Calandrini, Antonio Frangioni,
- *                   Niccolo' Iardella,
- *                   Donato Meoli
+ * \copyright &copy; by Donato Meoli
  */
 /*--------------------------------------------------------------------------*/
 /*------------------------- GLOBAL MODULE FRAGMENT -------------------------*/
