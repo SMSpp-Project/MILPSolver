@@ -232,16 +232,13 @@ class MILPSolver : public CDASolver
    * on the attached Block. The specific bit-coded semantics (which
    * sub-events fire the separation, when in the search tree, ...) is
    * defined by the derived class; the base class only inspects whether
-   * the value is non-zero, which has two effects:
-   *
-   * - when non-zero, compute() holds the Block under a write lock() for
-   *   its full duration (since the cut callback may modify the Block);
-   *   when zero, compute() only acquires a read_lock() for the duration
-   *   of process_modifications() and then releases it.
-   *
-   * - when non-zero, the loop driven by intRelaxIntVars == 2 (see) is
-   *   executed (only if intRelaxIntVars == 2; otherwise the derived
-   *   class governs the callback installation as appropriate).
+   * the value is non-zero: if it is, compute() holds the Block under a
+   * write lock() for its full duration (since the cut callback may modify
+   * the Block), as it does with intRelaxIntVars == 2 or dblKKTTol > 0;
+   * otherwise compute() only acquires a read_lock() for the duration of
+   * process_modifications() and then releases it. The separation loop of
+   * intRelaxIntVars == 2 (see) does not depend on intCutSepPar: it is
+   * executed whenever intRelaxIntVars == 2, whatever this value is.
    *
    * The dynamic Constraint that the Block adds while the callback of the
    * derived class separates are given to the back-end as user cuts or
