@@ -178,8 +178,8 @@ void PIPSMILPSolver::load_problem( void )
 			     ) );
 
  if( int_vars > 0 )
-  throw( std::runtime_error( "PIPSMILPSolver::load_problem: only LP models "
-	  "can be solved, but integer variables are present; set "
+  throw( std::runtime_error( "PIPSMILPSolver::load_problem: only continuous "
+	  "models can be solved, but integer variables are present; set "
 	  "intRelaxIntVars to solve the continuous relaxation" ) );
 
  /* Each node of the PIPS tree stores the elements (Variable and Constraint)

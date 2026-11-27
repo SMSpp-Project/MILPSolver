@@ -59,13 +59,15 @@ Currently available derived classes are:
   [HiGHS](https://highs.dev)
 
 - `MOSEKMILPSolver`, providing the interface with the commercial
-  [MOSEK](https://www.mosek.com) (LP, MILP, convex QP and MIQP problems
-  with linear constraints)
+  [MOSEK](https://www.mosek.com) (LP, convex QP and convex QCQP problems,
+  i.e., with linear or convex quadratic constraints, and their
+  mixed-integer versions, no semi-continuous variables)
 
 - `PIPSMILPSolver`, providing the interface with the open-source parallel
   interior-point solver
-  [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp) (LP problems
-  only, Linux only; see also its
+  [PIPS-IPM++](https://gitlab.com/pips-ipmpp/pips-ipmpp) (LP and convex
+  QP problems with linear constraints, the Hessian separable by nested
+  Block, no integer variables, Linux only; see also its
   [website](https://pips-ipmpp.gitlab.io/index.html))
 
 - `DAQPMILPSolver`, providing the interface with the open-source dual

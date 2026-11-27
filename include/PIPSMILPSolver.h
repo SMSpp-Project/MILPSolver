@@ -3,8 +3,8 @@
 /*--------------------------------------------------------------------------*/
 /** @file
  * Header file for the PIPSMILPSolver class, implementing the MILPSolver
- * interface for LP problems using the PIPS-IPM++ parallel interior-point
- * solver.
+ * interface for LP and convex QP problems using the PIPS-IPM++ parallel
+ * interior-point solver.
  *
  * \author Enrico Calandrini \n
  *         Dipartimento di Informatica \n
@@ -192,11 +192,12 @@ class PIPSMILPSolver : public MILPSolver
 
 /*--------------------------------------------------------------------------*/
  /// loads the problem from the Block and builds the PIPS input tree
- /** Loads the LP problem from the Block into the standard MILPSolver
+ /** Loads the LP or QP problem from the Block into the standard MILPSolver
   * representation, then builds the PIPS DistributedInputTree out of it (see
-  * the general notes for the mapping). It throws if the model has a
-  * quadratic objective or quadratic constraints, if (non-relaxed) integer
-  * variables are present, or if the Block has no nested Block. */
+  * the general notes for the mapping). It throws if the model has quadratic
+  * constraints, or a term x_i x_j of the objective whose Variable are in
+  * different nodes, if (non-relaxed) integer variables are present, or if
+  * the Block has no nested Block. */
  void load_problem( void ) override;
 
  // note: the public compute() entry point is inherited from MILPSolver;
