@@ -503,6 +503,7 @@ void MILPSolver::load_problem( void )
  // scan the static variables - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+ f_use_row_coef = true;  // the long rows are read once [see f_row_coef]
  num_block = 0;
  for( auto qb : v_BFS ) {
   Index set = 0;   // counter for the variable groups
@@ -536,6 +537,8 @@ void MILPSolver::load_problem( void )
   }
 
  std::sort( dvar_to_idx.begin() , dvar_to_idx.end() );
+ f_use_row_coef = false;
+ f_row_coef.clear();
 
  if( numquadrows != 0 ) {
   // scan the static constraints - - - - - - - - - - - - - - - - - - - - - - -
@@ -1311,11 +1314,23 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
    auto * f = static_cast< const LinearFunction * >( con->get_function() );
    double coeff = 0;
    bool found = false;
-   for( const auto & pr : f->get_v_var() )
-    if( pr.first == & var ) {
-     coeff += pr.second * variable_weight( & var , con );
+   if( f_use_row_coef && ( f->get_v_var().size() > k_row_coef_min ) ) {
+    // the sums of a long row are made once, in the same order
+    auto [ rit , fresh ] = f_row_coef.try_emplace( f );
+    if( fresh )
+     for( const auto & pr : f->get_v_var() )
+      rit->second[ pr.first ] += pr.second * variable_weight( pr.first , con );
+    if( const auto cit = rit->second.find( &var ); cit != rit->second.end() ) {
+     coeff = cit->second;
      found = true;
      }
+    }
+   else
+    for( const auto & pr : f->get_v_var() )
+     if( pr.first == &var ) {
+      coeff += pr.second * variable_weight( &var , con );
+      found = true;
+      }
    if( ! found )
     // this should never happen since we loop on the active constraints
     throw( std::invalid_argument(

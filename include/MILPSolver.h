@@ -1605,6 +1605,22 @@ class MILPSolver : public CDASolver
  std::vector< std::pair< int , double > > f_scan_sorted;
  std::vector< OneVarConstraint * > f_scan_bounds;
 
+ /// the coefficient of each Variable in the long rows, while loading
+ /** While load_problem() scans the columns, f_row_coef[ f ] gives, for each
+  * Variable active in the LinearFunction f of a row longer than
+  * k_row_coef_min, the sum of its weighted coefficients in f, made once in
+  * the order of the row, so that scan_variable() finds it in O( 1 ) rather
+  * than walking the row for each of its Variable; it is empty, and not
+  * used, out of load_problem(). */
+ std::unordered_map< const LinearFunction * ,
+		     std::unordered_map< const Variable * , double > >
+   f_row_coef;
+
+ bool f_use_row_coef = false;  ///< whether f_row_coef is in use
+
+ static constexpr std::size_t k_row_coef_min = 32;
+ ///< the rows up to this length are walked for each Variable
+
  std::string prob_name;    ///< problem name
  std::string output_file;  ///< output file
 

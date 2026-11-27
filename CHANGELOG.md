@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- while loading, `scan_variable()` reads the coefficient of a `Variable` in
+  a long row from a table of the row made once, in the order of the row,
+  rather than walking the row for each of its `Variable`
+
 - with the shared libraries each backend is a plugin of its own, linked to
   the library and to its solver only, which a program loads when it asks the
   factory for it, so that a program built with no solver runs with those
