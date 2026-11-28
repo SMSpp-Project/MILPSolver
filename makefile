@@ -172,6 +172,9 @@ tools: $(PARSH)
 # the parameters out of the back-end it is compiled against, hence it is
 # rebuilt from scratch here: a leftover executable would happily write the
 # headers of the version that was installed when it was last built
+# [each one with OpenBLAS on one thread, see tools/CMakeLists.txt]
+
+$(PARSH): export OPENBLAS_NUM_THREADS = 1
 
 ifneq ($(CPXPARSD),)
 $(CPXPARSD):

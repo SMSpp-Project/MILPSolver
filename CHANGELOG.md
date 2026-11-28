@@ -133,6 +133,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the generators of the parameters (`cpx_pars`, `grb_pars`, `scip_pars`,
+  `highs_pars`, `mosek_pars`, `pips_pars`) run with OpenBLAS on one thread,
+  in the CMake and in the makefile build: a back-end linked to OpenBLAS, as
+  SCIP, started one thread per core when the generator was loaded, and under
+  a limit on the address space (`ulimit -v`) of a machine with many cores the
+  buffers of those threads did not fit and the build hung
+
 - `GRBMILPSolver` solves a continuous QP that stops on numerical troubles
   once more with the objective scaled by its largest quadratic coefficient
   (`ObjScale`), as the dual master problem of a bundle method with a large

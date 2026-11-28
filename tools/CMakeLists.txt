@@ -29,6 +29,12 @@ endif ()
 
 # ----- Parameter generators ------------------------------------------------ #
 
+# each generator runs with OpenBLAS on one thread, as the tests do: a
+# back-end linked to it starts one thread per core when it is loaded, and
+# under a limit on the address space [ulimit -v] of a machine with many
+# cores the buffers of those threads do not fit and the generator hangs
+set(_pars_env ${CMAKE_COMMAND} -E env OPENBLAS_NUM_THREADS=1)
+
 if (MILPSolver_USE_CPLEX)
     # Remove dots from CPLEX version
     remove_dots(${CPLEX_VERSION} CPLEX_VERSION_NO_DOTS ON)
@@ -43,7 +49,8 @@ if (MILPSolver_USE_CPLEX)
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
                         CC='${_native_cc}' \
                         CPLEX_ROOT='$$CPLEX_ROOT' cpx_pars"
-                COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/cpx_pars'"
+                COMMAND /bin/sh -c "OPENBLAS_NUM_THREADS=1 \
+                        '${CMAKE_CURRENT_SOURCE_DIR}/cpx_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native cpx_pars to generate necessary headers"
                 VERBATIM
@@ -55,7 +62,7 @@ if (MILPSolver_USE_CPLEX)
 
         add_custom_command(
                 OUTPUT ${CPLEX_DEFS_FILE} ${CPLEX_MAPS_FILE}
-                COMMAND "$<TARGET_FILE:cpx_pars>"
+                COMMAND ${_pars_env} "$<TARGET_FILE:cpx_pars>"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 DEPENDS cpx_pars
                 COMMENT "Running cpx_pars to generate necessary headers"
@@ -84,7 +91,8 @@ if (MILPSolver_USE_SCIP)
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
                         CC='${_native_cc}' \
                         SCIP_ROOT='$$SCIP_ROOT' scip_pars"
-                COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/scip_pars'"
+                COMMAND /bin/sh -c "OPENBLAS_NUM_THREADS=1 \
+                        '${CMAKE_CURRENT_SOURCE_DIR}/scip_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native scip_pars to generate necessary headers"
                 VERBATIM
@@ -96,7 +104,7 @@ if (MILPSolver_USE_SCIP)
 
         add_custom_command(
                 OUTPUT ${SCIP_DEFS_FILE} ${SCIP_MAPS_FILE}
-                COMMAND ${CMAKE_COMMAND} -E env
+                COMMAND ${CMAKE_COMMAND} -E env OPENBLAS_NUM_THREADS=1
                 DYLD_LIBRARY_PATH=$<TARGET_FILE_DIR:SCIP::SCIP>:$<TARGET_FILE_DIR:SMS++::SMS++>:$ENV{DYLD_LIBRARY_PATH}
                 "$<TARGET_FILE:scip_pars>"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -127,7 +135,8 @@ if (MILPSolver_USE_GUROBI)
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
                         CC='${_native_cc}' \
                         GUROBI_ROOT='$$GUROBI_ROOT' grb_pars"
-                COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/grb_pars'"
+                COMMAND /bin/sh -c "OPENBLAS_NUM_THREADS=1 \
+                        '${CMAKE_CURRENT_SOURCE_DIR}/grb_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native grb_pars to generate necessary headers"
                 VERBATIM
@@ -139,7 +148,7 @@ if (MILPSolver_USE_GUROBI)
 
         add_custom_command(
                 OUTPUT ${GUROBI_DEFS_FILE} ${GUROBI_MAPS_FILE}
-                COMMAND $<TARGET_FILE:grb_pars>
+                COMMAND ${_pars_env} $<TARGET_FILE:grb_pars>
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 DEPENDS grb_pars
                 COMMENT "Running grb_pars to generate necessary headers"
@@ -168,7 +177,8 @@ if (MILPSolver_USE_HiGHS)
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
                         CC='${_native_cc}' \
                         HiGHS_ROOT='$$BUILD_PREFIX' highs_pars"
-                COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/highs_pars'"
+                COMMAND /bin/sh -c "OPENBLAS_NUM_THREADS=1 \
+                        '${CMAKE_CURRENT_SOURCE_DIR}/highs_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native highs_pars to generate necessary headers"
                 VERBATIM
@@ -180,7 +190,7 @@ if (MILPSolver_USE_HiGHS)
 
         add_custom_command(
                 OUTPUT ${HiGHS_DEFS_FILE} ${HiGHS_MAPS_FILE}
-                COMMAND $<TARGET_FILE:highs_pars>
+                COMMAND ${_pars_env} $<TARGET_FILE:highs_pars>
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 DEPENDS highs_pars
                 COMMENT "Running highs_pars to generate necessary headers"
@@ -211,7 +221,8 @@ if (MILPSolver_USE_MOSEK)
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
                         CC='${_native_cc}' \
                         MOSEK_ROOT='$$MOSEK_ROOT' mosek_pars"
-                COMMAND /bin/sh -c "'${CMAKE_CURRENT_SOURCE_DIR}/mosek_pars'"
+                COMMAND /bin/sh -c "OPENBLAS_NUM_THREADS=1 \
+                        '${CMAKE_CURRENT_SOURCE_DIR}/mosek_pars'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 COMMENT "Running native mosek_pars to generate the headers"
                 VERBATIM
@@ -223,7 +234,7 @@ if (MILPSolver_USE_MOSEK)
 
         add_custom_command(
                 OUTPUT ${MOSEK_DEFS_FILE} ${MOSEK_MAPS_FILE}
-                COMMAND $<TARGET_FILE:mosek_pars>
+                COMMAND ${_pars_env} $<TARGET_FILE:mosek_pars>
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 DEPENDS mosek_pars
                 COMMENT "Running mosek_pars to generate necessary headers"
@@ -251,7 +262,8 @@ if (MILPSolver_USE_PIPS)
                         "'${CMAKE_MAKE_PROGRAM}' -C '${CMAKE_CURRENT_SOURCE_DIR}' \
                         CC='${_native_cc}' pips_pars"
                 COMMAND /bin/sh -c
-                        "'${CMAKE_CURRENT_SOURCE_DIR}/pips_pars' \
+                        "OPENBLAS_NUM_THREADS=1 \
+                        '${CMAKE_CURRENT_SOURCE_DIR}/pips_pars' \
                         -s '${PIPSIPMPP_ROOT}' '${MILPSolver_INCLUDE_DIR}'"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 DEPENDS ${PIPS_OPTIONS_SOURCE}
@@ -266,7 +278,7 @@ if (MILPSolver_USE_PIPS)
 
         add_custom_command(
                 OUTPUT ${PIPS_DEFS_FILE} ${PIPS_MAPS_FILE}
-                COMMAND "$<TARGET_FILE:pips_pars>"
+                COMMAND ${_pars_env} "$<TARGET_FILE:pips_pars>"
                         -s "${PIPSIPMPP_ROOT}" "${MILPSolver_INCLUDE_DIR}"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 DEPENDS pips_pars ${PIPS_OPTIONS_SOURCE}
