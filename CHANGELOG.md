@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- the table of the coefficients of the long rows that `scan_variable()`
+  reads while loading is a `FlatHashTable` of ADS
+
 - while loading, `scan_variable()` reads the coefficient of a `Variable` in
   a long row from a table of the row made once, in the order of the row,
   rather than walking the row for each of its `Variable`

@@ -1316,12 +1316,15 @@ void MILPSolver::scan_variable( const ColVariable & var , Index & col )
    bool found = false;
    if( f_use_row_coef && ( f->get_v_var().size() > k_row_coef_min ) ) {
     // the sums of a long row are made once, in the same order
-    auto [ rit , fresh ] = f_row_coef.try_emplace( f );
-    if( fresh )
+    auto [ row , fresh ] = f_row_coef.try_emplace( f );
+    if( fresh ) {
+     row->reserve( f->get_v_var().size() );
      for( const auto & pr : f->get_v_var() )
-      rit->second[ pr.first ] += pr.second * variable_weight( pr.first , con );
-    if( const auto cit = rit->second.find( &var ); cit != rit->second.end() ) {
-     coeff = cit->second;
+      *row->try_emplace( pr.first , 0.0 ).first +=
+       pr.second * variable_weight( pr.first , con );
+     }
+    if( const auto c = row->find( &var ) ) {
+     coeff = *c;
      found = true;
      }
     }
