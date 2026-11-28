@@ -63,6 +63,8 @@
 
 #include <QuadFunction.h>
 
+#include <boost/unordered/unordered_flat_map.hpp>
+
 #include <algorithm>
 
 #include <array>
@@ -1612,9 +1614,9 @@ class MILPSolver : public CDASolver
   * the order of the row, so that scan_variable() finds it in O( 1 ) rather
   * than walking the row for each of its Variable; it is empty, and not
   * used, out of load_problem(). */
- std::unordered_map< const LinearFunction * ,
-		     std::unordered_map< const Variable * , double > >
-   f_row_coef;
+ boost::unordered_flat_map<
+   const LinearFunction * ,
+   boost::unordered_flat_map< const Variable * , double > > f_row_coef;
 
  bool f_use_row_coef = false;  ///< whether f_row_coef is in use
 
